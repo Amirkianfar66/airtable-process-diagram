@@ -7,7 +7,7 @@ const fetchData = async () => {
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
   const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
 
-  const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=1000`;
+  const url = `https://api.airtable.com/v0/appCvlBfR1Ltxw9OC/tblz3tfrTrXVWZX0Y?pageSize=3`;
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`
