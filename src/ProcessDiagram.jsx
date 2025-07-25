@@ -3,17 +3,9 @@ import ReactFlow, { Background, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 const fetchData = async () => {
-  console.log('🔄 Starting fetchData...');
-
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
   const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-
-  console.log('📦 ENV values:', {
-    baseId,
-    token: token?.slice(0, 10) + '...',
-    table
-  });
 
   const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
@@ -25,12 +17,10 @@ const fetchData = async () => {
 
   if (!res.ok) {
     const errorText = await res.text();
-    console.error(`❌ Airtable API error: ${res.status} ${res.statusText}`, errorText);
-    throw new Error(`Airtable API error`);
+    throw new Error(`Airtable API error: ${errorText}`);
   }
 
   const data = await res.json();
-  console.log("✅ Fetched data from Airtable:", data);
   return data.records.map(rec => rec.fields);
 };
 
@@ -45,7 +35,6 @@ export default function ProcessDiagram() {
   useEffect(() => {
     fetchData()
       .then(items => {
-        console.log("🧩 Processing items:", items);
         const newNodes = [];
         const newEdges = [];
         let idCounter = 1;
@@ -59,27 +48,15 @@ export default function ProcessDiagram() {
           grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
         });
 
-        const computeBounds = (items) => {
-          const xs = items.map((_, i) => i * 180);
-          const ys = items.map(() => 0);
-          return {
-            x: Math.min(...xs) - 40,
-            y: Math.min(...ys) - 40,
-            width: (items.length - 1) * 180 + 160,
-            height: 120
-          };
-        };
-
         let x = 0;
         Object.entries(grouped).forEach(([unit, subUnits]) => {
           let y = 0;
-          const allSubNodes = [];
+          const subBoxes = [];
 
           Object.entries(subUnits).forEach(([sub, items]) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
+            const itemNodes = [];
             let previousNodeId = null;
-
-            const subNodeIds = [];
 
             items.forEach((item, i) => {
               const id = String(idCounter++);
@@ -93,10 +70,10 @@ export default function ProcessDiagram() {
                   label: `${item.Code || ''} - ${item.Name || ''}`,
                   icon: categoryIcons[item.Category] || null
                 },
-                type: 'default'
+                type: 'default',
+                parentNode: `subbox-${unit}-${sub}`,
+                extent: 'parent'
               });
-
-              subNodeIds.push({ x: nodeX, y: nodeY });
 
               if (previousNodeId) {
                 newEdges.push({
@@ -107,56 +84,56 @@ export default function ProcessDiagram() {
                 });
               }
               previousNodeId = id;
+              itemNodes.push({ x: nodeX, y: nodeY });
             });
 
-            const bounds = computeBounds(items);
+            const minX = Math.min(...itemNodes.map(n => n.x)) - 20;
+            const minY = Math.min(...itemNodes.map(n => n.y)) - 40;
+            const maxX = Math.max(...itemNodes.map(n => n.x)) + 140;
+            const maxY = Math.max(...itemNodes.map(n => n.y)) + 80;
+
             newNodes.push({
               id: `subbox-${unit}-${sub}`,
-              position: { x: x - 60, y: y - 60 },
+              position: { x: minX, y: minY },
               data: { label: sub },
               style: {
-                width: bounds.width,
-                height: bounds.height,
+                width: maxX - minX,
+                height: maxY - minY,
                 border: '1px dashed gray',
                 background: 'transparent',
                 borderRadius: 5,
                 zIndex: -1
               },
-              draggable: false,
-              selectable: false,
-              type: 'default'
+              type: 'group'
             });
 
-            allSubNodes.push({ x, y, w: bounds.width, h: bounds.height });
-            y += 200;
+            subBoxes.push({ x: minX, y: minY, width: maxX - minX, height: maxY - minY });
+            y += 220;
           });
 
-          const minX = Math.min(...allSubNodes.map(n => n.x));
-          const maxX = Math.max(...allSubNodes.map(n => n.x + n.w));
-          const minY = Math.min(...allSubNodes.map(n => n.y));
-          const maxY = Math.max(...allSubNodes.map(n => n.y + n.h));
+          const unitMinX = Math.min(...subBoxes.map(b => b.x)) - 20;
+          const unitMinY = Math.min(...subBoxes.map(b => b.y)) - 40;
+          const unitMaxX = Math.max(...subBoxes.map(b => b.x + b.width)) + 20;
+          const unitMaxY = Math.max(...subBoxes.map(b => b.y + b.height)) + 40;
 
           newNodes.push({
             id: `unitbox-${unit}`,
-            position: { x: minX - 40, y: minY - 60 },
+            position: { x: unitMinX, y: unitMinY },
             data: { label: unit },
             style: {
-              width: maxX - minX + 80,
-              height: maxY - minY + 100,
+              width: unitMaxX - unitMinX,
+              height: unitMaxY - unitMinY,
               border: '3px solid black',
               background: 'transparent',
               borderRadius: 5,
               zIndex: -2
             },
-            draggable: false,
-            selectable: false,
-            type: 'default'
+            type: 'group'
           });
 
-          x += 400;
+          x += 500;
         });
 
-        console.log("✅ Nodes and edges created:", { newNodes, newEdges });
         setElements([...newNodes, ...newEdges]);
       })
       .catch(err => {
