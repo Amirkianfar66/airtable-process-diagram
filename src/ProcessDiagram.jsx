@@ -2,10 +2,19 @@ import React, { useEffect, useState } from 'react';
 import ReactFlow, { Background, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+// STEP 1: Fetch Airtable data with logging
 const fetchData = async () => {
+  console.log('🔄 Starting fetchData...');
+
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
   const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+
+  console.log('📦 ENV values:', {
+    baseId,
+    token: token?.slice(0, 10) + '...',
+    table
+  });
 
   const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
@@ -17,24 +26,30 @@ const fetchData = async () => {
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Airtable API error: ${errorText}`);
+    console.error(`❌ Airtable API error: ${res.status} ${res.statusText}`, errorText);
+    throw new Error(`Airtable API error`);
   }
 
   const data = await res.json();
+  console.log("✅ Fetched data from Airtable:", data);
   return data.records.map(rec => rec.fields);
 };
 
+// Optional icons by category
 const categoryIcons = {
-  Valve: 'https://upload.wikimedia.org/wikipedia/commons/f/f1/Valve.svg'
+  Valve: 'https://upload.wikimedia.org/wikipedia/commons/f/f1/Valve.svg',
+  // Add more category icons as needed
 };
 
 export default function ProcessDiagram() {
-  const [elements, setElements] = useState([]);
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData()
       .then(items => {
+        console.log("🧩 Processing items:", items);
         const newNodes = [];
         const newEdges = [];
         let idCounter = 1;
@@ -51,30 +66,20 @@ export default function ProcessDiagram() {
         let x = 0;
         Object.entries(grouped).forEach(([unit, subUnits]) => {
           let y = 0;
-          const subBoxes = [];
-
           Object.entries(subUnits).forEach(([sub, items]) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
-            const itemNodes = [];
             let previousNodeId = null;
-
             items.forEach((item, i) => {
               const id = String(idCounter++);
-              const nodeX = x + i * 180;
-              const nodeY = y;
-
               newNodes.push({
                 id,
-                position: { x: nodeX, y: nodeY },
+                position: { x: x + i * 180, y },
                 data: {
                   label: `${item.Code || ''} - ${item.Name || ''}`,
                   icon: categoryIcons[item.Category] || null
                 },
-                type: 'default',
-                parentNode: `subbox-${unit}-${sub}`,
-                extent: 'parent'
+                type: 'default'
               });
-
               if (previousNodeId) {
                 newEdges.push({
                   id: `e${previousNodeId}-${id}`,
@@ -84,57 +89,15 @@ export default function ProcessDiagram() {
                 });
               }
               previousNodeId = id;
-              itemNodes.push({ x: nodeX, y: nodeY });
             });
-
-            const minX = Math.min(...itemNodes.map(n => n.x)) - 20;
-            const minY = Math.min(...itemNodes.map(n => n.y)) - 40;
-            const maxX = Math.max(...itemNodes.map(n => n.x)) + 140;
-            const maxY = Math.max(...itemNodes.map(n => n.y)) + 80;
-
-            newNodes.push({
-              id: `subbox-${unit}-${sub}`,
-              position: { x: minX, y: minY },
-              data: { label: sub },
-              style: {
-                width: maxX - minX,
-                height: maxY - minY,
-                border: '1px dashed gray',
-                background: 'transparent',
-                borderRadius: 5,
-                zIndex: -1
-              },
-              type: 'group'
-            });
-
-            subBoxes.push({ x: minX, y: minY, width: maxX - minX, height: maxY - minY });
-            y += 220;
+            y += 200;
           });
-
-          const unitMinX = Math.min(...subBoxes.map(b => b.x)) - 20;
-          const unitMinY = Math.min(...subBoxes.map(b => b.y)) - 40;
-          const unitMaxX = Math.max(...subBoxes.map(b => b.x + b.width)) + 20;
-          const unitMaxY = Math.max(...subBoxes.map(b => b.y + b.height)) + 40;
-
-          newNodes.push({
-            id: `unitbox-${unit}`,
-            position: { x: unitMinX, y: unitMinY },
-            data: { label: unit },
-            style: {
-              width: unitMaxX - unitMinX,
-              height: unitMaxY - unitMinY,
-              border: '3px solid black',
-              background: 'transparent',
-              borderRadius: 5,
-              zIndex: -2
-            },
-            type: 'group'
-          });
-
-          x += 500;
+          x += 400;
         });
 
-        setElements([...newNodes, ...newEdges]);
+        console.log("✅ Created nodes and edges:", { newNodes, newEdges });
+        setNodes(newNodes);
+        setEdges(newEdges);
       })
       .catch(err => {
         console.error(err);
@@ -149,7 +112,8 @@ export default function ProcessDiagram() {
   return (
     <div style={{ width: '100%', height: '100vh' }}>
       <ReactFlow
-        elements={elements}
+        nodes={nodes}
+        edges={edges}
         fitView
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       >
