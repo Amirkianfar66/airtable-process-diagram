@@ -35,28 +35,29 @@ const fetchData = async () => {
   return data.records.map(rec => rec.fields);
 };
 
-// STEP 2: Optional icon support by category
+// Optional icons by category
 const categoryIcons = {
   Valve: 'https://upload.wikimedia.org/wikipedia/commons/f/f1/Valve.svg',
-  // Add more category icons if needed
+  // Add more category icons as needed
 };
 
 export default function ProcessDiagram() {
-  const [elements, setElements] = useState([]);
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData()
       .then(items => {
         console.log("🧩 Processing items:", items);
-        const nodes = [];
-        const edges = [];
+        const newNodes = [];
+        const newEdges = [];
         let idCounter = 1;
 
         const grouped = {};
         items.forEach(item => {
           const { Unit, SubUnit = item['Sub Unit'], Category, Sequence = 0, Name, ['Item Code']: Code } = item;
-          if (!Unit || !SubUnit) return; // skip incomplete rows
+          if (!Unit || !SubUnit) return;
           if (!grouped[Unit]) grouped[Unit] = {};
           if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
           grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
@@ -67,28 +68,36 @@ export default function ProcessDiagram() {
           let y = 0;
           Object.entries(subUnits).forEach(([sub, items]) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
+            let previousNodeId = null;
             items.forEach((item, i) => {
               const id = String(idCounter++);
-              nodes.push({
+              newNodes.push({
                 id,
+                position: { x: x + i * 180, y },
                 data: {
                   label: `${item.Code || ''} - ${item.Name || ''}`,
                   icon: categoryIcons[item.Category] || null
                 },
-                position: { x: x + i * 180, y },
                 type: 'default'
               });
-              if (i > 0) {
-                edges.push({ id: `e${idCounter++}`, source: String(idCounter - 2), target: id });
+              if (previousNodeId) {
+                newEdges.push({
+                  id: `e${previousNodeId}-${id}`,
+                  source: previousNodeId,
+                  target: id,
+                  type: 'default'
+                });
               }
+              previousNodeId = id;
             });
             y += 200;
           });
           x += 400;
         });
 
-        console.log("✅ Nodes and edges created:", { nodes, edges });
-        setElements([...nodes, ...edges]);
+        console.log("✅ Created nodes and edges:", { newNodes, newEdges });
+        setNodes(newNodes);
+        setEdges(newEdges);
       })
       .catch(err => {
         console.error(err);
@@ -100,16 +109,17 @@ export default function ProcessDiagram() {
     return <div style={{ color: 'red', padding: 20 }}>❌ Error loading data: {error}</div>;
   }
 
-return (
-  <div style={{ width: '100%', height: '100vh' }}>
-    <ReactFlow
-      elements={elements}
-      fitView
-      defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-    >
-      <Background />
-      <Controls />
-    </ReactFlow>
-  </div>
-);
+  return (
+    <div style={{ width: '100%', height: '100vh' }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        fitView
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+      >
+        <Background />
+        <Controls />
+      </ReactFlow>
+    </div>
+  );
 }
