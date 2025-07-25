@@ -100,12 +100,16 @@ export default function ProcessDiagram() {
     return <div style={{ color: 'red', padding: 20 }}>❌ Error loading data: {error}</div>;
   }
 
-  return (
-    <div style={{ width: '100%', height: '100vh' }}>
-      <ReactFlow elements={elements}>
-        <Background />
-        <Controls />
-      </ReactFlow>
-    </div>
-  );
+return (
+  <div style={{ width: '100%', height: '100vh' }}>
+    <ReactFlow
+      elements={elements}
+      fitView
+      defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+    >
+      <Background />
+      <Controls />
+    </ReactFlow>
+  </div>
+);
 }
