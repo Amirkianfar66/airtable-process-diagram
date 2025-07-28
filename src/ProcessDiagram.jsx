@@ -10,7 +10,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Airtable fetch
+const STORAGE_KEY = 'process-diagram-layout';
+
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -31,7 +32,6 @@ const fetchData = async () => {
   return data.records.map(rec => rec.fields);
 };
 
-// Category colors
 const categoryColors = {
   Equipment: '#a3d977',
   Instrument: '#f4a261',
@@ -40,7 +40,6 @@ const categoryColors = {
   Electrical: '#e63946'
 };
 
-// Custom item node with handles
 function ItemNode({ data }) {
   return (
     <div
@@ -61,7 +60,6 @@ function ItemNode({ data }) {
   );
 }
 
-// Node type mapping
 const nodeTypes = {
   itemNode: ItemNode
 };
@@ -71,13 +69,26 @@ export default function ProcessDiagram() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [error, setError] = useState(null);
 
-  // handle new connections
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, type: 'default' }, eds)),
     [setEdges]
   );
 
+  const saveLayout = () => {
+    const layout = { nodes, edges };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+    alert('Layout saved ✅');
+  };
+
   useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setNodes(parsed.nodes || []);
+      setEdges(parsed.edges || []);
+      return;
+    }
+
     fetchData()
       .then(items => {
         const newNodes = [];
@@ -198,16 +209,33 @@ export default function ProcessDiagram() {
       });
   }, []);
 
-  if (error) {
-    return <div style={{ color: 'red', padding: 20 }}>❌ Error: {error}</div>;
-  }
+  if (error) return <div style={{ color: 'red', padding: 20 }}>❌ Error: {error}</div>;
 
   return (
     <div style={{ width: '100%', height: '100vh' }}>
+      <button
+        onClick={saveLayout}
+        style={{
+          position: 'absolute',
+          top: 10,
+          left: 10,
+          zIndex: 10,
+          padding: '6px 12px',
+          backgroundColor: '#4caf50',
+          color: 'white',
+          border: 'none',
+          borderRadius: 4,
+          cursor: 'pointer'
+        }}
+      >
+        💾 Save Layout
+      </button>
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={(changes) => {
+          onNodesChange(changes);
+        }}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
