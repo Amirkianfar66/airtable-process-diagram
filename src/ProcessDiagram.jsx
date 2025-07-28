@@ -50,20 +50,24 @@ export default function ProcessDiagram() {
         Object.entries(grouped).forEach(([unit, subUnits]) => {
           const unitId = `unit-${unit}`;
           let localY = 0;
-          let maxUnitWidth = 0;
+          let unitWidth = 0;
           const subUnitNodeIds = [];
+
+          const subUnitPositions = [];
 
           Object.entries(subUnits).forEach(([sub, items]) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
             const subUnitId = `sub-${unit}-${sub}`;
             let previousNodeId = null;
+
+            const itemWidth = 180;
             const subX = 40;
             const subY = localY + 40;
             const nodeY = subY + 40;
 
             items.forEach((item, i) => {
               const id = `node-${idCounter++}`;
-              const x = subX + i * 180;
+              const x = subX + i * itemWidth;
               const y = nodeY;
 
               newNodes.push({
@@ -90,9 +94,11 @@ export default function ProcessDiagram() {
               previousNodeId = id;
             });
 
-            const width = items.length * 180 + 60;
-            const height = 140;
-            maxUnitWidth = Math.max(maxUnitWidth, width);
+            const width = items.length * itemWidth + 80;
+            const height = 160;
+
+            // Track max width to apply to Unit
+            unitWidth = Math.max(unitWidth, width);
 
             newNodes.push({
               id: subUnitId,
@@ -110,19 +116,18 @@ export default function ProcessDiagram() {
               extent: 'parent'
             });
 
-            localY += height + 60;
-            subUnitNodeIds.push(subUnitId);
+            localY += height + 40;
           });
 
           const unitHeight = localY;
-          const unitWidth = maxUnitWidth + 80;
+          const finalUnitWidth = unitWidth + 40; // Add padding
 
           newNodes.push({
             id: unitId,
             position: { x: globalX, y: 0 },
             data: { label: unit },
             style: {
-              width: unitWidth,
+              width: finalUnitWidth,
               height: unitHeight,
               border: '3px solid black',
               background: 'transparent',
@@ -132,7 +137,7 @@ export default function ProcessDiagram() {
             type: 'group'
           });
 
-          globalX += unitWidth + 100;
+          globalX += finalUnitWidth + 100;
         });
 
         setNodes(newNodes);
@@ -150,6 +155,7 @@ export default function ProcessDiagram() {
         edges={edges}
         fitView
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        minZoom={0.1} 
       >
         <Background />
         <Controls />
