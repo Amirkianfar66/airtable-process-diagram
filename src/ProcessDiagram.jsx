@@ -17,20 +17,20 @@ const fetchData = async () => {
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Airtable API error: ${errorText}`);
+    throw new Error(`Airtable API error: ${res.status} ${res.statusText}: ${errorText}`);
   }
 
   const data = await res.json();
   return data.records.map(rec => rec.fields);
 };
 
+// Color mapping for categories
 const categoryColors = {
-  Equipment: '#A3D977',     // green
-  Instrument: '#FFA500',    // orange
-  'Inline item': '#000000', // black
-  Pipe: '#5DADE2',          // blue
-  Electrical: '#E74C3C',    // red
-  Valve: '#888888'          // fallback gray
+  Equipment: '#a3d977',      // Green
+  Instrument: '#f4a261',     // Orange
+  'Inline Valve': '#333333', // Black
+  Pipe: '#3a86ff',           // Blue
+  Electrical: '#e63946'      // Red
 };
 
 export default function ProcessDiagram() {
@@ -47,57 +47,56 @@ export default function ProcessDiagram() {
 
         const grouped = {};
         items.forEach(item => {
-          const { Unit, SubUnit = item['Sub Unit'], Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+          const {
+            Unit,
+            SubUnit = item['Sub Unit'],
+            ['Category Item Type']: Category,
+            Sequence = 0,
+            Name,
+            ['Item Code']: Code
+          } = item;
+
           if (!Unit || !SubUnit) return;
           if (!grouped[Unit]) grouped[Unit] = {};
           if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
           grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
         });
 
-        let xOffset = 0;
-        const unitSpacing = 150;
-        const subunitSpacing = 100;
-        const nodeWidth = 160;
-        const nodeHeight = 60;
-        const padding = 40;
+        let unitX = 0;
+        let unitY = 0;
 
         Object.entries(grouped).forEach(([unit, subUnits]) => {
-          let unitTop = Infinity;
-          let unitBottom = -Infinity;
-          let unitLeft = xOffset;
-          let unitRight = xOffset;
-
-          let yOffset = 0;
+          let maxWidth = 0;
+          let totalHeight = 0;
+          let subY = 0;
+          const subUnitRects = [];
 
           Object.entries(subUnits).forEach(([sub, items]) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
-
             let previousNodeId = null;
-            const nodesInSubunit = [];
+            const nodeY = unitY + subY + 40;
+            const nodeXStart = unitX + 40;
+            const nodeSpacing = 180;
 
             items.forEach((item, i) => {
-              const id = `n${idCounter++}`;
-              const x = xOffset + i * (nodeWidth + 20);
-              const y = yOffset;
+              const id = `node-${idCounter++}`;
+              const categoryColor = categoryColors[item.Category] || '#cccccc';
+              const nodeX = nodeXStart + i * nodeSpacing;
 
               newNodes.push({
                 id,
-                position: { x, y },
+                position: { x: nodeX, y: nodeY },
                 data: {
                   label: `${item.Code || ''} - ${item.Name || ''}`
                 },
                 style: {
-                  background: categoryColors[item.Category] || '#CCCCCC',
-                  color: (item.Category === 'Inline item') ? '#fff' : '#000',
-                  borderRadius: 4,
+                  border: `2px solid ${categoryColor}`,
                   padding: 10,
-                  fontSize: 12,
-                  width: nodeWidth
-                },
-                type: 'default'
+                  borderRadius: 8,
+                  backgroundColor: '#fff',
+                  fontSize: 12
+                }
               });
-
-              nodesInSubunit.push({ x, y });
 
               if (previousNodeId) {
                 newEdges.push({
@@ -111,49 +110,48 @@ export default function ProcessDiagram() {
               previousNodeId = id;
             });
 
-            const maxX = Math.max(...nodesInSubunit.map(n => n.x)) + nodeWidth + padding / 2;
-            const maxY = yOffset + nodeHeight + padding;
-            const minX = Math.min(...nodesInSubunit.map(n => n.x)) - padding / 2;
-            const minY = yOffset - padding / 2;
+            const subUnitWidth = items.length * nodeSpacing + 60;
+            const subUnitHeight = 100;
+            maxWidth = Math.max(maxWidth, subUnitWidth);
+            totalHeight += subUnitHeight + 20;
 
-            newNodes.push({
+            subUnitRects.push({
               id: `sub-${unit}-${sub}`,
-              position: { x: minX, y: minY },
-              data: { label: `SubUnit: ${sub}` },
+              type: 'input',
+              position: { x: unitX + 20, y: unitY + subY },
+              data: { label: sub },
               style: {
-                width: maxX - minX,
-                height: maxY - minY,
-                border: '1px dashed gray',
-                background: '#f9f9f9',
-                zIndex: -1
+                width: subUnitWidth,
+                height: subUnitHeight,
+                border: '1px dashed #999',
+                backgroundColor: 'transparent',
+                pointerEvents: 'none'
               },
-              type: 'default',
-              draggable: false
+              selectable: false
             });
 
-            unitTop = Math.min(unitTop, minY);
-            unitBottom = Math.max(unitBottom, maxY);
-            unitRight = Math.max(unitRight, maxX);
-
-            yOffset = maxY + subunitSpacing;
+            subY += subUnitHeight + 20;
           });
 
+          newNodes.push(...subUnitRects);
+
+          // Unit rectangle
           newNodes.push({
             id: `unit-${unit}`,
-            position: { x: unitLeft - padding, y: unitTop - padding },
-            data: { label: `Unit: ${unit}` },
+            type: 'input',
+            position: { x: unitX, y: unitY },
+            data: { label: unit },
             style: {
-              width: unitRight - unitLeft + 2 * padding,
-              height: unitBottom - unitTop + 2 * padding,
-              border: '2px solid black',
-              background: 'transparent',
-              zIndex: -2
+              width: maxWidth + 40,
+              height: totalHeight,
+              border: '4px solid #444',
+              backgroundColor: 'transparent',
+              pointerEvents: 'none'
             },
-            type: 'default',
-            draggable: false
+            selectable: false
           });
 
-          xOffset = unitRight + unitSpacing;
+          unitX += maxWidth + 120;
         });
 
         setNodes(newNodes);
@@ -177,7 +175,7 @@ export default function ProcessDiagram() {
         fitView
         minZoom={0.1}
         maxZoom={2}
-        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
       >
         <Background />
         <Controls />
