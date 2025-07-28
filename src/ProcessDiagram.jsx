@@ -1,7 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import ReactFlow, { Background, Controls } from 'reactflow';
+import React, { useEffect, useState, useCallback } from 'react';
+import ReactFlow, {
+  Background,
+  Controls,
+  Handle,
+  Position,
+  addEdge,
+  useNodesState,
+  useEdgesState,
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 
+// Airtable fetch
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -10,9 +19,7 @@ const fetchData = async () => {
   const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
   const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+    headers: { Authorization: `Bearer ${token}` }
   });
 
   if (!res.ok) {
@@ -24,19 +31,51 @@ const fetchData = async () => {
   return data.records.map(rec => rec.fields);
 };
 
-// Color mapping for categories
+// Category colors
 const categoryColors = {
-  Equipment: '#a3d977',      // Green
-  Instrument: '#f4a261',     // Orange
-  'Inline Valve': '#333333', // Black
-  Pipe: '#3a86ff',           // Blue
-  Electrical: '#e63946'      // Red
+  Equipment: '#a3d977',
+  Instrument: '#f4a261',
+  'Inline Valve': '#333333',
+  Pipe: '#3a86ff',
+  Electrical: '#e63946'
+};
+
+// Custom item node with handles
+function ItemNode({ data }) {
+  return (
+    <div
+      style={{
+        border: `2px solid ${data.color}`,
+        borderRadius: 8,
+        backgroundColor: '#fff',
+        padding: 10,
+        fontSize: 12,
+        minWidth: 120,
+        textAlign: 'center'
+      }}
+    >
+      <Handle type="target" position={Position.Top} style={{ background: '#555' }} />
+      <div>{data.label}</div>
+      <Handle type="source" position={Position.Bottom} style={{ background: '#555' }} />
+    </div>
+  );
+}
+
+// Node type mapping
+const nodeTypes = {
+  itemNode: ItemNode
 };
 
 export default function ProcessDiagram() {
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [error, setError] = useState(null);
+
+  // handle new connections
+  const onConnect = useCallback(
+    (params) => setEdges((eds) => addEdge({ ...params, type: 'default' }, eds)),
+    [setEdges]
+  );
 
   useEffect(() => {
     fetchData()
@@ -74,9 +113,9 @@ export default function ProcessDiagram() {
           Object.entries(subUnits).forEach(([sub, items]) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
             let previousNodeId = null;
-            const nodeY = unitY + subY + 40;
-            const nodeXStart = unitX + 40;
-            const nodeSpacing = 180;
+            const nodeY = unitY + subY + 60;
+            const nodeXStart = unitX + 60;
+            const nodeSpacing = 160;
 
             items.forEach((item, i) => {
               const id = `node-${idCounter++}`;
@@ -85,17 +124,13 @@ export default function ProcessDiagram() {
 
               newNodes.push({
                 id,
+                type: 'itemNode',
                 position: { x: nodeX, y: nodeY },
                 data: {
-                  label: `${item.Code || ''} - ${item.Name || ''}`
+                  label: `${item.Code || ''} - ${item.Name || ''}`,
+                  color: categoryColor
                 },
-                style: {
-                  border: `2px solid ${categoryColor}`,
-                  padding: 10,
-                  borderRadius: 8,
-                  backgroundColor: '#fff',
-                  fontSize: 12
-                }
+                draggable: true
               });
 
               if (previousNodeId) {
@@ -110,15 +145,14 @@ export default function ProcessDiagram() {
               previousNodeId = id;
             });
 
-            const subUnitWidth = items.length * nodeSpacing + 60;
-            const subUnitHeight = 100;
+            const subUnitWidth = items.length * nodeSpacing + 100;
+            const subUnitHeight = 140;
             maxWidth = Math.max(maxWidth, subUnitWidth);
             totalHeight += subUnitHeight + 20;
 
             subUnitRects.push({
               id: `sub-${unit}-${sub}`,
-              type: 'input',
-              position: { x: unitX + 20, y: unitY + subY },
+              position: { x: unitX + 40, y: unitY + subY },
               data: { label: sub },
               style: {
                 width: subUnitWidth,
@@ -127,7 +161,8 @@ export default function ProcessDiagram() {
                 backgroundColor: 'transparent',
                 pointerEvents: 'none'
               },
-              selectable: false
+              selectable: false,
+              type: 'input'
             });
 
             subY += subUnitHeight + 20;
@@ -138,20 +173,20 @@ export default function ProcessDiagram() {
           // Unit rectangle
           newNodes.push({
             id: `unit-${unit}`,
-            type: 'input',
             position: { x: unitX, y: unitY },
             data: { label: unit },
             style: {
-              width: maxWidth + 40,
+              width: maxWidth + 80,
               height: totalHeight,
               border: '4px solid #444',
               backgroundColor: 'transparent',
               pointerEvents: 'none'
             },
-            selectable: false
+            selectable: false,
+            type: 'input'
           });
 
-          unitX += maxWidth + 120;
+          unitX += maxWidth + 150;
         });
 
         setNodes(newNodes);
@@ -164,7 +199,7 @@ export default function ProcessDiagram() {
   }, []);
 
   if (error) {
-    return <div style={{ color: 'red', padding: 20 }}>❌ Error loading data: {error}</div>;
+    return <div style={{ color: 'red', padding: 20 }}>❌ Error: {error}</div>;
   }
 
   return (
@@ -172,10 +207,14 @@ export default function ProcessDiagram() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        nodeTypes={nodeTypes}
         fitView
         minZoom={0.1}
         maxZoom={2}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
       >
         <Background />
         <Controls />
