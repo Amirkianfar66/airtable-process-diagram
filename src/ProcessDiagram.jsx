@@ -110,14 +110,21 @@ export default function ProcessDiagram() {
           Object.entries(subUnits).forEach(([sub, items], subIndex) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
             let previousNodeId = null;
-            const nodeY = unitY + subY + 60;
+            const nodeYBase = unitY + subY + 60;
             const nodeXStart = unitX + 60;
             const nodeSpacing = 160;
+            const itemsPerRow = 3;
+            const rowHeight = 100;
 
             items.forEach((item, i) => {
               const id = `node-${idCounter++}`;
               const categoryColor = categoryColors[item.Category] || '#cccccc';
-              const nodeX = nodeXStart + i * nodeSpacing;
+
+              const row = Math.floor(i / itemsPerRow);
+              const col = i % itemsPerRow;
+
+              const nodeX = nodeXStart + col * nodeSpacing;
+              const nodeY = nodeYBase + row * rowHeight;
 
               newNodes.push({
                 id,
@@ -142,8 +149,9 @@ export default function ProcessDiagram() {
               previousNodeId = id;
             });
 
-            const subUnitWidth = items.length * nodeSpacing + 100;
-            const subUnitHeight = 140;
+            const numRows = Math.ceil(items.length / itemsPerRow);
+            const subUnitWidth = itemsPerRow * nodeSpacing + 100;
+            const subUnitHeight = numRows * rowHeight + 40;
             maxWidth = Math.max(maxWidth, subUnitWidth);
             totalHeight += subUnitHeight + 20;
 
@@ -162,7 +170,7 @@ export default function ProcessDiagram() {
               type: 'input'
             });
 
-            subY += subUnitHeight + 40; // Extra spacing to avoid overlap
+            subY += subUnitHeight + 40;
           });
 
           newNodes.push(...subUnitRects);
@@ -182,7 +190,7 @@ export default function ProcessDiagram() {
             type: 'input'
           });
 
-          unitX += maxWidth + 200; // Increase spacing between units
+          unitX += maxWidth + 200;
         });
 
         setNodes(newNodes);
