@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import ReactFlow, { Background, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Fetch Airtable data
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -18,17 +17,20 @@ const fetchData = async () => {
 
   if (!res.ok) {
     const errorText = await res.text();
-    console.error(`❌ Airtable API error: ${res.status} ${res.statusText}`, errorText);
-    throw new Error(`Airtable API error`);
+    throw new Error(`Airtable API error: ${errorText}`);
   }
 
   const data = await res.json();
   return data.records.map(rec => rec.fields);
 };
 
-const categoryIcons = {
-  Valve: 'https://upload.wikimedia.org/wikipedia/commons/f/f1/Valve.svg',
-  // Add more category icons if needed
+const categoryColors = {
+  Equipment: '#A3D977',     // green
+  Instrument: '#FFA500',    // orange
+  'Inline item': '#000000', // black
+  Pipe: '#5DADE2',          // blue
+  Electrical: '#E74C3C',    // red
+  Valve: '#888888'          // fallback gray
 };
 
 export default function ProcessDiagram() {
@@ -82,8 +84,15 @@ export default function ProcessDiagram() {
                 id,
                 position: { x, y },
                 data: {
-                  label: `${item.Code || ''} - ${item.Name || ''}`,
-                  icon: categoryIcons[item.Category] || null
+                  label: `${item.Code || ''} - ${item.Name || ''}`
+                },
+                style: {
+                  background: categoryColors[item.Category] || '#CCCCCC',
+                  color: (item.Category === 'Inline item') ? '#fff' : '#000',
+                  borderRadius: 4,
+                  padding: 10,
+                  fontSize: 12,
+                  width: nodeWidth
                 },
                 type: 'default'
               });
@@ -102,7 +111,6 @@ export default function ProcessDiagram() {
               previousNodeId = id;
             });
 
-            // SubUnit rectangle
             const maxX = Math.max(...nodesInSubunit.map(n => n.x)) + nodeWidth + padding / 2;
             const maxY = yOffset + nodeHeight + padding;
             const minX = Math.min(...nodesInSubunit.map(n => n.x)) - padding / 2;
@@ -123,7 +131,6 @@ export default function ProcessDiagram() {
               draggable: false
             });
 
-            // Update unit bounds
             unitTop = Math.min(unitTop, minY);
             unitBottom = Math.max(unitBottom, maxY);
             unitRight = Math.max(unitRight, maxX);
@@ -131,7 +138,6 @@ export default function ProcessDiagram() {
             yOffset = maxY + subunitSpacing;
           });
 
-          // Unit rectangle
           newNodes.push({
             id: `unit-${unit}`,
             position: { x: unitLeft - padding, y: unitTop - padding },
@@ -172,7 +178,6 @@ export default function ProcessDiagram() {
         minZoom={0.1}
         maxZoom={2}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-        minZoom={0.1} 
       >
         <Background />
         <Controls />
