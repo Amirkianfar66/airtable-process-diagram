@@ -101,13 +101,13 @@ export default function ProcessDiagram() {
         let unitX = 0;
         let unitY = 0;
 
-        Object.entries(grouped).forEach(([unit, subUnits]) => {
+        Object.entries(grouped).forEach(([unit, subUnits], unitIndex) => {
           let maxWidth = 0;
           let totalHeight = 0;
           let subY = 0;
           const subUnitRects = [];
 
-          Object.entries(subUnits).forEach(([sub, items]) => {
+          Object.entries(subUnits).forEach(([sub, items], subIndex) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
             let previousNodeId = null;
             const nodeY = unitY + subY + 60;
@@ -162,12 +162,11 @@ export default function ProcessDiagram() {
               type: 'input'
             });
 
-            subY += subUnitHeight + 20;
+            subY += subUnitHeight + 40; // Extra spacing to avoid overlap
           });
 
           newNodes.push(...subUnitRects);
 
-          // Unit rectangle
           newNodes.push({
             id: `unit-${unit}`,
             position: { x: unitX, y: unitY },
@@ -183,7 +182,7 @@ export default function ProcessDiagram() {
             type: 'input'
           });
 
-          unitX += maxWidth + 150;
+          unitX += maxWidth + 200; // Increase spacing between units
         });
 
         setNodes(newNodes);
