@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ReactFlow, { Background, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+// Fetch Airtable data
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -15,13 +16,19 @@ const fetchData = async () => {
     }
   });
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`❌ Airtable API error: ${res.status} ${res.statusText}`, errorText);
+    throw new Error(`Airtable API error`);
+  }
+
   const data = await res.json();
   return data.records.map(rec => rec.fields);
 };
 
 const categoryIcons = {
   Valve: 'https://upload.wikimedia.org/wikipedia/commons/f/f1/Valve.svg',
+  // Add more category icons if needed
 };
 
 export default function ProcessDiagram() {
@@ -45,30 +52,31 @@ export default function ProcessDiagram() {
           grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
         });
 
-        let globalX = 0;
+        let xOffset = 0;
+        const unitSpacing = 150;
+        const subunitSpacing = 100;
+        const nodeWidth = 160;
+        const nodeHeight = 60;
+        const padding = 40;
 
         Object.entries(grouped).forEach(([unit, subUnits]) => {
-          const unitId = `unit-${unit}`;
-          let localY = 0;
-          let unitWidth = 0;
-          const subUnitNodeIds = [];
+          let unitTop = Infinity;
+          let unitBottom = -Infinity;
+          let unitLeft = xOffset;
+          let unitRight = xOffset;
 
-          const subUnitPositions = [];
+          let yOffset = 0;
 
           Object.entries(subUnits).forEach(([sub, items]) => {
             items.sort((a, b) => a.Sequence - b.Sequence);
-            const subUnitId = `sub-${unit}-${sub}`;
-            let previousNodeId = null;
 
-            const itemWidth = 180;
-            const subX = 40;
-            const subY = localY + 40;
-            const nodeY = subY + 40;
+            let previousNodeId = null;
+            const nodesInSubunit = [];
 
             items.forEach((item, i) => {
-              const id = `node-${idCounter++}`;
-              const x = subX + i * itemWidth;
-              const y = nodeY;
+              const id = `n${idCounter++}`;
+              const x = xOffset + i * (nodeWidth + 20);
+              const y = yOffset;
 
               newNodes.push({
                 id,
@@ -77,10 +85,10 @@ export default function ProcessDiagram() {
                   label: `${item.Code || ''} - ${item.Name || ''}`,
                   icon: categoryIcons[item.Category] || null
                 },
-                type: 'default',
-                parentNode: subUnitId,
-                extent: 'parent'
+                type: 'default'
               });
+
+              nodesInSubunit.push({ x, y });
 
               if (previousNodeId) {
                 newEdges.push({
@@ -94,59 +102,66 @@ export default function ProcessDiagram() {
               previousNodeId = id;
             });
 
-            const width = items.length * itemWidth + 80;
-            const height = 160;
-
-            // Track max width to apply to Unit
-            unitWidth = Math.max(unitWidth, width);
+            // SubUnit rectangle
+            const maxX = Math.max(...nodesInSubunit.map(n => n.x)) + nodeWidth + padding / 2;
+            const maxY = yOffset + nodeHeight + padding;
+            const minX = Math.min(...nodesInSubunit.map(n => n.x)) - padding / 2;
+            const minY = yOffset - padding / 2;
 
             newNodes.push({
-              id: subUnitId,
-              position: { x: 0, y: localY },
-              data: { label: sub },
+              id: `sub-${unit}-${sub}`,
+              position: { x: minX, y: minY },
+              data: { label: `SubUnit: ${sub}` },
               style: {
-                width,
-                height,
-                border: '2px dashed gray',
-                background: 'transparent',
-                borderRadius: 5,
+                width: maxX - minX,
+                height: maxY - minY,
+                border: '1px dashed gray',
+                background: '#f9f9f9',
+                zIndex: -1
               },
-              type: 'group',
-              parentNode: unitId,
-              extent: 'parent'
+              type: 'default',
+              draggable: false
             });
 
-            localY += height + 40;
+            // Update unit bounds
+            unitTop = Math.min(unitTop, minY);
+            unitBottom = Math.max(unitBottom, maxY);
+            unitRight = Math.max(unitRight, maxX);
+
+            yOffset = maxY + subunitSpacing;
           });
 
-          const unitHeight = localY;
-          const finalUnitWidth = unitWidth + 40; // Add padding
-
+          // Unit rectangle
           newNodes.push({
-            id: unitId,
-            position: { x: globalX, y: 0 },
-            data: { label: unit },
+            id: `unit-${unit}`,
+            position: { x: unitLeft - padding, y: unitTop - padding },
+            data: { label: `Unit: ${unit}` },
             style: {
-              width: finalUnitWidth,
-              height: unitHeight,
-              border: '3px solid black',
+              width: unitRight - unitLeft + 2 * padding,
+              height: unitBottom - unitTop + 2 * padding,
+              border: '2px solid black',
               background: 'transparent',
-              borderRadius: 10,
-              padding: 10
+              zIndex: -2
             },
-            type: 'group'
+            type: 'default',
+            draggable: false
           });
 
-          globalX += finalUnitWidth + 100;
+          xOffset = unitRight + unitSpacing;
         });
 
         setNodes(newNodes);
         setEdges(newEdges);
       })
-      .catch(err => setError(err.message));
+      .catch(err => {
+        console.error(err);
+        setError(err.message);
+      });
   }, []);
 
-  if (error) return <div style={{ color: 'red', padding: 20 }}>❌ Error loading data: {error}</div>;
+  if (error) {
+    return <div style={{ color: 'red', padding: 20 }}>❌ Error loading data: {error}</div>;
+  }
 
   return (
     <div style={{ width: '100%', height: '100vh' }}>
@@ -154,6 +169,8 @@ export default function ProcessDiagram() {
         nodes={nodes}
         edges={edges}
         fitView
+        minZoom={0.1}
+        maxZoom={2}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         minZoom={0.1} 
       >
