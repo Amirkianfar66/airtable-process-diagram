@@ -74,21 +74,7 @@ export default function ProcessDiagram() {
     [setEdges]
   );
 
-  const saveLayout = () => {
-    const layout = { nodes, edges };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
-    alert('Layout saved ✅');
-  };
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setNodes(parsed.nodes || []);
-      setEdges(parsed.edges || []);
-      return;
-    }
-
+  const loadFromAirtable = () => {
     fetchData()
       .then(items => {
         const newNodes = [];
@@ -207,35 +193,69 @@ export default function ProcessDiagram() {
         console.error(err);
         setError(err.message);
       });
+  };
+
+  const saveLayout = () => {
+    const layout = { nodes, edges };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+    alert('Layout saved ✅');
+  };
+
+  const resetLayout = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    loadFromAirtable();
+    alert('Reset to original Airtable layout 🔄');
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setNodes(parsed.nodes || []);
+      setEdges(parsed.edges || []);
+    } else {
+      loadFromAirtable();
+    }
   }, []);
 
   if (error) return <div style={{ color: 'red', padding: 20 }}>❌ Error: {error}</div>;
 
   return (
     <div style={{ width: '100%', height: '100vh' }}>
-      <button
-        onClick={saveLayout}
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          zIndex: 10,
-          padding: '6px 12px',
-          backgroundColor: '#4caf50',
-          color: 'white',
-          border: 'none',
-          borderRadius: 4,
-          cursor: 'pointer'
-        }}
-      >
-        💾 Save Layout
-      </button>
+      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
+        <button
+          onClick={saveLayout}
+          style={{
+            marginRight: 10,
+            padding: '6px 12px',
+            backgroundColor: '#4caf50',
+            color: 'white',
+            border: 'none',
+            borderRadius: 4,
+            cursor: 'pointer'
+          }}
+        >
+          💾 Save Layout
+        </button>
+        <button
+          onClick={resetLayout}
+          style={{
+            padding: '6px 12px',
+            backgroundColor: '#f44336',
+            color: 'white',
+            border: 'none',
+            borderRadius: 4,
+            cursor: 'pointer'
+          }}
+        >
+          🔄 Reset to Default
+        </button>
+      </div>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={(changes) => {
-          onNodesChange(changes);
-        }}
+        onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
