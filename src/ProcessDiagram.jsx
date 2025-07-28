@@ -100,21 +100,54 @@ export default function ProcessDiagram() {
 
         let unitX = 0;
         let unitY = 0;
+        const unitWidth = 800;
+        const unitHeight = 600;
+        const subUnitWidth = 240;
+        const subUnitHeight = 160;
+        const padding = 20;
 
         Object.entries(grouped).forEach(([unit, subUnits], unitIndex) => {
-          let maxWidth = 0;
-          let totalHeight = 0;
-          let subY = 0;
           const subUnitRects = [];
+          const subUnitPositions = {};
 
-          Object.entries(subUnits).forEach(([sub, items], subIndex) => {
-            items.sort((a, b) => a.Sequence - b.Sequence);
-            let previousNodeId = null;
-            const nodeYBase = unitY + subY + 60;
-            const nodeXStart = unitX + 60;
-            const nodeSpacing = 160;
+          const gridCols = 3;
+          const gridRows = 3;
+
+          let subIndex = 0;
+          Object.entries(subUnits).forEach(([sub, items]) => {
+            const col = subIndex % gridCols;
+            const row = Math.floor(subIndex / gridCols);
+
+            const subX = unitX + padding + col * (subUnitWidth + padding);
+            const subY = unitY + padding + row * (subUnitHeight + padding);
+
+            subUnitRects.push({
+              id: `sub-${unit}-${sub}`,
+              position: { x: subX, y: subY },
+              data: { label: sub },
+              style: {
+                width: subUnitWidth,
+                height: subUnitHeight,
+                border: '1px dashed #999',
+                backgroundColor: 'transparent',
+                pointerEvents: 'none'
+              },
+              selectable: false,
+              type: 'input'
+            });
+
+            subUnitPositions[sub] = { x: subX, y: subY };
+            subIndex++;
+          });
+
+          Object.entries(subUnits).forEach(([sub, items]) => {
+            const { x: baseX, y: baseY } = subUnitPositions[sub];
             const itemsPerRow = 3;
+            const nodeSpacing = 160;
             const rowHeight = 100;
+            let previousNodeId = null;
+
+            items.sort((a, b) => a.Sequence - b.Sequence);
 
             items.forEach((item, i) => {
               const id = `node-${idCounter++}`;
@@ -123,8 +156,8 @@ export default function ProcessDiagram() {
               const row = Math.floor(i / itemsPerRow);
               const col = i % itemsPerRow;
 
-              const nodeX = nodeXStart + col * nodeSpacing;
-              const nodeY = nodeYBase + row * rowHeight;
+              const nodeX = baseX + 20 + col * 100;
+              const nodeY = baseY + 20 + row * 80;
 
               newNodes.push({
                 id,
@@ -148,29 +181,6 @@ export default function ProcessDiagram() {
 
               previousNodeId = id;
             });
-
-            const numRows = Math.ceil(items.length / itemsPerRow);
-            const subUnitWidth = itemsPerRow * nodeSpacing + 100;
-            const subUnitHeight = numRows * rowHeight + 40;
-            maxWidth = Math.max(maxWidth, subUnitWidth);
-            totalHeight += subUnitHeight + 20;
-
-            subUnitRects.push({
-              id: `sub-${unit}-${sub}`,
-              position: { x: unitX + 40, y: unitY + subY },
-              data: { label: sub },
-              style: {
-                width: subUnitWidth,
-                height: subUnitHeight,
-                border: '1px dashed #999',
-                backgroundColor: 'transparent',
-                pointerEvents: 'none'
-              },
-              selectable: false,
-              type: 'input'
-            });
-
-            subY += subUnitHeight + 40;
           });
 
           newNodes.push(...subUnitRects);
@@ -180,8 +190,8 @@ export default function ProcessDiagram() {
             position: { x: unitX, y: unitY },
             data: { label: unit },
             style: {
-              width: maxWidth + 80,
-              height: totalHeight,
+              width: unitWidth,
+              height: unitHeight,
               border: '4px solid #444',
               backgroundColor: 'transparent',
               pointerEvents: 'none'
@@ -190,7 +200,7 @@ export default function ProcessDiagram() {
             type: 'input'
           });
 
-          unitX += maxWidth + 200;
+          unitX += unitWidth + 100;
         });
 
         setNodes(newNodes);
