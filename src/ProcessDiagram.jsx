@@ -100,7 +100,7 @@ export default function ProcessDiagram() {
 
         let unitX = 0;
         let unitY = 0;
-        const unitWidth = 800;
+        const unitWidth = 1600; // doubled width
         const unitHeight = 1200;
         const subUnitHeight = unitHeight / 9;
         const subUnitWidth = unitWidth - 40;
