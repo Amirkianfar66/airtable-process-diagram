@@ -48,8 +48,8 @@ export default function ProcessDiagram() {
   const itemHeight = 60;
   const itemGap = 30;
   const padding = 30;
-  const unitWidth = 1600;
-  const unitHeight = 900; // enough to hold 9 sub-units
+  const unitWidth = 3200;
+  const unitHeight = 1800; // enough to hold 9 sub-units
   const subUnitHeight = unitHeight / 9;
 
   useEffect(() => {
