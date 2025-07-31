@@ -78,7 +78,7 @@ export default function ProcessDiagram() {
             style: {
               width: unitWidth,
               height: unitHeight,
-              backgroundColor: '#f0f0f0',
+              backgroundColor: 'transparent',
               border: '4px solid #444',
               zIndex: 0,
             },
