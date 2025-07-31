@@ -7,6 +7,12 @@ import ReactFlow, {
   addEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import ItemNode from './components/ItemNode'; // adjust path as needed
+
+const nodeTypes = {
+  itemNode: ItemNode,
+};
+
 
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -218,6 +224,7 @@ export default function ProcessDiagram() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}
