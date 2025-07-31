@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
-  addEdge,
   useNodesState,
   useEdgesState,
-  ReactFlowProvider,
+  addEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -17,58 +16,47 @@ const fetchData = async () => {
   const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   if (!res.ok) {
     const errorText = await res.text();
-    console.error(`Airtable API error: ${res.status}`, errorText);
-    throw new Error(`Airtable API error`);
+    throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
   }
 
   const data = await res.json();
-  return data.records.map(rec => rec.fields);
+  return data.records.map((rec) => rec.fields);
 };
 
 const categoryColors = {
-  Equipment: '#a3d977',
-  Instrument: '#f4a261',
-  'Inline Valve': '#333333',
-  Pipe: '#4dabf7',
-  Electrical: '#e63946',
+  Equipment: 'green',
+  Instrument: 'orange',
+  'Inline Valve': 'black',
+  Pipe: 'blue',
+  Electrical: 'red',
 };
 
-const itemWidth = 140;
-const itemHeight = 80;
-const itemGap = 20;
-const unitWidth = 1600;
-const padding = 20;
-
-function ProcessDiagramInner() {
+export default function ProcessDiagram() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [originalNodes, setOriginalNodes] = useState([]);
-  const [originalEdges, setOriginalEdges] = useState([]);
   const [error, setError] = useState(null);
+  const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
 
-  const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge({ ...params, type: 'default' }, eds)),
-    []
-  );
-
-  const resetLayout = () => {
-    setNodes(originalNodes);
-    setEdges(originalEdges);
-  };
+  const itemWidth = 160;
+  const itemHeight = 60;
+  const itemGap = 30;
+  const padding = 30;
+  const unitWidth = 1600;
+  const unitHeight = 900; // enough to hold 9 sub-units
+  const subUnitHeight = unitHeight / 9;
 
   useEffect(() => {
     fetchData()
-      .then(items => {
-        const newNodes = [];
-        const newEdges = [];
+      .then((items) => {
         const grouped = {};
-
-        items.forEach(item => {
+        items.forEach((item) => {
           const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
           if (!Unit || !SubUnit) return;
           if (!grouped[Unit]) grouped[Unit] = {};
@@ -76,55 +64,78 @@ function ProcessDiagramInner() {
           grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
         });
 
-        let unitIndex = 0;
+        const newNodes = [];
+        const newEdges = [];
+
+        let unitX = 0;
+
         Object.entries(grouped).forEach(([unit, subUnits]) => {
-          let unitX = unitIndex * (unitWidth + 200);
-          let unitY = 0;
-          let currentY = padding;
-          const subUnitRects = [];
+          // Unit rectangle
+          newNodes.push({
+            id: `unit-${unit}`,
+            position: { x: unitX, y: 0 },
+            data: { label: unit },
+            style: {
+              width: unitWidth,
+              height: unitHeight,
+              border: '4px solid #444',
+              backgroundColor: 'transparent',
+              pointerEvents: 'none',
+            },
+            type: 'input',
+            selectable: false,
+          });
 
-          Object.entries(subUnits).forEach(([sub, items], subIndex) => {
-            const itemsPerRow = Math.floor((unitWidth - 2 * padding) / itemWidth);
-            const rows = Math.ceil(items.length / itemsPerRow);
-            const subHeight = rows * (itemHeight + itemGap) + padding;
+          let currentY = 0;
 
-            // Sub-unit background
-            subUnitRects.push({
-              id: `sub-${unit}-${sub}`,
-              position: { x: unitX + padding, y: currentY },
-              data: { label: sub },
+          const subUnitNames = Object.keys(subUnits);
+          for (let i = 0; i < 9; i++) {
+            const subUnitName = subUnitNames[i] || `SubUnit-${i + 1}`;
+            const itemsInSubUnit = subUnits[subUnitName] || [];
+
+            const subRectY = currentY;
+
+            // SubUnit rectangle
+            newNodes.push({
+              id: `subunit-${unit}-${subUnitName}`,
+              position: { x: unitX + padding, y: subRectY },
+              data: { label: subUnitName },
               style: {
                 width: unitWidth - 2 * padding,
-                height: subHeight,
+                height: subUnitHeight - padding,
                 border: '1px dashed #999',
                 backgroundColor: 'transparent',
-                pointerEvents: 'none'
+                pointerEvents: 'none',
               },
+              type: 'input',
               selectable: false,
-              type: 'input'
             });
 
-            // Items in grid
-            items.sort((a, b) => a.Sequence - b.Sequence);
+            // Layout items inside subunit
+            const itemsPerRow = Math.floor((unitWidth - 2 * padding) / (itemWidth + itemGap));
+            const rows = Math.ceil(itemsInSubUnit.length / itemsPerRow);
+
             let previousNodeId = null;
-            items.forEach((item, i) => {
-              const col = i % itemsPerRow;
-              const row = Math.floor(i / itemsPerRow);
+            itemsInSubUnit.sort((a, b) => a.Sequence - b.Sequence);
 
-              const nodeX = unitX + padding + col * itemWidth;
-              const nodeY = currentY + padding + row * (itemHeight + itemGap);
+            itemsInSubUnit.forEach((item, index) => {
+              const row = Math.floor(index / itemsPerRow);
+              const col = index % itemsPerRow;
 
-              const id = `node-${unit}-${sub}-${i}`;
-              const categoryColor = categoryColors[item.Category] || '#ccc';
+              const nodeX = unitX + padding + col * (itemWidth + itemGap);
+              const nodeY = subRectY + padding + row * (itemHeight + itemGap);
+
+              const id = `node-${unit}-${subUnitName}-${index}`;
+              const categoryColor = categoryColors[item.Category] || '#999';
 
               newNodes.push({
                 id,
                 position: { x: nodeX, y: nodeY },
-                data: {
-                  label: `${item.Code || ''} - ${item.Name || ''}`,
-                },
+                data: { label: `${item.Code || ''} - ${item.Name || ''}` },
                 style: {
                   backgroundColor: categoryColor,
+                  width: itemWidth,
+                  height: itemHeight,
                   border: '1px solid #333',
                   borderRadius: 6,
                   padding: 10,
@@ -140,46 +151,35 @@ function ProcessDiagramInner() {
                   id: `e${previousNodeId}-${id}`,
                   source: previousNodeId,
                   target: id,
-                  type: 'default'
+                  type: 'default',
                 });
               }
 
               previousNodeId = id;
             });
 
-            currentY += subHeight + padding;
-          });
+            currentY += subUnitHeight;
+          }
 
-          newNodes.push(...subUnitRects);
-
-          newNodes.push({
-            id: `unit-${unit}`,
-            position: { x: unitX, y: 0 },
-            data: { label: unit },
-            style: {
-              width: unitWidth,
-              height: currentY + padding,
-              border: '4px solid #444',
-              backgroundColor: 'transparent',
-              pointerEvents: 'none'
-            },
-            selectable: false,
-            type: 'input'
-          });
-
-          unitIndex++;
+          unitX += unitWidth + 100;
         });
 
         setNodes(newNodes);
         setEdges(newEdges);
-        setOriginalNodes(newNodes);
-        setOriginalEdges(newEdges);
+        setDefaultLayout({ nodes: newNodes, edges: newEdges });
       })
-      .catch(err => {
+      .catch((err) => {
         console.error(err);
         setError(err.message);
       });
   }, []);
+
+  const onConnect = (params) => setEdges((eds) => addEdge(params, eds));
+
+  const handleReset = () => {
+    setNodes(defaultLayout.nodes);
+    setEdges(defaultLayout.edges);
+  };
 
   if (error) {
     return <div style={{ color: 'red', padding: 20 }}>❌ Error loading data: {error}</div>;
@@ -187,6 +187,7 @@ function ProcessDiagramInner() {
 
   return (
     <div style={{ width: '100%', height: '100vh' }}>
+      <button onClick={handleReset} style={{ position: 'absolute', zIndex: 10, top: 10, left: 10 }}>🔁 Reset Layout</button>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -196,21 +197,11 @@ function ProcessDiagramInner() {
         fitView
         minZoom={0.1}
         maxZoom={2}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       >
         <Background />
         <Controls />
       </ReactFlow>
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-        <button onClick={resetLayout} style={{ padding: '6px 12px' }}>🔄 Reset Layout</button>
-      </div>
     </div>
-  );
-}
-
-export default function ProcessDiagram() {
-  return (
-    <ReactFlowProvider>
-      <ProcessDiagramInner />
-    </ReactFlowProvider>
   );
 }
