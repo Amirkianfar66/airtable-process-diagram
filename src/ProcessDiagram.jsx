@@ -100,97 +100,97 @@ export default function ProcessDiagram() {
 
         let unitX = 0;
         let unitY = 0;
-        const unitWidth = 1600; // doubled width
-        const unitHeight = 1200;
-        const subUnitHeight = unitHeight / 9;
-        const subUnitWidth = unitWidth - 40;
-        const padding = 20;
+        const unitWidth = 1600;
+const padding = 20;
+const itemWidth = 140;
+const itemHeight = 80;
+const itemGap = 20;
+const itemsPerRow = Math.floor((unitWidth - 2 * padding) / itemWidth);
 
-        Object.entries(grouped).forEach(([unit, subUnits], unitIndex) => {
-          const subUnitRects = [];
-          const subUnitPositions = {};
+Object.entries(grouped).forEach(([unit, subUnits], unitIndex) => {
+  let unitX = unitIndex * (unitWidth + 100);
+  let unitY = 0;
+  let currentY = padding;
+  const subUnitRects = [];
+  const subUnitPositions = {};
 
-          let subIndex = 0;
-          Object.entries(subUnits).forEach(([sub, items]) => {
-            const subX = unitX + padding;
-            const subY = unitY + padding + subIndex * subUnitHeight;
+  Object.entries(subUnits).forEach(([sub, items], subIndex) => {
+    const rowsNeeded = Math.ceil(items.length / itemsPerRow);
+    const subHeight = rowsNeeded * (itemHeight + itemGap) + padding;
 
-            subUnitRects.push({
-              id: `sub-${unit}-${sub}`,
-              position: { x: subX, y: subY },
-              data: { label: sub },
-              style: {
-                width: subUnitWidth,
-                height: subUnitHeight - 10,
-                border: '1px dashed #999',
-                backgroundColor: 'transparent',
-                pointerEvents: 'none'
-              },
-              selectable: false,
-              type: 'input'
-            });
+    // Create sub-unit background rectangle
+    subUnitRects.push({
+      id: `sub-${unit}-${sub}`,
+      position: { x: unitX + padding, y: currentY },
+      data: { label: sub },
+      style: {
+        width: unitWidth - 2 * padding,
+        height: subHeight,
+        border: '1px dashed #999',
+        backgroundColor: 'transparent',
+        pointerEvents: 'none'
+      },
+      selectable: false,
+      type: 'input'
+    });
 
-            subUnitPositions[sub] = { x: subX, y: subY };
-            subIndex++;
-          });
+    // Position items
+    let previousNodeId = null;
+    items.sort((a, b) => a.Sequence - b.Sequence);
+    items.forEach((item, i) => {
+      const col = i % itemsPerRow;
+      const row = Math.floor(i / itemsPerRow);
 
-          Object.entries(subUnits).forEach(([sub, items]) => {
-            const { x: baseX, y: baseY } = subUnitPositions[sub];
-            const itemsPerRow = Math.floor(subUnitWidth / 150);
-            let previousNodeId = null;
+      const nodeX = unitX + padding + col * itemWidth;
+      const nodeY = currentY + padding + row * (itemHeight + itemGap);
 
-            items.sort((a, b) => a.Sequence - b.Sequence);
+      const id = `node-${unit}-${sub}-${i}`;
+      const categoryColor = categoryColors[item.Category] || '#ccc';
 
-            items.forEach((item, i) => {
-              const id = `node-${idCounter++}`;
-              const categoryColor = categoryColors[item.Category] || '#cccccc';
+      newNodes.push({
+        id,
+        type: 'itemNode',
+        position: { x: nodeX, y: nodeY },
+        data: {
+          label: `${item.Code || ''} - ${item.Name || ''}`,
+          color: categoryColor
+        },
+        draggable: true
+      });
 
-              const row = Math.floor(i / itemsPerRow);
-              const col = i % itemsPerRow;
+      if (previousNodeId) {
+        newEdges.push({
+          id: `e${previousNodeId}-${id}`,
+          source: previousNodeId,
+          target: id,
+          type: 'default'
+        });
+      }
 
-              const nodeX = baseX + 20 + col * 140;
-              const nodeY = baseY + 20 + row * 80;
+      previousNodeId = id;
+    });
 
-              newNodes.push({
-                id,
-                type: 'itemNode',
-                position: { x: nodeX, y: nodeY },
-                data: {
-                  label: `${item.Code || ''} - ${item.Name || ''}`,
-                  color: categoryColor
-                },
-                draggable: true
-              });
+    subUnitPositions[sub] = { x: unitX + padding, y: currentY };
+    currentY += subHeight + padding;
+  });
 
-              if (previousNodeId) {
-                newEdges.push({
-                  id: `e${previousNodeId}-${id}`,
-                  source: previousNodeId,
-                  target: id,
-                  type: 'default'
-                });
-              }
-
-              previousNodeId = id;
-            });
-          });
-
-          newNodes.push(...subUnitRects);
-
-          newNodes.push({
-            id: `unit-${unit}`,
-            position: { x: unitX, y: unitY },
-            data: { label: unit },
-            style: {
-              width: unitWidth,
-              height: unitHeight,
-              border: '4px solid #444',
-              backgroundColor: 'transparent',
-              pointerEvents: 'none'
-            },
-            selectable: false,
-            type: 'input'
-          });
+  // Push sub-units and outer unit rectangle
+  newNodes.push(...subUnitRects);
+  newNodes.push({
+    id: `unit-${unit}`,
+    position: { x: unitX, y: 0 },
+    data: { label: unit },
+    style: {
+      width: unitWidth,
+      height: currentY + padding,
+      border: '4px solid #444',
+      backgroundColor: 'transparent',
+      pointerEvents: 'none'
+    },
+    selectable: false,
+    type: 'input'
+  });
+});
 
           unitX += unitWidth + 100;
         });
