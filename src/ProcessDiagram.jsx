@@ -47,8 +47,8 @@ export default function ProcessDiagram() {
   const itemHeight = 60;
   const itemGap = 30;
   const padding = 30;
-  const unitWidth = 3200; // Doubled
-  const unitHeight = 1800; // Doubled
+  const unitWidth = 3200;
+  const unitHeight = 1800;
   const subUnitHeight = unitHeight / 9;
 
   useEffect(() => {
@@ -82,7 +82,6 @@ export default function ProcessDiagram() {
               border: '4px solid #444',
               zIndex: 0,
             },
-            type: 'default',
             draggable: false,
             selectable: false,
           });
@@ -102,7 +101,6 @@ export default function ProcessDiagram() {
                 border: '2px dashed #aaa',
                 zIndex: 1,
               },
-              type: 'default',
               draggable: false,
               selectable: false,
             });
@@ -128,6 +126,9 @@ export default function ProcessDiagram() {
                   borderRadius: 5,
                   zIndex: 2,
                 },
+                sourcePosition: 'right',
+                targetPosition: 'left',
+                type: 'default',
               });
               itemX += itemWidth + itemGap;
             });
@@ -148,7 +149,7 @@ export default function ProcessDiagram() {
 
   const onConnect = useCallback(
     (params) => {
-      const updated = addEdge(params, edges);
+      const updated = addEdge({ ...params, animated: true }, edges);
       setEdges(updated);
       localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));
     },
@@ -169,25 +170,41 @@ export default function ProcessDiagram() {
     setEdges(defaultLayout.edges);
   };
 
+  const handleSave = () => {
+    localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges }));
+    alert('Layout saved!');
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      <button
-        onClick={handleReset}
-        style={{
-          position: 'absolute',
-          zIndex: 10,
-          top: 10,
-          left: 10,
-          padding: '6px 12px',
-          background: '#555',
-          color: 'white',
-          border: 'none',
-          borderRadius: 5,
-          cursor: 'pointer',
-        }}
-      >
-        🔁 Reset Layout
-      </button>
+      <div style={{ position: 'absolute', zIndex: 10, top: 10, left: 10, display: 'flex', gap: 10 }}>
+        <button
+          onClick={handleReset}
+          style={{
+            padding: '6px 12px',
+            background: '#444',
+            color: 'white',
+            border: 'none',
+            borderRadius: 5,
+            cursor: 'pointer',
+          }}
+        >
+          🔁 Reset Layout
+        </button>
+        <button
+          onClick={handleSave}
+          style={{
+            padding: '6px 12px',
+            background: '#1d8841',
+            color: 'white',
+            border: 'none',
+            borderRadius: 5,
+            cursor: 'pointer',
+          }}
+        >
+          💾 Save Layout
+        </button>
+      </div>
 
       <ReactFlow
         nodes={nodes}
@@ -197,7 +214,7 @@ export default function ProcessDiagram() {
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         fitView
-        minZoom={0.05}
+        minZoom={0.02}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       >
         <Background />
