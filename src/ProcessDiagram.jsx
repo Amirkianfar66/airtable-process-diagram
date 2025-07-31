@@ -1,16 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react'; 
+import React, { useEffect, useState, useCallback } from 'react';
 import ReactFlow, {
   Background,
   Controls,
-  Handle,
-  Position,
   addEdge,
   useNodesState,
   useEdgesState,
+  ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-
-const STORAGE_KEY = 'process-diagram-layout';
 
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -20,12 +17,13 @@ const fetchData = async () => {
   const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Airtable API error: ${res.status} ${res.statusText}: ${errorText}`);
+    console.error(`Airtable API error: ${res.status}`, errorText);
+    throw new Error(`Airtable API error`);
   }
 
   const data = await res.json();
@@ -36,92 +34,68 @@ const categoryColors = {
   Equipment: '#a3d977',
   Instrument: '#f4a261',
   'Inline Valve': '#333333',
-  Pipe: '#3a86ff',
-  Electrical: '#e63946'
+  Pipe: '#4dabf7',
+  Electrical: '#e63946',
 };
 
-function ItemNode({ data }) {
-  return (
-    <div
-      style={{
-        border: `2px solid ${data.color}`,
-        borderRadius: 8,
-        backgroundColor: '#fff',
-        padding: 10,
-        fontSize: 12,
-        minWidth: 120,
-        textAlign: 'center'
-      }}
-    >
-      <Handle type="target" position={Position.Top} style={{ background: '#555' }} />
-      <div>{data.label}</div>
-      <Handle type="source" position={Position.Bottom} style={{ background: '#555' }} />
-    </div>
-  );
-}
+const itemWidth = 140;
+const itemHeight = 80;
+const itemGap = 20;
+const unitWidth = 1600;
+const padding = 20;
 
-const nodeTypes = {
-  itemNode: ItemNode
-};
-
-export default function ProcessDiagram() {
+function ProcessDiagramInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [originalNodes, setOriginalNodes] = useState([]);
+  const [originalEdges, setOriginalEdges] = useState([]);
   const [error, setError] = useState(null);
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, type: 'default' }, eds)),
-    [setEdges]
+    []
   );
 
-  const loadFromAirtable = () => {
+  const resetLayout = () => {
+    setNodes(originalNodes);
+    setEdges(originalEdges);
+  };
+
+  useEffect(() => {
     fetchData()
       .then(items => {
         const newNodes = [];
         const newEdges = [];
-        let idCounter = 1;
-
         const grouped = {};
-        items.forEach(item => {
-          const {
-            Unit,
-            SubUnit = item['Sub Unit'],
-            ['Category Item Type']: Category,
-            Sequence = 0,
-            Name,
-            ['Item Code']: Code
-          } = item;
 
+        items.forEach(item => {
+          const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
           if (!Unit || !SubUnit) return;
           if (!grouped[Unit]) grouped[Unit] = {};
           if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
           grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
         });
 
-        let unitX = 0;
-        let unitY = 0;
-        const unitWidth = 1600; // doubled width
-        const unitHeight = 1200;
-        const subUnitHeight = unitHeight / 9;
-        const subUnitWidth = unitWidth - 40;
-        const padding = 20;
-
-        Object.entries(grouped).forEach(([unit, subUnits], unitIndex) => {
+        let unitIndex = 0;
+        Object.entries(grouped).forEach(([unit, subUnits]) => {
+          let unitX = unitIndex * (unitWidth + 200);
+          let unitY = 0;
+          let currentY = padding;
           const subUnitRects = [];
-          const subUnitPositions = {};
 
-          let subIndex = 0;
-          Object.entries(subUnits).forEach(([sub, items]) => {
-            const subX = unitX + padding;
-            const subY = unitY + padding + subIndex * subUnitHeight;
+          Object.entries(subUnits).forEach(([sub, items], subIndex) => {
+            const itemsPerRow = Math.floor((unitWidth - 2 * padding) / itemWidth);
+            const rows = Math.ceil(items.length / itemsPerRow);
+            const subHeight = rows * (itemHeight + itemGap) + padding;
 
+            // Sub-unit background
             subUnitRects.push({
               id: `sub-${unit}-${sub}`,
-              position: { x: subX, y: subY },
+              position: { x: unitX + padding, y: currentY },
               data: { label: sub },
               style: {
-                width: subUnitWidth,
-                height: subUnitHeight - 10,
+                width: unitWidth - 2 * padding,
+                height: subHeight,
                 border: '1px dashed #999',
                 backgroundColor: 'transparent',
                 pointerEvents: 'none'
@@ -130,36 +104,35 @@ export default function ProcessDiagram() {
               type: 'input'
             });
 
-            subUnitPositions[sub] = { x: subX, y: subY };
-            subIndex++;
-          });
-
-          Object.entries(subUnits).forEach(([sub, items]) => {
-            const { x: baseX, y: baseY } = subUnitPositions[sub];
-            const itemsPerRow = Math.floor(subUnitWidth / 150);
-            let previousNodeId = null;
-
+            // Items in grid
             items.sort((a, b) => a.Sequence - b.Sequence);
-
+            let previousNodeId = null;
             items.forEach((item, i) => {
-              const id = `node-${idCounter++}`;
-              const categoryColor = categoryColors[item.Category] || '#cccccc';
-
-              const row = Math.floor(i / itemsPerRow);
               const col = i % itemsPerRow;
+              const row = Math.floor(i / itemsPerRow);
 
-              const nodeX = baseX + 20 + col * 140;
-              const nodeY = baseY + 20 + row * 80;
+              const nodeX = unitX + padding + col * itemWidth;
+              const nodeY = currentY + padding + row * (itemHeight + itemGap);
+
+              const id = `node-${unit}-${sub}-${i}`;
+              const categoryColor = categoryColors[item.Category] || '#ccc';
 
               newNodes.push({
                 id,
-                type: 'itemNode',
                 position: { x: nodeX, y: nodeY },
                 data: {
                   label: `${item.Code || ''} - ${item.Name || ''}`,
-                  color: categoryColor
                 },
-                draggable: true
+                style: {
+                  backgroundColor: categoryColor,
+                  border: '1px solid #333',
+                  borderRadius: 6,
+                  padding: 10,
+                  fontSize: 12,
+                  color: '#fff',
+                },
+                draggable: true,
+                type: 'default',
               });
 
               if (previousNodeId) {
@@ -173,17 +146,19 @@ export default function ProcessDiagram() {
 
               previousNodeId = id;
             });
+
+            currentY += subHeight + padding;
           });
 
           newNodes.push(...subUnitRects);
 
           newNodes.push({
             id: `unit-${unit}`,
-            position: { x: unitX, y: unitY },
+            position: { x: unitX, y: 0 },
             data: { label: unit },
             style: {
               width: unitWidth,
-              height: unitHeight,
+              height: currentY + padding,
               border: '4px solid #444',
               backgroundColor: 'transparent',
               pointerEvents: 'none'
@@ -192,90 +167,50 @@ export default function ProcessDiagram() {
             type: 'input'
           });
 
-          unitX += unitWidth + 100;
+          unitIndex++;
         });
 
         setNodes(newNodes);
         setEdges(newEdges);
+        setOriginalNodes(newNodes);
+        setOriginalEdges(newEdges);
       })
       .catch(err => {
         console.error(err);
         setError(err.message);
       });
-  };
-
-  const saveLayout = () => {
-    const layout = { nodes, edges };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
-    alert('Layout saved ✅');
-  };
-
-  const resetLayout = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    loadFromAirtable();
-    alert('Reset to original Airtable layout 🔄');
-  };
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setNodes(parsed.nodes || []);
-      setEdges(parsed.edges || []);
-    } else {
-      loadFromAirtable();
-    }
   }, []);
 
-  if (error) return <div style={{ color: 'red', padding: 20 }}>❌ Error: {error}</div>;
+  if (error) {
+    return <div style={{ color: 'red', padding: 20 }}>❌ Error loading data: {error}</div>;
+  }
 
   return (
     <div style={{ width: '100%', height: '100vh' }}>
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-        <button
-          onClick={saveLayout}
-          style={{
-            marginRight: 10,
-            padding: '6px 12px',
-            backgroundColor: '#4caf50',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer'
-          }}
-        >
-          💾 Save Layout
-        </button>
-        <button
-          onClick={resetLayout}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer'
-          }}
-        >
-          🔄 Reset to Default
-        </button>
-      </div>
-
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        nodeTypes={nodeTypes}
         fitView
         minZoom={0.1}
         maxZoom={2}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
       >
         <Background />
         <Controls />
       </ReactFlow>
+      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
+        <button onClick={resetLayout} style={{ padding: '6px 12px' }}>🔄 Reset Layout</button>
+      </div>
     </div>
+  );
+}
+
+export default function ProcessDiagram() {
+  return (
+    <ReactFlowProvider>
+      <ProcessDiagramInner />
+    </ReactFlowProvider>
   );
 }
