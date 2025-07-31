@@ -149,7 +149,16 @@ export default function ProcessDiagram() {
 
   const onConnect = useCallback(
     (params) => {
-      const updated = addEdge({ ...params, animated: true }, edges);
+      const updated = addEdge(
+  {
+    ...params,
+    animated: true,
+    style: { stroke: 'blue' }, // 🔵 this sets the connector color
+  },
+  edges
+);
+
+
       setEdges(updated);
       localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));
     },
