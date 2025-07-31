@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -12,7 +12,6 @@ const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
   const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-
   const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
   const res = await fetch(url, {
@@ -39,17 +38,17 @@ const categoryColors = {
 };
 
 export default function ProcessDiagram() {
+  const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
+
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [error, setError] = useState(null);
-  const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
 
   const itemWidth = 160;
   const itemHeight = 60;
   const itemGap = 30;
   const padding = 30;
-  const unitWidth = 3200;
-  const unitHeight = 1800; // enough to hold 9 sub-units
+  const unitWidth = 3200; // Doubled
+  const unitHeight = 1800; // Doubled
   const subUnitHeight = unitHeight / 9;
 
   useEffect(() => {
@@ -66,100 +65,73 @@ export default function ProcessDiagram() {
 
         const newNodes = [];
         const newEdges = [];
-
+        let idCounter = 1;
         let unitX = 0;
 
         Object.entries(grouped).forEach(([unit, subUnits]) => {
           // Unit rectangle
+          const unitId = `unit-${unit}`;
           newNodes.push({
-            id: `unit-${unit}`,
+            id: unitId,
             position: { x: unitX, y: 0 },
             data: { label: unit },
             style: {
               width: unitWidth,
               height: unitHeight,
+              backgroundColor: '#f0f0f0',
               border: '4px solid #444',
-              backgroundColor: 'transparent',
-              pointerEvents: 'none',
+              zIndex: 0,
             },
-            type: 'input',
+            type: 'default',
+            draggable: false,
             selectable: false,
           });
 
-          let currentY = 0;
-
           const subUnitNames = Object.keys(subUnits);
-          for (let i = 0; i < 9; i++) {
-            const subUnitName = subUnitNames[i] || `SubUnit-${i + 1}`;
-            const itemsInSubUnit = subUnits[subUnitName] || [];
-
-            const subRectY = currentY;
-
-            // SubUnit rectangle
+          subUnitNames.forEach((subUnit, index) => {
+            const subId = `sub-${unit}-${subUnit}`;
+            const yOffset = index * subUnitHeight;
             newNodes.push({
-              id: `subunit-${unit}-${subUnitName}`,
-              position: { x: unitX + padding, y: subRectY },
-              data: { label: subUnitName },
+              id: subId,
+              position: { x: unitX + 10, y: yOffset + 10 },
+              data: { label: subUnit },
               style: {
-                width: unitWidth - 2 * padding,
-                height: subUnitHeight - padding,
-                border: '1px dashed #999',
+                width: unitWidth - 20,
+                height: subUnitHeight - 20,
                 backgroundColor: 'transparent',
-                pointerEvents: 'none',
+                border: '2px dashed #aaa',
+                zIndex: 1,
               },
-              type: 'input',
+              type: 'default',
+              draggable: false,
               selectable: false,
             });
 
-            // Layout items inside subunit
-            const itemsPerRow = Math.floor((unitWidth - 2 * padding) / (itemWidth + itemGap));
-            const rows = Math.ceil(itemsInSubUnit.length / itemsPerRow);
-
-            let previousNodeId = null;
-            itemsInSubUnit.sort((a, b) => a.Sequence - b.Sequence);
-
-            itemsInSubUnit.forEach((item, index) => {
-              const row = Math.floor(index / itemsPerRow);
-              const col = index % itemsPerRow;
-
-              const nodeX = unitX + padding + col * (itemWidth + itemGap);
-              const nodeY = subRectY + padding + row * (itemHeight + itemGap);
-
-              const id = `node-${unit}-${subUnitName}-${index}`;
-              const categoryColor = categoryColors[item.Category] || '#999';
-
+            // Item nodes inside sub-unit
+            const items = subUnits[subUnit];
+            items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+            let itemX = unitX + 40;
+            const itemY = yOffset + 20;
+            items.forEach((item, i) => {
+              const id = `item-${idCounter++}`;
               newNodes.push({
                 id,
-                position: { x: nodeX, y: nodeY },
+                position: { x: itemX, y: itemY },
                 data: { label: `${item.Code || ''} - ${item.Name || ''}` },
                 style: {
-                  backgroundColor: categoryColor,
                   width: itemWidth,
                   height: itemHeight,
-                  border: '1px solid #333',
-                  borderRadius: 6,
+                  backgroundColor: categoryColors[item.Category] || '#ccc',
+                  color: 'white',
                   padding: 10,
                   fontSize: 12,
-                  color: '#fff',
+                  borderRadius: 5,
+                  zIndex: 2,
                 },
-                draggable: true,
-                type: 'default',
               });
-
-              if (previousNodeId) {
-                newEdges.push({
-                  id: `e${previousNodeId}-${id}`,
-                  source: previousNodeId,
-                  target: id,
-                  type: 'default',
-                });
-              }
-
-              previousNodeId = id;
+              itemX += itemWidth + itemGap;
             });
-
-            currentY += subUnitHeight;
-          }
+          });
 
           unitX += unitWidth + 100;
         });
@@ -167,36 +139,65 @@ export default function ProcessDiagram() {
         setNodes(newNodes);
         setEdges(newEdges);
         setDefaultLayout({ nodes: newNodes, edges: newEdges });
+        localStorage.setItem('diagram-layout', JSON.stringify({ nodes: newNodes, edges: newEdges }));
       })
       .catch((err) => {
         console.error(err);
-        setError(err.message);
       });
   }, []);
 
-  const onConnect = (params) => setEdges((eds) => addEdge(params, eds));
+  const onConnect = useCallback(
+    (params) => {
+      const updated = addEdge(params, edges);
+      setEdges(updated);
+      localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));
+    },
+    [edges, nodes]
+  );
+
+  const onNodeDragStop = useCallback(
+    (_, updatedNode) => {
+      const updatedNodes = nodes.map((n) => (n.id === updatedNode.id ? updatedNode : n));
+      setNodes(updatedNodes);
+      localStorage.setItem('diagram-layout', JSON.stringify({ nodes: updatedNodes, edges }));
+    },
+    [nodes, edges]
+  );
 
   const handleReset = () => {
     setNodes(defaultLayout.nodes);
     setEdges(defaultLayout.edges);
   };
 
-  if (error) {
-    return <div style={{ color: 'red', padding: 20 }}>❌ Error loading data: {error}</div>;
-  }
-
   return (
-    <div style={{ width: '100%', height: '100vh' }}>
-      <button onClick={handleReset} style={{ position: 'absolute', zIndex: 10, top: 10, left: 10 }}>🔁 Reset Layout</button>
+    <div style={{ width: '100vw', height: '100vh' }}>
+      <button
+        onClick={handleReset}
+        style={{
+          position: 'absolute',
+          zIndex: 10,
+          top: 10,
+          left: 10,
+          padding: '6px 12px',
+          background: '#555',
+          color: 'white',
+          border: 'none',
+          borderRadius: 5,
+          cursor: 'pointer',
+        }}
+      >
+        🔁 Reset Layout
+      </button>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         fitView
-        minZoom={0.1}
-        maxZoom={2}
+        minZoom={0.05}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       >
         <Background />
