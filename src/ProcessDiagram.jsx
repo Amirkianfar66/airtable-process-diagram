@@ -8,7 +8,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import ItemNode from './components/ItemNode'; // Import your custom ItemNode
+import ItemNode from './components/ItemNode'; // Correct import path
 
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -40,7 +40,7 @@ const categoryColors = {
 };
 
 const nodeTypes = {
-  itemNode: ItemNode, // Register custom node type
+  itemNode: ItemNode, // register custom node
 };
 
 export default function ProcessDiagram() {
@@ -52,7 +52,6 @@ export default function ProcessDiagram() {
   const itemWidth = 160;
   const itemHeight = 60;
   const itemGap = 30;
-  const padding = 30;
   const unitWidth = 3200;
   const unitHeight = 1800;
   const subUnitHeight = unitHeight / 9;
@@ -133,7 +132,7 @@ export default function ProcessDiagram() {
                   category: item.Category,
                   color: categoryColors[item.Category] || '#ccc',
                 },
-                type: 'itemNode', // Use custom node type here
+                type: 'itemNode', // Use custom node type
                 sourcePosition: 'right',
                 targetPosition: 'left',
               });
@@ -231,7 +230,7 @@ export default function ProcessDiagram() {
         fitView
         minZoom={0.02}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-        nodeTypes={nodeTypes} // Register your custom node types here
+        nodeTypes={nodeTypes} // Register custom nodes here
       >
         <Background />
         <Controls />
