@@ -1,28 +1,34 @@
-import React from 'react';
-import {
-  EquipmentIcon,
-  PipeIcon,
-  InstrumentIcon,
-  InlineValveIcon,
-  ElectricalIcon,
-} from '../Icons';
-
-const categoryToIcon = {
-  Equipment: EquipmentIcon,
-  Pipe: PipeIcon,
-  Instrument: InstrumentIcon,
-  'Inline Valve': InlineValveIcon,
-  Electrical: ElectricalIcon,
+const categoryColors = {
+  Equipment: 'green',
+  Pipe: 'blue',
+  Instrument: 'orange',
+  'Inline Valve': 'black',
+  Electrical: 'red',
 };
 
 export default function ItemNode({ data }) {
   const { label, category } = data;
   const IconComponent = categoryToIcon[category] || (() => <div>❓</div>);
+  const bgColor = categoryColors[category] || '#ccc';
 
   return (
-    <div style={{ textAlign: 'center', padding: 5 }}>
+    <div
+      style={{
+        backgroundColor: bgColor,
+        color: 'white',
+        borderRadius: 5,
+        width: 160,
+        height: 60,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 5,
+        fontSize: 12,
+      }}
+    >
       <IconComponent />
-      <div style={{ fontSize: 12 }}>{label}</div>
+      <div>{label}</div>
     </div>
   );
 }
