@@ -1,9 +1,11 @@
-const EquipmentIcon = ({ size = 60 }) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-    <rect width="64" height="64" rx="8" fill="#4CAF50" />
-    <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="14">
-      EQ
-    </text>
-  </svg>
-);
-export default EquipmentIcon;
+// src/components/icons/ElectricalIcon.jsx
+import React from 'react';
+
+export default function ElectricalIcon() {
+  return (
+    <svg width="50" height="50" viewBox="0 0 100 100" fill="none">
+      <polygon points="40,10 60,10 50,35 70,35 30,90 45,50 30,50" fill="red" stroke="black" strokeWidth="3" />
+      <text x="50" y="95" fontSize="14" textAnchor="middle" fill="black">Elec</text>
+    </svg>
+  );
+}

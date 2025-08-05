@@ -1,9 +1,11 @@
-const EquipmentIcon = ({ size = 60 }) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-    <rect width="64" height="64" rx="8" fill="#4CAF50" />
-    <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="14">
-      EQ
-    </text>
-  </svg>
-);
-export default EquipmentIcon;
+// src/components/icons/InlineValveIcon.jsx
+import React from 'react';
+
+export default function InlineValveIcon() {
+  return (
+    <svg width="50" height="50" viewBox="0 0 100 100" fill="none">
+      <polygon points="10,50 50,10 90,50 50,90" fill="black" stroke="gray" strokeWidth="3" />
+      <text x="50" y="55" fontSize="14" textAnchor="middle" fill="white">Valve</text>
+    </svg>
+  );
+}

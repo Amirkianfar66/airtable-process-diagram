@@ -1,13 +1,28 @@
-// src/components/ItemNode.jsx
 import React from 'react';
-import { Handle, Position } from 'reactflow';
+import {
+  EquipmentIcon,
+  PipeIcon,
+  InstrumentIcon,
+  InlineValveIcon,
+  ElectricalIcon,
+} from '../Icons';
+
+const categoryToIcon = {
+  Equipment: EquipmentIcon,
+  Pipe: PipeIcon,
+  Instrument: InstrumentIcon,
+  'Inline Valve': InlineValveIcon,
+  Electrical: ElectricalIcon,
+};
 
 export default function ItemNode({ data }) {
+  const { label, category } = data;
+  const IconComponent = categoryToIcon[category] || (() => <div>❓</div>);
+
   return (
-    <div style={{ padding: 10, border: '1px solid #999', borderRadius: 5, background: 'white' }}>
-      <strong>{data.label}</strong>
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+    <div style={{ textAlign: 'center', padding: 5 }}>
+      <IconComponent />
+      <div style={{ fontSize: 12 }}>{label}</div>
     </div>
   );
 }
