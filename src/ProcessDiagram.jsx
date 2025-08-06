@@ -121,28 +121,15 @@ export default function ProcessDiagram() {
               newNodes.push({
                 id,
                 position: { x: itemX, y: itemY },
+                type: 'item', // ✅ use the custom node type
                 data: {
-                  label: (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {IconComponent && <IconComponent style={{ width: 20, height: 20 }} />}
-                      <span>{`${item.Code || ''} - ${item.Name || ''}`}</span>
-                    </div>
-                  ),
-                },
-                style: {
-                  width: itemWidth,
-                  height: itemHeight,
-                  backgroundColor: '#222',
-                  color: 'white',
-                  padding: 10,
-                  fontSize: 12,
-                  borderRadius: 5,
-                  zIndex: 2,
+                icon: IconComponent && <IconComponent style={{ width: 20, height: 20 }} />,
+                label: `${item.Code || ''} - ${item.Name || ''}`,
                 },
                 sourcePosition: 'right',
                 targetPosition: 'left',
-                type: 'default',
               });
+
               itemX += itemWidth + itemGap;
             });
           });
