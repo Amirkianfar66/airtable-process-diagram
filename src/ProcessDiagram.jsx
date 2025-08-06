@@ -8,6 +8,13 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+// Import your category icon components
+import EquipmentIcon from './Icons/EquipmentIcon';
+import InstrumentIcon from './icons/InstrumentIcon';
+import InlineValveIcon from './Icons/InlineValveIcon';
+import PipeIcon from './Icons/PipeIcon';
+import ElectricalIcon from './Icons/ElectricalIcon';
+
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -29,12 +36,12 @@ const fetchData = async () => {
   return data.records.map((rec) => rec.fields);
 };
 
-const categoryColors = {
-  Equipment: 'green',
-  Instrument: 'orange',
-  'Inline Valve': 'black',
-  Pipe: 'blue',
-  Electrical: 'red',
+const categoryIcons = {
+  Equipment: EquipmentIcon,
+  Instrument: InstrumentIcon,
+  'Inline Valve': InlineValveIcon,
+  Pipe: PipeIcon,
+  Electrical: ElectricalIcon,
 };
 
 export default function ProcessDiagram() {
@@ -69,7 +76,6 @@ export default function ProcessDiagram() {
         let unitX = 0;
 
         Object.entries(grouped).forEach(([unit, subUnits]) => {
-          // Unit rectangle
           const unitId = `unit-${unit}`;
           newNodes.push({
             id: unitId,
@@ -105,21 +111,28 @@ export default function ProcessDiagram() {
               selectable: false,
             });
 
-            // Item nodes inside sub-unit
             const items = subUnits[subUnit];
             items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
             let itemX = unitX + 40;
             const itemY = yOffset + 20;
-            items.forEach((item, i) => {
+            items.forEach((item) => {
               const id = `item-${idCounter++}`;
+              const IconComponent = categoryIcons[item.Category];
               newNodes.push({
                 id,
                 position: { x: itemX, y: itemY },
-                data: { label: `${item.Code || ''} - ${item.Name || ''}` },
+                data: {
+                  label: (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {IconComponent && <IconComponent style={{ width: 20, height: 20 }} />}
+                      <span>{`${item.Code || ''} - ${item.Name || ''}`}</span>
+                    </div>
+                  ),
+                },
                 style: {
                   width: itemWidth,
                   height: itemHeight,
-                  backgroundColor: categoryColors[item.Category] || '#ccc',
+                  backgroundColor: '#222',
                   color: 'white',
                   padding: 10,
                   fontSize: 12,
@@ -150,14 +163,13 @@ export default function ProcessDiagram() {
   const onConnect = useCallback(
     (params) => {
       const updated = addEdge(
-  {
-    ...params,
-    animated: true,
-    style: { stroke: 'blue' }, // 🔵 this sets the connector color
-  },
-  edges
-);
-
+        {
+          ...params,
+          animated: true,
+          style: { stroke: 'blue' },
+        },
+        edges
+      );
 
       setEdges(updated);
       localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));

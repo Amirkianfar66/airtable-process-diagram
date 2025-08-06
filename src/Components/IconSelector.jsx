@@ -1,7 +1,7 @@
 // src/Components/IconSelector.jsx
 import Pipe from 'src/Icons/Pipe';
 import InlineItem from 'src/Icons/InlineItem';
-import Valven from 'src/Icons/Valve';
+import Electrical from 'src/Icons/Electrical';
 import Instrument from 'src/Icons/Instrument';
 import Equipment from 'src/Icons/Equipment';
 

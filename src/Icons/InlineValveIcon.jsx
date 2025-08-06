@@ -1,4 +1,4 @@
-// src/Icons//InlineValve.jsx
+// src/Icons//InlineValveIcon.jsx
 import React from 'react';
 
 export default function InlineValveIcon() {

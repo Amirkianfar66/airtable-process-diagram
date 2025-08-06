@@ -1,4 +1,4 @@
-// src/Icons/Instrument.jsx
+// src/Icons/InstrumentIcon.jsx
 import React from 'react';
 
 export default function InstrumentIcon() {
