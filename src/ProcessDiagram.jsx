@@ -124,7 +124,7 @@ export default function ProcessDiagram() {
                 data: {
                   label: (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {IconComponent && <IconComponent style={{ width: 20, height: 20 }} />}
+                      {IconComponent && <IconComponent style={{ width: 40, height: 40 }} />}
                       <span>{`${item.Code || ''} - ${item.Name || ''}`}</span>
                     </div>
                   ),
@@ -132,7 +132,7 @@ export default function ProcessDiagram() {
                 style: {
                   width: itemWidth,
                   height: itemHeight,
-                  backgroundColor: '#111',
+                  backgroundColor: '#222',
                   color: 'white',
                   padding: 10,
                   fontSize: 12,
