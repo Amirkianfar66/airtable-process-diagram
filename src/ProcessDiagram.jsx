@@ -8,8 +8,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import TestFile from "./Components/testFile"; // Without .jsx, it's fine
-console.log(TestFile);
+import TestFile from "./Components/ItemNode"; // Without .jsx, it's fine
+console.log(ItemNode);
 
 
 
