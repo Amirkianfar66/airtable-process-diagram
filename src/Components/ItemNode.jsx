@@ -1,5 +1,5 @@
 // src/components/ItemNode.jsx
-import IconSelector from '// src/components/IconSelector';
+import IconSelector from '// src/Components/IconSelector';
 
 const ItemNode = ({ data }) => {
   const { category, name, code } = data;
