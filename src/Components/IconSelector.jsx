@@ -1,16 +1,16 @@
-// src/components/IconSelector.jsx
-import PipeIcon from 'src/Icons/Pipe';
-import InlineItemIcon from 'src/Icons/InlineItem';
-import ValveIcon from 'src/Icons/Valve';
-import InstrumentIcon from 'src/Icons/Instrument';
-import EquipmentIcon from 'src/Icons/Equipment';
+// src/Components/IconSelector.jsx
+import Pipe from 'src/Icons/Pipe';
+import InlineItem from 'src/Icons/InlineItem';
+import Valven from 'src/Icons/Valve';
+import Instrument from 'src/Icons/Instrument';
+import Equipment from 'src/Icons/Equipment';
 
 const iconMap = {
-  Pipe: PipeIcon,
-  'Inline item': InlineItemIcon,
-  Valve: ValveIcon,
-  Instrument: InstrumentIcon,
-  Equipment: EquipmentIcon,
+  Pipe: Pipe,
+  'Inline item': InlineItem,
+  Valve: Valve,
+  Instrument: Instrument,
+  Equipment: Equipment,
 };
 
 const IconSelector = ({ category }) => {

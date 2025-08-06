@@ -1,4 +1,4 @@
-// src/components/ItemNode.jsx
+// src/Components/ItemNode.jsx
 import IconSelector from '// src/Components/IconSelector';
 
 const ItemNode = ({ data }) => {
