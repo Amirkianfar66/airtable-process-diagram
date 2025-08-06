@@ -1,34 +1,19 @@
-const categoryColors = {
-  Equipment: 'green',
-  Pipe: 'blue',
-  Instrument: 'orange',
-  'Inline Valve': 'black',
-  Electrical: 'red',
-};
+// src/components/ItemNode.jsx
+import IconSelector from '// src/components/IconSelector';
 
-export default function ItemNode({ data }) {
-  const { label, category } = data;
-  const IconComponent = categoryToIcon[category] || (() => <div>❓</div>);
-  const bgColor = categoryColors[category] || '#ccc';
+const ItemNode = ({ data }) => {
+  const { category, name, code } = data;
 
   return (
-    <div
-      style={{
-        backgroundColor: bgColor,
-        color: 'white',
-        borderRadius: 5,
-        width: 160,
-        height: 60,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 5,
-        fontSize: 12,
-      }}
-    >
-      <IconComponent />
-      <div>{label}</div>
+    <div className="p-4 border rounded shadow bg-white w-[200px]">
+      <div className="flex items-center justify-between">
+        <IconSelector category={category} />
+        <div className="text-sm text-gray-500">{category}</div>
+      </div>
+      <div className="mt-2 font-semibold">{name}</div>
+      <div className="text-xs text-gray-600">{code}</div>
     </div>
   );
-}
+};
+
+export default ItemNode;

@@ -8,6 +8,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+import ItemNode from './components/ItemNode'; // Your custom node with IconSelector inside
+
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
   const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -29,12 +31,8 @@ const fetchData = async () => {
   return data.records.map((rec) => rec.fields);
 };
 
-const categoryColors = {
-  Equipment: 'green',
-  Instrument: 'orange',
-  'Inline Valve': 'black',
-  Pipe: 'blue',
-  Electrical: 'red',
+const nodeTypes = {
+  itemNode: ItemNode, // Register your custom node component here
 };
 
 export default function ProcessDiagram() {
@@ -43,10 +41,10 @@ export default function ProcessDiagram() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
+  // Layout constants
   const itemWidth = 160;
   const itemHeight = 60;
   const itemGap = 30;
-  const padding = 30;
   const unitWidth = 3200;
   const unitHeight = 1800;
   const subUnitHeight = unitHeight / 9;
@@ -56,7 +54,14 @@ export default function ProcessDiagram() {
       .then((items) => {
         const grouped = {};
         items.forEach((item) => {
-          const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+          const {
+            Unit,
+            SubUnit = item['Sub Unit'],
+            ['Category Item Type']: Category,
+            Sequence = 0,
+            Name,
+            ['Item Code']: Code,
+          } = item;
           if (!Unit || !SubUnit) return;
           if (!grouped[Unit]) grouped[Unit] = {};
           if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
@@ -69,7 +74,7 @@ export default function ProcessDiagram() {
         let unitX = 0;
 
         Object.entries(grouped).forEach(([unit, subUnits]) => {
-          // Unit rectangle
+          // Unit block
           const unitId = `unit-${unit}`;
           newNodes.push({
             id: unitId,
@@ -86,8 +91,7 @@ export default function ProcessDiagram() {
             selectable: false,
           });
 
-          const subUnitNames = Object.keys(subUnits);
-          subUnitNames.forEach((subUnit, index) => {
+          Object.entries(subUnits).forEach(([subUnit, items], index) => {
             const subId = `sub-${unit}-${subUnit}`;
             const yOffset = index * subUnitHeight;
             newNodes.push({
@@ -105,30 +109,24 @@ export default function ProcessDiagram() {
               selectable: false,
             });
 
-            // Item nodes inside sub-unit
-            const items = subUnits[subUnit];
+            // Sort items by sequence
             items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+
             let itemX = unitX + 40;
             const itemY = yOffset + 20;
-            items.forEach((item, i) => {
+
+            items.forEach((item) => {
               const id = `item-${idCounter++}`;
               newNodes.push({
                 id,
                 position: { x: itemX, y: itemY },
-                data: { label: `${item.Code || ''} - ${item.Name || ''}` },
-                style: {
-                  width: itemWidth,
-                  height: itemHeight,
-                  backgroundColor: categoryColors[item.Category] || '#ccc',
-                  color: 'white',
-                  padding: 10,
-                  fontSize: 12,
-                  borderRadius: 5,
-                  zIndex: 2,
+                data: {
+                  label: `${item.Code || ''} - ${item.Name || ''}`,
+                  category: item.Category,
                 },
+                type: 'itemNode', // Use your custom node here
                 sourcePosition: 'right',
                 targetPosition: 'left',
-                type: 'default',
               });
               itemX += itemWidth + itemGap;
             });
@@ -150,15 +148,13 @@ export default function ProcessDiagram() {
   const onConnect = useCallback(
     (params) => {
       const updated = addEdge(
-  {
-    ...params,
-    animated: true,
-    style: { stroke: 'blue' }, // 🔵 this sets the connector color
-  },
-  edges
-);
-
-
+        {
+          ...params,
+          animated: true,
+          style: { stroke: 'blue' },
+        },
+        edges
+      );
       setEdges(updated);
       localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));
     },
@@ -225,6 +221,7 @@ export default function ProcessDiagram() {
         fitView
         minZoom={0.02}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        nodeTypes={nodeTypes}
       >
         <Background />
         <Controls />
