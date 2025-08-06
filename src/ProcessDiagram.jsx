@@ -132,7 +132,7 @@ export default function ProcessDiagram() {
                 style: {
                   width: itemWidth,
                   height: itemHeight,
-                  backgroundColor: '#222',
+                  backgroundColor: '#111',
                   color: 'white',
                   padding: 10,
                   fontSize: 12,
