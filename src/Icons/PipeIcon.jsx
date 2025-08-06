@@ -1,11 +1,12 @@
-// src/Icons//PipeIcon.jsx
 import React from 'react';
 
-export default function PipeIcon() {
+export default function PipeIcon({ width = 100, height = 50 }) {
   return (
-    <svg width="50" height="50" viewBox="0 0 100 100" fill="none">
-      <rect x="10" y="40" width="80" height="20" fill="blue" stroke="black" strokeWidth="3" />
-      <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">Pipe</text>
+    <svg width={width} height={height} viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg">
+      {/* Main pipe shape */}
+      <rect x="0" y="15" width="100" height="20" fill="blue" stroke="black" strokeWidth="2" />
+      {/* Pipe label */}
+      <text x="50" y="30" fontSize="12" textAnchor="middle" fill="white">Pipe</text>
     </svg>
   );
 }
