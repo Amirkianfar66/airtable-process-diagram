@@ -7,8 +7,11 @@ import ReactFlow, {
   addEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+
 import TestFile from './components/testFile';
 console.log(TestFile);
+
+
 
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
