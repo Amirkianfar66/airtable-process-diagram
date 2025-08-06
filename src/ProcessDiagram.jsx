@@ -9,7 +9,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 import TestFile from "./Components/ItemNode"; // Without .jsx, it's fine
-console.log(ItemNode);
+
 
 
 
