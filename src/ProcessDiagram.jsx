@@ -8,7 +8,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import ItemNode from './components/ItemNode'; // Your custom node with IconSelector inside
+import ItemNode from './components/ItemNode.jsx'; // Your custom node with IconSelector inside
 
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
