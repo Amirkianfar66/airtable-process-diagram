@@ -101,7 +101,7 @@ export default function ProcessDiagram() {
               position: { x: unitX + 10, y: yOffset + 10 },
               data: { label: subUnit },
               style: {
-                width: unitWidth - 20,
+                width: unitWidth - 60,
                 height: subUnitHeight - 20,
                 backgroundColor: 'transparent',
                 border: '2px dashed #aaa',
