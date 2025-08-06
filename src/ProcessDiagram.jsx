@@ -7,6 +7,12 @@ import ReactFlow, {
   addEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import CustomItemNode from './CustomItemNode';
+
+const nodeTypes = {
+  custom: CustomItemNode,
+};
+
 
 // Import your category icon components
 import EquipmentIcon from './Icons/EquipmentIcon';
@@ -141,7 +147,7 @@ export default function ProcessDiagram() {
                 },
                 sourcePosition: 'right',
                 targetPosition: 'left',
-                type: 'default',
+                type: 'Custom',
               });
               itemX += itemWidth + itemGap;
             });
