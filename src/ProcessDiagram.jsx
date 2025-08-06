@@ -8,7 +8,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import ItemNode from "./Components/ItemNode"; // Without .jsx, it's fine
+
 
 
 
