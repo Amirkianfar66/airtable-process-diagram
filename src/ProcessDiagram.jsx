@@ -8,10 +8,12 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import CustomItemNode from './CustomItemNode';
+import PipeItemNode from './PipeItemNode';
 
 // ✅ Register your custom node
 const nodeTypes = {
   custom: CustomItemNode,
+  pipe: PipeItemNode,  // register pipe node type here
 };
 
 import EquipmentIcon from './Icons/EquipmentIcon';
