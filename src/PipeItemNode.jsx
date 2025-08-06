@@ -1,6 +1,7 @@
+// PipeItemNode.jsx
 import React, { useState, useRef } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
-import PipeIcon from '../icons/PipeIcon';
+import PipeIcon from './Icons/PipeIcon';
 
 const PipeItemNode = ({ id, data }) => {
   const reactFlowInstance = useReactFlow();
