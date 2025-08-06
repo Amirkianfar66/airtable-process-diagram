@@ -1,4 +1,4 @@
-// src/components/icons/ElectricalIcon.jsx
+// src/Icons//Icons/Electrical.jsx
 import React from 'react';
 
 export default function ElectricalIcon() {

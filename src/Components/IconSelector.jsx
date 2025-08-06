@@ -1,9 +1,9 @@
 // src/components/IconSelector.jsx
-import PipeIcon from '../icon/Pipe';
-import InlineItemIcon from '../icon/InlineItem';
-import ValveIcon from '../icon/Valve';
-import InstrumentIcon from '../icon/Instrument';
-import EquipmentIcon from '../icon/Equipment';
+import PipeIcon from 'src/Icons/Pipe';
+import InlineItemIcon from 'src/Icons/InlineItem';
+import ValveIcon from 'src/Icons/Valve';
+import InstrumentIcon from 'src/Icons/Instrument';
+import EquipmentIcon from 'src/Icons/Equipment';
 
 const iconMap = {
   Pipe: PipeIcon,

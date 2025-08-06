@@ -1,4 +1,4 @@
-// src/components/icons/PipeIcon.jsx
+// src/Icons//PipeIcon.jsx
 import React from 'react';
 
 export default function PipeIcon() {

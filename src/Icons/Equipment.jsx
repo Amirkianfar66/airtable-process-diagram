@@ -1,4 +1,4 @@
-// src/components/icons/EquipmentIcon.jsx
+// src/Icons//EquipmentIcon.jsx
 import React from 'react';
 
 export default function EquipmentIcon() {
