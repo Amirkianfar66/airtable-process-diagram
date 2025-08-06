@@ -9,12 +9,11 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import CustomItemNode from './CustomItemNode';
 
+// ✅ Register your custom node
 const nodeTypes = {
   custom: CustomItemNode,
 };
 
-
-// Import your category icon components
 import EquipmentIcon from './Icons/EquipmentIcon';
 import InstrumentIcon from './Icons/InstrumentIcon';
 import InlineValveIcon from './Icons/InlineValveIcon';
@@ -52,7 +51,6 @@ const categoryIcons = {
 
 export default function ProcessDiagram() {
   const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
-
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
@@ -125,17 +123,16 @@ export default function ProcessDiagram() {
               const id = `item-${idCounter++}`;
               const IconComponent = categoryIcons[item.Category];
               newNodes.push({
-  id,
-  position: { x: itemX, y: itemY },
-  data: {
-    label: `${item.Code || ''} - ${item.Name || ''}`,
-    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
-  },
-  type: 'custom',
-  sourcePosition: 'right',
-  targetPosition: 'left',
-});
-
+                id,
+                position: { x: itemX, y: itemY },
+                data: {
+                  label: `${item.Code || ''} - ${item.Name || ''}`,
+                  icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
+                },
+                type: 'custom',
+                sourcePosition: 'right',
+                targetPosition: 'left',
+              });
               itemX += itemWidth + itemGap;
             });
           });
@@ -216,7 +213,7 @@ export default function ProcessDiagram() {
             cursor: 'pointer',
           }}
         >
-          💾 Save Layout
+          📂 Save Layout
         </button>
       </div>
 
@@ -230,6 +227,7 @@ export default function ProcessDiagram() {
         fitView
         minZoom={0.02}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        nodeTypes={nodeTypes} // ✅ use custom node here
       >
         <Background />
         <Controls />
