@@ -10,7 +10,7 @@ import 'reactflow/dist/style.css';
 
 // Import your category icon components
 import EquipmentIcon from './Icons/EquipmentIcon';
-import InstrumentIcon from './icons/InstrumentIcon';
+import InstrumentIcon from './Icons/InstrumentIcon';
 import InlineValveIcon from './Icons/InlineValveIcon';
 import PipeIcon from './Icons/PipeIcon';
 import ElectricalIcon from './Icons/ElectricalIcon';
