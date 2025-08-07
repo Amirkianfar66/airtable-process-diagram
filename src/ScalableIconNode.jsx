@@ -25,17 +25,19 @@ export default function ScalableIconNode({ id, data }) {
     };
 
     // Clone and scale the SVG icon
-    let scaledIcon = null;
-    if (data.icon) {
-        scaledIcon = React.cloneElement(data.icon, {
-            ...data.icon.props,
-            style: {
-                ...data.icon.props.style,
+    // Wrap icon in a div to apply scaling
+    const scaledIcon = data.icon ? (
+        <div
+            style={{
                 transform: `scale(${data.scale || 1})`,
                 transformOrigin: 'center center',
-            },
-        });
-    }
+                display: 'inline-block',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {data.icon}
+        </div>
+    ) : null;
 
     return (
         <div
