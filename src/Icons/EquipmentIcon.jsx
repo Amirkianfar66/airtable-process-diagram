@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position } from 'reactflow';
 import EquipmentIcon from '../Icons/EquipmentIcon';
 
-export default function EquipmentNode({ id, data }) {
+export default function EquipmentNode({ data }) {
     const [showHandles, setShowHandles] = useState(false);
     const timeoutRef = useRef(null);
 
@@ -14,7 +14,7 @@ export default function EquipmentNode({ id, data }) {
     const handleMouseLeave = () => {
         timeoutRef.current = setTimeout(() => {
             setShowHandles(false);
-        }, 3000); // Hide after 3 seconds
+        }, 3000); // Hide after 3s
     };
 
     useEffect(() => {
@@ -23,20 +23,27 @@ export default function EquipmentNode({ id, data }) {
 
     return (
         <div
-            style={{ width: 200, height: 200, position: 'relative' }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
+            style={{
+                width: 100,
+                height: 100,
+                position: 'relative',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+            }}
         >
-            {/* SVG Icon */}
+            {/* Equipment SVG */}
             <EquipmentIcon />
 
-            {/* Conditional Handles */}
+            {/* Handles on border */}
             {showHandles && (
                 <>
-                    <Handle type="source" position={Position.Top} style={{ top: 0, left: '50%' }} />
-                    <Handle type="source" position={Position.Right} style={{ right: 0, top: '50%' }} />
-                    <Handle type="source" position={Position.Bottom} style={{ bottom: 0, left: '50%' }} />
-                    <Handle type="source" position={Position.Left} style={{ left: 0, top: '50%' }} />
+                    <Handle type="source" position={Position.Top} style={{ top: -8 }} />
+                    <Handle type="source" position={Position.Right} style={{ right: -8 }} />
+                    <Handle type="source" position={Position.Bottom} style={{ bottom: -8 }} />
+                    <Handle type="source" position={Position.Left} style={{ left: -8 }} />
                 </>
             )}
         </div>
