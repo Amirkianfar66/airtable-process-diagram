@@ -136,17 +136,21 @@ export default function ProcessDiagram() {
             items.forEach((item) => {
               const id = `item-${idCounter++}`;
               const IconComponent = categoryIcons[item.Category];
-              newNodes.push({
-                id,
-                position: { x: itemX, y: itemY },
-                data: {
-                  label: `${item.Code || ''} - ${item.Name || ''}`,
-                  icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
-                },
-                  type: item.Category === 'Pipe' ? 'pipe' : 'scalableIcon',
-                sourcePosition: 'right',
-                targetPosition: 'left',
-              });
+                newNodes.push({
+                    id,
+                    position: { x: itemX, y: itemY },
+                    data: {
+                        label: `${item.Code || ''} - ${item.Name || ''}`,
+                        icon: IconComponent
+                            ? <IconComponent style={{ width: 20, height: 20 }} />
+                            : null,
+                        scale: 1,                // ← initialize the scale factor
+                    },
+                    type: item.Category === 'Pipe' ? 'pipe' : 'scalableIcon',
+                    sourcePosition: 'right',
+                    targetPosition: 'left',
+                });
+
               itemX += itemWidth + itemGap;
             });
           });
