@@ -11,9 +11,9 @@ export default function ResizableNode({ data }) {
             width={size.width}
             height={size.height}
             minConstraints={[100, 50]}
-            maxConstraints={[400, 300]}
+            maxConstraints={[600, 300]}
             onResizeStop={(e, { size }) => setSize(size)}
-            resizeHandles={['s', 'e']} // vertical and horizontal resize
+            resizeHandles={['e', 's']} // east and south edges
         >
             <div
                 style={{
@@ -23,13 +23,16 @@ export default function ResizableNode({ data }) {
                     backgroundColor: '#f0f8ff',
                     display: 'flex',
                     alignItems: 'center',
+                    gap: 8,
                     justifyContent: 'center',
                     userSelect: 'none',
                     boxSizing: 'border-box',
                     padding: 10,
+                    position: 'relative',
                 }}
             >
-                {data.label || 'Resizable Node'}
+                {data.icon}
+                <span>{data.label || 'Resizable Node'}</span>
                 <Handle type="target" position={Position.Left} />
                 <Handle type="source" position={Position.Right} />
             </div>
