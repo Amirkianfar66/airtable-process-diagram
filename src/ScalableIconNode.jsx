@@ -1,120 +1,50 @@
-﻿// ScalableIconNode.jsx
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
 export default function ScalableIconNode({ id, data }) {
+    const iconRef = useRef(null);
     const { setNodes } = useReactFlow();
-    const [hovered, setHovered] = useState(false);
-    const [visible, setVisible] = useState(false);
-    const timeoutRef = useRef(null);
-    const scaleX = data.scaleX || 1;
-    const scaleY = data.scaleY || 1;
-
-    const updateScale = (newScaleX, newScaleY) => {
-        setNodes((nodes) =>
-            nodes.map((node) =>
-                node.id === id
-                    ? { ...node, data: { ...node.data, scaleX: newScaleX, scaleY: newScaleY } }
-                    : node
-            )
-        );
-    };
-
-    const onScaleX = (e) => { e.stopPropagation(); updateScale(scaleX * 2, scaleY); };
-    const onScaleY = (e) => { e.stopPropagation(); updateScale(scaleX, scaleY * 2); };
-    const onReset = (e) => { e.stopPropagation(); updateScale(1, 1); };
-
-    const handleMouseEnter = () => {
-        setHovered(true);
-        setVisible(true);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-
-    const handleMouseLeave = () => {
-        setHovered(false);
-        timeoutRef.current = setTimeout(() => setVisible(false), 3000);
-    };
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
     useEffect(() => {
-        return () => clearTimeout(timeoutRef.current);
-    }, []);
+        if (iconRef.current) {
+            const bbox = iconRef.current.getBBox();
+            setDimensions({ width: bbox.width, height: bbox.height });
+        }
+    }, [data]);
 
-    const baseSize = 100;
-    const width = baseSize * scaleX;
-    const height = baseSize * scaleY;
+    const handleStyle = {
+        position: 'absolute',
+        background: '#555',
+        width: 10,
+        height: 10,
+    };
+
+    const leftHandleStyle = {
+        ...handleStyle,
+        left: `-${handleStyle.width / 2}px`,
+        top: `${dimensions.height / 2}px`,
+    };
+
+    const rightHandleStyle = {
+        ...handleStyle,
+        left: `${dimensions.width - handleStyle.width / 2}px`,
+        top: `${dimensions.height / 2}px`,
+    };
 
     return (
-        <div
-            style={{
-                position: 'relative',
-                width,
-                height,
-                pointerEvents: 'all',
-            }}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onClick={(e) => e.stopPropagation()}
-        >
-            {/* SVG Icon scaled inside */}
-            <div
-                style={{
-                    transform: `scale(${scaleX}, ${scaleY})`,
-                    transformOrigin: 'top left',
-                    width: baseSize,
-                    height: baseSize,
-                    pointerEvents: 'none',
-                }}
+        <div style={{ position: 'relative', width: dimensions.width, height: dimensions.height }}>
+            <svg
+                ref={iconRef}
+                width={dimensions.width || 100}
+                height={dimensions.height || 100}
+                viewBox="0 0 100 100"
             >
-                {data.icon}
-            </div>
+                <rect x="20" y="20" width="60" height="60" fill="lightblue" stroke="black" strokeWidth="3" />
+            </svg>
 
-            {/* Control buttons */}
-            {visible && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: -32,
-                        left: '50%',
-                        transform: 'translateX(-50%) scale(1)',
-                        pointerEvents: 'auto',
-                        display: 'flex',
-                        gap: '4px',
-                        background: 'rgba(255,255,255,0.8)',
-                        padding: '2px 4px',
-                        borderRadius: '4px',
-                        zIndex: 10,
-                    }}
-                >
-                    <button onClick={onScaleX} style={{ fontSize: 10 }}>X×2</button>
-                    <button onClick={onScaleY} style={{ fontSize: 10 }}>Y×2</button>
-                    <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
-                </div>
-            )}
-
-            {/* Handles locked to actual visible border of scaled SVG */}
-            {/* Left Handle */}
-            <Handle
-                type="source"
-                position="left"
-                style={{
-                    top: dimensions.top,
-                    left: 0,
-                    transform: 'translate(-50%, -50%)',
-                    background: 'red',
-                }}
-            />
-
-            {/* Right Handle */}
-            <Handle
-                type="target"
-                position="right"
-                style={{
-                    top: dimensions.top,
-                    right: 0,
-                    transform: 'translate(50%, -50%)',
-                    background: 'green',
-                }}
-            />
+            <Handle type="target" position={Position.Left} style={leftHandleStyle} />
+            <Handle type="source" position={Position.Right} style={rightHandleStyle} />
         </div>
     );
 }
