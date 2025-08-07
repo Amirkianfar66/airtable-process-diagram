@@ -1,78 +1,93 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { cn } from '@/lib/utils';
-import EquipmentIcon from '../icons/Equipment';
-import PipeIcon from '../icons/Pipe';
-import InstrumentIcon from '../icons/Instrument';
-import InlineValveIcon from '../icons/InlineValve';
-import ElectricalIcon from '../icons/Electrical';
+import './styles.css'; // Include CSS for hover and fade
 
-const categoryToIcon: Record<string, React.ElementType> = {
-    Equipment: EquipmentIcon,
-    Pipe: PipeIcon,
-    Instrument: InstrumentIcon,
-    'Inline Valve': InlineValveIcon,
-    Electrical: ElectricalIcon,
-};
-
-const iconSize = 80;
-
-export default function ScalableIconNode({ data }: NodeProps) {
+const ScalableIconNode: React.FC<NodeProps> = ({ data, selected }) => {
+    const wrapperRef = useRef < HTMLDivElement > (null);
+    const iconRef = useRef < SVGSVGElement > (null);
     const [showButtons, setShowButtons] = useState(false);
-
-    const Icon = categoryToIcon[data.category] || EquipmentIcon;
+    const [iconBox, setIconBox] = useState({ width: 100, height: 100 });
 
     useEffect(() => {
-        if (showButtons) {
-            const timeout = setTimeout(() => setShowButtons(false), 3000);
-            return () => clearTimeout(timeout);
+        if (iconRef.current) {
+            const bbox = iconRef.current.getBBox();
+            setIconBox({ width: bbox.width, height: bbox.height });
         }
-    }, [showButtons]);
+    }, [data]);
 
-    const handleMouseEnter = () => setShowButtons(true);
-    const handleMouseLeave = () => setShowButtons(false);
+    // Auto-hide buttons after 3 seconds
+    useEffect(() => {
+        let timeout: NodeJS.Timeout;
+        if (showButtons) {
+            timeout = setTimeout(() => setShowButtons(false), 3000);
+        }
+        return () => clearTimeout(timeout);
+    }, [showButtons]);
 
     return (
         <div
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            className="relative flex items-center justify-center"
-            style={{ width: iconSize, height: iconSize }}
+            ref={wrapperRef}
+            className="node-wrapper"
+            style={{
+                width: iconBox.width,
+                height: iconBox.height,
+                position: 'relative',
+                transform: `scale(${data.scale || 1})`,
+                transformOrigin: 'top left',
+            }}
+            onMouseEnter={() => setShowButtons(true)}
+            onMouseLeave={() => setShowButtons(false)}
         >
-            {/* Scalable SVG Icon */}
-            <Icon className="w-full h-full" />
+            {/* SVG Icon */}
+            <svg
+                ref={iconRef}
+                width={iconBox.width}
+                height={iconBox.height}
+                viewBox={`0 0 ${iconBox.width} ${iconBox.height}`}
+                dangerouslySetInnerHTML={{ __html: data.svg }}
+            />
 
-            {/* Top Buttons */}
+            {/* Buttons (Not scaling) */}
             {showButtons && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 flex gap-1 transition-opacity duration-300 opacity-100">
-                    <button className="text-xs bg-white border rounded px-1 shadow">Edit</button>
-                    <button className="text-xs bg-white border rounded px-1 shadow">Delete</button>
+                <div
+                    className="node-buttons"
+                    style={{
+                        position: 'absolute',
+                        top: -24,
+                        left: 0,
+                        right: 0,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: 6,
+                        pointerEvents: 'auto',
+                    }}
+                >
+                    <button style={{ transform: 'scale(1)' }}>⚙</button>
+                    <button style={{ transform: 'scale(1)' }}>✖</button>
                 </div>
             )}
 
-            {/* Static-size Handles positioned at the border */}
-            <Handle
-                type="source"
-                position={Position.Right}
-                style={{
-                    background: '#555',
-                    width: 8,
-                    height: 8,
-                    top: iconSize / 2 - 4,
-                    right: -4,
-                }}
-            />
+            {/* Handles (Not scaling, but relocating) */}
             <Handle
                 type="target"
                 position={Position.Left}
                 style={{
-                    background: '#555',
-                    width: 8,
-                    height: 8,
-                    top: iconSize / 2 - 4,
-                    left: -4,
+                    top: iconBox.height / 2,
+                    left: -8,
+                    transform: 'scale(1)',
+                }}
+            />
+            <Handle
+                type="source"
+                position={Position.Right}
+                style={{
+                    top: iconBox.height / 2,
+                    left: iconBox.width,
+                    transform: 'scale(1)',
                 }}
             />
         </div>
     );
-}
+};
+
+export default ScalableIconNode;
