@@ -24,7 +24,6 @@ export default function ScalableIconNode({ id, data }) {
     const onScaleY = (e) => { e.stopPropagation(); updateScale(scaleX, scaleY * 2); };
     const onReset = (e) => { e.stopPropagation(); updateScale(1, 1); };
 
-    // show buttons on hover or after hover for 3s
     const handleMouseEnter = () => {
         setHovered(true);
         setVisible(true);
@@ -40,30 +39,41 @@ export default function ScalableIconNode({ id, data }) {
         return () => clearTimeout(timeoutRef.current);
     }, []);
 
+    const baseSize = 100;
+    const width = baseSize * scaleX;
+    const height = baseSize * scaleY;
+
     return (
         <div
             style={{
                 position: 'relative',
-                display: 'inline-block',
-                transform: `scale(${scaleX}, ${scaleY})`,
-                transformOrigin: 'center center',
+                width,
+                height,
                 pointerEvents: 'all',
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* SVG Icon */}
-            <div style={{ display: 'inline-block' }}>
+            {/* SVG Icon scaled inside */}
+            <div
+                style={{
+                    transform: `scale(${scaleX}, ${scaleY})`,
+                    transformOrigin: 'top left',
+                    width: baseSize,
+                    height: baseSize,
+                    pointerEvents: 'none',
+                }}
+            >
                 {data.icon}
             </div>
 
-            {/* Control buttons: top border, visible when `visible` is true */}
+            {/* Control buttons */}
             {visible && (
                 <div
                     style={{
                         position: 'absolute',
-                        top: -32,                       // slightly above border
+                        top: -32,
                         left: '50%',
                         transform: 'translateX(-50%) scale(1)',
                         pointerEvents: 'auto',
@@ -81,16 +91,24 @@ export default function ScalableIconNode({ id, data }) {
                 </div>
             )}
 
-            {/* Handles locked to container border */}
+            {/* Handles locked to container edge, not scaled */}
             <Handle
                 type="target"
                 position={Position.Left}
-                style={{ pointerEvents: 'auto', transform: 'none' }}
+                style={{
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'auto',
+                }}
             />
             <Handle
                 type="source"
                 position={Position.Right}
-                style={{ pointerEvents: 'auto', transform: 'none' }}
+                style={{
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'auto',
+                }}
             />
         </div>
     );
