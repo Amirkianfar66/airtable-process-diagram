@@ -96,7 +96,6 @@ export default function ScalableIconNode({ id, data }) {
             )}
 
             
-            />
         </div>
     );
 }
