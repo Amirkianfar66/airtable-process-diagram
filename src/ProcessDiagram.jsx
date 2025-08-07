@@ -9,12 +9,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
-import ResizableNode from './ResizableNode';
 
-const nodeTypes = {
-    resizable: ResizableNode,
-    // add other types if you have
-};
+
 
 // ✅ Register your custom node
 const nodeTypes = {
@@ -137,7 +133,7 @@ export default function ProcessDiagram() {
                   label: `${item.Code || ''} - ${item.Name || ''}`,
                   icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
                 },
-                  type: 'resizable',
+                  type: 'Custom',
                 sourcePosition: 'right',
                 targetPosition: 'left',
               });
