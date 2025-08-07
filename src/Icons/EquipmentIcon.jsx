@@ -80,7 +80,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                             width: 12,
                             height: 12,
                             background: 'blue',
-                            borderRadius: '50%',
+                            borderRadius: '40%',
                             zIndex: 10,
                         }}
                     />
