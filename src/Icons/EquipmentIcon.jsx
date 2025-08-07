@@ -1,37 +1,38 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position } from 'reactflow';
 import EquipmentIcon from '../Icons/EquipmentIcon';
 
 export default function EquipmentNode({ id, data }) {
     const [showHandles, setShowHandles] = useState(false);
-    const hideTimeout = useRef(null);
-    const nodeRef = useRef(null);
+    const hideTimeoutRef = useRef(null);
 
-    // Show handles on mouse enter
     const handleMouseEnter = () => {
-        if (hideTimeout.current) clearTimeout(hideTimeout.current);
+        clearTimeout(hideTimeoutRef.current); // cancel any pending hide
         setShowHandles(true);
     };
 
-    // Hide handles after 3 seconds on mouse leave
     const handleMouseLeave = () => {
-        hideTimeout.current = setTimeout(() => {
+        hideTimeoutRef.current = setTimeout(() => {
             setShowHandles(false);
-        }, 3000);
+        }, 3000); // hide after 3 seconds
     };
 
     useEffect(() => {
-        return () => {
-            if (hideTimeout.current) clearTimeout(hideTimeout.current);
-        };
+        return () => clearTimeout(hideTimeoutRef.current); // cleanup on unmount
     }, []);
 
     return (
         <div
-            ref={nodeRef}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            style={{ position: 'relative', width: 200, height: 200 }}
+            style={{
+                position: 'relative',
+                width: 200,
+                height: 200,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+            }}
         >
             {showHandles && (
                 <>
