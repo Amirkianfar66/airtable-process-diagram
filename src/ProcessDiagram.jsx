@@ -125,16 +125,19 @@ export default function ProcessDiagram() {
               const id = `item-${idCounter++}`;
               const IconComponent = categoryIcons[item.Category];
               newNodes.push({
-                id,
-                position: { x: itemX, y: itemY },
-                data: {
-                  label: `${item.Code || ''} - ${item.Name || ''}`,
-                  icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
-                },
-                type: 'custom',
-                sourcePosition: 'right',
-                targetPosition: 'left',
-              });
+  id,
+  position: { x: itemX, y: itemY },
+  data: {
+    label: `${item.Code || ''} - ${item.Name || ''}`,
+  },
+  type: item.Category === 'Pipe' ? 'pipe' : 'custom', // ✅ dynamic node type
+  sourcePosition: 'right',
+  targetPosition: 'left',
+  style: {
+    width: item.Category === 'Pipe' ? 160 : undefined, // optional initial width
+  },
+});
+
               itemX += itemWidth + itemGap;
             });
           });
