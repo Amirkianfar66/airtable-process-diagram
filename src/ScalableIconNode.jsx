@@ -5,17 +5,18 @@ import { Handle, Position, useReactFlow } from 'reactflow';
 export default function ScalableIconNode({ id, data }) {
     const { setNodes } = useReactFlow();
 
-    const onScale = (e) => {
+    // Handlers to adjust scaleX and scaleY
+    const onScaleX = (e) => {
         e.stopPropagation();
         setNodes((nodes) =>
             nodes.map((node) => {
                 if (node.id === id) {
-                    const newScale = (node.data.scale || 1) * 2;
+                    const newScaleX = (node.data.scaleX || 1) * 2;
                     return {
                         ...node,
                         data: {
                             ...node.data,
-                            scale: newScale,
+                            scaleX: newScaleX,
                         },
                     };
                 }
@@ -24,12 +25,53 @@ export default function ScalableIconNode({ id, data }) {
         );
     };
 
-    // Clone and scale the SVG icon
-    // Wrap icon in a div to apply scaling
+    const onScaleY = (e) => {
+        e.stopPropagation();
+        setNodes((nodes) =>
+            nodes.map((node) => {
+                if (node.id === id) {
+                    const newScaleY = (node.data.scaleY || 1) * 2;
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            scaleY: newScaleY,
+                        },
+                    };
+                }
+                return node;
+            })
+        );
+    };
+
+    const onReset = (e) => {
+        e.stopPropagation();
+        setNodes((nodes) =>
+            nodes.map((node) => {
+                if (node.id === id) {
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            scaleX: 1,
+                            scaleY: 1,
+                        },
+                    };
+                }
+                return node;
+            })
+        );
+    };
+
+    // Determine current scales
+    const scaleX = data.scaleX || 1;
+    const scaleY = data.scaleY || 1;
+
+    // Wrap icon in a div to apply separate scaling
     const scaledIcon = data.icon ? (
         <div
             style={{
-                transform: `scale(${data.scale || 1})`,
+                transform: `scale(${scaleX}, ${scaleY})`,
                 transformOrigin: 'center center',
                 display: 'inline-block',
             }}
@@ -53,16 +95,15 @@ export default function ScalableIconNode({ id, data }) {
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* Render the scaled icon */}
             {scaledIcon}
 
-            {/* Scale button */}
+            {/* Scale X button */}
             <button
-                onClick={onScale}
+                onClick={onScaleX}
                 style={{
                     position: 'absolute',
                     top: -8,
-                    right: -8,
+                    right: 28,
                     padding: '2px 4px',
                     fontSize: 10,
                     background: '#fff',
@@ -71,10 +112,45 @@ export default function ScalableIconNode({ id, data }) {
                     cursor: 'pointer',
                 }}
             >
-                ×2
+                X×2
             </button>
 
-            {/* Connection handles */}
+            {/* Scale Y button */}
+            <button
+                onClick={onScaleY}
+                style={{
+                    position: 'absolute',
+                    top: -8,
+                    right: 48,
+                    padding: '2px 4px',
+                    fontSize: 10,
+                    background: '#fff',
+                    border: '1px solid #aaa',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                }}
+            >
+                Y×2
+            </button>
+
+            {/* Reset button */}
+            <button
+                onClick={onReset}
+                style={{
+                    position: 'absolute',
+                    top: -8,
+                    right: 68,
+                    padding: '2px 4px',
+                    fontSize: 10,
+                    background: '#fff',
+                    border: '1px solid #aaa',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                }}
+            >
+                Reset
+            </button>
+
             <Handle type="target" position={Position.Left} style={{ pointerEvents: 'auto' }} />
             <Handle type="source" position={Position.Right} style={{ pointerEvents: 'auto' }} />
         </div>
