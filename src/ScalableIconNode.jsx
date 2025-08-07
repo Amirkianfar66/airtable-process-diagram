@@ -102,12 +102,13 @@ export default function ScalableIconNode({ id, data }) {
 
             {/* Handles positioned exactly at the border of the rect */}
             {/* Handles locked to actual visible border of scaled SVG */}
+            {/* Handles locked to actual visible border of scaled SVG */}
             <Handle
                 type="target"
                 position={Position.Left}
                 style={{
                     top: `${height / 2}px`,
-                    left: `${(20 / 100) * baseSize * scaleX}px`, // Left rect edge
+                    left: `${(20 / 100) * baseSize * scaleX}px`,
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute',
@@ -118,12 +119,13 @@ export default function ScalableIconNode({ id, data }) {
                 position={Position.Right}
                 style={{
                     top: `${height / 2}px`,
-                    left: `${((20 + 60) / 100) * baseSize * scaleX}px`, // Right rect edge
+                    left: `${((20 + 60) / 100) * baseSize * scaleX}px`,
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute',
                 }}
             />
+
 
 
         </div>
