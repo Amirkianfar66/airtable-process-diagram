@@ -14,6 +14,8 @@ import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 import ScalableNode from './ScalableNode';
+import ScalableIconNode from './ScalableIconNode';
+
 
 // Icons
 import EquipmentIcon from './Icons/EquipmentIcon';
@@ -28,6 +30,7 @@ const nodeTypes = {
     custom: CustomItemNode,
     pipe: PipeItemNode,
     scalable: ScalableNode,
+    scalableIcon: ScalableIconNode,
 };
 
 
