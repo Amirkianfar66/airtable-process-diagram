@@ -46,6 +46,11 @@ export default function ScalableIconNode({ id, data }) {
     const width = baseSize * scaleX;
     const height = baseSize * scaleY;
 
+    // Icon box position and size (based on SVG <rect x="20" width="60">)
+    const rectLeft = 20 * scaleX;
+    const rectRight = (20 + 60) * scaleX;
+    const centerY = height / 2;
+
     return (
         <div
             style={{
@@ -95,13 +100,13 @@ export default function ScalableIconNode({ id, data }) {
                 </div>
             )}
 
-            {/* Handles locked to actual visible border of scaled SVG */}
+            {/* Handles positioned exactly at the border of the rect */}
             <Handle
                 type="target"
                 position={Position.Left}
                 style={{
-                    top: `${height / 2}px`,
-                    left: `0px`,
+                    top: `${centerY}px`,
+                    left: `${rectLeft}px`,
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute'
@@ -111,8 +116,8 @@ export default function ScalableIconNode({ id, data }) {
                 type="source"
                 position={Position.Right}
                 style={{
-                    top: `${height / 2}px`,
-                    left: `${width}px`,
+                    top: `${centerY}px`,
+                    left: `${rectRight}px`,
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute'
