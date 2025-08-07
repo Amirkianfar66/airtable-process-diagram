@@ -4,82 +4,16 @@ import { Handle, Position, useReactFlow } from 'reactflow';
 
 export default function ScalableIconNode({ id, data }) {
     const { setNodes } = useReactFlow();
-
-    // Handlers to adjust scaleX and scaleY
-    const onScaleX = (e) => {
-        e.stopPropagation();
-        setNodes((nodes) =>
-            nodes.map((node) => {
-                if (node.id === id) {
-                    const newScaleX = (node.data.scaleX || 1) * 2;
-                    return {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            scaleX: newScaleX,
-                        },
-                    };
-                }
-                return node;
-            })
-        );
-    };
-
-    const onScaleY = (e) => {
-        e.stopPropagation();
-        setNodes((nodes) =>
-            nodes.map((node) => {
-                if (node.id === id) {
-                    const newScaleY = (node.data.scaleY || 1) * 2;
-                    return {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            scaleY: newScaleY,
-                        },
-                    };
-                }
-                return node;
-            })
-        );
-    };
-
-    const onReset = (e) => {
-        e.stopPropagation();
-        setNodes((nodes) =>
-            nodes.map((node) => {
-                if (node.id === id) {
-                    return {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            scaleX: 1,
-                            scaleY: 1,
-                        },
-                    };
-                }
-                return node;
-            })
-        );
-    };
-
-    // Determine current scales
     const scaleX = data.scaleX || 1;
     const scaleY = data.scaleY || 1;
 
-    // Wrap icon in a div to apply separate scaling
-    const scaledIcon = data.icon ? (
-        <div
-            style={{
-                transform: `scale(${scaleX}, ${scaleY})`,
-                transformOrigin: 'center center',
-                display: 'inline-block',
-            }}
-            onClick={(e) => e.stopPropagation()}
-        >
-            {data.icon}
-        </div>
-    ) : null;
+    // Determine original icon dimensions
+    const origWidth = data.icon?.props?.style?.width || 20;
+    const origHeight = data.icon?.props?.style?.height || 20;
+    const width = origWidth * scaleX;
+    const height = origHeight * scaleY;
+
+    // Handler functions...
 
     return (
         <div
@@ -103,7 +37,7 @@ export default function ScalableIconNode({ id, data }) {
                 style={{
                     position: 'absolute',
                     top: -8,
-                    right: 28,
+                    right: 8,
                     padding: '2px 4px',
                     fontSize: 10,
                     background: '#fff',
@@ -121,7 +55,7 @@ export default function ScalableIconNode({ id, data }) {
                 style={{
                     position: 'absolute',
                     top: -8,
-                    right: 48,
+                    right: 36,
                     padding: '2px 4px',
                     fontSize: 10,
                     background: '#fff',
@@ -139,7 +73,7 @@ export default function ScalableIconNode({ id, data }) {
                 style={{
                     position: 'absolute',
                     top: -8,
-                    right: 68,
+                    right: 64,
                     padding: '2px 4px',
                     fontSize: 10,
                     background: '#fff',
