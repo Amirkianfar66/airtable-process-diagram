@@ -2,11 +2,52 @@ import React, { useState, useRef } from 'react';
 import { Handle, Position } from 'reactflow';
 
 export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
-    const [showHandles, setShowHandles] = useState(true);
-
     const rectLeft = 20 * scaleX;
     const rectRight = (20 + 60) * scaleX;
     const rectTopMid = 20 * scaleY + (60 * scaleY) / 2;
+
+    const [showHandles, setShowHandles] = useState(false);
+    const timeoutRef = useRef(null);
+
+    const edgeThreshold = 15; // px near border to trigger show handles
+
+    // Clear any existing timeout to hide handles
+    const clearHideTimeout = () => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+    };
+
+    // Start the timeout to hide handles after 3 seconds
+    const startHideTimeout = () => {
+        clearHideTimeout();
+        timeoutRef.current = setTimeout(() => {
+            setShowHandles(false);
+            timeoutRef.current = null;
+        }, 3000);
+    };
+
+    const handleMouseMove = (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+
+        if (mouseX <= edgeThreshold || mouseX >= rect.width - edgeThreshold) {
+            // Mouse near left or right border
+            if (!showHandles) setShowHandles(true);
+            clearHideTimeout(); // cancel hide timeout because mouse is close
+        } else {
+            // Mouse away from border - start hide timer if handles visible
+            if (showHandles && !timeoutRef.current) {
+                startHideTimeout();
+            }
+        }
+    };
+
+    const handleMouseLeave = () => {
+        clearHideTimeout();
+        setShowHandles(false);
+    };
 
     return (
         <div
@@ -15,9 +56,10 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                 width: 100 * scaleX,
                 height: 100 * scaleY,
                 backgroundColor: '#eee',
-                border: '2px solid black',
+                border: '1px solid #ccc',
             }}
-        // For testing, handles always visible
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
         >
             {/* Scaled SVG */}
             <div
@@ -36,6 +78,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                 </svg>
             </div>
 
+            {/* Handles */}
             {showHandles && (
                 <>
                     <Handle
@@ -47,13 +90,13 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                             top: rectTopMid,
                             left: rectLeft,
                             transform: 'translate(-50%, -50%)',
-                            width: 20,
-                            height: 20,
+                            width: 16,
+                            height: 16,
                             background: 'red',
                             borderRadius: '50%',
                             zIndex: 9999,
                             border: '2px solid white',
-                            boxShadow: '0 0 5px black',
+                            boxShadow: '0 0 4px black',
                         }}
                     />
                     <Handle
@@ -65,13 +108,13 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                             top: rectTopMid,
                             left: rectRight,
                             transform: 'translate(-50%, -50%)',
-                            width: 20,
-                            height: 20,
+                            width: 16,
+                            height: 16,
                             background: 'blue',
                             borderRadius: '50%',
                             zIndex: 9999,
                             border: '2px solid white',
-                            boxShadow: '0 0 5px black',
+                            boxShadow: '0 0 4px black',
                         }}
                     />
                 </>
