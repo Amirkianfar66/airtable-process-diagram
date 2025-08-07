@@ -4,7 +4,12 @@ import { Handle, Position } from 'reactflow';
 export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
     const rectLeft = 20 * scaleX;
     const rectRight = (20 + 60) * scaleX;
-    const rectTopMid = 20 * scaleY + (60 * scaleY) / 2;
+    const rectTop = 20 * scaleY;
+    const rectBottom = (20 + 60) * scaleY;
+    const rectTopMid = rectTop + (60 * scaleY) / 2;
+    const rectLeftMid = rectLeft;
+    const rectRightMid = rectRight;
+    const rectMiddleTop = rectTop + 30 * scaleY; // middle Y for top/bottom handles
 
     const [showHandles, setShowHandles] = useState(false);
     const timeoutRef = useRef(null);
@@ -29,8 +34,15 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
     const handleMouseMove = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
-        if (mouseX <= edgeThreshold || mouseX >= rect.width - edgeThreshold) {
+        // Show handles if mouse near any border (left, right, top, bottom)
+        const nearLeft = mouseX <= edgeThreshold;
+        const nearRight = mouseX >= rect.width - edgeThreshold;
+        const nearTop = mouseY <= edgeThreshold;
+        const nearBottom = mouseY >= rect.height - edgeThreshold;
+
+        if (nearLeft || nearRight || nearTop || nearBottom) {
             if (!showHandles) setShowHandles(true);
             clearHideTimeout();
         } else {
@@ -54,7 +66,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
             {/* Scaled SVG */}
             <div
                 style={{
-                    transform: scale(${ scaleX }, ${ scaleY }),
+                    transform: `scale(${scaleX}, ${scaleY})`,
                     transformOrigin: 'top left',
                     width: 100,
                     height: 100,
@@ -68,9 +80,10 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                 </svg>
             </div>
 
-            {/* Handles NOT scaled, show only when mouse near border */}
+            {/* Handles NOT scaled, show only when mouse near any border */}
             {showHandles && (
                 <>
+                    {/* Left handle */}
                     <Handle
                         type="target"
                         position={Position.Left}
@@ -89,6 +102,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                             boxShadow: '0 0 4px black',
                         }}
                     />
+                    {/* Right handle */}
                     <Handle
                         type="source"
                         position={Position.Right}
@@ -101,6 +115,44 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                             width: 16,
                             height: 16,
                             background: 'blue',
+                            borderRadius: '50%',
+                            zIndex: 9999,
+                            border: '2px solid white',
+                            boxShadow: '0 0 4px black',
+                        }}
+                    />
+                    {/* Top handle */}
+                    <Handle
+                        type="target"
+                        position={Position.Top}
+                        id="top"
+                        style={{
+                            position: 'absolute',
+                            top: rectTop,
+                            left: rectLeft + 30 * scaleX,
+                            transform: 'translate(-50%, -50%)',
+                            width: 16,
+                            height: 16,
+                            background: 'orange',
+                            borderRadius: '50%',
+                            zIndex: 9999,
+                            border: '2px solid white',
+                            boxShadow: '0 0 4px black',
+                        }}
+                    />
+                    {/* Bottom handle */}
+                    <Handle
+                        type="source"
+                        position={Position.Bottom}
+                        id="bottom"
+                        style={{
+                            position: 'absolute',
+                            top: rectBottom,
+                            left: rectLeft + 30 * scaleX,
+                            transform: 'translate(-50%, -50%)',
+                            width: 16,
+                            height: 16,
+                            background: 'purple',
                             borderRadius: '50%',
                             zIndex: 9999,
                             border: '2px solid white',
