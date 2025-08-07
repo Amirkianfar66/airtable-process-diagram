@@ -7,6 +7,7 @@ import ReactFlow, {
   addEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 
@@ -14,6 +15,7 @@ import PipeItemNode from './PipeItemNode';
 
 // ✅ Register your custom node
 const nodeTypes = {
+  resizable: ResizableNode,
   custom: CustomItemNode,
   pipe: PipeItemNode,  // register pipe node type here
 };
