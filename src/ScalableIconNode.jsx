@@ -107,7 +107,7 @@ export default function ScalableIconNode({ id, data }) {
                 position={Position.Left}
                 style={{
                     top: `${height / 2}px`,
-                    left: `${0.2 * width}px`,    // 20% of width
+                    left: `${(20 / 100) * baseSize * scaleX}px`, // Left rect edge
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute',
@@ -118,12 +118,13 @@ export default function ScalableIconNode({ id, data }) {
                 position={Position.Right}
                 style={{
                     top: `${height / 2}px`,
-                    left: `${0.8 * width}px`,    // 80% of width (20 + 60)
+                    left: `${((20 + 60) / 100) * baseSize * scaleX}px`, // Right rect edge
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute',
                 }}
             />
+
 
         </div>
     );
