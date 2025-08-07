@@ -2,17 +2,15 @@ import React, { useState, useRef } from 'react';
 import { Handle, Position } from 'reactflow';
 
 export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
-    const [showHandles, setShowHandles] = useState(false);
-    const timeoutRef = useRef(null);
-
-    // Your existing position calculations
     const rectLeft = 20 * scaleX;
     const rectRight = (20 + 60) * scaleX;
     const rectTopMid = 20 * scaleY + (60 * scaleY) / 2;
 
-    const edgeThreshold = 15;
+    const [showHandles, setShowHandles] = useState(false);
+    const timeoutRef = useRef(null);
 
-    // Clear any hide timeout
+    const edgeThreshold = 15; // px near border to trigger
+
     const clearHideTimeout = () => {
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
@@ -20,7 +18,6 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
         }
     };
 
-    // Start hide timeout to hide handles after 3s
     const startHideTimeout = () => {
         clearHideTimeout();
         timeoutRef.current = setTimeout(() => {
@@ -29,7 +26,6 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
         }, 3000);
     };
 
-    // When mouse moves, check if near border to show handles
     const handleMouseMove = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
@@ -44,7 +40,6 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
         }
     };
 
-    // When mouse leaves the node, hide handles immediately
     const handleMouseLeave = () => {
         clearHideTimeout();
         setShowHandles(false);
@@ -73,7 +68,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                 </svg>
             </div>
 
-            {/* Conditionally show handles */}
+            {/* Handles NOT scaled, show only when mouse near border */}
             {showHandles && (
                 <>
                     <Handle
