@@ -4,45 +4,41 @@ import EquipmentIcon from '../Icons/EquipmentIcon';
 
 export default function EquipmentNode({ id, data }) {
     const [showHandles, setShowHandles] = useState(false);
-    const hideTimeoutRef = useRef(null);
+    const timeoutRef = useRef(null);
 
     const handleMouseEnter = () => {
-        clearTimeout(hideTimeoutRef.current); // cancel any pending hide
+        clearTimeout(timeoutRef.current);
         setShowHandles(true);
     };
 
     const handleMouseLeave = () => {
-        hideTimeoutRef.current = setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
             setShowHandles(false);
-        }, 3000); // hide after 3 seconds
+        }, 3000); // Hide after 3 seconds
     };
 
     useEffect(() => {
-        return () => clearTimeout(hideTimeoutRef.current); // cleanup on unmount
+        return () => clearTimeout(timeoutRef.current);
     }, []);
 
     return (
         <div
+            style={{ width: 200, height: 200, position: 'relative' }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            style={{
-                position: 'relative',
-                width: 200,
-                height: 200,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}
         >
+            {/* SVG Icon */}
+            <EquipmentIcon />
+
+            {/* Conditional Handles */}
             {showHandles && (
                 <>
-                    <Handle type="source" position={Position.Top} />
-                    <Handle type="source" position={Position.Right} />
-                    <Handle type="source" position={Position.Bottom} />
-                    <Handle type="source" position={Position.Left} />
+                    <Handle type="source" position={Position.Top} style={{ top: 0, left: '50%' }} />
+                    <Handle type="source" position={Position.Right} style={{ right: 0, top: '50%' }} />
+                    <Handle type="source" position={Position.Bottom} style={{ bottom: 0, left: '50%' }} />
+                    <Handle type="source" position={Position.Left} style={{ left: 0, top: '50%' }} />
                 </>
             )}
-            <EquipmentIcon />
         </div>
     );
 }
