@@ -97,7 +97,7 @@ export default function ScalableIconNode({ id, data }) {
                 position={Position.Left}
                 style={{
                     top: `${height / 2}px`,
-                    left: '-6px',
+                    left: '-1px',
                     transform: 'translateY(-50%)',
                     pointerEvents: 'auto',
                     position: 'absolute'
