@@ -101,28 +101,30 @@ export default function ScalableIconNode({ id, data }) {
             )}
 
             {/* Handles positioned exactly at the border of the rect */}
+            {/* Handles locked to actual visible border of scaled SVG */}
             <Handle
                 type="target"
                 position={Position.Left}
                 style={{
-                    top: `${centerY}px`,
-                    left: `${rectLeft}px`,
+                    top: `${height / 2}px`,
+                    left: `${0.2 * width}px`,    // 20% of width
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
-                    position: 'absolute'
+                    position: 'absolute',
                 }}
             />
             <Handle
                 type="source"
                 position={Position.Right}
                 style={{
-                    top: `${centerY}px`,
-                    left: `${rectRight}px`,
+                    top: `${height / 2}px`,
+                    left: `${0.8 * width}px`,    // 80% of width (20 + 60)
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
-                    position: 'absolute'
+                    position: 'absolute',
                 }}
             />
+
         </div>
     );
 }
