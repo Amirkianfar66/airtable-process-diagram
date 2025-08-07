@@ -1,115 +1,93 @@
-﻿// ScalableIconNode.jsx
-import React, { useState, useEffect, useRef } from 'react';
-import { Handle, Position, useReactFlow } from 'reactflow';
+﻿import React, { useEffect, useRef, useState } from 'react';
+import { Handle, Position, NodeProps } from 'reactflow';
+import './styles.css'; // Include CSS for hover and fade
 
-export default function ScalableIconNode({ id, data }) {
-    const { setNodes } = useReactFlow();
-    const [hovered, setHovered] = useState(false);
-    const [visible, setVisible] = useState(false);
-    const timeoutRef = useRef(null);
-    const scaleX = data.scaleX || 1;
-    const scaleY = data.scaleY || 1;
-
-    const updateScale = (newScaleX, newScaleY) => {
-        setNodes((nodes) =>
-            nodes.map((node) =>
-                node.id === id
-                    ? { ...node, data: { ...node.data, scaleX: newScaleX, scaleY: newScaleY } }
-                    : node
-            )
-        );
-    };
-
-    const onScaleX = (e) => { e.stopPropagation(); updateScale(scaleX * 2, scaleY); };
-    const onScaleY = (e) => { e.stopPropagation(); updateScale(scaleX, scaleY * 2); };
-    const onReset = (e) => { e.stopPropagation(); updateScale(1, 1); };
-
-    const handleMouseEnter = () => {
-        setHovered(true);
-        setVisible(true);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-
-    const handleMouseLeave = () => {
-        setHovered(false);
-        timeoutRef.current = setTimeout(() => setVisible(false), 3000);
-    };
+const ScalableIconNode: React.FC<NodeProps> = ({ data, selected }) => {
+    const wrapperRef = useRef < HTMLDivElement > (null);
+    const iconRef = useRef < SVGSVGElement > (null);
+    const [showButtons, setShowButtons] = useState(false);
+    const [iconBox, setIconBox] = useState({ width: 100, height: 100 });
 
     useEffect(() => {
-        return () => clearTimeout(timeoutRef.current);
-    }, []);
+        if (iconRef.current) {
+            const bbox = iconRef.current.getBBox();
+            setIconBox({ width: bbox.width, height: bbox.height });
+        }
+    }, [data]);
 
-    const baseSize = 100;
-    const width = baseSize * scaleX;
-    const height = baseSize * scaleY;
+    // Auto-hide buttons after 3 seconds
+    useEffect(() => {
+        let timeout: NodeJS.Timeout;
+        if (showButtons) {
+            timeout = setTimeout(() => setShowButtons(false), 3000);
+        }
+        return () => clearTimeout(timeout);
+    }, [showButtons]);
 
     return (
         <div
+            ref={wrapperRef}
+            className="node-wrapper"
             style={{
+                width: iconBox.width,
+                height: iconBox.height,
                 position: 'relative',
-                width,
-                height,
-                pointerEvents: 'all',
+                transform: `scale(${data.scale || 1})`,
+                transformOrigin: 'top left',
             }}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onClick={(e) => e.stopPropagation()}
+            onMouseEnter={() => setShowButtons(true)}
+            onMouseLeave={() => setShowButtons(false)}
         >
-            {/* SVG Icon scaled inside */}
-            <div
-                style={{
-                    transform: `scale(${scaleX}, ${scaleY})`,
-                    transformOrigin: 'top left',
-                    width: baseSize,
-                    height: baseSize,
-                    pointerEvents: 'none',
-                }}
-            >
-                {data.icon}
-            </div>
+            {/* SVG Icon */}
+            <svg
+                ref={iconRef}
+                width={iconBox.width}
+                height={iconBox.height}
+                viewBox={`0 0 ${iconBox.width} ${iconBox.height}`}
+                dangerouslySetInnerHTML={{ __html: data.svg }}
+            />
 
-            {/* Control buttons */}
-            {visible && (
+            {/* Buttons (Not scaling) */}
+            {showButtons && (
                 <div
+                    className="node-buttons"
                     style={{
                         position: 'absolute',
-                        top: -32,
-                        left: '50%',
-                        transform: 'translateX(-50%) scale(1)',
-                        pointerEvents: 'auto',
+                        top: -24,
+                        left: 0,
+                        right: 0,
                         display: 'flex',
-                        gap: '4px',
-                        background: 'rgba(255,255,255,0.8)',
-                        padding: '2px 4px',
-                        borderRadius: '4px',
-                        zIndex: 10,
+                        justifyContent: 'center',
+                        gap: 6,
+                        pointerEvents: 'auto',
                     }}
                 >
-                    <button onClick={onScaleX} style={{ fontSize: 10 }}>X×2</button>
-                    <button onClick={onScaleY} style={{ fontSize: 10 }}>Y×2</button>
-                    <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
+                    <button style={{ transform: 'scale(1)' }}>⚙</button>
+                    <button style={{ transform: 'scale(1)' }}>✖</button>
                 </div>
             )}
 
-            {/* Handles locked to container edge, not scaled */}
+            {/* Handles (Not scaling, but relocating) */}
             <Handle
                 type="target"
                 position={Position.Left}
                 style={{
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    pointerEvents: 'auto',
+                    top: iconBox.height / 2,
+                    left: -8,
+                    transform: 'scale(1)',
                 }}
             />
             <Handle
                 type="source"
                 position={Position.Right}
                 style={{
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    pointerEvents: 'auto',
+                    top: iconBox.height / 2,
+                    left: iconBox.width,
+                    transform: 'scale(1)',
                 }}
             />
         </div>
     );
-}
+};
+
+export default ScalableIconNode;
