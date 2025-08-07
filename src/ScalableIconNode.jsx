@@ -7,17 +7,81 @@ export default function ScalableIconNode({ id, data }) {
     const scaleX = data.scaleX || 1;
     const scaleY = data.scaleY || 1;
 
+    // Handlers to adjust scaleX and scaleY
+    const onScaleX = (e) => {
+        e.stopPropagation();
+        setNodes((nodes) =>
+            nodes.map((node) => {
+                if (node.id === id) {
+                    const newScaleX = (node.data.scaleX || 1) * 2;
+                    return {
+                        ...node,
+                        data: { ...node.data, scaleX: newScaleX },
+                    };
+                }
+                return node;
+            })
+        );
+    };
+
+    const onScaleY = (e) => {
+        e.stopPropagation();
+        setNodes((nodes) =>
+            nodes.map((node) => {
+                if (node.id === id) {
+                    const newScaleY = (node.data.scaleY || 1) * 2;
+                    return {
+                        ...node,
+                        data: { ...node.data, scaleY: newScaleY },
+                    };
+                }
+                return node;
+            })
+        );
+    };
+
+    const onReset = (e) => {
+        e.stopPropagation();
+        setNodes((nodes) =>
+            nodes.map((node) => {
+                if (node.id === id) {
+                    return {
+                        ...node,
+                        data: { ...node.data, scaleX: 1, scaleY: 1 },
+                    };
+                }
+                return node;
+            })
+        );
+    };
+
     // Determine original icon dimensions
     const origWidth = data.icon?.props?.style?.width || 20;
     const origHeight = data.icon?.props?.style?.height || 20;
     const width = origWidth * scaleX;
     const height = origHeight * scaleY;
 
-    // Handler functions...
+    // Wrap icon in a div to apply separate scaling
+    const scaledIcon = data.icon ? (
+        <div
+            style={{
+                width,
+                height,
+                transform: `scale(${scaleX}, ${scaleY})`,
+                transformOrigin: 'center center',
+                display: 'inline-block',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {data.icon}
+        </div>
+    ) : null;
 
     return (
         <div
             style={{
+                width,
+                height,
                 display: 'inline-block',
                 background: 'transparent',
                 border: 'none',
