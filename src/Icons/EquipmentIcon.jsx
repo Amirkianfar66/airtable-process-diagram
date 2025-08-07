@@ -46,7 +46,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
 
     const handleMouseLeave = () => {
         clearHideTimeout();
-        setShowHandles(false);
+        setShowHandles(true);
     };
 
     return (
