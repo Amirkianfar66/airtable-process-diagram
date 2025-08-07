@@ -94,22 +94,21 @@ export default function ScalableIconNode({ id, data }) {
             {/* Handles locked to actual visible border of scaled SVG */}
             <Handle
                 type="target"
-                position="left"
+                position={Position.Left}
                 style={{
-                    top: `${iconBBox.height * scaleY / 2}px`,
-                    left: `-6px`,
+                    top: `${height / 2}px`,
+                    left: '-6px',
                     transform: 'translateY(-50%)',
                     pointerEvents: 'auto',
                     position: 'absolute'
                 }}
             />
-
             <Handle
                 type="source"
-                position="right"
+                position={Position.Right}
                 style={{
-                    top: `${iconBBox.height * scaleY / 2}px`,
-                    left: `${iconBBox.width * scaleX}px`,
+                    top: `${height / 2}px`,
+                    left: `${width}px`,
                     transform: 'translateY(-50%)',
                     pointerEvents: 'auto',
                     position: 'absolute'
