@@ -13,7 +13,7 @@ import 'react-resizable/css/styles.css';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
-import TestResizable from './TestResizable';
+import ScalableNode from './ScalableNode';
 
 // Icons
 import EquipmentIcon from './Icons/EquipmentIcon';
@@ -25,7 +25,9 @@ import ElectricalIcon from './Icons/ElectricalIcon';
 // ✅ Register your custom node types
 const nodeTypes = {
     resizable: ResizableNode,
+    custom: CustomItemNode,
     pipe: PipeItemNode,
+    scalable: ScalableNode,
 };
 
 
@@ -138,7 +140,7 @@ export default function ProcessDiagram() {
                   label: `${item.Code || ''} - ${item.Name || ''}`,
                   icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
                 },
-                  type: item.Category === 'Pipe' ? 'pipe' : 'resizable',
+                  type: item.Category === 'Pipe' ? 'pipe' : 'scalable',
                 sourcePosition: 'right',
                 targetPosition: 'left',
               });
