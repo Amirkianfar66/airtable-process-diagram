@@ -1,15 +1,12 @@
 ﻿// ScalableIconNode.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Handle, useReactFlow } from 'reactflow';
+import { Handle, Position, useReactFlow } from 'reactflow';
 
 export default function ScalableIconNode({ id, data }) {
     const { setNodes } = useReactFlow();
     const [hovered, setHovered] = useState(false);
     const [visible, setVisible] = useState(false);
     const timeoutRef = useRef(null);
-    const iconRef = useRef(null);
-    const [iconBBox, setIconBBox] = useState({ width: 100, height: 100 });
-
     const scaleX = data.scaleX || 1;
     const scaleY = data.scaleY || 1;
 
@@ -42,15 +39,9 @@ export default function ScalableIconNode({ id, data }) {
         return () => clearTimeout(timeoutRef.current);
     }, []);
 
-    useEffect(() => {
-        if (iconRef.current && iconRef.current.getBBox) {
-            const bbox = iconRef.current.getBBox();
-            setIconBBox({ width: bbox.width, height: bbox.height });
-        }
-    }, [data.icon, scaleX, scaleY]);
-
-    const width = iconBBox.width * scaleX;
-    const height = iconBBox.height * scaleY;
+    const baseSize = 100;
+    const width = baseSize * scaleX;
+    const height = baseSize * scaleY;
 
     return (
         <div
@@ -65,17 +56,17 @@ export default function ScalableIconNode({ id, data }) {
             onClick={(e) => e.stopPropagation()}
         >
             {/* SVG Icon scaled inside */}
-            <svg
-                ref={iconRef}
+            <div
                 style={{
-                    width,
-                    height,
+                    transform: `scale(${scaleX}, ${scaleY})`,
+                    transformOrigin: 'top left',
+                    width: baseSize,
+                    height: baseSize,
                     pointerEvents: 'none',
                 }}
-                viewBox="0 0 100 100"
             >
                 {data.icon}
-            </svg>
+            </div>
 
             {/* Control buttons */}
             {visible && (
@@ -103,7 +94,7 @@ export default function ScalableIconNode({ id, data }) {
             {/* Handles locked to actual visible border of scaled SVG */}
             <Handle
                 type="target"
-                position="left"
+                position={Position.Left}
                 style={{
                     top: `${height / 2}px`,
                     left: '-6px',
@@ -114,7 +105,7 @@ export default function ScalableIconNode({ id, data }) {
             />
             <Handle
                 type="source"
-                position="right"
+                position={Position.Right}
                 style={{
                     top: `${height / 2}px`,
                     left: `${width}px`,
