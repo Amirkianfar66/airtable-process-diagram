@@ -4,7 +4,7 @@ import { ResizableBox } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 
 export default function ResizableNode({ data }) {
-    const [size, setSize] = useState({ width: 2000, height: 1000 });
+    const [size, setSize] = useState({ width: 200, height: 100 });
 
     // Prevent React Flow dragging while resizing
     const onResizeStart = (event) => {
