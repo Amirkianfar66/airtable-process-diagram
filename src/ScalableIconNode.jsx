@@ -5,15 +5,18 @@ import { Handle, Position, useReactFlow } from 'reactflow';
 export default function ScalableIconNode({ id, data }) {
     const { setNodes } = useReactFlow();
 
-    // Double the icon scale in node data
     const onScale = (e) => {
         e.stopPropagation();
         setNodes((nodes) =>
             nodes.map((node) => {
                 if (node.id === id) {
+                    const newScale = (node.data.scale || 1) * 2;
                     return {
                         ...node,
-                        data: { ...node.data, scale: (node.data.scale || 1) * 2 },
+                        data: {
+                            ...node.data,
+                            scale: newScale,
+                        },
                     };
                 }
                 return node;
@@ -21,7 +24,7 @@ export default function ScalableIconNode({ id, data }) {
         );
     };
 
-    // Clone your SVG icon with transform
+    // Apply transform scale to the icon
     const scaledIcon = data.icon
         ? React.cloneElement(data.icon, {
             style: {
@@ -65,7 +68,7 @@ export default function ScalableIconNode({ id, data }) {
                 ×2
             </button>
 
-            {/* Optional connection handles */}
+            {/* Connection handles */}
             <Handle type="target" position={Position.Left} style={{ pointerEvents: 'auto' }} />
             <Handle type="source" position={Position.Right} style={{ pointerEvents: 'auto' }} />
         </div>
