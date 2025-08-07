@@ -6,14 +6,25 @@ import 'react-resizable/css/styles.css';
 export default function ResizableNode({ data }) {
     const [size, setSize] = useState({ width: 200, height: 100 });
 
+    // Prevent React Flow dragging while resizing
+    const onResizeStart = (event) => {
+        event.stopPropagation();
+    };
+
+    const onResizeStop = (event, { size }) => {
+        event.stopPropagation();
+        setSize(size);
+    };
+
     return (
         <ResizableBox
             width={size.width}
             height={size.height}
             minConstraints={[100, 50]}
             maxConstraints={[600, 300]}
-            onResizeStop={(e, { size }) => setSize(size)}
-            resizeHandles={['e', 's']} // east and south edges
+            onResizeStart={onResizeStart}
+            onResizeStop={onResizeStop}
+            resizeHandles={['e', 's']} // right and bottom handles
         >
             <div
                 style={{
