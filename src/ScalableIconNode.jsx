@@ -24,16 +24,18 @@ export default function ScalableIconNode({ id, data }) {
         );
     };
 
-    // Apply transform scale to the icon
-    const scaledIcon = data.icon
-        ? React.cloneElement(data.icon, {
+    // Clone and scale the SVG icon
+    let scaledIcon = null;
+    if (data.icon) {
+        scaledIcon = React.cloneElement(data.icon, {
+            ...data.icon.props,
             style: {
                 ...data.icon.props.style,
                 transform: `scale(${data.scale || 1})`,
                 transformOrigin: 'center center',
             },
-        })
-        : null;
+        });
+    }
 
     return (
         <div
@@ -45,45 +47,34 @@ export default function ScalableIconNode({ id, data }) {
                 padding: 0,
                 margin: 0,
                 pointerEvents: 'all',
-                overflow: 'visible', // allow icon to expand outside
+                overflow: 'visible',
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            <div
+            {/* Render the scaled icon */}
+            {scaledIcon}
+
+            {/* Scale button */}
+            <button
+                onClick={onScale}
                 style={{
-                    display: 'inline-block',
-                    background: 'transparent',
-                    border: 'none',
-                    position: 'relative',
-                    padding: 0,
-                    margin: 0,
-                    pointerEvents: 'all',
+                    position: 'absolute',
+                    top: -8,
+                    right: -8,
+                    padding: '2px 4px',
+                    fontSize: 10,
+                    background: '#fff',
+                    border: '1px solid #aaa',
+                    borderRadius: 2,
+                    cursor: 'pointer',
                 }}
-                onClick={(e) => e.stopPropagation()}
             >
-                {scaledIcon}
+                ×2
+            </button>
 
-                {/* Scale button */}
-                <button
-                    onClick={onScale}
-                    style={{
-                        position: 'absolute',
-                        top: -8,
-                        right: -8,
-                        padding: '2px 4px',
-                        fontSize: 10,
-                        background: '#fff',
-                        border: '1px solid #aaa',
-                        borderRadius: 2,
-                        cursor: 'pointer',
-                    }}
-                >
-                    ×2
-                </button>
-
-                {/* Connection handles */}
-                <Handle type="target" position={Position.Left} style={{ pointerEvents: 'auto' }} />
-                <Handle type="source" position={Position.Right} style={{ pointerEvents: 'auto' }} />
-            </div>
-            );
+            {/* Connection handles */}
+            <Handle type="target" position={Position.Left} style={{ pointerEvents: 'auto' }} />
+            <Handle type="source" position={Position.Right} style={{ pointerEvents: 'auto' }} />
+        </div>
+    );
 }
