@@ -45,32 +45,45 @@ export default function ScalableIconNode({ id, data }) {
                 padding: 0,
                 margin: 0,
                 pointerEvents: 'all',
+                overflow: 'visible', // allow icon to expand outside
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            {scaledIcon}
-
-            {/* Scale button */}
-            <button
-                onClick={onScale}
+            <div
                 style={{
-                    position: 'absolute',
-                    top: -8,
-                    right: -8,
-                    padding: '2px 4px',
-                    fontSize: 10,
-                    background: '#fff',
-                    border: '1px solid #aaa',
-                    borderRadius: 2,
-                    cursor: 'pointer',
+                    display: 'inline-block',
+                    background: 'transparent',
+                    border: 'none',
+                    position: 'relative',
+                    padding: 0,
+                    margin: 0,
+                    pointerEvents: 'all',
                 }}
+                onClick={(e) => e.stopPropagation()}
             >
-                ×2
-            </button>
+                {scaledIcon}
 
-            {/* Connection handles */}
-            <Handle type="target" position={Position.Left} style={{ pointerEvents: 'auto' }} />
-            <Handle type="source" position={Position.Right} style={{ pointerEvents: 'auto' }} />
-        </div>
-    );
+                {/* Scale button */}
+                <button
+                    onClick={onScale}
+                    style={{
+                        position: 'absolute',
+                        top: -8,
+                        right: -8,
+                        padding: '2px 4px',
+                        fontSize: 10,
+                        background: '#fff',
+                        border: '1px solid #aaa',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                    }}
+                >
+                    ×2
+                </button>
+
+                {/* Connection handles */}
+                <Handle type="target" position={Position.Left} style={{ pointerEvents: 'auto' }} />
+                <Handle type="source" position={Position.Right} style={{ pointerEvents: 'auto' }} />
+            </div>
+            );
 }
