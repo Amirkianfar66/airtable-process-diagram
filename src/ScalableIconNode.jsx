@@ -11,71 +11,52 @@ export default function ScalableIconNode({ id, data }) {
     const onScaleX = (e) => {
         e.stopPropagation();
         setNodes((nodes) =>
-            nodes.map((node) => {
-                if (node.id === id) {
-                    const newScaleX = (node.data.scaleX || 1) * 2;
-                    return {
-                        ...node,
-                        data: { ...node.data, scaleX: newScaleX },
-                    };
-                }
-                return node;
-            })
+            nodes.map((node) =>
+                node.id === id
+                    ? { ...node, data: { ...node.data, scaleX: (node.data.scaleX || 1) * 2 } }
+                    : node
+            )
         );
     };
 
     const onScaleY = (e) => {
         e.stopPropagation();
         setNodes((nodes) =>
-            nodes.map((node) => {
-                if (node.id === id) {
-                    const newScaleY = (node.data.scaleY || 1) * 2;
-                    return {
-                        ...node,
-                        data: { ...node.data, scaleY: newScaleY },
-                    };
-                }
-                return node;
-            })
+            nodes.map((node) =>
+                node.id === id
+                    ? { ...node, data: { ...node.data, scaleY: (node.data.scaleY || 1) * 2 } }
+                    : node
+            )
         );
     };
 
     const onReset = (e) => {
         e.stopPropagation();
         setNodes((nodes) =>
-            nodes.map((node) => {
-                if (node.id === id) {
-                    return {
-                        ...node,
-                        data: { ...node.data, scaleX: 1, scaleY: 1 },
-                    };
-                }
-                return node;
-            })
+            nodes.map((node) =>
+                node.id === id
+                    ? { ...node, data: { ...node.data, scaleX: 1, scaleY: 1 } }
+                    : node
+            )
         );
     };
 
-    // Determine original icon dimensions
+    // Determine scaled dimensions
     const origWidth = data.icon?.props?.style?.width || 20;
     const origHeight = data.icon?.props?.style?.height || 20;
     const width = origWidth * scaleX;
     const height = origHeight * scaleY;
 
-    // Wrap icon in a div to apply separate scaling
-    const scaledIcon = data.icon ? (
-        <div
-            style={{
+    // Clone icon with explicit width/height
+    const scaledIcon = data.icon
+        ? React.cloneElement(data.icon, {
+            style: {
+                ...data.icon.props.style,
                 width,
                 height,
-                transform: `scale(${scaleX}, ${scaleY})`,
-                transformOrigin: 'center center',
-                display: 'inline-block',
-            }}
-            onClick={(e) => e.stopPropagation()}
-        >
-            {data.icon}
-        </div>
-    ) : null;
+            },
+        })
+        : null;
 
     return (
         <div
@@ -89,26 +70,16 @@ export default function ScalableIconNode({ id, data }) {
                 padding: 0,
                 margin: 0,
                 pointerEvents: 'all',
-                overflow: 'visible',
             }}
             onClick={(e) => e.stopPropagation()}
         >
+            {/* Render scaled icon */}
             {scaledIcon}
 
             {/* Scale X button */}
             <button
                 onClick={onScaleX}
-                style={{
-                    position: 'absolute',
-                    top: -8,
-                    right: 8,
-                    padding: '2px 4px',
-                    fontSize: 10,
-                    background: '#fff',
-                    border: '1px solid #aaa',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                }}
+                style={{ position: 'absolute', top: -8, right: 8, padding: '2px 4px', fontSize: 10 }}
             >
                 X×2
             </button>
@@ -116,17 +87,7 @@ export default function ScalableIconNode({ id, data }) {
             {/* Scale Y button */}
             <button
                 onClick={onScaleY}
-                style={{
-                    position: 'absolute',
-                    top: -8,
-                    right: 36,
-                    padding: '2px 4px',
-                    fontSize: 10,
-                    background: '#fff',
-                    border: '1px solid #aaa',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                }}
+                style={{ position: 'absolute', top: -8, right: 36, padding: '2px 4px', fontSize: 10 }}
             >
                 Y×2
             </button>
@@ -134,23 +95,14 @@ export default function ScalableIconNode({ id, data }) {
             {/* Reset button */}
             <button
                 onClick={onReset}
-                style={{
-                    position: 'absolute',
-                    top: -8,
-                    right: 64,
-                    padding: '2px 4px',
-                    fontSize: 10,
-                    background: '#fff',
-                    border: '1px solid #aaa',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                }}
+                style={{ position: 'absolute', top: -8, right: 64, padding: '2px 4px', fontSize: 10 }}
             >
                 Reset
             </button>
 
-            <Handle type="target" position={Position.Left} style={{ pointerEvents: 'auto' }} />
-            <Handle type="source" position={Position.Right} style={{ pointerEvents: 'auto' }} />
+            {/* Handles align to container perimeter */}
+            <Handle type="target" position={Position.Left} style={{ top: height / 2 - 8 }} />
+            <Handle type="source" position={Position.Right} style={{ top: height / 2 - 8 }} />
         </div>
     );
 }
