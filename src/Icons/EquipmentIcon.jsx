@@ -1,19 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Handle, Position } from 'reactflow';
 
 export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
+    const [hovered, setHovered] = useState(false);
+
     const rectLeft = 20 * scaleX;
     const rectRight = (20 + 60) * scaleX;
     const rectTopMid = 20 * scaleY + (60 * scaleY) / 2;
 
     return (
         <div
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
             style={{
                 position: 'relative',
                 width: 100 * scaleX,
                 height: 100 * scaleY,
                 backgroundColor: '#eee',
                 border: '1px solid #ccc',
+                transition: 'box-shadow 0.2s',
+                boxShadow: hovered ? '0 0 10px rgba(0,0,0,0.3)' : 'none',
             }}
         >
             {/* Scaled SVG */}
@@ -33,7 +39,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                 </svg>
             </div>
 
-            {/* Handles always visible */}
+            {/* Conditionally visible Handles */}
             <Handle
                 type="target"
                 position={Position.Left}
@@ -50,6 +56,9 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                     zIndex: 9999,
                     border: '2px solid white',
                     boxShadow: '0 0 4px black',
+                    opacity: hovered ? 1 : 0,
+                    transition: 'opacity 0.2s',
+                    pointerEvents: hovered ? 'all' : 'none',
                 }}
             />
             <Handle
@@ -68,6 +77,9 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                     zIndex: 9999,
                     border: '2px solid white',
                     boxShadow: '0 0 4px black',
+                    opacity: hovered ? 1 : 0,
+                    transition: 'opacity 0.2s',
+                    pointerEvents: hovered ? 'all' : 'none',
                 }}
             />
         </div>
