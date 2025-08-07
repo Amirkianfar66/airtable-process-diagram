@@ -11,6 +11,12 @@ import 'react-resizable/css/styles.css';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
+import TestResizable from './TestResizable';
+
+function App() {
+    return <TestResizable />;
+}
+
 
 
 

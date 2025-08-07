@@ -1,8 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\src"
+    "\\src",
+    "\\src\\Icons"
   ],
-  "SelectedNode": "\\src\\ProcessDiagram.jsx",
+  "SelectedNode": "\\src\\ResizableNode.jsx",
   "PreviewInSolutionExplorer": false
 }
