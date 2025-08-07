@@ -1,37 +1,34 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import ReactFlow, {
-  Background,
-  Controls,
-  useNodesState,
-  useEdgesState,
-  addEdge,
+    Background,
+    Controls,
+    useNodesState,
+    useEdgesState,
+    addEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
+
+// Custom components
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 import TestResizable from './TestResizable';
 
-function App() {
-    return <TestResizable />;
-}
-
-
-
-
-// ✅ Register your custom node
-const nodeTypes = {
-  resizable: ResizableNode,
-  custom: CustomItemNode,
-  pipe: PipeItemNode,  // register pipe node type here
-};
-
+// Icons
 import EquipmentIcon from './Icons/EquipmentIcon';
 import InstrumentIcon from './Icons/InstrumentIcon';
 import InlineValveIcon from './Icons/InlineValveIcon';
 import PipeIcon from './Icons/PipeIcon';
 import ElectricalIcon from './Icons/ElectricalIcon';
+
+// ✅ Register your custom node types
+const nodeTypes = {
+    resizable: ResizableNode,
+    custom: CustomItemNode,
+    pipe: PipeItemNode,
+};
+
 
 const fetchData = async () => {
   const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
