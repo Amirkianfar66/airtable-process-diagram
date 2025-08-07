@@ -5,6 +5,10 @@
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\Icons\\EquipmentIcon.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\Icons\\EquipmentIcon.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\ProcessDiagram.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\ProcessDiagram.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     }
   ],
   "DocumentGroupContainers": [
@@ -14,8 +18,21 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 1,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "ProcessDiagram.jsx",
+              "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\ProcessDiagram.jsx",
+              "RelativeDocumentMoniker": "src\\ProcessDiagram.jsx",
+              "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\ProcessDiagram.jsx",
+              "RelativeToolTip": "src\\ProcessDiagram.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-08-07T14:33:04.934Z",
+              "EditorCaption": ""
+            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
@@ -24,7 +41,7 @@
               "RelativeDocumentMoniker": "src\\Icons\\EquipmentIcon.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\Icons\\EquipmentIcon.jsx",
               "RelativeToolTip": "src\\Icons\\EquipmentIcon.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAFUAAAAAAAAAAAAQwHUAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-08-07T14:31:58.425Z",
               "EditorCaption": ""
