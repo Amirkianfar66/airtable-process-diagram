@@ -7,6 +7,9 @@ export default function ScalableIconNode({ id, data }) {
     const [hovered, setHovered] = useState(false);
     const [visible, setVisible] = useState(false);
     const timeoutRef = useRef(null);
+    const iconRef = useRef(null);
+    const [iconBBox, setIconBBox] = useState({ width: 100, height: 100 });
+
     const scaleX = data.scaleX || 1;
     const scaleY = data.scaleY || 1;
 
@@ -57,6 +60,7 @@ export default function ScalableIconNode({ id, data }) {
         >
             {/* SVG Icon scaled inside */}
             <div
+                ref={iconRef}
                 style={{
                     transform: `scale(${scaleX}, ${scaleY})`,
                     transformOrigin: 'top left',
@@ -97,8 +101,8 @@ export default function ScalableIconNode({ id, data }) {
                 position={Position.Left}
                 style={{
                     top: `${height / 2}px`,
-                    left: '-1px',
-                    transform: 'translateY(-50%)',
+                    left: `0px`,
+                    transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute'
                 }}
@@ -109,7 +113,7 @@ export default function ScalableIconNode({ id, data }) {
                 style={{
                     top: `${height / 2}px`,
                     left: `${width}px`,
-                    transform: 'translateY(-50%)',
+                    transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute'
                 }}
