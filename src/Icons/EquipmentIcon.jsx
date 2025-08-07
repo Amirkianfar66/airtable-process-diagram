@@ -30,12 +30,13 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
         const rect = e.currentTarget.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
 
+        // Debug log to check mouseX and width
+        // console.log('Mouse X:', mouseX, 'Width:', rect.width);
+
         if (mouseX <= edgeThreshold || mouseX >= rect.width - edgeThreshold) {
-            // Mouse near border: show handles and clear timeout
             if (!showHandles) setShowHandles(true);
             clearHideTimeout();
         } else {
-            // Mouse away from border inside the element: start hide timer
             if (showHandles && !timeoutRef.current) {
                 startHideTimeout();
             }
@@ -49,7 +50,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
 
     return (
         <div
-            style={{ position: 'relative', width: 100 * scaleX, height: 100 * scaleY }}
+            style={{ position: 'relative', width: 100 * scaleX, height: 100 * scaleY, backgroundColor: '#eee' }}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
         >
@@ -82,11 +83,13 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                             top: rectTopMid,
                             left: rectLeft,
                             transform: 'translate(-50%, -50%)',
-                            width: 12,
-                            height: 12,
+                            width: 16,
+                            height: 16,
                             background: 'red',
                             borderRadius: '50%',
-                            zIndex: 10,
+                            zIndex: 9999,
+                            border: '2px solid white',
+                            boxShadow: '0 0 4px black',
                         }}
                     />
                     <Handle
@@ -98,11 +101,13 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                             top: rectTopMid,
                             left: rectRight,
                             transform: 'translate(-50%, -50%)',
-                            width: 12,
-                            height: 12,
+                            width: 16,
+                            height: 16,
                             background: 'blue',
                             borderRadius: '50%',
-                            zIndex: 10,
+                            zIndex: 9999,
+                            border: '2px solid white',
+                            boxShadow: '0 0 4px black',
                         }}
                     />
                 </>
