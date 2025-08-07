@@ -7,6 +7,7 @@ import ReactFlow, {
   addEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import 'react-resizable/css/styles.css';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
