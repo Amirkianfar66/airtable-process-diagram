@@ -107,8 +107,8 @@ export default function ScalableIconNode({ id, data }) {
                 type="target"
                 position={Position.Left}
                 style={{
-                    top: `${height / 2}px`,
-                    left: `${(20 / 100) * baseSize * scaleX}px`,
+                    top: `${(baseSize * scaleY) / 2}px`,                  // vertical center
+                    left: `${(20 / 100) * baseSize * scaleX}px`,           // left rect edge scaled
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute',
@@ -118,15 +118,13 @@ export default function ScalableIconNode({ id, data }) {
                 type="source"
                 position={Position.Right}
                 style={{
-                    top: `${height / 2}px`,
-                    left: `${((20 + 60) / 100) * baseSize * scaleX}px`,
+                    top: `${(baseSize * scaleY) / 2}px`,                   // vertical center
+                    left: `${((20 + 60) / 100) * baseSize * scaleX}px`,    // right rect edge scaled
                     transform: 'translate(-50%, -50%)',
                     pointerEvents: 'auto',
                     position: 'absolute',
                 }}
             />
-
-
 
         </div>
     );
