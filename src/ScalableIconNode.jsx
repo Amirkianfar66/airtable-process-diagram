@@ -22,29 +22,40 @@ export default function ScalableIconNode({ id, data }) {
     const onReset = (e) => { e.stopPropagation(); updateScale(1, 1); };
 
     return (
+        // Apply scaling to entire container so handles move with border
         <div
-            style={{ position: 'relative', display: 'inline-block', pointerEvents: 'all' }}
+            style={{
+                position: 'relative',
+                display: 'inline-block',
+                transform: `scale(${scaleX}, ${scaleY})`,
+                transformOrigin: 'center center',
+                pointerEvents: 'all',
+            }}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* Icon wrapper applies transform scaling */}
-            <div
-                style={{
-                    transform: `scale(${scaleX}, ${scaleY})`,
-                    transformOrigin: 'center center',
-                    display: 'inline-block',
-                }}
-            >
+            {/* SVG Icon */}
+            <div style={{ display: 'inline-block' }}>
                 {data.icon}
             </div>
 
-            {/* Control buttons with spacing */}
-            <button onClick={onScaleX} style={{ position: 'absolute', top: -10, right: 8, padding: '2px 4px', fontSize: 10 }}>X×2</button>
-            <button onClick={onScaleY} style={{ position: 'absolute', top: -10, right: 40, padding: '2px 4px', fontSize: 10 }}>Y×2</button>
-            <button onClick={onReset} style={{ position: 'absolute', top: -10, right: 72, padding: '2px 4px', fontSize: 10 }}>Reset</button>
+            {/* Control buttons (unscaled) */}
+            <div style={{ position: 'absolute', top: -10 / scaleY, right: 8 / scaleX, pointerEvents: 'auto' }}>
+                <button onClick={onScaleX} style={{ marginRight: 4, fontSize: 10 }}>X×2</button>
+                <button onClick={onScaleY} style={{ marginRight: 4, fontSize: 10 }}>Y×2</button>
+                <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
+            </div>
 
-            {/* Handles on perimeter of scaled icon */}
-            <Handle type="target" position={Position.Left} style={{ left: -8, top: '50%' }} />
-            <Handle type="source" position={Position.Right} style={{ right: -8, top: '50%' }} />
+            {/* Handles locked to container border */}
+            <Handle
+                type="target"
+                position={Position.Left}
+                style={{ pointerEvents: 'auto', transform: 'none' }}
+            />
+            <Handle
+                type="source"
+                position={Position.Right}
+                style={{ pointerEvents: 'auto', transform: 'none' }}
+            />
         </div>
     );
 }
