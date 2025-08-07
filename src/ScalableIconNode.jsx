@@ -1,9 +1,10 @@
 ﻿// ScalableIconNode.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
 export default function ScalableIconNode({ id, data }) {
     const { setNodes } = useReactFlow();
+    const [hovered, setHovered] = useState(false);
     const scaleX = data.scaleX || 1;
     const scaleY = data.scaleY || 1;
 
@@ -22,7 +23,6 @@ export default function ScalableIconNode({ id, data }) {
     const onReset = (e) => { e.stopPropagation(); updateScale(1, 1); };
 
     return (
-        // Scale entire container, so child icon and border moves together
         <div
             style={{
                 position: 'relative',
@@ -31,6 +31,8 @@ export default function ScalableIconNode({ id, data }) {
                 transformOrigin: 'center center',
                 pointerEvents: 'all',
             }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
             onClick={(e) => e.stopPropagation()}
         >
             {/* SVG Icon */}
@@ -38,14 +40,29 @@ export default function ScalableIconNode({ id, data }) {
                 {data.icon}
             </div>
 
-            {/* Control buttons (absolute, not scaled because they are outside transform) */}
-            <div style={{ position: 'absolute', top: -20, right: 0, transform: `scale(${1 / scaleX}, ${1 / scaleY})`, transformOrigin: 'top right' }}>
-                <button onClick={onScaleX} style={{ marginRight: 4, fontSize: 10 }}>X×2</button>
-                <button onClick={onScaleY} style={{ marginRight: 4, fontSize: 10 }}>Y×2</button>
-                <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
-            </div>
+            {/* Control buttons: visible on hover, positioned at top center */}
+            {hovered && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: -28,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        pointerEvents: 'auto',
+                        display: 'flex',
+                        gap: '4px',
+                        background: 'rgba(255,255,255,0.8)',
+                        padding: '2px',
+                        borderRadius: '4px',
+                    }}
+                >
+                    <button onClick={onScaleX} style={{ fontSize: 10 }}>X×2</button>
+                    <button onClick={onScaleY} style={{ fontSize: 10 }}>Y×2</button>
+                    <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
+                </div>
+            )}
 
-            {/* Handles locked to container border: disable transform on handles */}
+            {/* Handles locked to container border */}
             <Handle
                 type="target"
                 position={Position.Left}
