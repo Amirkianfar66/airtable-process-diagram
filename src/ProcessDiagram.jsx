@@ -135,7 +135,7 @@ export default function ProcessDiagram() {
                   label: `${item.Code || ''} - ${item.Name || ''}`,
                   icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
                 },
-                  type: item.Category === 'Pipe' ? 'pipe' : 'custom',
+                  type: item.Category === 'Pipe' ? 'pipe' : 'resizable',
                 sourcePosition: 'right',
                 targetPosition: 'left',
               });
