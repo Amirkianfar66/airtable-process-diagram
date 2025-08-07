@@ -14,12 +14,8 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 0,
           "Children": [
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
-            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
@@ -28,10 +24,14 @@
               "RelativeDocumentMoniker": "src\\Icons\\EquipmentIcon.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\Icons\\EquipmentIcon.jsx",
               "RelativeToolTip": "src\\Icons\\EquipmentIcon.jsx",
-              "ViewState": "AgIAACkAAAAAAAAAAAAowHAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-08-07T13:48:30.37Z",
+              "WhenOpened": "2025-08-07T14:31:58.425Z",
               "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
             }
           ]
         }
