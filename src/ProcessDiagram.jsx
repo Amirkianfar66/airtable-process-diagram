@@ -25,7 +25,6 @@ import ElectricalIcon from './Icons/ElectricalIcon';
 // ✅ Register your custom node types
 const nodeTypes = {
     resizable: ResizableNode,
-    custom: CustomItemNode,
     pipe: PipeItemNode,
 };
 
