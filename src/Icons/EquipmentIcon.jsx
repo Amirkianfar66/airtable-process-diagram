@@ -9,20 +9,41 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
     const [showHandles, setShowHandles] = useState(false);
     const timeoutRef = useRef(null);
 
+    const edgeThreshold = 15; // px near border to trigger
+
+    const clearHideTimeout = () => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+    };
+
+    const startHideTimeout = () => {
+        clearHideTimeout();
+        timeoutRef.current = setTimeout(() => {
+            setShowHandles(false);
+            timeoutRef.current = null;
+        }, 3000);
+    };
+
     const handleMouseMove = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
-        const edgeThreshold = 15; // px near border to trigger
 
         if (mouseX <= edgeThreshold || mouseX >= rect.width - edgeThreshold) {
+            // Mouse near border: show handles and clear timeout
             if (!showHandles) setShowHandles(true);
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-            timeoutRef.current = setTimeout(() => setShowHandles(false), 3000);
+            clearHideTimeout();
+        } else {
+            // Mouse away from border inside the element: start hide timer
+            if (showHandles && !timeoutRef.current) {
+                startHideTimeout();
+            }
         }
     };
 
     const handleMouseLeave = () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        clearHideTimeout();
         setShowHandles(false);
     };
 
@@ -80,7 +101,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                             width: 12,
                             height: 12,
                             background: 'blue',
-                            borderRadius: '40%',
+                            borderRadius: '50%',
                             zIndex: 10,
                         }}
                     />
