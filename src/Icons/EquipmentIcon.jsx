@@ -1,77 +1,74 @@
 import React, { useState, useRef } from 'react';
 import { Handle, Position } from 'reactflow';
-import EquipmentIcon from './EquipmentIcon'; // Pure icon, no handles
 
-export default function EquipmentNode({ data, scaleX = 1, scaleY = 1 }) {
+export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
+    const rectLeft = 20 * scaleX;
+    const rectRight = (20 + 60) * scaleX;
+    const rectTopMid = 20 * scaleY + (60 * scaleY) / 2;
+
     const [showHandles, setShowHandles] = useState(false);
     const timeoutRef = useRef(null);
 
-    const clearTimeoutFn = () => {
+    const edgeThreshold = 15; // px near border to trigger
+
+    const clearHideTimeout = () => {
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
         }
     };
 
-    const startTimeout = () => {
-        clearTimeoutFn();
+    const startHideTimeout = () => {
+        clearHideTimeout();
         timeoutRef.current = setTimeout(() => {
             setShowHandles(false);
             timeoutRef.current = null;
         }, 3000);
     };
 
-    const onMouseMove = (e) => {
+    const handleMouseMove = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
-        const edgeThreshold = 15;
 
         if (mouseX <= edgeThreshold || mouseX >= rect.width - edgeThreshold) {
             if (!showHandles) setShowHandles(true);
-            clearTimeoutFn();
+            clearHideTimeout();
         } else {
             if (showHandles && !timeoutRef.current) {
-                startTimeout();
+                startHideTimeout();
             }
         }
     };
 
-    const onMouseLeave = () => {
-        clearTimeoutFn();
+    const handleMouseLeave = () => {
+        clearHideTimeout();
         setShowHandles(false);
     };
 
-    // Positions of handles on scaled rectangle
-    const rectLeft = 20 * scaleX;
-    const rectRight = (20 + 60) * scaleX;
-    const rectTopMid = 20 * scaleY + (60 * scaleY) / 2;
-
     return (
         <div
-            style={{
-                position: 'relative',
-                width: 100 * scaleX,
-                height: 100 * scaleY,
-                backgroundColor: '#eee',
-                cursor: 'default',
-            }}
-            onMouseMove={onMouseMove}
-            onMouseLeave={onMouseLeave}
+            style={{ position: 'relative', width: 100 * scaleX, height: 100 * scaleY, backgroundColor: '#eee' }}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
         >
-            {/* Scaled icon */}
+            {/* Scaled SVG */}
             <div
                 style={{
                     transform: `scale(${scaleX}, ${scaleY})`,
                     transformOrigin: 'top left',
                     width: 100,
                     height: 100,
-                    pointerEvents: 'none', // so mouse events bubble to container div
                 }}
             >
-                <EquipmentIcon />
+                <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
+                    <rect x="20" y="20" width="60" height="60" fill="green" stroke="black" strokeWidth="4" />
+                    <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
+                        EQ
+                    </text>
+                </svg>
             </div>
 
-            {/* Handles only shown when hovering near edges */}
+            {/* Handles NOT scaled, show only when mouse near border */}
             {showHandles && (
                 <>
                     <Handle
