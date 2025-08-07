@@ -7,6 +7,14 @@ export default function ScalableIconNode({ id, data }) {
     const scaleX = data.scaleX || 1;
     const scaleY = data.scaleY || 1;
 
+    // Original icon dimensions from props or default
+    const origWidth = data.icon?.props?.style?.width || 20;
+    const origHeight = data.icon?.props?.style?.height || 20;
+
+    // Scaled dimensions
+    const width = origWidth * scaleX;
+    const height = origHeight * scaleY;
+
     const updateScale = (newScaleX, newScaleY) => {
         setNodes((nodes) =>
             nodes.map((node) =>
@@ -22,39 +30,52 @@ export default function ScalableIconNode({ id, data }) {
     const onReset = (e) => { e.stopPropagation(); updateScale(1, 1); };
 
     return (
-        // Apply scaling to entire container so handles move with border
         <div
             style={{
                 position: 'relative',
-                display: 'inline-block',
-                transform: `scale(${scaleX}, ${scaleY})`,
-                transformOrigin: 'center center',
+                width,
+                height,
                 pointerEvents: 'all',
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* SVG Icon */}
-            <div style={{ display: 'inline-block' }}>
+            {/* Scaled SVG Icon */}
+            <div
+                style={{
+                    width: origWidth,
+                    height: origHeight,
+                    transform: `scale(${scaleX}, ${scaleY})`,
+                    transformOrigin: 'top left',
+                    display: 'inline-block',
+                }}
+            >
                 {data.icon}
             </div>
 
-            {/* Control buttons (unscaled) */}
-            <div style={{ position: 'absolute', top: -10 / scaleY, right: 8 / scaleX, pointerEvents: 'auto' }}>
-                <button onClick={onScaleX} style={{ marginRight: 4, fontSize: 10 }}>X×2</button>
-                <button onClick={onScaleY} style={{ marginRight: 4, fontSize: 10 }}>Y×2</button>
-                <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
-            </div>
+            {/* Control buttons (absolute, unscaled) */}
+            <button
+                onClick={onScaleX}
+                style={{ position: 'absolute', top: -20, right: 8, fontSize: 10 }}
+            >X×2</button>
+            <button
+                onClick={onScaleY}
+                style={{ position: 'absolute', top: -20, right: 40, fontSize: 10 }}
+            >Y×2</button>
+            <button
+                onClick={onReset}
+                style={{ position: 'absolute', top: -20, right: 72, fontSize: 10 }}
+            >Reset</button>
 
-            {/* Handles locked to container border */}
+            {/* Handles locked on scaled border */}
             <Handle
                 type="target"
                 position={Position.Left}
-                style={{ pointerEvents: 'auto', transform: 'none' }}
+                style={{ top: height / 2 - 8 }}
             />
             <Handle
                 type="source"
                 position={Position.Right}
-                style={{ pointerEvents: 'auto', transform: 'none' }}
+                style={{ top: height / 2 - 8 }}
             />
         </div>
     );
