@@ -239,68 +239,105 @@ export default function ProcessDiagram() {
           📂 Save Layout
               </button>
               <button
-               onClick={() => {
-            const groupId = `group-${Date.now()}`;
-            setNodes((nds) =>
-              nds.map((node) =>
-                selectedNodes.find((sel) => sel.id === node.id)
-                  ? {
-                      ...node,
-                      data: {
-                        ...node.data,
-                        groupId,
-                      },
-                      style: {
-                        ...node.style,
-                        border: '2px dashed #00bcd4',
-                          backgroundColor: 'transparent',
-                      },
-                    }
-                  : node
-              )
-            );
-          }}
-          style={{
-            padding: '6px 12px',
-            background: '#1976d2',
-            color: 'white',
-            border: 'none',
-            borderRadius: 5,
-            cursor: 'pointer',
-          }}
-        >
-          🌀 Group Selected
-        </button>
+                  onClick={() => {
+                      const groupId = `group-${Date.now()}`;
+                      const groupName = prompt('Enter group name:', 'My Group') || 'Unnamed Group';
 
-        <button
-          onClick={() => {
-            setNodes((nds) =>
-              nds.map((node) =>
-                selectedNodes.find((sel) => sel.id === node.id)
-                  ? {
-                      ...node,
-                      data: { ...node.data, groupId: undefined },
-                      style: {
-                        ...node.style,
-                        border: 'none',
-                        backgroundColor: 'white',
-                      },
-                    }
-                  : node
-              )
-            );
-          }}
-          style={{
-            padding: '6px 12px',
-            background: '#a82727',
-            color: 'white',
-            border: 'none',
-            borderRadius: 5,
-            cursor: 'pointer',
-          }}
-        >
-          ❌ Ungroup
-        </button>
+                      // Position label near first selected node if any
+                      const firstSelected = selectedNodes[0];
+                      const labelPosition = firstSelected
+                          ? { x: firstSelected.position.x - 20, y: firstSelected.position.y - 40 }
+                          : { x: 0, y: 0 };
+
+                      setNodes((nds) => {
+                          // Mark selected nodes with groupId and style
+                          const updatedNodes = nds.map((node) =>
+                              selectedNodes.find((sel) => sel.id === node.id)
+                                  ? {
+                                      ...node,
+                                      data: {
+                                          ...node.data,
+                                          groupId,
+                                      },
+                                      style: {
+                                          ...node.style,
+                                          border: '2px dashed #00bcd4',
+                                          backgroundColor: 'transparent',
+                                      },
+                                  }
+                                  : node
+                          );
+
+                          // Add group label node
+                          updatedNodes.push({
+                              id: `group-label-${groupId}`,
+                              type: 'groupLabel',
+                              position: labelPosition,
+                              data: { label: groupName },
+                              selectable: false,
+                              draggable: false,
+                              style: { pointerEvents: 'none' },
+                          });
+
+                          return updatedNodes;
+                      });
+                  }}
+                  style={{
+                      padding: '6px 12px',
+                      background: '#1976d2',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 5,
+                      cursor: 'pointer',
+                  }}
+              >
+                  🌀 Group Selected
+              </button>
+
+              <button
+                  onClick={() => {
+                      setNodes((nds) => {
+                          // Collect groupIds from selected nodes
+                          const groupsToRemove = new Set();
+                          selectedNodes.forEach((sel) => {
+                              const node = nds.find((n) => n.id === sel.id);
+                              if (node?.data?.groupId) groupsToRemove.add(node.data.groupId);
+                          });
+
+                          // Remove group label nodes for those groupIds
+                          const filteredNodes = nds.filter(
+                              (node) =>
+                                  !(node.id.startsWith('group-label-') && groupsToRemove.has(node.id.replace('group-label-', '')))
+                          );
+
+                          // Remove group info and reset style on selected nodes
+                          return filteredNodes.map((node) =>
+                              selectedNodes.find((sel) => sel.id === node.id)
+                                  ? {
+                                      ...node,
+                                      data: { ...node.data, groupId: undefined },
+                                      style: {
+                                          ...node.style,
+                                          border: 'none',
+                                          backgroundColor: 'white',
+                                      },
+                                  }
+                                  : node
+                          );
+                      });
+                  }}
+                  style={{
+                      padding: '6px 12px',
+                      background: '#a82727',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 5,
+                      cursor: 'pointer',
+                  }}
+              >
+                  ❌ Ungroup
+              </button>
+
       </div>
 
       <ReactFlow
