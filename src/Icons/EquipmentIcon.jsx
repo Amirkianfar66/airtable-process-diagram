@@ -6,10 +6,11 @@ export default function EquipmentIcon({ id, data = {} }) {
 
     const [hovered, setHovered] = useState(false);
     const timeoutRef = useRef(null);
-    const scale = data?.scale || 1;
+    const scale = data.scale || 1;
 
     // Update scale in the node data (persist in React Flow state)
     const updateScale = (newScale) => {
+        console.log('Updating scale for node', id, 'to', newScale);
         setNodes((nodes) =>
             nodes.map((node) =>
                 node.id === id
@@ -70,7 +71,9 @@ export default function EquipmentIcon({ id, data = {} }) {
                 }}
             >
                 <rect x="20" y="20" width="60" height="60" fill="green" stroke="none" strokeWidth="0" />
-                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">EQ</text>
+                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
+                    EQ
+                </text>
             </svg>
 
             {/* Scale & Reset Buttons (visible on hover) */}
