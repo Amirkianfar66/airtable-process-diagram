@@ -1,70 +1,130 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
-export default function ScalableIconNode({ id, data }) {
-    const { setNodes } = useReactFlow();
+export default function ScalableIconNode({ id, data = {} }) {
+    const { width, height, scaleX = 1, scaleY = 1 } = data;
     const [hovered, setHovered] = useState(false);
-    const groupRef = useRef(null);
+    const svgRef = useRef(null);
+    const { setNodes } = useReactFlow();
 
-    const scaleX = data?.scaleX || 1;
-    const scaleY = data?.scaleY || 1;
-
-    const iconSize = 60;
-    const baseX = 20;
-    const baseY = 20;
-    const centerX = baseX + iconSize / 2;
-    const centerY = baseY + iconSize / 2;
-
-    const handleOffset = 10;
-
-    const handles = [
-        { id: 'top', position: Position.Top, x: centerX, y: baseY - handleOffset },
-        { id: 'bottom', position: Position.Bottom, x: centerX, y: baseY + iconSize + handleOffset },
-        { id: 'left', position: Position.Left, x: baseX - handleOffset, y: centerY },
-        { id: 'right', position: Position.Right, x: baseX + iconSize + handleOffset, y: centerY },
-    ];
+    const handleSize = 10;
 
     useEffect(() => {
-        const group = groupRef.current;
-        if (group) {
-            const bbox = group.getBBox();
-            setNodes(nodes => nodes.map(node =>
-                node.id === id
-                    ? {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            width: bbox.width,
-                            height: bbox.height
+        if (svgRef.current) {
+            const bbox = svgRef.current.getBBox();
+            setNodes((nodes) =>
+                nodes.map((node) =>
+                    node.id === id
+                        ? {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                width: bbox.width,
+                                height: bbox.height,
+                            },
                         }
-                    }
-                    : node
-            ));
+                        : node
+                )
+            );
         }
-    }, [id, setNodes, scaleX, scaleY]);
+    }, [id, setNodes]);
 
     return (
         <div
+            style={{ position: 'relative', width: width || 100, height: height || 100 }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
-            style={{ width: 200, height: 200 }}
         >
-            <svg width={200} height={200}>
-                <g ref={groupRef} transform={`scale(${scaleX}, ${scaleY})`}>
-                    <rect x={baseX} y={baseY} width={iconSize} height={iconSize} fill="green" />
-                    <text x={centerX} y={centerY + 5} fontSize="16" textAnchor="middle" fill="white">EQ</text>
-                </g>
-
-                {hovered && handles.map(h => (
-                    <Handle
-                        key={h.id}
-                        type="source"
-                        id={h.id}
-                        position={h.position}
-                        style={{ left: h.x, top: h.y, transform: 'none', width: 10, height: 10 }}
-                    />
-                ))}
+            <svg
+                ref={svgRef}
+                width={100 * scaleX}
+                height={100 * scaleY}
+                viewBox="0 0 100 100"
+                style={{ display: 'block' }}
+            >
+                <rect
+                    x={20 * scaleX}
+                    y={20 * scaleY}
+                    width={60 * scaleX}
+                    height={60 * scaleY}
+                    fill="green"
+                />
+                <text
+                    x={50 * scaleX}
+                    y={55 * scaleY}
+                    fontSize={16 * Math.min(scaleX, scaleY)}
+                    fill="white"
+                    textAnchor="middle"
+                    alignmentBaseline="middle"
+                >
+                    EQ
+                </text>
             </svg>
+
+            {hovered && (
+                <>
+                    <Handle
+                        type="source"
+                        position={Position.Left}
+                        style={{
+                            background: '#555',
+                            border: '2px solid white',
+                            width: handleSize,
+                            height: handleSize,
+                            borderRadius: '50%',
+                            position: 'absolute',
+                            left: -handleSize / 2,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                        }}
+                    />
+                    <Handle
+                        type="source"
+                        position={Position.Right}
+                        style={{
+                            background: '#555',
+                            border: '2px solid white',
+                            width: handleSize,
+                            height: handleSize,
+                            borderRadius: '50%',
+                            position: 'absolute',
+                            right: -handleSize / 2,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                        }}
+                    />
+                    <Handle
+                        type="source"
+                        position={Position.Top}
+                        style={{
+                            background: '#555',
+                            border: '2px solid white',
+                            width: handleSize,
+                            height: handleSize,
+                            borderRadius: '50%',
+                            position: 'absolute',
+                            top: -handleSize / 2,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                        }}
+                    />
+                    <Handle
+                        type="source"
+                        position={Position.Bottom}
+                        style={{
+                            background: '#555',
+                            border: '2px solid white',
+                            width: handleSize,
+                            height: handleSize,
+                            borderRadius: '50%',
+                            position: 'absolute',
+                            bottom: -handleSize / 2,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                        }}
+                    />
+                </>
+            )}
         </div>
     );
 }
