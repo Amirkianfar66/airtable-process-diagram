@@ -30,7 +30,7 @@ export default function InstrumentIcon({ data }) {
                 type="target"
                 position={Position.Bottom}
                 style={{
-                    left: '50%',
+                    left: '10%',
                     background: 'green',
                     border: '1px solid white',
                     borderRadius: '50%',
