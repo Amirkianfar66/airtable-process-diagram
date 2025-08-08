@@ -20,11 +20,11 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                 width,
                 height,
                 backgroundColor: '#eee',
+
                 transition: 'box-shadow 0.2s',
                 boxShadow: hovered ? '0 0 10px rgba(0,0,0,0.3)' : 'none',
                 overflow: 'visible',
             }}
-
         >
             {/* SVG is scaled */}
             <svg
@@ -55,9 +55,9 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                     background: 'red',
                     borderRadius: '50%',
                     zIndex: 10,
-                    border: '1px solid white',
+                    border: '2px solid white',
                     boxShadow: '0 0 4px black',
-                    opacity: hovered ? 1 : 0.1,
+                    opacity: hovered ? 1 : 0.6,
                     pointerEvents: 'all',
                 }}
             />
@@ -75,9 +75,9 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                     background: 'blue',
                     borderRadius: '50%',
                     zIndex: 10,
-                    border: '1px solid white',
+                    border: '2px solid white',
                     boxShadow: '0 0 4px black',
-                    opacity: hovered ? 1 : 0.1,
+                    opacity: hovered ? 1 : 0.6,
                     pointerEvents: 'all',
                 }}
             />
