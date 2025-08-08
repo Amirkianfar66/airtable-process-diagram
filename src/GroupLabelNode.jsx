@@ -1,22 +1,62 @@
-﻿export default function GroupLabelNode({ data }) {
-    const {
-        width = 200,   // default width if not passed
-        height = 100,  // default height if not passed
-        label,
-    } = data;
+﻿import React, { useState, useRef, useEffect } from 'react';
+import { Handle, Position } from 'reactflow';
+
+const handleSize = 12; // size of resize handle square
+
+export default function GroupLabelNode({ id, data }) {
+    const { width = 200, height = 100, label, onResize } = data;
+
+    const [size, setSize] = useState({ width, height });
+    const nodeRef = useRef(null);
+    const resizingRef = useRef(false);
+    const startPosRef = useRef({ x: 0, y: 0 });
+    const startSizeRef = useRef({ width, height });
+
+    useEffect(() => {
+        setSize({ width, height }); // update size if props change
+    }, [width, height]);
+
+    const onMouseDown = (event) => {
+        event.stopPropagation();
+        resizingRef.current = true;
+        startPosRef.current = { x: event.clientX, y: event.clientY };
+        startSizeRef.current = { ...size };
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+    };
+
+    const onMouseMove = (event) => {
+        if (!resizingRef.current) return;
+        const dx = event.clientX - startPosRef.current.x;
+        const dy = event.clientY - startPosRef.current.y;
+
+        const newWidth = Math.max(50, startSizeRef.current.width + dx);
+        const newHeight = Math.max(40, startSizeRef.current.height + dy);
+
+        setSize({ width: newWidth, height: newHeight });
+
+        if (onResize) {
+            onResize(id, { width: newWidth, height: newHeight });
+        }
+    };
+
+    const onMouseUp = () => {
+        resizingRef.current = false;
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+    };
 
     return (
         <div
+            ref={nodeRef}
             style={{
                 border: '2px dashed #00bcd4',
                 borderRadius: 6,
                 background: 'rgba(0, 188, 212, 0.05)',
-                width: `${width}px`,
-                height: `${height}px`,
+                width: size.width,
+                height: size.height,
                 position: 'relative',
-                zIndex: 9999,
                 boxSizing: 'border-box',
-                padding: '8px 12px 12px 12px',
                 userSelect: 'none',
             }}
         >
@@ -38,6 +78,24 @@
             >
                 {label}
             </div>
+
+            {/* Resize handle bottom-right */}
+            <div
+                onMouseDown={onMouseDown}
+                style={{
+                    position: 'absolute',
+                    width: handleSize,
+                    height: handleSize,
+                    bottom: 0,
+                    right: 0,
+                    background: '#00bcd4',
+                    borderRadius: 2,
+                    cursor: 'nwse-resize',
+                    userSelect: 'none',
+                    zIndex: 10,
+                }}
+                title="Resize group"
+            />
 
             {/* Optional handles hidden */}
             <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
