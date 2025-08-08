@@ -10,8 +10,8 @@ export default function EquipmentIcon({ data }) {
             onMouseLeave={() => setHovered(false)}
             style={{
                 position: 'relative',
-                width: 100,
-                height: 100,
+                width: 200,
+                height: 200,
                 background: 'none',
                 border: 'none',
                 borderRadius: 8,
@@ -33,7 +33,7 @@ export default function EquipmentIcon({ data }) {
                     width: 14,
                     height: 14,
                     transform: 'translateY(-50%)',
-                    opacity: hovered ? 1 : 0.1,
+                    opacity: hovered ? 1 : 0.01,
                 }}
                 id="left"
             />
@@ -48,7 +48,7 @@ export default function EquipmentIcon({ data }) {
                     width: 14,
                     height: 14,
                     transform: 'translateY(-50%)',
-                    opacity: hovered ? 1 : 0.1,
+                    opacity: hovered ? 1 : 0.01,
                 }}
                 id="right"
             />
