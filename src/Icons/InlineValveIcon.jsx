@@ -19,25 +19,22 @@ export default function InlineValveIcon({ data }) {
             }}
         >
             <svg width="200" height="200" viewBox="0 0 200 200">
-                {/* Infinity/butterfly-valve body */}
-                <path
-                    d="
-            M 40,100
-            C 40,60  90,60  90,100
-            C 90,140 40,140 40,100
-            Z
-            M 160,100
-            C 160,60  110,60 110,100
-            C 110,140 160,140 160,100
-            Z
-          "
-                    fill="orange"
-                    stroke="darkorange"
+                {/* Bow-tie shape */}
+                <polygon
+                    points="60,60 100,100 60,140"
+                    fill="none"
+                    stroke="orange"
                     strokeWidth="4"
                 />
-                {/* Central disc intersection */}
-                <circle cx="100" cy="100" r="20" fill="darkorange" />
-                <text x="100" y="105" fontSize="16" textAnchor="middle" fill="white">
+                <polygon
+                    points="140,60 100,100 140,140"
+                    fill="none"
+                    stroke="orange"
+                    strokeWidth="4"
+                />
+                {/* Central disc (optional) */}
+                <circle cx="100" cy="100" r="20" fill="orange" stroke="darkorange" strokeWidth="2" />
+                <text x="100" y="108" fontSize="16" textAnchor="middle" fill="white">
                     IV
                 </text>
             </svg>

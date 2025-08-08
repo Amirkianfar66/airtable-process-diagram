@@ -21,7 +21,7 @@ export default function InstrumentIcon({ data }) {
             <svg width="200" height="200" viewBox="0 0 200 200">
                 {/* Circular instrument body */}
                 <circle cx="100" cy="100" r="20" fill="Yellow" />
-                <text x="100" y="110" fontSize="10" textAnchor="middle" fill="white">
+                <text x="100" y="110" fontSize="10" textAnchor="middle" fill="Black">
                     IN
                 </text>
             </svg>
