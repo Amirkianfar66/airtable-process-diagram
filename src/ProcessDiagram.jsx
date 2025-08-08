@@ -72,7 +72,25 @@ export default function ProcessDiagram() {
   const [selectedNodes, setSelectedNodes] = useState([]);
   const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
-    }, []);
+  }, []);
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                setNodes((nds) =>
+                    nds.map((node) => ({ ...node, selected: false }))
+                );
+                setEdges((eds) =>
+                    eds.map((edge) => ({ ...edge, selected: false }))
+                );
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [setNodes, setEdges]);
   const itemWidth = 160;
   const itemHeight = 60;
   const itemGap = 30;
