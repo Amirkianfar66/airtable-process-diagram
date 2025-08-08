@@ -4,66 +4,107 @@ import { Handle, Position, useReactFlow } from 'reactflow';
 export default function ScalableIconNode({ id, data }) {
     const { setNodes } = useReactFlow();
     const [hovered, setHovered] = useState(false);
-    const [visible, setVisible] = useState(true);
-    const nodeRef = useRef(null);
-    const baseSize = 100;
+    const [visible, setVisible] = useState(false);
+    const timeoutRef = useRef(null);
+    const iconRef = useRef(null);
 
-    // Default scale = 1
-    const [scale, setScale] = useState(1);
+    const scale = data.scale || 1;
+    const label = data.label || '';  // Name of the item from Airtable
 
-    const onResetScale = () => setScale(1);
-    const onZoomIn = () => setScale(prev => Math.min(prev + 0.2, 2));
-    const onZoomOut = () => setScale(prev => Math.max(prev - 0.2, 0.5));
+    const updateScale = (newScale) => {
+        setNodes((nodes) =>
+            nodes.map((node) =>
+                node.id === id
+                    ? { ...node, data: { ...node.data, scale: newScale } }
+                    : node
+            )
+        );
+    };
+
+    const onScale = (e) => { e.stopPropagation(); updateScale(scale * 2); };
+    const onReset = (e) => { e.stopPropagation(); updateScale(1); };
+
+    const handleMouseEnter = () => {
+        setHovered(true);
+        setVisible(true);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+
+    const handleMouseLeave = () => {
+        setHovered(false);
+        timeoutRef.current = setTimeout(() => setVisible(false), 3000);
+    };
 
     useEffect(() => {
-        if (!nodeRef.current) return;
-        const observer = new ResizeObserver(() => {
-            const bounds = nodeRef.current.getBoundingClientRect();
-            setNodes(prevNodes =>
-                prevNodes.map(node =>
-                    node.id === id ? {
-                        ...node,
-                        width: bounds.width,
-                        height: bounds.height
-                    } : node
-                )
-            );
-        });
-        observer.observe(nodeRef.current);
-        return () => observer.disconnect();
-    }, [id, setNodes]);
+        return () => clearTimeout(timeoutRef.current);
+    }, []);
 
-    const IconComponent = data?.icon || (() => <rect width={baseSize} height={baseSize} fill="#ccc" />);
-
-    const label = data?.label ? data.label.substring(0, 5) : "";
+    const baseSize = 100;
+    const size = baseSize * scale;
 
     return (
         <div
-            ref={nodeRef}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-            style={{ textAlign: 'center', padding: 4 }}
+            style={{
+                position: 'relative',
+                width: size,
+                height: size + 20, // extra space for label
+                pointerEvents: 'all',
+                textAlign: 'center',
+            }}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            onClick={(e) => e.stopPropagation()}
         >
-            <div style={{ transform: `scale(${scale})`, transformOrigin: 'center' }}>
-                <svg width={baseSize} height={baseSize}>
-                    <IconComponent scaleX={scale} scaleY={scale} />
-                </svg>
+            {/* SVG Icon scaled inside */}
+            <div
+                ref={iconRef}
+                style={{
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top left',
+                    width: baseSize,
+                    height: baseSize,
+                    pointerEvents: 'none',
+                }}
+            >
+                {data.icon}
             </div>
 
-            {/* Label under icon (first 5 chars only) */}
-            <div style={{ fontSize: 12, marginTop: 4 }}>{label}</div>
+            {/* Label below SVG */}
+            <div
+                style={{
+                    fontSize: 13,
+                    marginTop: 3,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: '#333',
+                }}
+            >
+                {label.substring(0, 5)}
+            </div>
 
-            {/* Only show zoom/reset for EquipmentIcon */}
-            {hovered && data?.type === "equipment" && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 4 }}>
-                    <button onClick={onZoomOut}>−</button>
-                    <button onClick={onResetScale}>⟳</button>
-                    <button onClick={onZoomIn}>＋</button>
+            {/* Control buttons */}
+            {visible && data.type === 'equipment' && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: -32,
+                        left: '50%',
+                        transform: 'translateX(-50%) scale(1)',
+                        pointerEvents: 'auto',
+                        display: 'flex',
+                        gap: '4px',
+                        background: 'rgba(255,255,255,0.8)',
+                        padding: '2px 4px',
+                        borderRadius: '4px',
+                        zIndex: 10,
+                    }}
+                >
+                    <button onClick={onScale} style={{ fontSize: 10 }}>×2</button>
+                    <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
                 </div>
             )}
 
-            <Handle type="target" position={Position.Left} />
-            <Handle type="source" position={Position.Right} />
         </div>
     );
 }
