@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
 export default function EquipmentIcon({ id, data = {} }) {
     const { setNodes } = useReactFlow();
 
     const [hovered, setHovered] = useState(false);
+    const timeoutRef = useRef(null);
     const scale = data?.scale || 1;
 
     // Update scale in the node data (persist in React Flow state)
@@ -28,10 +29,23 @@ export default function EquipmentIcon({ id, data = {} }) {
         updateScale(1);
     };
 
+    const handleMouseEnter = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setHovered(true);
+    };
+
+    const handleMouseLeave = () => {
+        timeoutRef.current = setTimeout(() => setHovered(false), 2000); // 2 seconds delay
+    };
+
+    useEffect(() => {
+        return () => clearTimeout(timeoutRef.current);
+    }, []);
+
     return (
         <div
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
             style={{
                 position: 'relative',
                 width: 100,
