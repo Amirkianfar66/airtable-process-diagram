@@ -1,4 +1,3 @@
-// InstrumentIcon.jsx
 import React, { useState } from 'react';
 import { Handle, Position } from 'reactflow';
 
@@ -26,35 +25,21 @@ export default function InstrumentIcon({ data }) {
                 </text>
             </svg>
 
+            {/* Single Handle node */}
             <Handle
                 type="target"
-                position={Position.Left}
+                position={Position.Bottom}
                 style={{
-                    top: '50%',
-                    background: 'red',
+                    left: '50%',
+                    background: 'green',
                     border: '1px solid white',
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
-                    transform: 'translateY(-50%)',
+                    transform: 'translateX(-50%)',
                     opacity: hovered ? 1 : 0.01,
                 }}
-                id="left"
-            />
-            <Handle
-                type="source"
-                position={Position.Right}
-                style={{
-                    top: '50%',
-                    background: 'blue',
-                    border: '1px solid white',
-                    borderRadius: '50%',
-                    width: 14,
-                    height: 14,
-                    transform: 'translateY(-50%)',
-                    opacity: hovered ? 1 : 0.01,
-                }}
-                id="right"
+                id="bottom"
             />
         </div>
     );
