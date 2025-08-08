@@ -32,8 +32,6 @@ export default function InlineValveIcon({ data }) {
                     stroke="orange"
                     strokeWidth="4"
                 />
-                {/* Central disc (optional) */}
-                <circle cx="100" cy="100" r="20" fill="orange" stroke="darkorange" strokeWidth="2" />
                 <text x="100" y="108" fontSize="16" textAnchor="middle" fill="white">
                     IV
                 </text>
