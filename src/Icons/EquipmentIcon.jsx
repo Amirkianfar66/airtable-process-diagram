@@ -18,7 +18,7 @@ export default function EquipmentIcon({ data }) {
             }}
         >
             <svg width="100" height="100" viewBox="0 0 100 100">
-                <rect x="20" y="20" width="60" height="60" fill="green" stroke="black" strokeWidth="4" />
+                <rect x="20" y="20" width="60" height="60" fill="green" stroke="none" strokeWidth="0" />
                 <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">EQ</text>
             </svg>
 
