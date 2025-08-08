@@ -10,7 +10,7 @@ export default function InlineValveIcon({ data }) {
             onMouseLeave={() => setHovered(false)}
             style={{
                 position: 'relative',
-                width: 100,
+                width: 60,
                 height: 100,
                 background: 'none',
                 border: 'none',
@@ -57,8 +57,8 @@ export default function InlineValveIcon({ data }) {
                     background: 'red',
                     border: '1px solid white',
                     borderRadius: '50%',
-                    width: 14,
-                    height: 14,
+                    width: 5,
+                    height: 5,
                     opacity: hovered ? 1 : 0.5,
                 }}
             />
@@ -74,7 +74,7 @@ export default function InlineValveIcon({ data }) {
                     border: '1px solid white',
                     borderRadius: '50%',
                     width: 5,
-                    height: 14,
+                    height: 5,
                     opacity: hovered ? 1 : 0.5,
                 }}
             />
