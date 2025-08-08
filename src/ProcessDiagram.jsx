@@ -30,6 +30,7 @@ const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
     pipe: PipeItemNode,
+    equipment: EquipmentIcon,
     scalable: ScalableNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
@@ -169,7 +170,7 @@ export default function ProcessDiagram() {
                             : null,
                         scale: 1,                // ← initialize the scale factor
                     },
-                    type: item.Category === 'Pipe' ? 'pipe' : 'scalableIcon',
+                    type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                     sourcePosition: 'right',
                     targetPosition: 'left',
                 });
