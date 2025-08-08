@@ -1,37 +1,41 @@
-﻿// GroupNode.jsx
+﻿// GroupLabelNode.jsx
 import React from 'react';
 import { Handle, Position } from 'reactflow';
 
-export default function GroupNode({ data, selected }) {
+export default function GroupLabelNode({ data }) {
+    const { width, height, label } = data;
+
     return (
         <div
             style={{
-                width: data.width || 300,
-                height: data.height || 200,
                 border: '2px dashed #00bcd4',
-                borderRadius: 8,
+                borderRadius: 6,
+                background: 'rgba(0, 188, 212, 0.05)',
+                width,
+                height,
                 position: 'relative',
-                backgroundColor: 'transparent',
-                pointerEvents: 'none',
             }}
         >
             <div
                 style={{
                     position: 'absolute',
-                    top: 8,
-                    left: 8,
+                    top: -20,
+                    left: 0,
                     background: '#00bcd4',
                     color: 'white',
-                    padding: '2px 6px',
+                    padding: '2px 8px',
                     borderRadius: 4,
-                    fontSize: 12,
                     fontWeight: 'bold',
-                    pointerEvents: 'none',
+                    fontSize: 12,
                     userSelect: 'none',
                 }}
             >
-                {data.label}
+                {label}
             </div>
+
+            {/* Optional handles if you want connections to group */}
+            <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+            <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
         </div>
     );
 }
