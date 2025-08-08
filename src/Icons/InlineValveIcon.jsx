@@ -19,23 +19,33 @@ export default function InlineValveIcon({ data }) {
             }}
         >
             <svg width="200" height="200" viewBox="0 0 200 200">
-                {/* Bow-tie shape */}
-                <polygon
-                    points="60,60 100,100 60,140"
-                    fill="none"
-                    stroke="orange"
-                    strokeWidth="4"
-                />
-                <polygon
-                    points="140,60 100,100 140,140"
-                    fill="none"
-                    stroke="orange"
-                    strokeWidth="4"
-                />
-                <text x="100" y="108" fontSize="16" textAnchor="middle" fill="white">
-                    IV
-                </text>
-            </svg>
+  {/* Bow-tie shape with half-height wings */}
+  <polygon
+    points="60,80 100,100 60,120"
+    fill="none"
+    stroke="orange"
+    strokeWidth="4"
+  />
+  <polygon
+    points="140,80 100,100 140,120"
+    fill="none"
+    stroke="orange"
+    strokeWidth="4"
+  />
+  
+  {/* Label stays centered */}
+  <text
+    x="100"
+    y="108"
+    fontSize="16"
+    textAnchor="middle"
+    fill="white"
+    fontFamily="sans-serif"
+  >
+    IV
+  </text>
+</svg>
+
 
             <Handle
                 type="target"
