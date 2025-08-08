@@ -1,76 +1,56 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Handle, Position, useReactFlow } from 'reactflow';
+import React, { useState } from 'react';
+import { Handle, Position } from 'reactflow';
 
-export default function ScalableIconNode({ id, data }) {
-    const { setNodes } = useReactFlow();
+export default function EquipmentIcon({ data }) {
     const [hovered, setHovered] = useState(false);
-    const [visible, setVisible] = useState(true);
-    const nodeRef = useRef(null);
-
-    const baseSize = 100;
-    const scaleX = data.scaleX || 1;
-    const scaleY = data.scaleY || 1;
-
-    const width = baseSize * scaleX;
-    const height = baseSize * scaleY;
-
-    const iconSize = 60;
-    const iconX = (baseSize - iconSize) / 2;
-    const iconY = (baseSize - iconSize) / 2;
-
-    useEffect(() => {
-        setVisible(true);
-    }, [scaleX, scaleY]);
 
     return (
         <div
-            ref={nodeRef}
-            style={{
-                width,
-                height,
-                position: 'relative',
-            }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
+            style={{
+                position: 'relative',
+                width: 100,
+                height: 100,
+                background: '#eee',
+                border: '1px solid #aaa',
+                borderRadius: 8,
+            }}
         >
-            <svg
-                width={width}
-                height={height}
-                viewBox={`0 0 ${baseSize} ${baseSize}`}
-                style={{ display: visible ? 'block' : 'none' }}
-            >
-                <rect
-                    x={iconX}
-                    y={iconY}
-                    width={iconSize}
-                    height={iconSize}
-                    fill="green"
-                />
-                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
-                    {id}
-                </text>
+            <svg width="100" height="100" viewBox="0 0 100 100">
+                <rect x="20" y="20" width="60" height="60" fill="green" stroke="black" strokeWidth="4" />
+                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">EQ</text>
             </svg>
 
-            {/* Handles */}
-            <Handle
-                type="target"
-                position={Position.Top}
-                style={{ background: 'red', width: 8, height: 8 }}
-            />
             <Handle
                 type="target"
                 position={Position.Left}
-                style={{ background: 'red', width: 8, height: 8 }}
+                style={{
+                    top: '50%',
+                    background: 'red',
+                    border: '2px solid white',
+                    borderRadius: '50%',
+                    width: 14,
+                    height: 14,
+                    transform: 'translateY(-50%)',
+                    opacity: hovered ? 1 : 0.5,
+                }}
+                id="left"
             />
             <Handle
                 type="source"
                 position={Position.Right}
-                style={{ background: 'blue', width: 8, height: 8 }}
-            />
-            <Handle
-                type="source"
-                position={Position.Bottom}
-                style={{ background: 'blue', width: 8, height: 8 }}
+                style={{
+                    top: '50%',
+                    background: 'blue',
+                    border: '2px solid white',
+                    borderRadius: '50%',
+                    width: 14,
+                    height: 14,
+                    transform: 'translateY(-50%)',
+                    opacity: hovered ? 1 : 0.5,
+                }}
+                id="right"
             />
         </div>
     );
