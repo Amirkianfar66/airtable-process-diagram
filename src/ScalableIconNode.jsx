@@ -8,24 +8,21 @@ export default function ScalableIconNode({ id, data }) {
     const [visible, setVisible] = useState(false);
     const timeoutRef = useRef(null);
     const iconRef = useRef(null);
-    const [iconBBox, setIconBBox] = useState({ width: 100, height: 100 });
 
-    const scaleX = data.scaleX || 1;
-    const scaleY = data.scaleY || 1;
+    const scale = data.scale || 1;
 
-    const updateScale = (newScaleX, newScaleY) => {
+    const updateScale = (newScale) => {
         setNodes((nodes) =>
             nodes.map((node) =>
                 node.id === id
-                    ? { ...node, data: { ...node.data, scaleX: newScaleX, scaleY: newScaleY } }
+                    ? { ...node, data: { ...node.data, scale: newScale } }
                     : node
             )
         );
     };
 
-    const onScaleX = (e) => { e.stopPropagation(); updateScale(scaleX * 2, scaleY); };
-    const onScaleY = (e) => { e.stopPropagation(); updateScale(scaleX, scaleY * 2); };
-    const onReset = (e) => { e.stopPropagation(); updateScale(1, 1); };
+    const onScale = (e) => { e.stopPropagation(); updateScale(scale * 2); };
+    const onReset = (e) => { e.stopPropagation(); updateScale(1); };
 
     const handleMouseEnter = () => {
         setHovered(true);
@@ -43,15 +40,14 @@ export default function ScalableIconNode({ id, data }) {
     }, []);
 
     const baseSize = 100;
-    const width = baseSize * scaleX;
-    const height = baseSize * scaleY;
+    const size = baseSize * scale;
 
     return (
         <div
             style={{
                 position: 'relative',
-                width,
-                height,
+                width: size,
+                height: size,
                 pointerEvents: 'all',
             }}
             onMouseEnter={handleMouseEnter}
@@ -62,7 +58,7 @@ export default function ScalableIconNode({ id, data }) {
             <div
                 ref={iconRef}
                 style={{
-                    transform: `scale(${scaleX}, ${scaleY})`,
+                    transform: `scale(${scale})`,
                     transformOrigin: 'top left',
                     width: baseSize,
                     height: baseSize,
@@ -89,13 +85,10 @@ export default function ScalableIconNode({ id, data }) {
                         zIndex: 10,
                     }}
                 >
-                    <button onClick={onScaleX} style={{ fontSize: 10 }}>X×2</button>
-                    <button onClick={onScaleY} style={{ fontSize: 10 }}>Y×2</button>
+                    <button onClick={onScale} style={{ fontSize: 10 }}>×2</button>
                     <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
                 </div>
             )}
-
-            
         </div>
     );
 }
