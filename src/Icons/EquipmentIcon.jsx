@@ -36,23 +36,43 @@ export default function ScalableIconNode({ id, data }) {
             <svg
                 width={width}
                 height={height}
-                viewBox={`0 0 ${baseSize} ${baseSize}`}
-                style={{ display: visible ? 'block' : 'none' }}
+                viewBox={0 0 ${baseSize} ${baseSize}}
+            style={{ display: visible ? 'block' : 'none' }}
             >
-                <rect
-                    x={iconX}
-                    y={iconY}
-                    width={iconSize}
-                    height={iconSize}
-                    fill="green"
-                />
-                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
-                    {id}
-                </text>
-            </svg>
+            <rect
+                x={iconX}
+                y={iconY}
+                width={iconSize}
+                height={iconSize}
+                fill="green"
+            />
+            <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
+                {id}
+            </text>
+        </svg>
 
-            <Handle type="source" position={Position.Right} style={{ background: 'blue', width: 8, height: 8 }} />
-            <Handle type="target" position={Position.Left} style={{ background: 'red', width: 8, height: 8 }} />
-        </div>
+            {/* Handles */ }
+            <Handle
+                type="target"
+                position={Position.Top}
+                style={{ background: 'red', width: 8, height: 8 }}
+            />
+            <Handle
+                type="target"
+                position={Position.Left}
+                style={{ background: 'red', width: 8, height: 8 }}
+            />
+            <Handle
+                type="source"
+                position={Position.Right}
+                style={{ background: 'blue', width: 8, height: 8 }}
+            />A
+        < Handle
+    type = "source"
+    position = { Position.Bottom }
+    style = {{ background: 'blue', width: 8, height: 8 }
+}
+/>
+        </div >
     );
 }
