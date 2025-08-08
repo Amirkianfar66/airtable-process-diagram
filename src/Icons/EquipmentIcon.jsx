@@ -1,100 +1,99 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Handle, Position, useReactFlow } from 'reactflow';
+import React, { useState } from 'react';
+import { Handle, Position } from 'reactflow';
 
-export default function ScalableIconNode({ id, data }) {
-    const { x = 0, y = 0, scaleX = 1, scaleY = 1 } = data;
-    const iconRef = useRef(null);
-    const [rect, setRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 });
+export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
+    const [hovered, setHovered] = useState(false);
 
-    useEffect(() => {
-        if (iconRef.current) {
-            const iconRect = iconRef.current.getBoundingClientRect();
-            setRect({
-                left: iconRect.left,
-                top: iconRect.top,
-                right: iconRect.right,
-                bottom: iconRect.bottom,
-            });
-        }
-    }, [scaleX, scaleY]);
+    const width = 100 * scaleX;
+    const height = 100 * scaleY;
 
-    const handleSize = 10; // fixed size
+    const rectTopMid = 50 * scaleY;
+    const rectLeft = 20 * scaleX;
+    const rectRight = 80 * scaleX;
+
+    const handleSize = 16; // Fixed handle size in px
 
     return (
-        <div style={{ position: 'relative', width: 100 * scaleX, height: 100 * scaleY }}>
+        <div
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+                position: 'relative',
+                width,
+                height,
+                backgroundColor: '#eee',
+                boxShadow: hovered ? '0 0 10px rgba(0,0,0,0.3)' : 'none',
+                overflow: 'visible',
+            }}
+        >
+            {/* Scaled SVG */}
             <svg
-                ref={iconRef}
-                width={100 * scaleX}
-                height={100 * scaleY}
+                width={width}
+                height={height}
                 viewBox="0 0 100 100"
+                fill="none"
                 style={{ display: 'block' }}
             >
-                <rect x={20} y={20} width={60} height={60} fill="green" stroke="black" strokeWidth="2" />
+                <rect x="20" y="20" width="60" height="60" fill="green" stroke="black" strokeWidth="4" />
+                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
+                    EQ
+                </text>
             </svg>
 
-            {/* Top Handle */}
-            <Handle
-                type="source"
-                position={Position.Top}
-                id="top"
+            {/* Fixed-size handles */}
+            <div
                 style={{
                     position: 'absolute',
-                    left: `calc(50% - ${handleSize / 2}px)`,
-                    top: -handleSize / 2,
+                    top: rectTopMid - handleSize / 2,
+                    left: rectLeft - handleSize / 2,
                     width: handleSize,
                     height: handleSize,
-                    background: 'black',
-                    border: 'none',
+                    pointerEvents: 'none',
                 }}
-            />
+            >
+                <Handle
+                    type="target"
+                    position={Position.Left}
+                    id="left"
+                    style={{
+                        width: handleSize,
+                        height: handleSize,
+                        background: 'red',
+                        borderRadius: '50%',
+                        border: '2px solid white',
+                        boxShadow: '0 0 4px black',
+                        opacity: hovered ? 1 : 0.6,
+                        pointerEvents: 'all',
+                    }}
+                />
+            </div>
 
-            {/* Bottom Handle */}
-            <Handle
-                type="source"
-                position={Position.Bottom}
-                id="bottom"
+            <div
                 style={{
                     position: 'absolute',
-                    left: `calc(50% - ${handleSize / 2}px)`,
-                    bottom: -handleSize / 2,
+                    top: rectTopMid - handleSize / 2,
+                    left: rectRight - handleSize / 2,
                     width: handleSize,
                     height: handleSize,
-                    background: 'black',
-                    border: 'none',
+                    pointerEvents: 'none',
                 }}
-            />
-
-            {/* Left Handle */}
-            <Handle
-                type="source"
-                position={Position.Left}
-                id="left"
-                style={{
-                    position: 'absolute',
-                    left: -handleSize / 2,
-                    top: `calc(50% - ${handleSize / 2}px)`,
-                    width: handleSize,
-                    height: handleSize,
-                    background: 'black',
-                    border: 'none',
-                }}
-            />
-
-            {/* Right Handle */}
-            <Handle
-                type="source"
-                position={Position.Right}
-                id="right"
-                style={{
-                    position: 'absolute',
-                    right: -handleSize / 2,
-                    top: `calc(50% - ${handleSize / 2}px)`,
-                    width: handleSize,
-                    height: handleSize,
-                    background: 'black',
-                    border: 'none',
-                }}
-            />
+            >
+                <Handle
+                    type="source"
+                    position={Position.Right}
+                    id="right"
+                    style={{
+                        width: handleSize,
+                        height: handleSize,
+                        background: 'blue',
+                        borderRadius: '50%',
+                        border: '2px solid white',
+                        boxShadow: '0 0 4px black',
+                        opacity: hovered ? 1 : 0.6,
+                        pointerEvents: 'all',
+                    }}
+                />
+            </div>
         </div>
     );
 }
