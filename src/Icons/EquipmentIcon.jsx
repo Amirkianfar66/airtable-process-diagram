@@ -1,21 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
-export default function EquipmentIcon({ id, data = {} }) {
+export default function EquipmentIcon({ id, data }) {
     const { setNodes } = useReactFlow();
-
     const [hovered, setHovered] = useState(false);
     const timeoutRef = useRef(null);
-    const scale = data.scale || 1;
 
-    // Update scale in the node data (persist in React Flow state)
+    const scale = data?.scale || 1;
+
     const updateScale = (newScale) => {
-        console.log('Updating scale for node', id, 'to', newScale);
         setNodes((nodes) =>
             nodes.map((node) =>
-                node.id === id
-                    ? { ...node, data: { ...node.data, scale: newScale } }
-                    : node
+                node.id === id ? { ...node, data: { ...node.data, scale: newScale } } : node
             )
         );
     };
@@ -36,7 +32,7 @@ export default function EquipmentIcon({ id, data = {} }) {
     };
 
     const handleMouseLeave = () => {
-        timeoutRef.current = setTimeout(() => setHovered(false), 2000); // 2 seconds delay
+        timeoutRef.current = setTimeout(() => setHovered(false), 2000);
     };
 
     useEffect(() => {
@@ -50,10 +46,7 @@ export default function EquipmentIcon({ id, data = {} }) {
             style={{
                 position: 'relative',
                 width: 100,
-                height: 120, // 100 + 20 for buttons space
-                background: 'none',
-                border: 'none',
-                borderRadius: 8,
+                height: 120,
                 textAlign: 'center',
                 userSelect: 'none',
             }}
@@ -70,13 +63,12 @@ export default function EquipmentIcon({ id, data = {} }) {
                     margin: '0 auto',
                 }}
             >
-                <rect x="20" y="20" width="60" height="60" fill="green" stroke="none" strokeWidth="0" />
+                <rect x="20" y="20" width="60" height="60" fill="green" />
                 <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
                     EQ
                 </text>
             </svg>
 
-            {/* Scale & Reset Buttons (visible on hover) */}
             {hovered && (
                 <div
                     style={{
@@ -85,7 +77,7 @@ export default function EquipmentIcon({ id, data = {} }) {
                         left: '50%',
                         transform: 'translateX(-50%)',
                         display: 'flex',
-                        gap: '6px',
+                        gap: 6,
                         background: 'rgba(255, 255, 255, 0.85)',
                         padding: '2px 6px',
                         borderRadius: 6,
@@ -102,14 +94,12 @@ export default function EquipmentIcon({ id, data = {} }) {
                 </div>
             )}
 
-            {/* Handles */}
             <Handle
                 type="target"
                 position={Position.Left}
                 style={{
                     top: '50%',
                     background: 'red',
-                    border: '1px solid white',
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
@@ -118,14 +108,12 @@ export default function EquipmentIcon({ id, data = {} }) {
                 }}
                 id="left"
             />
-
             <Handle
                 type="source"
                 position={Position.Right}
                 style={{
                     top: '50%',
                     background: 'blue',
-                    border: '1px solid white',
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
@@ -134,14 +122,12 @@ export default function EquipmentIcon({ id, data = {} }) {
                 }}
                 id="right"
             />
-
             <Handle
                 type="target"
                 position={Position.Top}
                 style={{
                     left: '50%',
                     background: 'green',
-                    border: '1px solid white',
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
@@ -150,14 +136,12 @@ export default function EquipmentIcon({ id, data = {} }) {
                 }}
                 id="top"
             />
-
             <Handle
                 type="source"
                 position={Position.Bottom}
                 style={{
                     left: '50%',
                     background: 'orange',
-                    border: '1px solid white',
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
