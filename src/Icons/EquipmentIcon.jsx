@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
-export default function EquipmentIcon({ id, data }) {
+export default function EquipmentIcon({ id, data = {} }) {
     const { setNodes } = useReactFlow();
 
     const [hovered, setHovered] = useState(false);
-    const scale = data.scale || 1;
+    const scale = data?.scale || 1;
 
     // Update scale in the node data (persist in React Flow state)
     const updateScale = (newScale) => {
@@ -35,7 +35,7 @@ export default function EquipmentIcon({ id, data }) {
             style={{
                 position: 'relative',
                 width: 100,
-                height: 100 + 20, // extra space if you want label/buttons below
+                height: 120, // 100 + 20 for buttons space
                 background: 'none',
                 border: 'none',
                 borderRadius: 8,
