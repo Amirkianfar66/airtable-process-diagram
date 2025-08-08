@@ -12,13 +12,13 @@ export default function EquipmentIcon({ data }) {
                 position: 'relative',
                 width: 100,
                 height: 100,
-                background: '#eee',
+                background: 'none',
                 border: 'none',
                 borderRadius: 8,
             }}
         >
             <svg width="200" height="200" viewBox="0 0 200 200">
-                <rect x="20" y="20" width="200" height="200" fill="green" stroke="none" strokeWidth="0" />
+                <rect x="20" y="20" width="60" height="60" fill="green" stroke="none" strokeWidth="0" />
                 <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">EQ</text>
             </svg>
 
