@@ -261,7 +261,7 @@ export default function ProcessDiagram() {
                                       },
                                       style: {
                                           ...node.style,
-                                          border: '2px dashed #00bcd4',
+                                          border: 'none',
                                           backgroundColor: 'transparent',
                                       },
                                   }
