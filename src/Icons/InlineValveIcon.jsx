@@ -3,6 +3,7 @@ import { Handle, Position } from 'reactflow';
 
 export default function InlineValveIcon({ data }) {
     const [hovered, setHovered] = useState(false);
+    const label = data?.label || '';
 
     return (
         <div
@@ -11,14 +12,17 @@ export default function InlineValveIcon({ data }) {
             style={{
                 position: 'relative',
                 width: 60,
-                height: 100,
+                height: 110, // extra for label
                 background: 'none',
                 border: 'none',
                 borderRadius: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
             }}
         >
-            <svg width="60" height="100" viewBox="0 0 200 200">
-                {/* Bow-tie shape with half-height wings */}
+            {/* SVG Bowtie Valve */}
+            <svg width="60" height="90" viewBox="0 0 200 200">
                 <polygon
                     points="60,80 100,100 60,120"
                     fill="none"
@@ -31,8 +35,6 @@ export default function InlineValveIcon({ data }) {
                     stroke="orange"
                     strokeWidth="4"
                 />
-
-                {/* Label stays centered */}
                 <text
                     x="100"
                     y="108"
@@ -45,21 +47,37 @@ export default function InlineValveIcon({ data }) {
                 </text>
             </svg>
 
-            {/* React Flow handles on hover */}
+            {/* Label below the SVG */}
+            <div
+                style={{
+                    fontSize: 13,
+                    marginTop: 2,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: '#333',
+                    maxWidth: 60,
+                    textAlign: 'center',
+                }}
+            >
+                {label.substring(0, 5)}
+            </div>
+
+            {/* Handles */}
             <Handle
                 type="target"
                 position={Position.Left}
                 id="left"
                 style={{
-                    top: '50%',
-                    left: 0,
-                    transform: 'translate(-50%, -50%)',
+                    top: 45,
+                    left: -6,
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
                     background: 'red',
                     border: '1px solid white',
-                    borderRadius: '50%',
-                    width: 5,
-                    height: 5,
-                    opacity: hovered ? 1 : 0.5,
+                    opacity: hovered ? 1 : 0.4,
+                    position: 'absolute',
                 }}
             />
             <Handle
@@ -67,15 +85,15 @@ export default function InlineValveIcon({ data }) {
                 position={Position.Right}
                 id="right"
                 style={{
-                    top: '50%',
-                    right: 0,
-                    transform: 'translate(50%, -50%)',
+                    top: 45,
+                    right: -6,
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
                     background: 'blue',
                     border: '1px solid white',
-                    borderRadius: '50%',
-                    width: 5,
-                    height: 5,
-                    opacity: hovered ? 1 : 0.5,
+                    opacity: hovered ? 1 : 0.4,
+                    position: 'absolute',
                 }}
             />
         </div>

@@ -7,7 +7,6 @@ export default function EquipmentIcon({ id, data }) {
     const [scale, setScale] = useState(data?.scale || 1);
     const timeoutRef = useRef(null);
 
-    // Sync local scale when data.scale changes externally
     useEffect(() => {
         if (data?.scale !== undefined && data.scale !== scale) {
             setScale(data.scale);
@@ -15,7 +14,7 @@ export default function EquipmentIcon({ id, data }) {
     }, [data?.scale]);
 
     const updateScale = (newScale) => {
-        setScale(newScale); // update local state immediately
+        setScale(newScale);
         setNodes((nodes) =>
             nodes.map((node) =>
                 node.id === id ? { ...node, data: { ...node.data, scale: newScale } } : node
@@ -58,24 +57,100 @@ export default function EquipmentIcon({ id, data }) {
                 userSelect: 'none',
             }}
         >
-            <svg
-                width="200"
-                height="200"
-                viewBox="0 0 200 200"
+            {/* Scalable container with both SVG and handles */}
+            <div
                 style={{
                     transform: `scale(${scale})`,
                     transformOrigin: 'top left',
-                    pointerEvents: 'none',
-                    display: 'block',
-                    margin: '0 auto',
+                    position: 'relative',
+                    width: 100,
+                    height: 100,
                 }}
             >
-                <rect x="20" y="20" width="60" height="60" fill="green" />
-                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
-                    EQ
-                </text>
-            </svg>
+                <svg
+                    width="100"
+                    height="100"
+                    viewBox="0 0 200 200"
+                    style={{
+                        pointerEvents: 'none',
+                        display: 'block',
+                        margin: '0 auto',
+                    }}
+                >
+                    <rect x="20" y="20" width="60" height="60" fill="green" />
+                    <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
+                        EQ
+                    </text>
+                </svg>
 
+                {/* Handles inside scaled container */}
+                <Handle
+                    type="target"
+                    position={Position.Left}
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: -7,
+                        background: 'red',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateY(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="left"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Right}
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        right: -7,
+                        background: 'blue',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateY(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="right"
+                />
+                <Handle
+                    type="target"
+                    position={Position.Top}
+                    style={{
+                        position: 'absolute',
+                        top: -7,
+                        left: '50%',
+                        background: 'green',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateX(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="top"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Bottom}
+                    style={{
+                        position: 'absolute',
+                        bottom: -7,
+                        left: '50%',
+                        background: 'orange',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateX(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="bottom"
+                />
+            </div>
+
+            {/* Floating scale/reset buttons */}
             {hovered && (
                 <div
                     style={{
@@ -101,64 +176,7 @@ export default function EquipmentIcon({ id, data }) {
                 </div>
             )}
 
-            <Handle
-                type="target"
-                position={Position.Left}
-                style={{
-                    top: '50%',
-                    background: 'red',
-                    borderRadius: '50%',
-                    width: 14,
-                    height: 14,
-                    transform: 'translateY(-50%)',
-                    opacity: hovered ? 1 : 0.01,
-                }}
-                id="left"
-            />
-            <Handle
-                type="source"
-                position={Position.Right}
-                style={{
-                    top: '50%',
-                    background: 'blue',
-                    borderRadius: '50%',
-                    width: 14,
-                    height: 14,
-                    transform: 'translateY(-50%)',
-                    opacity: hovered ? 1 : 0.01,
-                }}
-                id="right"
-            />
-            <Handle
-                type="target"
-                position={Position.Top}
-                style={{
-                    left: '50%',
-                    background: 'green',
-                    borderRadius: '50%',
-                    width: 14,
-                    height: 14,
-                    transform: 'translateX(-50%)',
-                    opacity: hovered ? 1 : 0.01,
-                }}
-                id="top"
-            />
-            <Handle
-                type="source"
-                position={Position.Bottom}
-                style={{
-                    left: '50%',
-                    background: 'orange',
-                    borderRadius: '50%',
-                    width: 14,
-                    height: 14,
-                    transform: 'translateX(-50%)',
-                    opacity: hovered ? 1 : 0.01,
-                }}
-                id="bottom"
-            />
-
-            {/* Label below SVG */}
+            {/* Label */}
             <div
                 style={{
                     fontSize: 13,
