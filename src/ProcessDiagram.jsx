@@ -274,8 +274,8 @@ export default function ProcessDiagram() {
                               type: 'groupLabel',
                               position: labelPosition,
                               data: { label: groupName },
-                              selectable: false,
-                              draggable: false,
+                              selectable: true,
+                              draggable: true,
                               style: { pointerEvents: 'none' },
                           });
 
