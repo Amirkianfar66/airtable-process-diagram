@@ -4,9 +4,13 @@ import { Handle, Position } from 'reactflow';
 export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
     const [hovered, setHovered] = useState(false);
 
-    const rectLeft = 20 * scaleX;
-    const rectRight = (20 + 60) * scaleX;
-    const rectTopMid = 20 * scaleY + (60 * scaleY) / 2;
+    const width = 100 * scaleX;
+    const height = 100 * scaleY;
+
+    // Position of the center of the rect (for handle alignment)
+    const rectTopMid = 20 + 30; // rect y = 20, height = 60 -> mid = 50
+    const rectLeft = 20;        // x = 20
+    const rectRight = 80;       // x + width = 20 + 60
 
     return (
         <div
@@ -14,21 +18,24 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
             onMouseLeave={() => setHovered(false)}
             style={{
                 position: 'relative',
-                width: 100 * scaleX,
-                height: 100 * scaleY,
+                width,
+                height,
                 backgroundColor: '#eee',
                 border: '1px solid #ccc',
                 transition: 'box-shadow 0.2s',
                 boxShadow: hovered ? '0 0 10px rgba(0,0,0,0.3)' : 'none',
             }}
         >
-            {/* Scaled SVG */}
+            {/* SVG is scaled */}
             <div
                 style={{
                     transform: `scale(${scaleX}, ${scaleY})`,
                     transformOrigin: 'top left',
                     width: 100,
                     height: 100,
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
                 }}
             >
                 <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
@@ -39,15 +46,15 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                 </svg>
             </div>
 
-            {/* Conditionally visible Handles */}
+            {/* Handles are positioned relative to parent, no scaling needed */}
             <Handle
                 type="target"
                 position={Position.Left}
                 id="left"
                 style={{
                     position: 'absolute',
-                    top: rectTopMid,
-                    left: rectLeft,
+                    top: rectTopMid * scaleY,
+                    left: rectLeft * scaleX,
                     transform: 'translate(-50%, -50%)',
                     width: 16,
                     height: 16,
@@ -67,8 +74,8 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                 id="right"
                 style={{
                     position: 'absolute',
-                    top: rectTopMid,
-                    left: rectRight,
+                    top: rectTopMid * scaleY,
+                    left: rectRight * scaleX,
                     transform: 'translate(-50%, -50%)',
                     width: 16,
                     height: 16,
