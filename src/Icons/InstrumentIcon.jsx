@@ -1,11 +1,61 @@
-// src/Icons/InstrumentIcon.jsx
-import React from 'react';
+// InstrumentIcon.jsx
+import React, { useState } from 'react';
+import { Handle, Position } from 'reactflow';
 
-export default function InstrumentIcon() {
-  return (
-    <svg width="50" height="50" viewBox="0 0 100 100" fill="none">
-      <circle cx="50" cy="50" r="35" fill="orange" stroke="black" strokeWidth="3" />
-      <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">Inst</text>
-    </svg>
-  );
+export default function InstrumentIcon({ data }) {
+    const [hovered, setHovered] = useState(false);
+
+    return (
+        <div
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+                position: 'relative',
+                width: 100,
+                height: 100,
+                background: 'none',
+                border: 'none',
+                borderRadius: 8,
+            }}
+        >
+            <svg width="200" height="200" viewBox="0 0 200 200">
+                {/* Simple instrument: triangle */}
+                <polygon points="100,30 30,170 170,170" fill="purple" />
+                <text x="100" y="125" fontSize="16" textAnchor="middle" fill="white">
+                    IN
+                </text>
+            </svg>
+
+            <Handle
+                type="target"
+                position={Position.Left}
+                style={{
+                    top: '50%',
+                    background: 'red',
+                    border: '1px solid white',
+                    borderRadius: '50%',
+                    width: 14,
+                    height: 14,
+                    transform: 'translateY(-50%)',
+                    opacity: hovered ? 1 : 0.01,
+                }}
+                id="left"
+            />
+            <Handle
+                type="source"
+                position={Position.Right}
+                style={{
+                    top: '50%',
+                    background: 'blue',
+                    border: '1px solid white',
+                    borderRadius: '50%',
+                    width: 14,
+                    height: 14,
+                    transform: 'translateY(-50%)',
+                    opacity: hovered ? 1 : 0.01,
+                }}
+                id="right"
+            />
+        </div>
+    );
 }
