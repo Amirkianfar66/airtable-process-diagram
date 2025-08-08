@@ -36,22 +36,22 @@ export default function ScalableIconNode({ id, data }) {
             <svg
                 width={width}
                 height={height}
-                viewBox={0 0 ${baseSize} ${baseSize}}
-            style={{ display: visible ? 'block' : 'none' }}
+                viewBox={`0 0 ${baseSize} ${baseSize}`}
+                style={{ display: visible ? 'block' : 'none' }}
             >
-            <rect
-                x={iconX}
-                y={iconY}
-                width={iconSize}
-                height={iconSize}
-                fill="green"
-            />
-            <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
-                {id}
-            </text>
-        </svg>
+                <rect
+                    x={iconX}
+                    y={iconY}
+                    width={iconSize}
+                    height={iconSize}
+                    fill="green"
+                />
+                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
+                    {id}
+                </text>
+            </svg>
 
-            {/* Handles */ }
+            {/* Handles */}
             <Handle
                 type="target"
                 position={Position.Top}
@@ -66,13 +66,12 @@ export default function ScalableIconNode({ id, data }) {
                 type="source"
                 position={Position.Right}
                 style={{ background: 'blue', width: 8, height: 8 }}
-            />A
-        < Handle
-    type = "source"
-    position = { Position.Bottom }
-    style = {{ background: 'blue', width: 8, height: 8 }
-}
-/>
-        </div >
+            />
+            <Handle
+                type="source"
+                position={Position.Bottom}
+                style={{ background: 'blue', width: 8, height: 8 }}
+            />
+        </div>
     );
 }
