@@ -73,7 +73,7 @@ export default function InlineValveIcon({ data }) {
                     background: 'blue',
                     border: '1px solid white',
                     borderRadius: '50%',
-                    width: 14,
+                    width: 5,
                     height: 14,
                     opacity: hovered ? 1 : 0.5,
                 }}
