@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { Handle, Position, useReactFlow } from 'reactflow';
+import { useReactFlow } from 'reactflow';
 
 export default function ScalableIconNode({ id, data }) {
     const { setNodes } = useReactFlow();
@@ -9,20 +9,7 @@ export default function ScalableIconNode({ id, data }) {
     const iconRef = useRef(null);
 
     const scale = data.scale || 1;
-    const label = data.label || '';  // Name of the item from Airtable
-
-    const updateScale = (newScale) => {
-        setNodes((nodes) =>
-            nodes.map((node) =>
-                node.id === id
-                    ? { ...node, data: { ...node.data, scale: newScale } }
-                    : node
-            )
-        );
-    };
-
-    const onScale = (e) => { e.stopPropagation(); updateScale(scale * 2); };
-    const onReset = (e) => { e.stopPropagation(); updateScale(1); };
+    const label = data.label || '';
 
     const handleMouseEnter = () => {
         setHovered(true);
@@ -47,7 +34,7 @@ export default function ScalableIconNode({ id, data }) {
             style={{
                 position: 'relative',
                 width: size,
-                height: size + 20, // extra space for label
+                height: size + 20,
                 pointerEvents: 'all',
                 textAlign: 'center',
             }}
@@ -82,9 +69,6 @@ export default function ScalableIconNode({ id, data }) {
             >
                 {label.substring(0, 5)}
             </div>
-
-            {/* Control buttons */}
-            
         </div>
     );
 }
