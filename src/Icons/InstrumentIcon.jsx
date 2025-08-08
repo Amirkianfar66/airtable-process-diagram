@@ -19,9 +19,9 @@ export default function InstrumentIcon({ data }) {
             }}
         >
             <svg width="200" height="200" viewBox="0 0 200 200">
-                {/* Simple instrument: triangle */}
-                <polygon points="100,30 30,170 170,170" fill="purple" />
-                <text x="100" y="125" fontSize="16" textAnchor="middle" fill="white">
+                {/* Circular instrument body */}
+                <circle cx="100" cy="100" r="50" fill="purple" />
+                <text x="100" y="110" fontSize="20" textAnchor="middle" fill="white">
                     IN
                 </text>
             </svg>
