@@ -13,7 +13,7 @@ export default function InlineValveIcon({ data }) {
                 borderRadius: 8,
             }}
         >
-            <svg width="200" height="200" viewBox="0 0 200 200">
+            <svg width="100" height="100" viewBox="0 0 200 200">
                 {/* Bow-tie shape with half-height wings */}
                 <polygon
                     points="60,80 100,100 60,120"
