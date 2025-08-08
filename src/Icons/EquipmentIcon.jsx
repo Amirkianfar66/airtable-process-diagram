@@ -51,8 +51,27 @@ export default function ScalableIconNode({ id, data }) {
                 </text>
             </svg>
 
-            <Handle type="source" position={Position.Right} style={{ background: 'blue', width: 8, height: 8 }} />
-            <Handle type="target" position={Position.Left} style={{ background: 'red', width: 8, height: 8 }} />
+            {/* Handles */}
+            <Handle
+                type="target"
+                position={Position.Top}
+                style={{ background: 'red', width: 8, height: 8 }}
+            />
+            <Handle
+                type="target"
+                position={Position.Left}
+                style={{ background: 'red', width: 8, height: 8 }}
+            />
+            <Handle
+                type="source"
+                position={Position.Right}
+                style={{ background: 'blue', width: 8, height: 8 }}
+            />
+            <Handle
+                type="source"
+                position={Position.Bottom}
+                style={{ background: 'blue', width: 8, height: 8 }}
+            />
         </div>
     );
 }
