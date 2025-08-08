@@ -157,6 +157,19 @@ export default function EquipmentIcon({ id, data }) {
                 }}
                 id="bottom"
             />
+            {/* Label below SVG */}
+            <div
+                style={{
+                    fontSize: 13,
+                    marginTop: 3,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: '#333',
+                }}
+            >
+                {label.substring(0, 5)}
+            </div>
         </div>
     );
 }
