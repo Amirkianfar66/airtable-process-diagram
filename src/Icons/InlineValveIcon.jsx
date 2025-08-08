@@ -1,9 +1,13 @@
-// InlineValveIcon.jsx
-import React from 'react';
+import React, { useState } from 'react';
+import { Handle, Position } from 'reactflow';
 
 export default function InlineValveIcon({ data }) {
+    const [hovered, setHovered] = useState(false);
+
     return (
         <div
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
             style={{
                 position: 'relative',
                 width: 100,
@@ -40,6 +44,40 @@ export default function InlineValveIcon({ data }) {
                     IV
                 </text>
             </svg>
+
+            {/* React Flow handles on hover */}
+            <Handle
+                type="target"
+                position={Position.Left}
+                id="left"
+                style={{
+                    top: '50%',
+                    left: 0,
+                    transform: 'translate(-50%, -50%)',
+                    background: 'red',
+                    border: '1px solid white',
+                    borderRadius: '50%',
+                    width: 14,
+                    height: 14,
+                    opacity: hovered ? 1 : 0.01,
+                }}
+            />
+            <Handle
+                type="source"
+                position={Position.Right}
+                id="right"
+                style={{
+                    top: '50%',
+                    right: 0,
+                    transform: 'translate(50%, -50%)',
+                    background: 'blue',
+                    border: '1px solid white',
+                    borderRadius: '50%',
+                    width: 14,
+                    height: 14,
+                    opacity: hovered ? 1 : 0.01,
+                }}
+            />
         </div>
     );
 }
