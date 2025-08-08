@@ -59,7 +59,7 @@ export default function InlineValveIcon({ data }) {
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
-                    opacity: hovered ? 1 : 0.01,
+                    opacity: hovered ? 1 : 0.5,
                 }}
             />
             <Handle
@@ -75,7 +75,7 @@ export default function InlineValveIcon({ data }) {
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
-                    opacity: hovered ? 1 : 0.01,
+                    opacity: hovered ? 1 : 0.5,
                 }}
             />
         </div>
