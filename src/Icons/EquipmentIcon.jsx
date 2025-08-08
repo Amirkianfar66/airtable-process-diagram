@@ -1,130 +1,58 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
-export default function ScalableIconNode({ id, data = {} }) {
-    const { width, height, scaleX = 1, scaleY = 1 } = data;
-    const [hovered, setHovered] = useState(false);
-    const svgRef = useRef(null);
+export default function ScalableIconNode({ id, data }) {
     const { setNodes } = useReactFlow();
+    const [hovered, setHovered] = useState(false);
+    const [visible, setVisible] = useState(true);
+    const nodeRef = useRef(null);
 
-    const handleSize = 10;
+    const baseSize = 100;
+    const scaleX = data.scaleX || 1;
+    const scaleY = data.scaleY || 1;
+
+    const width = baseSize * scaleX;
+    const height = baseSize * scaleY;
+
+    const iconSize = 60;
+    const iconX = (baseSize - iconSize) / 2;
+    const iconY = (baseSize - iconSize) / 2;
 
     useEffect(() => {
-        if (svgRef.current) {
-            const bbox = svgRef.current.getBBox();
-            setNodes((nodes) =>
-                nodes.map((node) =>
-                    node.id === id
-                        ? {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                width: bbox.width,
-                                height: bbox.height,
-                            },
-                        }
-                        : node
-                )
-            );
-        }
-    }, [id, setNodes]);
+        setVisible(true);
+    }, [scaleX, scaleY]);
 
     return (
         <div
-            style={{ position: 'relative', width: width || 100, height: height || 100 }}
+            ref={nodeRef}
+            style={{
+                width,
+                height,
+                position: 'relative',
+            }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
             <svg
-                ref={svgRef}
-                width={100 * scaleX}
-                height={100 * scaleY}
-                viewBox="0 0 100 100"
-                style={{ display: 'block' }}
+                width={width}
+                height={height}
+                viewBox={`0 0 ${baseSize} ${baseSize}`}
+                style={{ display: visible ? 'block' : 'none' }}
             >
                 <rect
-                    x={20 * scaleX}
-                    y={20 * scaleY}
-                    width={60 * scaleX}
-                    height={60 * scaleY}
+                    x={iconX}
+                    y={iconY}
+                    width={iconSize}
+                    height={iconSize}
                     fill="green"
                 />
-                <text
-                    x={50 * scaleX}
-                    y={55 * scaleY}
-                    fontSize={16 * Math.min(scaleX, scaleY)}
-                    fill="white"
-                    textAnchor="middle"
-                    alignmentBaseline="middle"
-                >
-                    EQ
+                <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
+                    {id}
                 </text>
             </svg>
 
-            {hovered && (
-                <>
-                    <Handle
-                        type="source"
-                        position={Position.Left}
-                        style={{
-                            background: '#555',
-                            border: '2px solid white',
-                            width: handleSize,
-                            height: handleSize,
-                            borderRadius: '50%',
-                            position: 'absolute',
-                            left: -handleSize / 2,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                        }}
-                    />
-                    <Handle
-                        type="source"
-                        position={Position.Right}
-                        style={{
-                            background: '#555',
-                            border: '2px solid white',
-                            width: handleSize,
-                            height: handleSize,
-                            borderRadius: '50%',
-                            position: 'absolute',
-                            right: -handleSize / 2,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                        }}
-                    />
-                    <Handle
-                        type="source"
-                        position={Position.Top}
-                        style={{
-                            background: '#555',
-                            border: '2px solid white',
-                            width: handleSize,
-                            height: handleSize,
-                            borderRadius: '50%',
-                            position: 'absolute',
-                            top: -handleSize / 2,
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                        }}
-                    />
-                    <Handle
-                        type="source"
-                        position={Position.Bottom}
-                        style={{
-                            background: '#555',
-                            border: '2px solid white',
-                            width: handleSize,
-                            height: handleSize,
-                            borderRadius: '50%',
-                            position: 'absolute',
-                            bottom: -handleSize / 2,
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                        }}
-                    />
-                </>
-            )}
+            <Handle type="source" position={Position.Right} style={{ background: 'blue', width: 8, height: 8 }} />
+            <Handle type="target" position={Position.Left} style={{ background: 'red', width: 8, height: 8 }} />
         </div>
     );
 }
