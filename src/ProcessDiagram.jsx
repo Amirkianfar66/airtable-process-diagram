@@ -15,6 +15,7 @@ import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 import ScalableNode from './ScalableNode';
 import ScalableIconNode from './ScalableIconNode';
+import GroupLabelNode from './GroupLabelNode';
 
 
 // Icons
@@ -31,6 +32,7 @@ const nodeTypes = {
     pipe: PipeItemNode,
     scalable: ScalableNode,
     scalableIcon: ScalableIconNode,
+    groupLabel: GroupLabelNode,
 };
 
 
