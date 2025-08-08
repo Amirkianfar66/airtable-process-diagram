@@ -251,7 +251,7 @@ export default function ProcessDiagram() {
                       style: {
                         ...node.style,
                         border: '2px dashed #00bcd4',
-                        backgroundColor: '#e0f7fa',
+                          backgroundColor: 'transparent',
                       },
                     }
                   : node
