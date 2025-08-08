@@ -72,15 +72,15 @@ export default function ScalableIconNode({ id, data }) {
             {/* Label below SVG */}
             <div
                 style={{
-                    fontSize: 12,
-                    marginTop: 4,
+                    fontSize: 13,
+                    marginTop: 3,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     color: '#333',
                 }}
             >
-                {label}
+                {label.substring(0, 5)}
             </div>
 
             {/* Control buttons */}
