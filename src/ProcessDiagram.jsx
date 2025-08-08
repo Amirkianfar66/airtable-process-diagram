@@ -261,14 +261,44 @@ export default function ProcessDiagram() {
                       const groupId = `group-${Date.now()}`;
                       const groupName = prompt('Enter group name:', 'My Group') || 'Unnamed Group';
 
+                      // Default group size and position
+                      const defaultWidth = 300;
+                      const defaultHeight = 150;
+
                       // Position label near first selected node if any
                       const firstSelected = selectedNodes[0];
                       const labelPosition = firstSelected
                           ? { x: firstSelected.position.x - 20, y: firstSelected.position.y - 40 }
                           : { x: 0, y: 0 };
 
+                      // Handler for resize callback
+                      const onGroupResize = (id, newSize) => {
+                          setNodes((nds) =>
+                              nds.map((node) => {
+                                  if (node.id === id) {
+                                      return {
+                                          ...node,
+                                          data: {
+                                              ...node.data,
+                                              width: newSize.width,
+                                              height: newSize.height,
+                                          },
+                                          style: {
+                                              ...node.style,
+                                              width: newSize.width,
+                                              height: newSize.height,
+                                              border: '2px dashed #00bcd4',
+                                              backgroundColor: 'rgba(0, 188, 212, 0.05)',
+                                          },
+                                      };
+                                  }
+                                  return node;
+                              })
+                          );
+                      };
+
                       setNodes((nds) => {
-                          // Mark selected nodes with groupId and style
+                          // Mark selected nodes with groupId and clear their borders for clarity
                           const updatedNodes = nds.map((node) =>
                               selectedNodes.find((sel) => sel.id === node.id)
                                   ? {
@@ -279,22 +309,32 @@ export default function ProcessDiagram() {
                                       },
                                       style: {
                                           ...node.style,
-                                          border: 'none',
+                                          border: 'none',  // group items themselves have no border
                                           backgroundColor: 'transparent',
                                       },
                                   }
                                   : node
                           );
 
-                          // Add group label node
+                          // Add group label node with size and onResize callback
                           updatedNodes.push({
                               id: `group-label-${groupId}`,
                               type: 'groupLabel',
                               position: labelPosition,
-                              data: { label: groupName },
+                              data: {
+                                  label: groupName,
+                                  width: defaultWidth,
+                                  height: defaultHeight,
+                                  onResize: onGroupResize,
+                                  id: `group-label-${groupId}`,
+                              },
                               selectable: true,
                               draggable: true,
-                              style: { pointerEvents: 'none' },
+                              style: {
+                                  border: '2px dashed #00bcd4',
+                                  backgroundColor: 'rgba(0, 188, 212, 0.05)',
+                                  borderRadius: 6,
+                              },
                           });
 
                           return updatedNodes;
@@ -310,50 +350,6 @@ export default function ProcessDiagram() {
                   }}
               >
                   🌀 Group Selected
-              </button>
-
-              <button
-                  onClick={() => {
-                      setNodes((nds) => {
-                          // Collect groupIds from selected nodes
-                          const groupsToRemove = new Set();
-                          selectedNodes.forEach((sel) => {
-                              const node = nds.find((n) => n.id === sel.id);
-                              if (node?.data?.groupId) groupsToRemove.add(node.data.groupId);
-                          });
-
-                          // Remove group label nodes for those groupIds
-                          const filteredNodes = nds.filter(
-                              (node) =>
-                                  !(node.id.startsWith('group-label-') && groupsToRemove.has(node.id.replace('group-label-', '')))
-                          );
-
-                          // Remove group info and reset style on selected nodes
-                          return filteredNodes.map((node) =>
-                              selectedNodes.find((sel) => sel.id === node.id)
-                                  ? {
-                                      ...node,
-                                      data: { ...node.data, groupId: undefined },
-                                      style: {
-                                          ...node.style,
-                                          border: 'none',
-                                          backgroundColor: 'white',
-                                      },
-                                  }
-                                  : node
-                          );
-                      });
-                  }}
-                  style={{
-                      padding: '6px 12px',
-                      background: '#a82727',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 5,
-                      cursor: 'pointer',
-                  }}
-              >
-                  ❌ Ungroup
               </button>
 
       </div>
