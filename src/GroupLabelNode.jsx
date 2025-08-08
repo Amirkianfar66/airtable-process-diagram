@@ -1,10 +1,7 @@
-﻿import React from 'react';
-import { Handle, Position } from 'reactflow';
-
-export default function GroupLabelNode({ data }) {
+﻿export default function GroupLabelNode({ data }) {
     const {
-        width = 200,   // default width if not provided
-        height = 100,  // default height if not provided
+        width = 200,   // default width if not passed
+        height = 100,  // default height if not passed
         label,
     } = data;
 
@@ -17,9 +14,9 @@ export default function GroupLabelNode({ data }) {
                 width: `${width}px`,
                 height: `${height}px`,
                 position: 'relative',
-                zIndex: 9999,          // keep on top
+                zIndex: 9999,
                 boxSizing: 'border-box',
-                padding: '8px 12px 12px 12px', // padding inside the group rect
+                padding: '8px 12px 12px 12px',
                 userSelect: 'none',
             }}
         >
@@ -42,7 +39,7 @@ export default function GroupLabelNode({ data }) {
                 {label}
             </div>
 
-            {/* Optional handles (hidden here) */}
+            {/* Optional handles hidden */}
             <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
             <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
         </div>
