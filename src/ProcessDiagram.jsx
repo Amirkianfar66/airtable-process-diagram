@@ -191,22 +191,24 @@ export default function ProcessDiagram() {
       });
   }, []);
 
-  const onConnect = useCallback(
-    (params) => {
-      const updated = addEdge(
-        {
-          ...params,
-          animated: true,
-          style: { stroke: 'blue' },
-        },
-        edges
-      );
+    const onConnect = useCallback(
+        (params) => {
+            const updated = addEdge(
+                {
+                    ...params,
+                    type: 'step', // 👈 orthogonal routing
+                    animated: true,
+                    style: { stroke: 'blue', strokeWidth: 2 },
+                },
+                edges
+            );
 
-      setEdges(updated);
-      localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));
-    },
-    [edges, nodes]
-  );
+            setEdges(updated);
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));
+        },
+        [edges, nodes]
+    );
+
 
   const onNodeDragStop = useCallback(
     (_, updatedNode) => {
