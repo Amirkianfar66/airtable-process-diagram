@@ -57,7 +57,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                     zIndex: 10,
                     border: '2px solid white',
                     boxShadow: '0 0 4px black',
-                    opacity: hovered ? 1 : 0.6,
+                    opacity: hovered ? 1 : 0.1,
                     pointerEvents: 'all',
                 }}
             />
@@ -77,7 +77,7 @@ export default function EquipmentIcon({ scaleX = 1, scaleY = 1 }) {
                     zIndex: 10,
                     border: '2px solid white',
                     boxShadow: '0 0 4px black',
-                    opacity: hovered ? 1 : 0.6,
+                    opacity: hovered ? 1 : 0.1,
                     pointerEvents: 'all',
                 }}
             />
