@@ -13,7 +13,7 @@ export default function EquipmentIcon({ data }) {
                 width: 100,
                 height: 100,
                 background: '#eee',
-                border: '1px solid #aaa',
+                border: 'none',
                 borderRadius: 8,
             }}
         >
@@ -28,12 +28,12 @@ export default function EquipmentIcon({ data }) {
                 style={{
                     top: '50%',
                     background: 'red',
-                    border: '2px solid white',
+                    border: '1px solid white',
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
                     transform: 'translateY(-50%)',
-                    opacity: hovered ? 1 : 0.5,
+                    opacity: hovered ? 1 : 0.1,
                 }}
                 id="left"
             />
@@ -43,12 +43,12 @@ export default function EquipmentIcon({ data }) {
                 style={{
                     top: '50%',
                     background: 'blue',
-                    border: '2px solid white',
+                    border: '1px solid white',
                     borderRadius: '50%',
                     width: 14,
                     height: 14,
                     transform: 'translateY(-50%)',
-                    opacity: hovered ? 1 : 0.5,
+                    opacity: hovered ? 1 : 0.1,
                 }}
                 id="right"
             />
