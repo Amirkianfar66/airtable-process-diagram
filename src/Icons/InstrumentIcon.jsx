@@ -11,31 +11,34 @@ export default function InstrumentIcon({ data }) {
             style={{
                 position: 'relative',
                 width: 100,
-                height: 100,
+                height: 120, // extra space for label or handle
                 background: 'none',
                 border: 'none',
                 borderRadius: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
             }}
         >
-            <svg width="200" height="200" viewBox="0 0 200 200">
-                {/* Circular instrument body */}
-                <circle cx="100" cy="100" r="10" fill="Yellow" />
-                <text x="100" y="110" fontSize="7" textAnchor="middle" fill="Black">
+            <svg width="60" height="60" viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="60" fill="Yellow" />
+                <text x="100" y="110" fontSize="20" textAnchor="middle" fill="Black">
                     IN
                 </text>
             </svg>
 
-            {/* Single Handle node */}
+            {/* Handle at the bottom center */}
             <Handle
                 type="target"
                 position={Position.Bottom}
                 style={{
-                    Left: '90%',
+                    left: '50%',
                     background: 'green',
                     border: '1px solid white',
                     borderRadius: '50%',
-                    width: 5,
-                    height: 5,
+                    width: 10,
+                    height: 10,
                     transform: 'translateX(-50%)',
                     opacity: hovered ? 1 : 0.3,
                 }}
