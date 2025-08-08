@@ -84,27 +84,7 @@ export default function ScalableIconNode({ id, data }) {
             </div>
 
             {/* Control buttons */}
-            {visible && data.type === 'EquipmentIcon' && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: -32,
-                        left: '50%',
-                        transform: 'translateX(-50%) scale(1)',
-                        pointerEvents: 'auto',
-                        display: 'flex',
-                        gap: '4px',
-                        background: 'rgba(255,255,255,0.8)',
-                        padding: '2px 4px',
-                        borderRadius: '4px',
-                        zIndex: 10,
-                    }}
-                >
-                    <button onClick={onScale} style={{ fontSize: 10 }}>×2</button>
-                    <button onClick={onReset} style={{ fontSize: 10 }}>Reset</button>
-                </div>
-            )}
-
+            
         </div>
     );
 }
