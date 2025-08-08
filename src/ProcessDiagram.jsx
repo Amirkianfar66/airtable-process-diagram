@@ -353,6 +353,21 @@ export default function ProcessDiagram() {
         minZoom={0.02}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         nodeTypes={nodeTypes} // ✅ use custom node here
+        onPaneContextMenu={(event) => {
+           event.preventDefault(); // Prevent browser context menu
+                  setNodes((nds) =>
+                      nds.map((node) => ({
+                          ...node,
+                          selected: false,
+                      }))
+                  );
+                  setEdges((eds) =>
+                      eds.map((edge) => ({
+                          ...edge,
+                          selected: false,
+                      }))
+                  );
+              }}
       >
         <Background />
         <Controls />
