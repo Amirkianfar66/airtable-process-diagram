@@ -4,11 +4,18 @@ import { Handle, Position, useReactFlow } from 'reactflow';
 export default function EquipmentIcon({ id, data }) {
     const { setNodes } = useReactFlow();
     const [hovered, setHovered] = useState(false);
+    const [scale, setScale] = useState(data?.scale || 1);
     const timeoutRef = useRef(null);
 
-    const scale = data?.scale || 1;
+    // Sync local scale when data.scale changes externally
+    useEffect(() => {
+        if (data?.scale !== undefined && data.scale !== scale) {
+            setScale(data.scale);
+        }
+    }, [data?.scale]);
 
     const updateScale = (newScale) => {
+        setScale(newScale); // update local state immediately
         setNodes((nodes) =>
             nodes.map((node) =>
                 node.id === id ? { ...node, data: { ...node.data, scale: newScale } } : node
