@@ -300,7 +300,6 @@ export default function ProcessDiagram() {
           ❌ Ungroup
         </button>
       </div>
-      </div>
 
       <ReactFlow
         nodes={nodes}
