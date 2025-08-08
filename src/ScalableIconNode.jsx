@@ -84,7 +84,7 @@ export default function ScalableIconNode({ id, data }) {
             </div>
 
             {/* Control buttons */}
-            {visible && data.type === 'Equipment' && (
+            {visible && data.type === 'EquipmentIcon' && (
                 <div
                     style={{
                         position: 'absolute',
