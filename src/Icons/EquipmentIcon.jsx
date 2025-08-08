@@ -37,6 +37,7 @@ export default function EquipmentIcon({ data }) {
                 }}
                 id="left"
             />
+
             <Handle
                 type="source"
                 position={Position.Right}
@@ -52,6 +53,39 @@ export default function EquipmentIcon({ data }) {
                 }}
                 id="right"
             />
+
+            <Handle
+                type="target"
+                position={Position.Top}
+                style={{
+                    left: '50%',
+                    background: 'green',
+                    border: '1px solid white',
+                    borderRadius: '50%',
+                    width: 14,
+                    height: 14,
+                    transform: 'translateX(-50%)',
+                    opacity: hovered ? 1 : 0.01,
+                }}
+                id="top"
+            />
+
+            <Handle
+                type="source"
+                position={Position.Bottom}
+                style={{
+                    left: '50%',
+                    background: 'orange',
+                    border: '1px solid white',
+                    borderRadius: '50%',
+                    width: 14,
+                    height: 14,
+                    transform: 'translateX(-50%)',
+                    opacity: hovered ? 1 : 0.01,
+                }}
+                id="bottom"
+            />
+
         </div>
     );
 }
