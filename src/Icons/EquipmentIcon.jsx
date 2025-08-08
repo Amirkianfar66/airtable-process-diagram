@@ -17,7 +17,7 @@ export default function EquipmentIcon({ data }) {
                 borderRadius: 8,
             }}
         >
-            <svg width="200" height="200" viewBox="0 0 200 200">
+            <svg width="600" height="600" viewBox="0 0 600 600">
                 <rect x="20" y="20" width="600" height="600" fill="green" stroke="none" strokeWidth="0" />
                 <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">EQ</text>
             </svg>
