@@ -37,7 +37,7 @@ export default function InstrumentIcon({ data }) {
                     width: 5,
                     height: 5,
                     transform: 'translateX(-50%)',
-                    opacity: hovered ? 1 : 0.1,
+                    opacity: hovered ? 1 : 0.3,
                 }}
                 id="bottom"
             />

@@ -67,7 +67,10 @@ export default function ProcessDiagram() {
   const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-
+  const [selectedNodes, setSelectedNodes] = useState([]);
+  const onSelectionChange = useCallback(({ nodes }) => {
+        setSelectedNodes(nodes);
+    }, []);
   const itemWidth = 160;
   const itemHeight = 60;
   const itemGap = 30;
@@ -232,7 +235,71 @@ export default function ProcessDiagram() {
           }}
         >
           📂 Save Layout
+              </button>
+              <button
+               onClick={() => {
+            const groupId = `group-${Date.now()}`;
+            setNodes((nds) =>
+              nds.map((node) =>
+                selectedNodes.find((sel) => sel.id === node.id)
+                  ? {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        groupId,
+                      },
+                      style: {
+                        ...node.style,
+                        border: '2px dashed #00bcd4',
+                        backgroundColor: '#e0f7fa',
+                      },
+                    }
+                  : node
+              )
+            );
+          }}
+          style={{
+            padding: '6px 12px',
+            background: '#1976d2',
+            color: 'white',
+            border: 'none',
+            borderRadius: 5,
+            cursor: 'pointer',
+          }}
+        >
+          🌀 Group Selected
         </button>
+
+        <button
+          onClick={() => {
+            setNodes((nds) =>
+              nds.map((node) =>
+                selectedNodes.find((sel) => sel.id === node.id)
+                  ? {
+                      ...node,
+                      data: { ...node.data, groupId: undefined },
+                      style: {
+                        ...node.style,
+                        border: 'none',
+                        backgroundColor: 'white',
+                      },
+                    }
+                  : node
+              )
+            );
+          }}
+          style={{
+            padding: '6px 12px',
+            background: '#a82727',
+            color: 'white',
+            border: 'none',
+            borderRadius: 5,
+            cursor: 'pointer',
+          }}
+        >
+          ❌ Ungroup
+        </button>
+      </div>
       </div>
 
       <ReactFlow
@@ -242,6 +309,7 @@ export default function ProcessDiagram() {
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
+        onSelectionChange={onSelectionChange}
         fitView
         minZoom={0.02}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
