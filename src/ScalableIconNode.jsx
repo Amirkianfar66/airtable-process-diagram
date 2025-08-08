@@ -1,5 +1,4 @@
-﻿// ScalableIconNode.jsx
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
 export default function ScalableIconNode({ id, data }) {
@@ -10,6 +9,7 @@ export default function ScalableIconNode({ id, data }) {
     const iconRef = useRef(null);
 
     const scale = data.scale || 1;
+    const label = data.label || '';  // Name of the item from Airtable
 
     const updateScale = (newScale) => {
         setNodes((nodes) =>
@@ -47,8 +47,9 @@ export default function ScalableIconNode({ id, data }) {
             style={{
                 position: 'relative',
                 width: size,
-                height: size,
+                height: size + 20, // extra space for label
                 pointerEvents: 'all',
+                textAlign: 'center',
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -66,6 +67,20 @@ export default function ScalableIconNode({ id, data }) {
                 }}
             >
                 {data.icon}
+            </div>
+
+            {/* Label below SVG */}
+            <div
+                style={{
+                    fontSize: 12,
+                    marginTop: 4,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: '#333',
+                }}
+            >
+                {label}
             </div>
 
             {/* Control buttons */}
