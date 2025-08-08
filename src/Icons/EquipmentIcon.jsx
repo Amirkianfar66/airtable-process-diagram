@@ -61,8 +61,7 @@ export default function ScalableIconNode({ id, data }) {
                 type="source"
                 position={Position.Right}
                 style={{ background: 'blue', width: 12, height: 12, zIndex: 10 }}
-            />
-           
+            /> 
         </div>
     );
 }
