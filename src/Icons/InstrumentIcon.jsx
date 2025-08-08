@@ -34,10 +34,10 @@ export default function InstrumentIcon({ data }) {
                     background: 'green',
                     border: '1px solid white',
                     borderRadius: '50%',
-                    width: 14,
-                    height: 14,
+                    width: 5,
+                    height: 5,
                     transform: 'translateX(-50%)',
-                    opacity: hovered ? 1 : 0.01,
+                    opacity: hovered ? 1 : 0.8,
                 }}
                 id="bottom"
             />
