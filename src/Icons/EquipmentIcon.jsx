@@ -68,8 +68,8 @@ export default function EquipmentIcon({ id, data }) {
                 }}
             >
                 <svg
-                    width="100"
-                    height="100"
+                    width="0"
+                    height="0"
                     viewBox="0 0 200 200"
                     style={{
                         pointerEvents: 'none',
