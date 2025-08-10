@@ -48,24 +48,27 @@ export default function InlineValveIcon({ data }) {
             </svg>
 
             {/* Label below the SVG */}
-            <div
-                style={{
-                    fontSize: 13,
-                    marginTop: -8,     // small negative margin to move label up
-                    position: 'relative',
-                    top: -8,           // shift label upward
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    color: '#333',
-                    width: '100%',
-                    textAlign: 'center',
-                    paddingLeft: 5,
-                }}
-
-            >
-                {label.substring(0, 5)}
+            <div style={{ position: 'relative', width: 60, height: 90 }}>
+                <svg width="60" height="90" viewBox="0 0 200 200">...</svg>
+                <div
+                    style={{
+                        position: 'absolute',
+                        bottom: 2,
+                        left: 0,
+                        width: '100%',
+                        fontSize: 13,
+                        textAlign: 'center',
+                        color: '#333',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        paddingLeft: 5,
+                    }}
+                >
+                    {label.substring(0, 5)}
+                </div>
             </div>
+
 
             {/* Handles */}
             <Handle
