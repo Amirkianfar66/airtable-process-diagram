@@ -70,7 +70,7 @@ export default function ScalableRect() {
                     gap: "5px",
                 }}
             >
-                <button onClick={() => alert("Group action here")}>Group</button>
+                
                 <button onClick={handleRename}>Rename Group</button>
                 <button onClick={handleDelete}>Delete</button>
             </div>
