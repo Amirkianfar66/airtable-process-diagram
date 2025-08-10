@@ -64,10 +64,10 @@ export default function ScalableRect() {
             <div
                 style={{
                     position: "absolute",
-                    left: rect.x,
-                    top: rect.y - 35,
+                    left: rect.x - 20,
+                    top: rect.y - 38,
                     display: "flex",
-                    gap: "5px",
+                    gap: "3px",
                 }}
             >
                 
