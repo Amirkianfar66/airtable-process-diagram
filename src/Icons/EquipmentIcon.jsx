@@ -179,8 +179,11 @@ export default function EquipmentIcon({ id, data }) {
             {/* Label */}
             <div
                 style={{
+                    position: 'absolute',
+                    top: 160, // place below the green box
+                    left: '50%',
+                    transform: 'translateX(-50%)',
                     fontSize: 13,
-                    marginTop: 3,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
