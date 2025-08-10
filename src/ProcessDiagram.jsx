@@ -211,37 +211,14 @@ export default function ProcessDiagram() {
     );
 
 
-    const onNodeDrag = useCallback((_, draggedNode) => {
-        if (draggedNode.type === 'groupLabel') {
-            setNodes((nds) =>
-                nds.map((node) => {
-                    if (node.data?.groupId === draggedNode.data?.groupId) {
-                        const dx = draggedNode.position.x - (draggedNode.data.lastX ?? draggedNode.position.x);
-                        const dy = draggedNode.position.y - (draggedNode.data.lastY ?? draggedNode.position.y);
-                        return {
-                            ...node,
-                            position: {
-                                x: node.position.x + dx,
-                                y: node.position.y + dy
-                            }
-                        };
-                    }
-                    if (node.id === draggedNode.id) {
-                        return {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                lastX: draggedNode.position.x,
-                                lastY: draggedNode.position.y
-                            }
-                        };
-                    }
-                    return node;
-                })
-            );
-        }
-    }, []);
-
+  const onNodeDragStop = useCallback(
+    (_, updatedNode) => {
+      const updatedNodes = nodes.map((n) => (n.id === updatedNode.id ? updatedNode : n));
+      setNodes(updatedNodes);
+      localStorage.setItem('diagram-layout', JSON.stringify({ nodes: updatedNodes, edges }));
+    },
+    [nodes, edges]
+  );
 
   const handleReset = () => {
     setNodes(defaultLayout.nodes);
@@ -353,9 +330,6 @@ export default function ProcessDiagram() {
                                   height: defaultHeight,
                                   onResize: onGroupResize,
                                   id: `group-label-${groupId}`,
-                                  groupId,                     // ✅ link this label to its group
-                                  lastX: labelPosition.x,      // ✅ store initial X
-                                  lastY: labelPosition.y       // ✅ store initial Y
                               },
                               selectable: true,
                               draggable: true,
@@ -365,7 +339,6 @@ export default function ProcessDiagram() {
                                   borderRadius: 6,
                               },
                           });
-
 
                           return updatedNodes;
                       });
@@ -441,8 +414,8 @@ export default function ProcessDiagram() {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onNodeDrag={onNodeDrag}
         onConnect={onConnect}
         onSelectionChange={onSelectionChange}
         fitView
