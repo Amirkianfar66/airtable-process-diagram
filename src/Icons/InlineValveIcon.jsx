@@ -22,7 +22,7 @@ export default function InlineValveIcon({ data }) {
             }}
         >
             <>
-                <svg width="60" height="60" viewBox="0 0 200 200">
+                <svg width="60" height="90" viewBox="0 0 200 200">
                     <polygon points="60,80 100,100 60,120" fill="orange" stroke="orange" strokeWidth="1" />
                     <polygon points="140,80 100,100 140,120" fill="orange" stroke="orange" strokeWidth="1" />
                     <text
