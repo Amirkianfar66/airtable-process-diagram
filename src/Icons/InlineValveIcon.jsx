@@ -52,7 +52,7 @@ export default function InlineValveIcon({ data }) {
                 style={{
                     fontSize: 13,
                     marginTop: 1,
-                    transform: 'translateY(-20px)',
+                    transform: 'translateY(-90px)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
