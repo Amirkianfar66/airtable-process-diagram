@@ -12,7 +12,7 @@ export default function InlineValveIcon({ data }) {
             style={{
                 position: 'relative',
                 width: 60,
-                height: 110, // extra for label
+                height: 80, // extra for label
                 background: 'none',
                 border: 'none',
                 borderRadius: 8,
