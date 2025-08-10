@@ -353,6 +353,9 @@ export default function ProcessDiagram() {
                                   height: defaultHeight,
                                   onResize: onGroupResize,
                                   id: `group-label-${groupId}`,
+                                  groupId,                     // ✅ link this label to its group
+                                  lastX: labelPosition.x,      // ✅ store initial X
+                                  lastY: labelPosition.y       // ✅ store initial Y
                               },
                               selectable: true,
                               draggable: true,
@@ -362,6 +365,7 @@ export default function ProcessDiagram() {
                                   borderRadius: 6,
                               },
                           });
+
 
                           return updatedNodes;
                       });
