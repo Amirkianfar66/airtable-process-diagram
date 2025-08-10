@@ -29,9 +29,13 @@ export default function GroupLabelNode({ id, data }) {
     const scaleStartPosRef = useRef({ x: 0, y: 0 });
     const scaleStartValueRef = useRef(scale);
 
+    // Log position and scale whenever they change
+    useEffect(() => {
+        console.log('Position:', pos, 'Scale:', scale);
+    }, [pos, scale]);
+
     useEffect(() => {
         return () => {
-            // Cleanup pointer event listeners on unmount
             window.removeEventListener('pointermove', onScalePointerMove);
             window.removeEventListener('pointerup', onScalePointerUp);
             window.removeEventListener('pointermove', onDragPointerMove);
@@ -39,7 +43,7 @@ export default function GroupLabelNode({ id, data }) {
         };
     }, []);
 
-    // Drag handlers with pointer events
+    // Drag handlers
     const onDragPointerDown = (event) => {
         if (scalingRef.current) return;
         event.stopPropagation();
@@ -66,9 +70,8 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('pointerup', onDragPointerUp);
     };
 
-    // Scale handlers with pointer events
+    // Scale handlers
     const onScalePointerDown = (event) => {
-        console.log('Scale handle pointer down');
         event.stopPropagation();
         scalingRef.current = true;
         scaleStartPosRef.current = { x: event.clientX, y: event.clientY };
@@ -82,7 +85,6 @@ export default function GroupLabelNode({ id, data }) {
         const dx = event.clientX - scaleStartPosRef.current.x;
         let newScale = scaleStartValueRef.current + dx / baseSize.width;
         newScale = Math.min(Math.max(newScale, 0.5), 3);
-        console.log('dx:', dx, 'newScale:', newScale.toFixed(3));
         setScale(newScale);
         if (onScale) onScale(id, newScale);
     };
