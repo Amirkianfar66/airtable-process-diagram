@@ -441,8 +441,8 @@ export default function ProcessDiagram() {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeDragStop={onNodeDragStop}
         onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         onSelectionChange={onSelectionChange}
         fitView
