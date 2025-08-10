@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position } from 'reactflow';
 
-const handleSize = 12; // size of resize handle square
+const handleSize = 12;
 
 export default function GroupLabelNode({ id, data }) {
     const {
@@ -13,36 +13,21 @@ export default function GroupLabelNode({ id, data }) {
         onDrag,
     } = data;
 
-    // Size state
     const [size, setSize] = useState({ width, height });
-    // Position state
     const [pos, setPos] = useState(position);
+    const [scale, setScale] = useState(1);
 
-    const nodeRef = useRef(null);
-
-    // Resize refs
     const resizingRef = useRef(false);
+    const draggingRef = useRef(false);
+
     const startPosRef = useRef({ x: 0, y: 0 });
     const startSizeRef = useRef({ width, height });
-
-    // Drag refs
-    const draggingRef = useRef(false);
     const dragStartPosRef = useRef({ x: 0, y: 0 });
     const dragStartNodePosRef = useRef({ x: 0, y: 0 });
 
-    // Update size if props change
-    useEffect(() => {
-        setSize({ width, height });
-    }, [width, height]);
-
-    // Update position if props change
-    useEffect(() => {
-        setPos(position);
-    }, [position]);
-
-    // ----- RESIZE HANDLERS -----
+    // Resize handlers (adjusted for scale)
     const onResizeMouseDown = (event) => {
-        event.stopPropagation(); // prevent triggering drag
+        event.stopPropagation();
         resizingRef.current = true;
         startPosRef.current = { x: event.clientX, y: event.clientY };
         startSizeRef.current = { ...size };
@@ -52,8 +37,8 @@ export default function GroupLabelNode({ id, data }) {
 
     const onResizeMouseMove = (event) => {
         if (!resizingRef.current) return;
-        const dx = event.clientX - startPosRef.current.x;
-        const dy = event.clientY - startPosRef.current.y;
+        const dx = (event.clientX - startPosRef.current.x) / scale; // divide by scale!
+        const dy = (event.clientY - startPosRef.current.y) / scale;
 
         const newWidth = Math.max(50, startSizeRef.current.width + dx);
         const newHeight = Math.max(40, startSizeRef.current.height + dy);
@@ -70,11 +55,9 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('mouseup', onResizeMouseUp);
     };
 
-    // ----- DRAG HANDLERS -----
+    // Drag handlers (adjusted for scale)
     const onDragMouseDown = (event) => {
-        // Prevent drag start if resizing (optional)
         if (resizingRef.current) return;
-
         event.stopPropagation();
         draggingRef.current = true;
         dragStartPosRef.current = { x: event.clientX, y: event.clientY };
@@ -85,8 +68,9 @@ export default function GroupLabelNode({ id, data }) {
 
     const onDragMouseMove = (event) => {
         if (!draggingRef.current) return;
-        const dx = event.clientX - dragStartPosRef.current.x;
-        const dy = event.clientY - dragStartPosRef.current.y;
+        const dx = (event.clientX - dragStartPosRef.current.x) / scale; // divide by scale
+        const dy = (event.clientY - dragStartPosRef.current.y) / scale;
+
         const newX = dragStartNodePosRef.current.x + dx;
         const newY = dragStartNodePosRef.current.y + dy;
 
@@ -103,63 +87,82 @@ export default function GroupLabelNode({ id, data }) {
     };
 
     return (
-        <div
-            ref={nodeRef}
-            onMouseDown={onDragMouseDown}
-            style={{
-                position: 'absolute', // important for moving
-                width: size.width,
-                height: size.height,
-                transform: `translate(${pos.x}px, ${pos.y}px)`,
-                border: '2px dashed #00bcd4',
-                borderRadius: 6,
-                background: 'rgba(0, 188, 212, 0.05)',
-                boxSizing: 'border-box',
-                userSelect: 'none',
-                cursor: draggingRef.current ? 'grabbing' : 'grab',
-            }}
-        >
-            {/* Label */}
-            <div
-                style={{
-                    position: 'absolute',
-                    top: -24,
-                    left: 4,
-                    background: '#00bcd4',
-                    color: 'white',
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    fontWeight: 'bold',
-                    fontSize: 12,
-                    pointerEvents: 'none',
-                    userSelect: 'none',
-                    whiteSpace: 'nowrap',
-                }}
-            >
-                {label}
+        <>
+            {/* Scale slider control */}
+            <div style={{ marginBottom: 8 }}>
+                <label>
+                    Scale: {(scale * 100).toFixed(0)}%
+                    <input
+                        type="range"
+                        min="0.5"
+                        max="2"
+                        step="0.01"
+                        value={scale}
+                        onChange={(e) => setScale(parseFloat(e.target.value))}
+                        style={{ width: 200, marginLeft: 8 }}
+                    />
+                </label>
             </div>
 
-            {/* Resize handle bottom-right */}
             <div
-                onMouseDown={onResizeMouseDown}
+                ref={nodeRef}
+                onMouseDown={onDragMouseDown}
                 style={{
                     position: 'absolute',
-                    width: handleSize,
-                    height: handleSize,
-                    bottom: 0,
-                    right: 0,
-                    background: '#00bcd4',
-                    borderRadius: 2,
-                    cursor: 'nwse-resize',
+                    width: size.width,
+                    height: size.height,
+                    transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+                    transformOrigin: 'top left',
+                    border: '2px dashed #00bcd4',
+                    borderRadius: 6,
+                    background: 'rgba(0, 188, 212, 0.05)',
+                    boxSizing: 'border-box',
                     userSelect: 'none',
-                    zIndex: 10,
+                    cursor: draggingRef.current ? 'grabbing' : 'grab',
                 }}
-                title="Resize group"
-            />
+            >
+                {/* Label */}
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: -24,
+                        left: 4,
+                        background: '#00bcd4',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontWeight: 'bold',
+                        fontSize: 12,
+                        pointerEvents: 'none',
+                        userSelect: 'none',
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    {label}
+                </div>
 
-            {/* Hidden handles for React Flow connections */}
-            <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-            <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
-        </div>
+                {/* Resize handle */}
+                <div
+                    onMouseDown={onResizeMouseDown}
+                    style={{
+                        position: 'absolute',
+                        width: handleSize,
+                        height: handleSize,
+                        bottom: 0,
+                        right: 0,
+                        background: '#00bcd4',
+                        borderRadius: 2,
+                        cursor: 'nwse-resize',
+                        userSelect: 'none',
+                        zIndex: 10,
+                    }}
+                    title="Resize group"
+                />
+
+                {/* Hidden React Flow handles */}
+                <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+                <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+            </div>
+        </>
     );
 }
