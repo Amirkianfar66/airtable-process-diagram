@@ -38,23 +38,32 @@ export default function GroupLabelNode({ id, data }) {
         };
     }, []);
 
-    // Drag handlers
+    // Drag handlers with scale compensation for smooth movement anchored top-left
     const onDragPointerDown = (event) => {
         if (scalingRef.current) return;
         event.stopPropagation();
         draggingRef.current = true;
+
         dragStartPosRef.current = { x: event.clientX, y: event.clientY };
         dragStartNodePosRef.current = { ...pos };
+
         window.addEventListener('pointermove', onDragPointerMove);
         window.addEventListener('pointerup', onDragPointerUp);
     };
 
     const onDragPointerMove = (event) => {
         if (!draggingRef.current) return;
+
         const dx = event.clientX - dragStartPosRef.current.x;
         const dy = event.clientY - dragStartPosRef.current.y;
-        const newX = dragStartNodePosRef.current.x + dx;
-        const newY = dragStartNodePosRef.current.y + dy;
+
+        // Compensate movement by scale to keep correct drag speed
+        const scaledDx = dx / scale;
+        const scaledDy = dy / scale;
+
+        const newX = dragStartNodePosRef.current.x + scaledDx;
+        const newY = dragStartNodePosRef.current.y + scaledDy;
+
         setPos({ x: newX, y: newY });
         if (onDrag) onDrag(id, { x: newX, y: newY });
     };
@@ -65,7 +74,7 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('pointerup', onDragPointerUp);
     };
 
-    // Scale handlers with position compensation
+    // Scale handlers with position compensation so bottom-right corner stays under pointer
     const onScalePointerDown = (event) => {
         event.stopPropagation();
         scalingRef.current = true;
@@ -81,26 +90,20 @@ export default function GroupLabelNode({ id, data }) {
         const dx = event.clientX - scaleStartPosRef.current.x;
         const dy = event.clientY - scaleStartPosRef.current.y;
 
-        // Calculate new scale factors for width and height independently
         let newScaleX = scaleStartValueRef.current + dx / baseSize.width;
         let newScaleY = scaleStartValueRef.current + dy / baseSize.height;
 
-        // Clamp scale values (optional: keep uniform scaling by using one of these)
         newScaleX = Math.min(Math.max(newScaleX, 0.5), 3);
         newScaleY = Math.min(Math.max(newScaleY, 0.5), 3);
 
-        // If you want uniform scale only, uncomment this line:
-        // const newScale = Math.min(newScaleX, newScaleY);
-
-        // For uniform scaling, use newScale, else you can use separate scaleX and scaleY.
-        // Here we'll do uniform scaling for simplicity:
+        // For uniform scaling use minimum of newScaleX and newScaleY
         const newScale = Math.min(newScaleX, newScaleY);
 
-        // Calculate how much the size changed in pixels
+        // Calculate size delta for compensation
         const sizeDeltaX = baseSize.width * (newScale - scale);
         const sizeDeltaY = baseSize.height * (newScale - scale);
 
-        // Adjust position to compensate so bottom-right corner stays under pointer
+        // Adjust position so bottom-right corner stays fixed under pointer
         const newPosX = pos.x - sizeDeltaX;
         const newPosY = pos.y - sizeDeltaY;
 
