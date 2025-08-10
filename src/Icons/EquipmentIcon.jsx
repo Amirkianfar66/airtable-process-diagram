@@ -51,8 +51,8 @@ export default function EquipmentIcon({ id, data }) {
             onMouseLeave={handleMouseLeave}
             style={{
                 position: 'relative',
-                width: 100,
-                height: 120,
+                width: 150,
+                height: 150,
                 textAlign: 'center',
                 userSelect: 'none',
             }}
