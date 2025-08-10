@@ -51,8 +51,8 @@ export default function EquipmentIcon({ id, data }) {
             onMouseLeave={handleMouseLeave}
             style={{
                 position: 'relative',
-                width: 150,
-                height: 150,
+                width: 200,
+                height: 200,
                 textAlign: 'center',
                 userSelect: 'none',
             }}
@@ -63,8 +63,8 @@ export default function EquipmentIcon({ id, data }) {
                     transform: `scale(${scale})`,
                     transformOrigin: 'top left',
                     position: 'relative',
-                    width: 150,
-                    height: 150,
+                    width: 200,
+                    height: 200,
                 }}
             >
                 <svg
