@@ -34,12 +34,12 @@ export default function InstrumentIcon({ data }) {
                 position={Position.Bottom}
                 style={{
                     left: '50%',
-                    top: 80,
+                    top: 90,
                     background: 'green',
                     border: '1px solid white',
                     borderRadius: '50%',
-                    width: 10,
-                    height: 10,
+                    width: 5,
+                    height: 5,
                     transform: 'translateX(-50%)',
                     opacity: hovered ? 1 : 0.3,
                 }}
