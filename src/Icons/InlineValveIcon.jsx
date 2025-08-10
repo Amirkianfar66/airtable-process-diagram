@@ -19,6 +19,7 @@ export default function InlineValveIcon({ data }) {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
+                justifyContent: 'center',
             }}
         >
             <>
