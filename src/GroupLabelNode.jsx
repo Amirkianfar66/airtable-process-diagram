@@ -13,10 +13,7 @@ export default function GroupLabelNode({ id, data }) {
         onScale,
     } = data;
 
-    // Base size (constant)
     const [baseSize] = useState({ width, height });
-
-    // Position and scale states
     const [pos, setPos] = useState(position);
     const [scale, setScale] = useState(1);
 
@@ -32,28 +29,28 @@ export default function GroupLabelNode({ id, data }) {
     const scaleStartPosRef = useRef({ x: 0, y: 0 });
     const scaleStartValueRef = useRef(scale);
 
-    // Cleanup event listeners on unmount
     useEffect(() => {
         return () => {
-            window.removeEventListener('mousemove', onScaleMouseMove);
-            window.removeEventListener('mouseup', onScaleMouseUp);
-            window.removeEventListener('mousemove', onDragMouseMove);
-            window.removeEventListener('mouseup', onDragMouseUp);
+            // Cleanup pointer event listeners on unmount
+            window.removeEventListener('pointermove', onScalePointerMove);
+            window.removeEventListener('pointerup', onScalePointerUp);
+            window.removeEventListener('pointermove', onDragPointerMove);
+            window.removeEventListener('pointerup', onDragPointerUp);
         };
     }, []);
 
-    // Drag handlers
-    const onDragMouseDown = (event) => {
-        if (scalingRef.current) return; // prevent drag while scaling
+    // Drag handlers with pointer events
+    const onDragPointerDown = (event) => {
+        if (scalingRef.current) return;
         event.stopPropagation();
         draggingRef.current = true;
         dragStartPosRef.current = { x: event.clientX, y: event.clientY };
         dragStartNodePosRef.current = { ...pos };
-        window.addEventListener('mousemove', onDragMouseMove);
-        window.addEventListener('mouseup', onDragMouseUp);
+        window.addEventListener('pointermove', onDragPointerMove);
+        window.addEventListener('pointerup', onDragPointerUp);
     };
 
-    const onDragMouseMove = (event) => {
+    const onDragPointerMove = (event) => {
         if (!draggingRef.current) return;
         const dx = event.clientX - dragStartPosRef.current.x;
         const dy = event.clientY - dragStartPosRef.current.y;
@@ -63,24 +60,24 @@ export default function GroupLabelNode({ id, data }) {
         if (onDrag) onDrag(id, { x: newX, y: newY });
     };
 
-    const onDragMouseUp = () => {
+    const onDragPointerUp = () => {
         draggingRef.current = false;
-        window.removeEventListener('mousemove', onDragMouseMove);
-        window.removeEventListener('mouseup', onDragMouseUp);
+        window.removeEventListener('pointermove', onDragPointerMove);
+        window.removeEventListener('pointerup', onDragPointerUp);
     };
 
-    // Scale handlers
-    const onScaleMouseDown = (event) => {
-        console.log('Scale handle mouse down');
+    // Scale handlers with pointer events
+    const onScalePointerDown = (event) => {
+        console.log('Scale handle pointer down');
         event.stopPropagation();
         scalingRef.current = true;
         scaleStartPosRef.current = { x: event.clientX, y: event.clientY };
         scaleStartValueRef.current = scale;
-        window.addEventListener('mousemove', onScaleMouseMove);
-        window.addEventListener('mouseup', onScaleMouseUp);
+        window.addEventListener('pointermove', onScalePointerMove);
+        window.addEventListener('pointerup', onScalePointerUp);
     };
 
-    const onScaleMouseMove = (event) => {
+    const onScalePointerMove = (event) => {
         if (!scalingRef.current) return;
         const dx = event.clientX - scaleStartPosRef.current.x;
         let newScale = scaleStartValueRef.current + dx / baseSize.width;
@@ -90,10 +87,10 @@ export default function GroupLabelNode({ id, data }) {
         if (onScale) onScale(id, newScale);
     };
 
-    const onScaleMouseUp = () => {
+    const onScalePointerUp = () => {
         scalingRef.current = false;
-        window.removeEventListener('mousemove', onScaleMouseMove);
-        window.removeEventListener('mouseup', onScaleMouseUp);
+        window.removeEventListener('pointermove', onScalePointerMove);
+        window.removeEventListener('pointerup', onScalePointerUp);
     };
 
     return (
@@ -117,7 +114,7 @@ export default function GroupLabelNode({ id, data }) {
 
             <div
                 ref={nodeRef}
-                onMouseDown={onDragMouseDown}
+                onPointerDown={onDragPointerDown}
                 style={{
                     position: 'absolute',
                     width: baseSize.width,
@@ -154,7 +151,7 @@ export default function GroupLabelNode({ id, data }) {
 
                 {/* Scale handle bottom-right */}
                 <div
-                    onMouseDown={onScaleMouseDown}
+                    onPointerDown={onScalePointerDown}
                     style={{
                         position: 'absolute',
                         width: handleSize,
