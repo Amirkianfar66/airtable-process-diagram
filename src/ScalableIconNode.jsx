@@ -62,13 +62,13 @@ export default function ScalableIconNode({ id, data }) {
                     fontSize: 13,
                     marginTop: -8,     // small negative margin to move label up
                     position: 'relative',
-                    top: 10,           // shift label upward
+                    top: -10,           // shift label upward
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     color: '#333',
                     width: '100%',
-                    textAlign: 'center',
+                    textAlign: 'left',
                     paddingLeft: 5,
                 }}
             >
