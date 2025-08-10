@@ -60,11 +60,16 @@ export default function ScalableIconNode({ id, data }) {
             <div
                 style={{
                     fontSize: 13,
-                    marginTop: -10,
+                    marginTop: -8,     // small negative margin to move label up
+                    position: 'relative',
+                    top: -8,           // shift label upward
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     color: '#333',
+                    width: '100%',
+                    textAlign: 'center',
+                    paddingLeft: 5,
                 }}
             >
                 {label.substring(0, 10)}
