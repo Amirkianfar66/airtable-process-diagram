@@ -51,7 +51,7 @@ export default function InlineValveIcon({ data }) {
             <div
                 style={{
                     fontSize: 13,
-                    marginTop: 1,
+                    marginTop: -10,
                     transform: 'translateY(-90px)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
