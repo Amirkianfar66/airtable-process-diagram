@@ -61,7 +61,7 @@ export default function InlineValveIcon({ data }) {
                 position={Position.Left}
                 id="left"
                 style={{
-                    top: 30,
+                    top: 0,
                     left: -1,
                     width: 2,
                     height: 2,
@@ -77,7 +77,7 @@ export default function InlineValveIcon({ data }) {
                 position={Position.Right}
                 id="right"
                 style={{
-                    top: 30,
+                    top: 0,
                     right: -1,
                     width: 2,
                     height: 2,
