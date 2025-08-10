@@ -17,14 +17,10 @@ export default function GroupLabelNode({ id, data }) {
     const [pos, setPos] = useState(position);
     const [scale, setScale] = useState(1);
 
-    const nodeRef = useRef(null);
-
-    // Drag refs
     const draggingRef = useRef(false);
     const dragStartPosRef = useRef({ x: 0, y: 0 });
     const dragStartNodePosRef = useRef({ x: 0, y: 0 });
 
-    // Scale refs
     const scalingRef = useRef(false);
     const scaleStartPosRef = useRef({ x: 0, y: 0 });
     const scaleStartValueRef = useRef(scale);
@@ -38,7 +34,7 @@ export default function GroupLabelNode({ id, data }) {
         };
     }, []);
 
-    // Drag handlers with scale compensation for smooth movement anchored top-left
+    // Drag handlers
     const onDragPointerDown = (event) => {
         if (scalingRef.current) return;
         event.stopPropagation();
@@ -57,7 +53,6 @@ export default function GroupLabelNode({ id, data }) {
         const dx = event.clientX - dragStartPosRef.current.x;
         const dy = event.clientY - dragStartPosRef.current.y;
 
-        // Compensate movement by scale to keep correct drag speed
         const scaledDx = dx / scale;
         const scaledDy = dy / scale;
 
@@ -74,7 +69,7 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('pointerup', onDragPointerUp);
     };
 
-    // Scale handlers with position compensation so bottom-right corner stays under pointer
+    // Scale handlers - NO position adjustment to keep top-left fixed
     const onScalePointerDown = (event) => {
         event.stopPropagation();
         scalingRef.current = true;
@@ -88,30 +83,14 @@ export default function GroupLabelNode({ id, data }) {
         if (!scalingRef.current) return;
 
         const dx = event.clientX - scaleStartPosRef.current.x;
-        const dy = event.clientY - scaleStartPosRef.current.y;
 
-        let newScaleX = scaleStartValueRef.current + dx / baseSize.width;
-        let newScaleY = scaleStartValueRef.current + dy / baseSize.height;
-
-        newScaleX = Math.min(Math.max(newScaleX, 0.5), 3);
-        newScaleY = Math.min(Math.max(newScaleY, 0.5), 3);
-
-        // For uniform scaling use minimum of newScaleX and newScaleY
-        const newScale = Math.min(newScaleX, newScaleY);
-
-        // Calculate size delta for compensation
-        const sizeDeltaX = baseSize.width * (newScale - scale);
-        const sizeDeltaY = baseSize.height * (newScale - scale);
-
-        // Adjust position so bottom-right corner stays fixed under pointer
-        const newPosX = pos.x - sizeDeltaX;
-        const newPosY = pos.y - sizeDeltaY;
+        let newScale = scaleStartValueRef.current + dx / baseSize.width;
+        newScale = Math.min(Math.max(newScale, 0.5), 3);
 
         setScale(newScale);
-        setPos({ x: newPosX, y: newPosY });
-
         if (onScale) onScale(id, newScale);
-        if (onDrag) onDrag(id, { x: newPosX, y: newPosY });
+
+        // NO position change here to keep top-left anchored
     };
 
     const onScalePointerUp = () => {
@@ -122,7 +101,6 @@ export default function GroupLabelNode({ id, data }) {
 
     return (
         <>
-            {/* Manual scale slider for debugging */}
             <div style={{ marginBottom: 8 }}>
                 <label>
                     Scale debug:
@@ -140,7 +118,6 @@ export default function GroupLabelNode({ id, data }) {
             </div>
 
             <div
-                ref={nodeRef}
                 onPointerDown={onDragPointerDown}
                 style={{
                     position: 'absolute',
@@ -156,7 +133,6 @@ export default function GroupLabelNode({ id, data }) {
                     cursor: draggingRef.current ? 'grabbing' : 'grab',
                 }}
             >
-                {/* Label */}
                 <div
                     style={{
                         position: 'absolute',
@@ -176,7 +152,6 @@ export default function GroupLabelNode({ id, data }) {
                     {label}
                 </div>
 
-                {/* Scale handle bottom-right */}
                 <div
                     onPointerDown={onScalePointerDown}
                     style={{
@@ -196,7 +171,6 @@ export default function GroupLabelNode({ id, data }) {
                     title="Scale group"
                 />
 
-                {/* React Flow handles (hidden) */}
                 <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
                 <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
             </div>
