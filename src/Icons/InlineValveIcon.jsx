@@ -42,12 +42,12 @@ export default function InlineValveIcon({ data }) {
                 <div
                     style={{
                         position: 'absolute',
-                        bottom: 2, // adjust this value to move label up/down
+                        bottom: 50, // adjust this value to move label up/down
                         left: 0,
                         width: '100%',
                         fontSize: 13,
                         color: '#333',
-                        textAlign: 'center',
+                        textAlign: 'Left',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
