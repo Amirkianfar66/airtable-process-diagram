@@ -11,6 +11,8 @@ export default function ScalableRect() {
     });
 
     const [groupName, setGroupName] = useState("My Group");
+    const [renameButtonLabel, setRenameButtonLabel] = useState("Rename");
+
 
     const onScalePointerDown = (e) => {
         e.preventDefault();
@@ -47,8 +49,12 @@ export default function ScalableRect() {
 
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
-        if (newName) setGroupName(newName);
+        if (newName) {
+            setGroupName(newName);
+            setRenameButtonLabel(`Rename (${newName})`);
+        }
     };
+
 
     const handleDelete = () => {
         if (window.confirm("Are you sure you want to delete this group?")) {
