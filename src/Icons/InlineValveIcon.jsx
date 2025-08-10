@@ -12,7 +12,7 @@ export default function InlineValveIcon({ data }) {
             style={{
                 position: 'relative',
                 width: 60,
-                height: 110, // extra for label
+                height: 110, // container height
                 background: 'none',
                 border: 'none',
                 borderRadius: 8,
@@ -21,50 +21,41 @@ export default function InlineValveIcon({ data }) {
                 alignItems: 'center',
             }}
         >
-            {/* SVG Bowtie Valve */}
-            <svg width="60" height="90" viewBox="0 0 200 200">
-                <polygon
-                    points="60,80 100,100 60,120"
-                    fill="orange"
-                    stroke="Black"
-                    strokeWidth="1"
-                />
-                <polygon
-                    points="140,80 100,100 140,120"
-                    fill="orange"
-                    stroke="Black"
-                    strokeWidth="1"
-                />
-                <text
-                    x="100"
-                    y="108"
-                    fontSize="16"
-                    textAnchor="middle"
-                    fill="Black"
-                    fontFamily="sans-serif"
+            {/* Wrap SVG and label in relative container */}
+            <div style={{ position: 'relative', width: 60, height: 90 }}>
+                <svg width="60" height="90" viewBox="0 0 200 200">
+                    <polygon points="60,80 100,100 60,120" fill="orange" stroke="Black" strokeWidth="1" />
+                    <polygon points="140,80 100,100 140,120" fill="orange" stroke="Black" strokeWidth="1" />
+                    <text
+                        x="100"
+                        y="108"
+                        fontSize="16"
+                        textAnchor="middle"
+                        fill="Black"
+                        fontFamily="sans-serif"
+                    >
+                        IV
+                    </text>
+                </svg>
+
+                {/* Label absolutely positioned at the bottom of SVG container */}
+                <div
+                    style={{
+                        position: 'absolute',
+                        bottom: 2, // adjust this value to move label up/down
+                        left: 0,
+                        width: '100%',
+                        fontSize: 13,
+                        color: '#333',
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        paddingLeft: 5,
+                    }}
                 >
-                    IV
-                </text>
-            </svg>
-
-            {/* Label below the SVG */}
-            <div
-                style={{
-                    fontSize: 13,
-                    marginTop: -8,     // small negative margin to move label up
-                    position: 'relative',
-                    top: -80,           // shift label upward
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    color: '#333',
-                    width: '100%',
-                    textAlign: 'center',
-                    paddingLeft: 5,
-                }}
-
-            >
-                {label.substring(0, 5)}
+                    {label.substring(0, 5)}
+                </div>
             </div>
 
             {/* Handles */}
