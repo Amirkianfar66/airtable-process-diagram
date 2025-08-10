@@ -21,8 +21,7 @@ export default function InlineValveIcon({ data }) {
                 alignItems: 'center',
             }}
         >
-            {/* Wrap SVG and label in relative container */}
-            <div style={{ position: 'relative', width: 60, height: 90 }}>
+            <>
                 <svg width="60" height="60" viewBox="0 0 200 200">
                     <polygon points="60,80 100,100 60,120" fill="orange" stroke="orange" strokeWidth="1" />
                     <polygon points="140,80 100,100 140,120" fill="orange" stroke="orange" strokeWidth="1" />
@@ -38,25 +37,22 @@ export default function InlineValveIcon({ data }) {
                     </text>
                 </svg>
 
-                {/* Label absolutely positioned at the bottom of SVG container */}
                 <div
                     style={{
-                        position: 'absolute',
-                        bottom: 50, // adjust this value to move label up/down
-                        left: 0,
-                        width: '100%',
                         fontSize: 13,
-                        color: '#333',
-                        textAlign: 'Left',
+                        marginTop: -15,       // negative margin to move label up closer to SVG
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
+                        color: '#333',
+                        width: '100%',
+                        textAlign: 'left',
                         paddingLeft: 5,
                     }}
                 >
                     {label.substring(0, 5)}
                 </div>
-            </div>
+            </>
 
             {/* Handles */}
             <Handle
