@@ -25,9 +25,9 @@ export default function InlineValveIcon({ data }) {
             <svg width="60" height="90" viewBox="0 0 200 200">
                 <polygon
                     points="60,80 100,100 60,120"
-                    fill="none"
-                    stroke="orange"
-                    strokeWidth="4"
+                    fill="orange"
+                    stroke="Black"
+                    strokeWidth="1"
                 />
                 <polygon
                     points="140,80 100,100 140,120"
@@ -56,8 +56,8 @@ export default function InlineValveIcon({ data }) {
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     color: '#333',
-                    maxWidth: 60,
-                    textAlign: 'center',
+                    width: '100%',          // make it span the parent
+                    textAlign: 'center',    // center text in that space
                 }}
             >
                 {label.substring(0, 5)}
