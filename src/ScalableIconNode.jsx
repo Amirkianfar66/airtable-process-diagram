@@ -60,7 +60,7 @@ export default function ScalableIconNode({ id, data }) {
             <div
                 style={{
                     fontSize: 13,
-                    marginTop: 3,
+                    marginTop: -10,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',

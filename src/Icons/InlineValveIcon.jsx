@@ -24,8 +24,8 @@ export default function InlineValveIcon({ data }) {
             {/* Wrap SVG and label in relative container */}
             <div style={{ position: 'relative', width: 60, height: 90 }}>
                 <svg width="60" height="90" viewBox="0 0 200 200">
-                    <polygon points="60,80 100,100 60,120" fill="orange" stroke="Black" strokeWidth="1" />
-                    <polygon points="140,80 100,100 140,120" fill="orange" stroke="Black" strokeWidth="1" />
+                    <polygon points="60,80 100,100 60,120" fill="orange" stroke="orange" strokeWidth="1" />
+                    <polygon points="140,80 100,100 140,120" fill="orange" stroke="orange" strokeWidth="1" />
                     <text
                         x="100"
                         y="108"
