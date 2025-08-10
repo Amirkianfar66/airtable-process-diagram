@@ -211,14 +211,37 @@ export default function ProcessDiagram() {
     );
 
 
-  const onNodeDragStop = useCallback(
-    (_, updatedNode) => {
-      const updatedNodes = nodes.map((n) => (n.id === updatedNode.id ? updatedNode : n));
-      setNodes(updatedNodes);
-      localStorage.setItem('diagram-layout', JSON.stringify({ nodes: updatedNodes, edges }));
-    },
-    [nodes, edges]
-  );
+    const onNodeDrag = useCallback((_, draggedNode) => {
+        if (draggedNode.type === 'groupLabel') {
+            setNodes((nds) =>
+                nds.map((node) => {
+                    if (node.data?.groupId === draggedNode.data?.groupId) {
+                        const dx = draggedNode.position.x - (draggedNode.data.lastX ?? draggedNode.position.x);
+                        const dy = draggedNode.position.y - (draggedNode.data.lastY ?? draggedNode.position.y);
+                        return {
+                            ...node,
+                            position: {
+                                x: node.position.x + dx,
+                                y: node.position.y + dy
+                            }
+                        };
+                    }
+                    if (node.id === draggedNode.id) {
+                        return {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                lastX: draggedNode.position.x,
+                                lastY: draggedNode.position.y
+                            }
+                        };
+                    }
+                    return node;
+                })
+            );
+        }
+    }, []);
+
 
   const handleReset = () => {
     setNodes(defaultLayout.nodes);
@@ -415,6 +438,7 @@ export default function ProcessDiagram() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}
+        onNodeDrag={onNodeDrag}
         onConnect={onConnect}
         onSelectionChange={onSelectionChange}
         fitView
