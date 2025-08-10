@@ -13,28 +13,31 @@ export default function GroupLabelNode({ id, data }) {
         onScale,
     } = data;
 
-    // Base size (constant)
     const [baseSize] = useState({ width, height });
-
-    // Position and scale states
     const [pos, setPos] = useState(position);
     const [scale, setScale] = useState(1);
 
     const nodeRef = useRef(null);
 
-    // Drag refs
     const draggingRef = useRef(false);
     const dragStartPosRef = useRef({ x: 0, y: 0 });
     const dragStartNodePosRef = useRef({ x: 0, y: 0 });
 
-    // Scale refs
     const scalingRef = useRef(false);
     const scaleStartPosRef = useRef({ x: 0, y: 0 });
     const scaleStartValueRef = useRef(scale);
 
-    // DRAG handlers
+    useEffect(() => {
+        return () => {
+            window.removeEventListener('mousemove', onScaleMouseMove);
+            window.removeEventListener('mouseup', onScaleMouseUp);
+            window.removeEventListener('mousemove', onDragMouseMove);
+            window.removeEventListener('mouseup', onDragMouseUp);
+        };
+    }, []);
+
     const onDragMouseDown = (event) => {
-        if (scalingRef.current) return; // don't drag while scaling
+        if (scalingRef.current) return;
         event.stopPropagation();
         draggingRef.current = true;
         dragStartPosRef.current = { x: event.clientX, y: event.clientY };
@@ -59,8 +62,8 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('mouseup', onDragMouseUp);
     };
 
-    // SCALE handlers
     const onScaleMouseDown = (event) => {
+        console.log('Scale handle mouse down');
         event.stopPropagation();
         scalingRef.current = true;
         scaleStartPosRef.current = { x: event.clientX, y: event.clientY };
@@ -72,9 +75,8 @@ export default function GroupLabelNode({ id, data }) {
     const onScaleMouseMove = (event) => {
         if (!scalingRef.current) return;
         const dx = event.clientX - scaleStartPosRef.current.x;
-        // Calculate scale factor based on horizontal drag distance and base width
         let newScale = scaleStartValueRef.current + dx / baseSize.width;
-        newScale = Math.min(Math.max(newScale, 0.5), 3); // clamp scale between 0.5 and 3
+        newScale = Math.min(Math.max(newScale, 0.5), 3);
         setScale(newScale);
         if (onScale) onScale(id, newScale);
     };
@@ -123,7 +125,7 @@ export default function GroupLabelNode({ id, data }) {
                 {label}
             </div>
 
-            {/* Scale handle bottom-right */}
+            {/* Scale handle */}
             <div
                 onMouseDown={onScaleMouseDown}
                 style={{
@@ -136,12 +138,14 @@ export default function GroupLabelNode({ id, data }) {
                     borderRadius: 2,
                     cursor: 'nwse-resize',
                     userSelect: 'none',
-                    zIndex: 10,
+                    zIndex: 100,
+                    pointerEvents: 'auto',
+                    touchAction: 'none',
                 }}
                 title="Scale group"
             />
 
-            {/* Hidden React Flow handles */}
+            {/* React Flow handles */}
             <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
             <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
         </div>
