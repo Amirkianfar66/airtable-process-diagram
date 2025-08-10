@@ -13,20 +13,26 @@ export default function GroupLabelNode({ id, data }) {
         onScale,
     } = data;
 
+    // Base size (constant)
     const [baseSize] = useState({ width, height });
+
+    // Position and scale states
     const [pos, setPos] = useState(position);
     const [scale, setScale] = useState(1);
 
     const nodeRef = useRef(null);
 
+    // Drag refs
     const draggingRef = useRef(false);
     const dragStartPosRef = useRef({ x: 0, y: 0 });
     const dragStartNodePosRef = useRef({ x: 0, y: 0 });
 
+    // Scale refs
     const scalingRef = useRef(false);
     const scaleStartPosRef = useRef({ x: 0, y: 0 });
     const scaleStartValueRef = useRef(scale);
 
+    // Cleanup event listeners on unmount
     useEffect(() => {
         return () => {
             window.removeEventListener('mousemove', onScaleMouseMove);
@@ -36,8 +42,9 @@ export default function GroupLabelNode({ id, data }) {
         };
     }, []);
 
+    // Drag handlers
     const onDragMouseDown = (event) => {
-        if (scalingRef.current) return;
+        if (scalingRef.current) return; // prevent drag while scaling
         event.stopPropagation();
         draggingRef.current = true;
         dragStartPosRef.current = { x: event.clientX, y: event.clientY };
@@ -62,6 +69,7 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('mouseup', onDragMouseUp);
     };
 
+    // Scale handlers
     const onScaleMouseDown = (event) => {
         console.log('Scale handle mouse down');
         event.stopPropagation();
@@ -77,6 +85,7 @@ export default function GroupLabelNode({ id, data }) {
         const dx = event.clientX - scaleStartPosRef.current.x;
         let newScale = scaleStartValueRef.current + dx / baseSize.width;
         newScale = Math.min(Math.max(newScale, 0.5), 3);
+        console.log('dx:', dx, 'newScale:', newScale.toFixed(3));
         setScale(newScale);
         if (onScale) onScale(id, newScale);
     };
@@ -88,66 +97,85 @@ export default function GroupLabelNode({ id, data }) {
     };
 
     return (
-        <div
-            ref={nodeRef}
-            onMouseDown={onDragMouseDown}
-            style={{
-                position: 'absolute',
-                width: baseSize.width,
-                height: baseSize.height,
-                transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
-                transformOrigin: 'top left',
-                border: '2px dashed #00bcd4',
-                borderRadius: 6,
-                background: 'rgba(0, 188, 212, 0.05)',
-                boxSizing: 'border-box',
-                userSelect: 'none',
-                cursor: draggingRef.current ? 'grabbing' : 'grab',
-            }}
-        >
-            {/* Label */}
-            <div
-                style={{
-                    position: 'absolute',
-                    top: -24,
-                    left: 4,
-                    background: '#00bcd4',
-                    color: 'white',
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    fontWeight: 'bold',
-                    fontSize: 12,
-                    pointerEvents: 'none',
-                    userSelect: 'none',
-                    whiteSpace: 'nowrap',
-                }}
-            >
-                {label}
+        <>
+            {/* Manual scale slider for debugging */}
+            <div style={{ marginBottom: 8 }}>
+                <label>
+                    Scale debug:
+                    <input
+                        type="range"
+                        min="0.5"
+                        max="3"
+                        step="0.01"
+                        value={scale}
+                        onChange={(e) => setScale(parseFloat(e.target.value))}
+                        style={{ width: 200, marginLeft: 8 }}
+                    />
+                    <span style={{ marginLeft: 8 }}>{(scale * 100).toFixed(0)}%</span>
+                </label>
             </div>
 
-            {/* Scale handle */}
             <div
-                onMouseDown={onScaleMouseDown}
+                ref={nodeRef}
+                onMouseDown={onDragMouseDown}
                 style={{
                     position: 'absolute',
-                    width: handleSize,
-                    height: handleSize,
-                    bottom: 0,
-                    right: 0,
-                    background: '#00bcd4',
-                    borderRadius: 2,
-                    cursor: 'nwse-resize',
+                    width: baseSize.width,
+                    height: baseSize.height,
+                    transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+                    transformOrigin: 'top left',
+                    border: '2px dashed #00bcd4',
+                    borderRadius: 6,
+                    background: 'rgba(0, 188, 212, 0.05)',
+                    boxSizing: 'border-box',
                     userSelect: 'none',
-                    zIndex: 100,
-                    pointerEvents: 'auto',
-                    touchAction: 'none',
+                    cursor: draggingRef.current ? 'grabbing' : 'grab',
                 }}
-                title="Scale group"
-            />
+            >
+                {/* Label */}
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: -24,
+                        left: 4,
+                        background: '#00bcd4',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontWeight: 'bold',
+                        fontSize: 12,
+                        pointerEvents: 'none',
+                        userSelect: 'none',
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    {label}
+                </div>
 
-            {/* React Flow handles */}
-            <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-            <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
-        </div>
+                {/* Scale handle bottom-right */}
+                <div
+                    onMouseDown={onScaleMouseDown}
+                    style={{
+                        position: 'absolute',
+                        width: handleSize,
+                        height: handleSize,
+                        bottom: 0,
+                        right: 0,
+                        background: '#00bcd4',
+                        borderRadius: 2,
+                        cursor: 'nwse-resize',
+                        userSelect: 'none',
+                        zIndex: 100,
+                        pointerEvents: 'auto',
+                        touchAction: 'none',
+                    }}
+                    title="Scale group"
+                />
+
+                {/* React Flow handles (hidden) */}
+                <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+                <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+            </div>
+        </>
     );
 }
