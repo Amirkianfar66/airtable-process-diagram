@@ -66,8 +66,8 @@ export default function InlineValveIcon({ data }) {
                 style={{
                     top: 45,
                     left: -6,
-                    width: 10,
-                    height: 10,
+                    width: 2,
+                    height: 2,
                     borderRadius: '50%',
                     background: 'red',
                     border: '1px solid white',
@@ -82,8 +82,8 @@ export default function InlineValveIcon({ data }) {
                 style={{
                     top: 45,
                     right: -6,
-                    width: 10,
-                    height: 10,
+                    width: 2,
+                    height: 2,
                     borderRadius: '50%',
                     background: 'blue',
                     border: '1px solid white',
