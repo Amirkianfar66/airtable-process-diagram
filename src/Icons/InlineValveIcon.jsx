@@ -65,7 +65,7 @@ export default function InlineValveIcon({ data }) {
                 id="left"
                 style={{
                     top: 45,
-                    left: -6,
+                    left: -1,
                     width: 2,
                     height: 2,
                     borderRadius: '50%',
@@ -81,7 +81,7 @@ export default function InlineValveIcon({ data }) {
                 id="right"
                 style={{
                     top: 45,
-                    right: -6,
+                    right: -1,
                     width: 2,
                     height: 2,
                     borderRadius: '50%',

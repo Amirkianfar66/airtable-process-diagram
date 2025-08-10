@@ -184,6 +184,7 @@ export default function EquipmentIcon({ id, data }) {
                     left: '50%',
                     transform: 'translateX(-50%)',
                     fontSize: 13,
+                    textAlign: 'Left',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
