@@ -17,6 +17,7 @@ export default function GroupLabelNode({ id, data }) {
     const [pos, setPos] = useState(position);
     const [scale, setScale] = useState(1);
 
+    const nodeRef = useRef(null);
     const resizingRef = useRef(false);
     const draggingRef = useRef(false);
 
