@@ -71,7 +71,7 @@ export default function ScalableRect() {
                 style={{
                     position: "absolute",
                     left: rect.x,
-                    top: rect.y - 38,
+                    top: rect.y - 30,
                     display: "flex",
                     gap: "3px",
                 }}
