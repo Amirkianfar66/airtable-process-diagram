@@ -52,14 +52,16 @@ export default function InlineValveIcon({ data }) {
                 style={{
                     fontSize: 13,
                     marginTop: 1,
+                    transform: 'translateY(-3px)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     color: '#333',
-                    width: '100%',          // make it span the parent
+                    width: '100%',
                     textAlign: 'center',
                     paddingLeft: 5,
                 }}
+
             >
                 {label.substring(0, 5)}
             </div>
