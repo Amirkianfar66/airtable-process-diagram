@@ -71,7 +71,7 @@ export default function ScalableRect() {
                 }}
             >
                 
-                <button onClick={handleRename}>Rename Group</button>
+                <button onClick={handleRename}>Rename</button>
                 <button onClick={handleDelete}>Delete</button>
             </div>
 
