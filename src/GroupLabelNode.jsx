@@ -59,12 +59,12 @@ export default function ScalableRect() {
     if (!rect) return null;
 
     return (
-        <div style={{ position: "relative", width: "100%", height: "100vh", background: "#f5f5f5" }}>
+        <div style={{ position: "relative", width: "100%", height: "50h", background: "#f5f5f5" }}>
             {/* Group Controls */}
             <div
                 style={{
                     position: "absolute",
-                    left: rect.x - 20,
+                    left: rect.x + 20,
                     top: rect.y - 38,
                     display: "flex",
                     gap: "3px",
