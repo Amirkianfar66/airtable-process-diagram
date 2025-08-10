@@ -92,7 +92,7 @@ export default function ScalableRect() {
                 <div
                     style={{
                         position: "absolute",
-                        top: -40,
+                        top: -50,
                         left: 0,
                         fontSize: "12px",
                         fontWeight: "bold",
