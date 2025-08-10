@@ -49,18 +49,19 @@ export default function InlineValveIcon({ data }) {
 
             {/* Label below the SVG */}
             <div
-                fontSize: 13,
-            marginTop: -8,     // small negative margin to move label up
-            position: 'relative',
-            top: -8,           // shift label upward
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            color: '#333',
-            width: '100%',
-            textAlign: 'center',
-            paddingLeft: 5,
-            }}
+                style={{
+                    fontSize: 13,
+                    marginTop: -8,     // small negative margin to move label up
+                    position: 'relative',
+                    top: -8,           // shift label upward
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: '#333',
+                    width: '100%',
+                    textAlign: 'center',
+                    paddingLeft: 5,
+                }}
 
             >
                 {label.substring(0, 5)}
