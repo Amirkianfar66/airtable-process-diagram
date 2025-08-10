@@ -31,9 +31,9 @@ export default function InlineValveIcon({ data }) {
                 />
                 <polygon
                     points="140,80 100,100 140,120"
-                    fill="none"
-                    stroke="orange"
-                    strokeWidth="4"
+                    fill="orange"
+                    stroke="Black"
+                    strokeWidth="1"
                 />
                 <text
                     x="100"
@@ -57,7 +57,8 @@ export default function InlineValveIcon({ data }) {
                     textOverflow: 'ellipsis',
                     color: '#333',
                     width: '100%',          // make it span the parent
-                    textAlign: 'center',    // center text in that space
+                    textAlign: 'center',
+                    paddingLeft: 5,
                 }}
             >
                 {label.substring(0, 5)}

@@ -188,6 +188,7 @@ export default function EquipmentIcon({ id, data }) {
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     color: '#333',
+                    paddingLeft: 5,
                 }}
             >
                 {data?.label?.substring(0, 5)}
