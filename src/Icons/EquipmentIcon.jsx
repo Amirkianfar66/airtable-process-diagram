@@ -77,7 +77,7 @@ export default function EquipmentIcon({ id, data }) {
                         margin: '0 auto',
                     }}
                 >
-                    <rect x="20" y="20" width="100" height="100" fill="green" />
+                    <rect x="20" y="20" width="200" height="200" fill="green" />
                     <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
                         EQ
                     </text>
