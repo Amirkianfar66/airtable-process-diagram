@@ -22,8 +22,8 @@ export default function InstrumentIcon({ data }) {
             }}
         >
             <svg width="60" height="60" viewBox="0 0 200 200">
-                <circle cx="100" cy="100" r="60" fill="Yellow" />
-                <text x="100" y="110" fontSize="20" textAnchor="middle" fill="Black">
+                <circle cx="100" cy="100" r="30" fill="Yellow" />
+                <text x="100" y="110" fontSize="10" textAnchor="middle" fill="Black">
                     IN
                 </text>
             </svg>
