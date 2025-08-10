@@ -4,14 +4,7 @@ import { Handle, Position } from 'reactflow';
 const handleSize = 12;
 
 export default function GroupLabelNode({ id, data }) {
-    const {
-        width = 200,
-        height = 100,
-        label,
-        position = { x: 0, y: 0 },
-        onDrag,
-        onScale,
-    } = data;
+    const { width = 200, height = 100, label, position = { x: 0, y: 0 }, onDrag, onScale } = data;
 
     const [baseSize] = useState({ width, height });
     const [pos, setPos] = useState(position);
@@ -34,31 +27,24 @@ export default function GroupLabelNode({ id, data }) {
         };
     }, []);
 
-    // Drag handlers
     const onDragPointerDown = (event) => {
         if (scalingRef.current) return;
         event.stopPropagation();
         draggingRef.current = true;
-
         dragStartPosRef.current = { x: event.clientX, y: event.clientY };
         dragStartNodePosRef.current = { ...pos };
-
         window.addEventListener('pointermove', onDragPointerMove);
         window.addEventListener('pointerup', onDragPointerUp);
     };
 
     const onDragPointerMove = (event) => {
         if (!draggingRef.current) return;
-
         const dx = event.clientX - dragStartPosRef.current.x;
         const dy = event.clientY - dragStartPosRef.current.y;
-
         const scaledDx = dx / scale;
         const scaledDy = dy / scale;
-
         const newX = dragStartNodePosRef.current.x + scaledDx;
         const newY = dragStartNodePosRef.current.y + scaledDy;
-
         setPos({ x: newX, y: newY });
         if (onDrag) onDrag(id, { x: newX, y: newY });
     };
@@ -69,7 +55,6 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('pointerup', onDragPointerUp);
     };
 
-    // Scale handlers - NO position adjustment to keep top-left fixed
     const onScalePointerDown = (event) => {
         event.stopPropagation();
         scalingRef.current = true;
@@ -81,16 +66,12 @@ export default function GroupLabelNode({ id, data }) {
 
     const onScalePointerMove = (event) => {
         if (!scalingRef.current) return;
-
         const dx = event.clientX - scaleStartPosRef.current.x;
-
         let newScale = scaleStartValueRef.current + dx / baseSize.width;
         newScale = Math.min(Math.max(newScale, 0.5), 3);
-
         setScale(newScale);
         if (onScale) onScale(id, newScale);
-
-        // NO position change here to keep top-left anchored
+        // NO position update here!
     };
 
     const onScalePointerUp = () => {
