@@ -68,8 +68,8 @@ export default function EquipmentIcon({ id, data }) {
                 }}
             >
                 <svg
-                    width="0"
-                    height="0"
+                    width="150"
+                    height="150"
                     viewBox="0 0 200 200"
                     style={{
                         pointerEvents: 'none',
@@ -77,7 +77,7 @@ export default function EquipmentIcon({ id, data }) {
                         margin: '0 auto',
                     }}
                 >
-                    <rect x="20" y="20" width="150" height="150" fill="green" />
+                    <rect x="0" y="0" width="150" height="150" fill="green" />
                     <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
                         EQ
                     </text>
