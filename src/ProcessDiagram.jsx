@@ -96,8 +96,8 @@ export default function ProcessDiagram() {
   const itemHeight = 60;
   const itemGap = 30;
   const padding = 30;
-  const unitWidth = 3200;
-  const unitHeight = 1800;
+  const unitWidth = 5000;
+  const unitHeight = 3000;
   const subUnitHeight = unitHeight / 9;
 
   useEffect(() => {
@@ -353,6 +353,58 @@ export default function ProcessDiagram() {
                   }}
               >
                   🌀 Group Selected
+              </button>
+              <button
+                  onClick={() => {
+                      // Find all selected group label nodes
+                      const selectedGroupLabels = selectedNodes.filter(
+                          (node) => node.type === 'groupLabel'
+                      );
+
+                      if (selectedGroupLabels.length === 0) {
+                          alert('Select a group label node to remove its group');
+                          return;
+                      }
+
+                      setNodes((nds) => {
+                          // Get all group IDs of selected group labels
+                          const groupIdsToRemove = selectedGroupLabels.map(
+                              (groupLabel) => groupLabel.data.groupId || groupLabel.id.replace('group-label-', '')
+                          );
+
+                          // Remove group label nodes and remove groupId from grouped nodes
+                          return nds
+                              .filter((node) => !groupIdsToRemove.includes(node.data?.groupId) || node.type === 'groupLabel' && !groupIdsToRemove.includes(node.id.replace('group-label-', '')))
+                              .map((node) => {
+                                  if (node.data?.groupId && groupIdsToRemove.includes(node.data.groupId)) {
+                                      // Ungroup this node by removing groupId
+                                      return {
+                                          ...node,
+                                          data: {
+                                              ...node.data,
+                                              groupId: undefined,
+                                          },
+                                          style: {
+                                              ...node.style,
+                                              border: '', // or your default border style
+                                              backgroundColor: '', // or your default bg color
+                                          },
+                                      };
+                                  }
+                                  return node;
+                              });
+                      });
+                  }}
+                  style={{
+                      padding: '6px 12px',
+                      background: '#d32f2f',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 5,
+                      cursor: 'pointer',
+                  }}
+              >
+                  ❌ Remove Group
               </button>
 
       </div>
