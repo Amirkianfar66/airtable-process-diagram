@@ -67,7 +67,7 @@ export default function ScalableIconNode({ id, data }) {
                     color: '#333',
                 }}
             >
-                {label.substring(0, 5)}
+                {label.substring(0, 10)}
             </div>
         </div>
     );
