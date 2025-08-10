@@ -63,14 +63,14 @@ export default function EquipmentIcon({ id, data }) {
                     transform: `scale(${scale})`,
                     transformOrigin: 'top left',
                     position: 'relative',
-                    width: 100,
-                    height: 100,
+                    width: 150,
+                    height: 150,
                 }}
             >
                 <svg
                     width="100"
                     height="100"
-                    viewBox="0 0 150 150"
+                    viewBox="0 0 200 200"
                     style={{
                         pointerEvents: 'none',
                         display: 'block',
