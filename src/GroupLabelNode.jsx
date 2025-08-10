@@ -4,7 +4,14 @@ import { Handle, Position } from 'reactflow';
 const handleSize = 12;
 
 export default function GroupLabelNode({ id, data }) {
-    const { width = 200, height = 100, label, position = { x: 0, y: 0 }, onDrag, onScale } = data;
+    const {
+        width = 200,
+        height = 100,
+        label,
+        position = { x: 0, y: 0 },
+        onDrag,
+        onScale,
+    } = data;
 
     const [baseSize] = useState({ width, height });
     const [pos, setPos] = useState(position);
@@ -27,6 +34,7 @@ export default function GroupLabelNode({ id, data }) {
         };
     }, []);
 
+    // Drag handlers
     const onDragPointerDown = (event) => {
         if (scalingRef.current) return;
         event.stopPropagation();
@@ -55,8 +63,9 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('pointerup', onDragPointerUp);
     };
 
+    // Scale handlers
     const onScalePointerDown = (event) => {
-        event.stopPropagation();
+        event.stopPropagation(); // Stop event from bubbling to drag handler!
         scalingRef.current = true;
         scaleStartPosRef.current = { x: event.clientX, y: event.clientY };
         scaleStartValueRef.current = scale;
@@ -71,7 +80,7 @@ export default function GroupLabelNode({ id, data }) {
         newScale = Math.min(Math.max(newScale, 0.5), 3);
         setScale(newScale);
         if (onScale) onScale(id, newScale);
-        // NO position update here!
+        // NO position update here to keep top-left fixed
     };
 
     const onScalePointerUp = () => {
@@ -82,6 +91,7 @@ export default function GroupLabelNode({ id, data }) {
 
     return (
         <>
+            {/* Scale debug slider */}
             <div style={{ marginBottom: 8 }}>
                 <label>
                     Scale debug:
@@ -98,6 +108,7 @@ export default function GroupLabelNode({ id, data }) {
                 </label>
             </div>
 
+            {/* Group container */}
             <div
                 onPointerDown={onDragPointerDown}
                 style={{
@@ -114,6 +125,7 @@ export default function GroupLabelNode({ id, data }) {
                     cursor: draggingRef.current ? 'grabbing' : 'grab',
                 }}
             >
+                {/* Label */}
                 <div
                     style={{
                         position: 'absolute',
@@ -133,8 +145,12 @@ export default function GroupLabelNode({ id, data }) {
                     {label}
                 </div>
 
+                {/* Scale handle */}
                 <div
-                    onPointerDown={onScalePointerDown}
+                    onPointerDown={(e) => {
+                        e.stopPropagation(); // Stop drag on group from firing
+                        onScalePointerDown(e);
+                    }}
                     style={{
                         position: 'absolute',
                         width: handleSize,
@@ -152,6 +168,7 @@ export default function GroupLabelNode({ id, data }) {
                     title="Scale group"
                 />
 
+                {/* Hidden React Flow handles */}
                 <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
                 <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
             </div>
