@@ -12,7 +12,7 @@ export default function InlineValveIcon({ data }) {
             style={{
                 position: 'relative',
                 width: 60,
-                height: 80, // extra for label
+                height: 110, // extra for label
                 background: 'none',
                 border: 'none',
                 borderRadius: 8,
@@ -40,7 +40,7 @@ export default function InlineValveIcon({ data }) {
                     y="108"
                     fontSize="16"
                     textAnchor="middle"
-                    fill="white"
+                    fill="Black"
                     fontFamily="sans-serif"
                 >
                     IV
@@ -51,7 +51,7 @@ export default function InlineValveIcon({ data }) {
             <div
                 style={{
                     fontSize: 13,
-                    marginTop: 2,
+                    marginTop: 1,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
