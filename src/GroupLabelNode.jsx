@@ -29,11 +29,6 @@ export default function GroupLabelNode({ id, data }) {
     const scaleStartPosRef = useRef({ x: 0, y: 0 });
     const scaleStartValueRef = useRef(scale);
 
-    // Log position and scale whenever they change
-    useEffect(() => {
-        console.log('Position:', pos, 'Scale:', scale);
-    }, [pos, scale]);
-
     useEffect(() => {
         return () => {
             window.removeEventListener('pointermove', onScalePointerMove);
@@ -70,7 +65,7 @@ export default function GroupLabelNode({ id, data }) {
         window.removeEventListener('pointerup', onDragPointerUp);
     };
 
-    // Scale handlers
+    // Scale handlers with position compensation
     const onScalePointerDown = (event) => {
         event.stopPropagation();
         scalingRef.current = true;
@@ -82,11 +77,38 @@ export default function GroupLabelNode({ id, data }) {
 
     const onScalePointerMove = (event) => {
         if (!scalingRef.current) return;
+
         const dx = event.clientX - scaleStartPosRef.current.x;
-        let newScale = scaleStartValueRef.current + dx / baseSize.width;
-        newScale = Math.min(Math.max(newScale, 0.5), 3);
+        const dy = event.clientY - scaleStartPosRef.current.y;
+
+        // Calculate new scale factors for width and height independently
+        let newScaleX = scaleStartValueRef.current + dx / baseSize.width;
+        let newScaleY = scaleStartValueRef.current + dy / baseSize.height;
+
+        // Clamp scale values (optional: keep uniform scaling by using one of these)
+        newScaleX = Math.min(Math.max(newScaleX, 0.5), 3);
+        newScaleY = Math.min(Math.max(newScaleY, 0.5), 3);
+
+        // If you want uniform scale only, uncomment this line:
+        // const newScale = Math.min(newScaleX, newScaleY);
+
+        // For uniform scaling, use newScale, else you can use separate scaleX and scaleY.
+        // Here we'll do uniform scaling for simplicity:
+        const newScale = Math.min(newScaleX, newScaleY);
+
+        // Calculate how much the size changed in pixels
+        const sizeDeltaX = baseSize.width * (newScale - scale);
+        const sizeDeltaY = baseSize.height * (newScale - scale);
+
+        // Adjust position to compensate so bottom-right corner stays under pointer
+        const newPosX = pos.x - sizeDeltaX;
+        const newPosY = pos.y - sizeDeltaY;
+
         setScale(newScale);
+        setPos({ x: newPosX, y: newPosY });
+
         if (onScale) onScale(id, newScale);
+        if (onDrag) onDrag(id, { x: newPosX, y: newPosY });
     };
 
     const onScalePointerUp = () => {
