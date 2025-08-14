@@ -86,6 +86,22 @@ export default function ProcessDiagram() {
             setSelectedItem(null);
         }
     }, [items]);
+    const onConnect = useCallback(
+        (params) => {
+            const updatedEdges = addEdge(
+                {
+                    ...params,
+                    type: 'step', // orthogonal edges
+                    animated: true,
+                    style: { stroke: 'blue', strokeWidth: 2 },
+                },
+                edges
+            );
+            setEdges(updatedEdges);
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
+        },
+        [edges, nodes]
+    );
 
     useEffect(() => {
         fetchData()
@@ -167,6 +183,7 @@ export default function ProcessDiagram() {
                     edges={edges}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     fitView
                     selectionOnDrag
