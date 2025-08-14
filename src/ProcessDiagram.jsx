@@ -16,6 +16,7 @@ import PipeItemNode from './PipeItemNode';
 import ScalableNode from './ScalableNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
+import ItemDetailCard from './ItemDetailCard';
 
 
 // Icons
@@ -89,9 +90,18 @@ export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [selectedNodes, setSelectedNodes] = useState([]);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [items, setItems] = useState([]);
+
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
-    }, []);
+        if (nodes.length === 1) {
+            const nodeData = items.find(item => item.id === nodes[0].id);
+            setSelectedItem(nodeData || null);
+        } else {
+            setSelectedItem(null);
+        }
+    }, [items]);
     useEffect(() => {
         const handleKeyDown = (event) => {
             if (event.key === 'Escape') {
@@ -249,17 +259,17 @@ export default function ProcessDiagram() {
     };
 
     return (
-        <div style={{ width: '100vw', height: '100vh' }}>
-            <div style={{ position: 'absolute', zIndex: 10, top: 10, left: 10, display: 'flex', gap: 10 }}>
-                <button
-                    onClick={handleReset}
+        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
+            {/* Left: Diagram */}
+            <div style={{ flex: 1, position: 'relative' }}>
+                <div
                     style={{
-                        padding: '6px 12px',
-                        background: '#444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 5,
-                        cursor: 'pointer',
+                        position: 'absolute',
+                        zIndex: 10,
+                        top: 10,
+                        left: 10,
+                        display: 'flex',
+                        gap: 10,
                     }}
                 >
                     🔁 Reset Layout
