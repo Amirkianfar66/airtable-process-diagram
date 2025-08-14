@@ -296,7 +296,7 @@ export default function ProcessDiagram() {
                         setNodes((nds) => {
                             // Mark selected nodes with groupId and clear their borders for clarity
                             const updatedNodes = nds.map((node) =>
-                                selectedNodes.find((sel) => sel.id === node.id)
+                                (selectedNodes || []).find((sel) => sel.id === node.id)
                                     ? {
                                         ...node,
                                         data: {
@@ -323,6 +323,7 @@ export default function ProcessDiagram() {
                                     height: defaultHeight,
                                     onResize: onGroupResize,
                                     id: `group-label-${groupId}`,
+                                    groupId: groupId,
                                 },
                                 selectable: true,
                                 draggable: true,
@@ -367,16 +368,19 @@ export default function ProcessDiagram() {
 
                             // Remove group label nodes and remove groupId from grouped nodes
                             return nds
-                                .filter((node) => !groupIdsToRemove.includes(node.data?.groupId) || node.type === 'groupLabel' && !groupIdsToRemove.includes(node.id.replace('group-label-', '')))
+                                .filter((node) => {
+                                    if (node.type === 'groupLabel' && groupIdsToRemove.includes(node.data.groupId)) {
+                                        return false;
+                                    }
+                                    return true;
+                                })
                                 .map((node) => {
                                     if (node.data?.groupId && groupIdsToRemove.includes(node.data.groupId)) {
                                         // Ungroup this node by removing groupId
+                                        const { groupId, ...restData } = node.data;
                                         return {
                                             ...node,
-                                            data: {
-                                                ...node.data,
-                                                groupId: undefined,
-                                            },
+                                            data: restData,
                                             style: {
                                                 ...node.style,
                                                 border: '', // or your default border style
