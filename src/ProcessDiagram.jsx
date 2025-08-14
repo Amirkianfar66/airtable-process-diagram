@@ -8,6 +8,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
+import Airtable from 'airtable';
 
 // Custom components
 import ResizableNode from './ResizableNode';
@@ -100,17 +101,71 @@ export default function ProcessDiagram() {
   const unitHeight = 3000;
   const subUnitHeight = unitHeight / 9;
 
-  useEffect(() => {
-    fetchData()
-      .then((items) => {
-        const grouped = {};
-        items.forEach((item) => {
-          const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
-          if (!Unit || !SubUnit) return;
-          if (!grouped[Unit]) grouped[Unit] = {};
-          if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-          grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
-        });
+  
+
+    // Inside your ProcessDiagram component, before useEffect for nodes:
+    const base = new Airtable({ apiKey: import.meta.env.VITE_AIRTABLE_TOKEN }).base(import.meta.env.VITE_AIRTABLE_BASE_ID);
+
+    useEffect(() => {
+        base(import.meta.env.VITE_AIRTABLE_TABLE_NAME)
+            .select({ view: 'Grid view' })
+            .all()
+            .then(records => {
+                const items = records.map(r => ({ id: r.id, ...r.fields }));
+
+                const grouped = {};
+                items.forEach((item) => {
+                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+                    if (!Unit || !SubUnit) return;
+                    if (!grouped[Unit]) grouped[Unit] = {};
+                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, fullData: item });
+                });
+
+                const newNodes = [];
+                let idCounter = 1;
+                let unitX = 0;
+                const unitWidth = 5000;
+                const unitHeight = 3000;
+                const subUnitHeight = unitHeight / 9;
+
+                Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    const subUnitNames = Object.keys(subUnits);
+                    subUnitNames.forEach((subUnit, index) => {
+                        const items = subUnits[subUnit];
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        let itemX = unitX + 40;
+                        const itemY = index * subUnitHeight + 20;
+                        items.forEach((item) => {
+                            const id = `item-${idCounter++}`;
+                            const IconComponent = categoryIcons[item.Category];
+                            newNodes.push({
+                                id,
+                                position: { x: itemX, y: itemY },
+                                data: {
+                                    label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
+                                    scale: 1,
+                                    fullData: item.fullData // ✅ include all Airtable data here
+                                },
+                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                                sourcePosition: 'right',
+                                targetPosition: 'left',
+                            });
+
+                            itemX += 160 + 30;
+                        });
+                    });
+                    unitX += unitWidth + 100;
+                });
+
+                setNodes(newNodes);
+                setEdges([]);
+                setDefaultLayout({ nodes: newNodes, edges: [] });
+            })
+            .catch(err => console.error(err));
+    }, []);
+
 
         const newNodes = [];
         const newEdges = [];
