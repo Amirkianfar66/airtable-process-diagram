@@ -162,22 +162,21 @@ export default function ProcessDiagram() {
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
             <div style={{ flex: 1, position: 'relative' }}>
-              <ReactFlow
-    nodes={nodes}
-    edges={edges}
-    onNodesChange={onNodesChange}
-    onEdgesChange={onEdgesChange}
-    onConnect={onConnect} // ✅ enables connecting nodes
-    onSelectionChange={onSelectionChange}
-    fitView
-    selectionOnDrag
-    minZoom={0.02}
-    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-    nodeTypes={nodeTypes}
->
-    <Background />
-    <Controls />
-</ReactFlow>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onSelectionChange={onSelectionChange}
+                    fitView
+                    selectionOnDrag
+                    minZoom={0.02}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                    nodeTypes={nodeTypes}
+                >
+                    <Background />
+                    <Controls />
+                </ReactFlow>
             </div>
 
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: '#f9f9f9', overflowY: 'auto' }}>
