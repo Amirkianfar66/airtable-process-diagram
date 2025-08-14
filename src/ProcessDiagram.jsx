@@ -366,14 +366,9 @@ export default function ProcessDiagram() {
                                 (groupLabel) => groupLabel.data.groupId || groupLabel.id.replace('group-label-', '')
                             );
 
-                            // Remove group label nodes and remove groupId from grouped nodes
+                            // Chain filter and map to correctly remove the group and ungroup nodes
                             return nds
-                                .filter((node) => {
-                                    if (node.type === 'groupLabel' && groupIdsToRemove.includes(node.data.groupId)) {
-                                        return false;
-                                    }
-                                    return true;
-                                })
+                                .filter(node => !(node.type === 'groupLabel' && groupIdsToRemove.includes(node.data.groupId)))
                                 .map((node) => {
                                     if (node.data?.groupId && groupIdsToRemove.includes(node.data.groupId)) {
                                         // Ungroup this node by removing groupId
