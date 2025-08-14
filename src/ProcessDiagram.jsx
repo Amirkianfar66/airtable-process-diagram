@@ -39,44 +39,51 @@ const nodeTypes = {
 
 
 const fetchData = async () => {
-  const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-  const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-  const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-  const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
+    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+    const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+    const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+    const res = await fetch(url, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
-  }
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
+    }
 
-  const data = await res.json();
-  return data.records.map((rec) => rec.fields);
+    const data = await res.json();
+    return data.records.map((rec) => rec.fields);
 };
 
 const categoryIcons = {
-  Equipment: EquipmentIcon,
-  Instrument: InstrumentIcon,
-  'Inline Valve': InlineValveIcon,
-  Pipe: PipeIcon,
-  Electrical: ElectricalIcon,
+    Equipment: EquipmentIcon,
+    Instrument: InstrumentIcon,
+    'Inline Valve': InlineValveIcon,
+    Pipe: PipeIcon,
+    Electrical: ElectricalIcon,
 };
 
 export default function ProcessDiagram() {
-  const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [selectedNodes, setSelectedNodes] = useState([]);
-  const onSelectionChange = useCallback(({ nodes }) => {
+    const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [selectedNodes, setSelectedNodes] = useState([]);
+    const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
-  }, []);
+    }, []);
     useEffect(() => {
         const base = new Airtable({ apiKey: import.meta.env.VITE_AIRTABLE_TOKEN }).base(import.meta.env.VITE_AIRTABLE_BASE_ID);
+
+        // Define layout variables
+        const unitWidth = 800;
+        const unitHeight = 600;
+        const subUnitHeight = 250;
+        const itemWidth = 150;
+        const itemGap = 20;
 
         base(import.meta.env.VITE_AIRTABLE_TABLE_NAME)
             .select({ view: 'Grid view' })
@@ -197,236 +204,236 @@ export default function ProcessDiagram() {
     );
 
 
-  const onNodeDragStop = useCallback(
-    (_, updatedNode) => {
-      const updatedNodes = nodes.map((n) => (n.id === updatedNode.id ? updatedNode : n));
-      setNodes(updatedNodes);
-      localStorage.setItem('diagram-layout', JSON.stringify({ nodes: updatedNodes, edges }));
-    },
-    [nodes, edges]
-  );
+    const onNodeDragStop = useCallback(
+        (_, updatedNode) => {
+            const updatedNodes = nodes.map((n) => (n.id === updatedNode.id ? updatedNode : n));
+            setNodes(updatedNodes);
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes: updatedNodes, edges }));
+        },
+        [nodes, edges]
+    );
 
-  const handleReset = () => {
-    setNodes(defaultLayout.nodes);
-    setEdges(defaultLayout.edges);
-  };
+    const handleReset = () => {
+        setNodes(defaultLayout.nodes);
+        setEdges(defaultLayout.edges);
+    };
 
-  const handleSave = () => {
-    localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges }));
-    alert('Layout saved!');
-  };
+    const handleSave = () => {
+        localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges }));
+        alert('Layout saved!');
+    };
 
-  return (
-    <div style={{ width: '100vw', height: '100vh' }}>
-      <div style={{ position: 'absolute', zIndex: 10, top: 10, left: 10, display: 'flex', gap: 10 }}>
-        <button
-          onClick={handleReset}
-          style={{
-            padding: '6px 12px',
-            background: '#444',
-            color: 'white',
-            border: 'none',
-            borderRadius: 5,
-            cursor: 'pointer',
-          }}
-        >
-          🔁 Reset Layout
-        </button>
-        <button
-          onClick={handleSave}
-          style={{
-            padding: '6px 12px',
-            background: '#1d8841',
-            color: 'white',
-            border: 'none',
-            borderRadius: 5,
-            cursor: 'pointer',
-          }}
-        >
-          📂 Save Layout
-              </button>
-              <button
-                  onClick={() => {
-                      const groupId = `group-${Date.now()}`;
-                      const groupName = prompt('Enter group name:', 'My Group') || 'Unnamed Group';
+    return (
+        <div style={{ width: '100vw', height: '100vh' }}>
+            <div style={{ position: 'absolute', zIndex: 10, top: 10, left: 10, display: 'flex', gap: 10 }}>
+                <button
+                    onClick={handleReset}
+                    style={{
+                        padding: '6px 12px',
+                        background: '#444',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 5,
+                        cursor: 'pointer',
+                    }}
+                >
+                    🔁 Reset Layout
+                </button>
+                <button
+                    onClick={handleSave}
+                    style={{
+                        padding: '6px 12px',
+                        background: '#1d8841',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 5,
+                        cursor: 'pointer',
+                    }}
+                >
+                    📂 Save Layout
+                </button>
+                <button
+                    onClick={() => {
+                        const groupId = `group-${Date.now()}`;
+                        const groupName = prompt('Enter group name:', 'My Group') || 'Unnamed Group';
 
-                      // Default group size and position
-                      const defaultWidth = 300;
-                      const defaultHeight = 150;
+                        // Default group size and position
+                        const defaultWidth = 300;
+                        const defaultHeight = 150;
 
-                      // Position label near first selected node if any
-                      const firstSelected = selectedNodes[0];
-                      const labelPosition = firstSelected
-                          ? { x: firstSelected.position.x - 20, y: firstSelected.position.y - 40 }
-                          : { x: 0, y: 0 };
+                        // Position label near first selected node if any
+                        const firstSelected = selectedNodes[0];
+                        const labelPosition = firstSelected
+                            ? { x: firstSelected.position.x - 20, y: firstSelected.position.y - 40 }
+                            : { x: 0, y: 0 };
 
-                      // Handler for resize callback
-                      const onGroupResize = (id, newSize) => {
-                          setNodes((nds) =>
-                              nds.map((node) => {
-                                  if (node.id === id) {
-                                      return {
-                                          ...node,
-                                          data: {
-                                              ...node.data,
-                                              width: newSize.width,
-                                              height: newSize.height,
-                                          },
-                                          style: {
-                                              ...node.style,
-                                              width: newSize.width,
-                                              height: newSize.height,
-                                              border: '2px dashed #00bcd4',
-                                              backgroundColor: 'rgba(0, 188, 212, 0.05)',
-                                          },
-                                      };
-                                  }
-                                  return node;
-                              })
-                          );
-                      };
+                        // Handler for resize callback
+                        const onGroupResize = (id, newSize) => {
+                            setNodes((nds) =>
+                                nds.map((node) => {
+                                    if (node.id === id) {
+                                        return {
+                                            ...node,
+                                            data: {
+                                                ...node.data,
+                                                width: newSize.width,
+                                                height: newSize.height,
+                                            },
+                                            style: {
+                                                ...node.style,
+                                                width: newSize.width,
+                                                height: newSize.height,
+                                                border: '2px dashed #00bcd4',
+                                                backgroundColor: 'rgba(0, 188, 212, 0.05)',
+                                            },
+                                        };
+                                    }
+                                    return node;
+                                })
+                            );
+                        };
 
-                      setNodes((nds) => {
-                          // Mark selected nodes with groupId and clear their borders for clarity
-                          const updatedNodes = nds.map((node) =>
-                              selectedNodes.find((sel) => sel.id === node.id)
-                                  ? {
-                                      ...node,
-                                      data: {
-                                          ...node.data,
-                                          groupId,
-                                      },
-                                      style: {
-                                          ...node.style,
-                                          border: 'none',  // group items themselves have no border
-                                          backgroundColor: 'transparent',
-                                      },
-                                  }
-                                  : node
-                          );
+                        setNodes((nds) => {
+                            // Mark selected nodes with groupId and clear their borders for clarity
+                            const updatedNodes = nds.map((node) =>
+                                selectedNodes.find((sel) => sel.id === node.id)
+                                    ? {
+                                        ...node,
+                                        data: {
+                                            ...node.data,
+                                            groupId,
+                                        },
+                                        style: {
+                                            ...node.style,
+                                            border: 'none',  // group items themselves have no border
+                                            backgroundColor: 'transparent',
+                                        },
+                                    }
+                                    : node
+                            );
 
-                          // Add group label node with size and onResize callback
-                          updatedNodes.push({
-                              id: `group-label-${groupId}`,
-                              type: 'groupLabel',
-                              position: labelPosition,
-                              data: {
-                                  label: groupName,
-                                  width: defaultWidth,
-                                  height: defaultHeight,
-                                  onResize: onGroupResize,
-                                  id: `group-label-${groupId}`,
-                              },
-                              selectable: true,
-                              draggable: true,
-                              style: {
-                                  border: '2px dashed #00bcd4',
-                                  backgroundColor: 'rgba(0, 188, 212, 0.05)',
-                                  borderRadius: 6,
-                              },
-                          });
+                            // Add group label node with size and onResize callback
+                            updatedNodes.push({
+                                id: `group-label-${groupId}`,
+                                type: 'groupLabel',
+                                position: labelPosition,
+                                data: {
+                                    label: groupName,
+                                    width: defaultWidth,
+                                    height: defaultHeight,
+                                    onResize: onGroupResize,
+                                    id: `group-label-${groupId}`,
+                                },
+                                selectable: true,
+                                draggable: true,
+                                style: {
+                                    border: '2px dashed #00bcd4',
+                                    backgroundColor: 'rgba(0, 188, 212, 0.05)',
+                                    borderRadius: 6,
+                                },
+                            });
 
-                          return updatedNodes;
-                      });
-                  }}
-                  style={{
-                      padding: '6px 12px',
-                      background: '#1976d2',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 5,
-                      cursor: 'pointer',
-                  }}
-              >
-                  🌀 Group Selected
-              </button>
-              <button
-                  onClick={() => {
-                      // Find all selected group label nodes
-                      const selectedGroupLabels = selectedNodes.filter(
-                          (node) => node.type === 'groupLabel'
-                      );
+                            return updatedNodes;
+                        });
+                    }}
+                    style={{
+                        padding: '6px 12px',
+                        background: '#1976d2',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 5,
+                        cursor: 'pointer',
+                    }}
+                >
+                    🌀 Group Selected
+                </button>
+                <button
+                    onClick={() => {
+                        // Find all selected group label nodes
+                        const selectedGroupLabels = selectedNodes.filter(
+                            (node) => node.type === 'groupLabel'
+                        );
 
-                      if (selectedGroupLabels.length === 0) {
-                          alert('Select a group label node to remove its group');
-                          return;
-                      }
+                        if (selectedGroupLabels.length === 0) {
+                            alert('Select a group label node to remove its group');
+                            return;
+                        }
 
-                      setNodes((nds) => {
-                          // Get all group IDs of selected group labels
-                          const groupIdsToRemove = selectedGroupLabels.map(
-                              (groupLabel) => groupLabel.data.groupId || groupLabel.id.replace('group-label-', '')
-                          );
+                        setNodes((nds) => {
+                            // Get all group IDs of selected group labels
+                            const groupIdsToRemove = selectedGroupLabels.map(
+                                (groupLabel) => groupLabel.data.groupId || groupLabel.id.replace('group-label-', '')
+                            );
 
-                          // Remove group label nodes and remove groupId from grouped nodes
-                          return nds
-                              .filter((node) => !groupIdsToRemove.includes(node.data?.groupId) || node.type === 'groupLabel' && !groupIdsToRemove.includes(node.id.replace('group-label-', '')))
-                              .map((node) => {
-                                  if (node.data?.groupId && groupIdsToRemove.includes(node.data.groupId)) {
-                                      // Ungroup this node by removing groupId
-                                      return {
-                                          ...node,
-                                          data: {
-                                              ...node.data,
-                                              groupId: undefined,
-                                          },
-                                          style: {
-                                              ...node.style,
-                                              border: '', // or your default border style
-                                              backgroundColor: '', // or your default bg color
-                                          },
-                                      };
-                                  }
-                                  return node;
-                              });
-                      });
-                  }}
-                  style={{
-                      padding: '6px 12px',
-                      background: '#d32f2f',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 5,
-                      cursor: 'pointer',
-                  }}
-              >
-                  ❌ Remove Group
-              </button>
+                            // Remove group label nodes and remove groupId from grouped nodes
+                            return nds
+                                .filter((node) => !groupIdsToRemove.includes(node.data?.groupId) || node.type === 'groupLabel' && !groupIdsToRemove.includes(node.id.replace('group-label-', '')))
+                                .map((node) => {
+                                    if (node.data?.groupId && groupIdsToRemove.includes(node.data.groupId)) {
+                                        // Ungroup this node by removing groupId
+                                        return {
+                                            ...node,
+                                            data: {
+                                                ...node.data,
+                                                groupId: undefined,
+                                            },
+                                            style: {
+                                                ...node.style,
+                                                border: '', // or your default border style
+                                                backgroundColor: '', // or your default bg color
+                                            },
+                                        };
+                                    }
+                                    return node;
+                                });
+                        });
+                    }}
+                    style={{
+                        padding: '6px 12px',
+                        background: '#d32f2f',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 5,
+                        cursor: 'pointer',
+                    }}
+                >
+                    ❌ Remove Group
+                </button>
 
-      </div>
+            </div>
 
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeDragStop={onNodeDragStop}
-        onConnect={onConnect}
-        onSelectionChange={onSelectionChange}
-        fitView
-        selectionOnDrag={true}
-        minZoom={0.02}
-        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-        nodeTypes={nodeTypes} // ✅ use custom node here
-        onPaneContextMenu={(event) => {
-           event.preventDefault(); // Prevent browser context menu
-                  setNodes((nds) =>
-                      nds.map((node) => ({
-                          ...node,
-                          selected: false,
-                      }))
-                  );
-                  setEdges((eds) =>
-                      eds.map((edge) => ({
-                          ...edge,
-                          selected: false,
-                      }))
-                  );
-              }}
-      >
-        <Background />
-        <Controls />
-      </ReactFlow>
-    </div>
-  );
+            <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onNodeDragStop={onNodeDragStop}
+                onConnect={onConnect}
+                onSelectionChange={onSelectionChange}
+                fitView
+                selectionOnDrag={true}
+                minZoom={0.02}
+                defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                nodeTypes={nodeTypes} // ✅ use custom node here
+                onPaneContextMenu={(event) => {
+                    event.preventDefault(); // Prevent browser context menu
+                    setNodes((nds) =>
+                        nds.map((node) => ({
+                            ...node,
+                            selected: false,
+                        }))
+                    );
+                    setEdges((eds) =>
+                        eds.map((edge) => ({
+                            ...edge,
+                            selected: false,
+                        }))
+                    );
+                }}
+            >
+                <Background />
+                <Controls />
+            </ReactFlow>
+        </div>
+    );
 }
