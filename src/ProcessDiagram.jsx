@@ -103,10 +103,11 @@ export default function ProcessDiagram() {
 
   
 
-    // Inside your ProcessDiagram component, before useEffect for nodes:
-    const base = new Airtable({ apiKey: import.meta.env.VITE_AIRTABLE_TOKEN }).base(import.meta.env.VITE_AIRTABLE_BASE_ID);
+    // Update your useEffect to fetch and store all Airtable data in each node:
 
     useEffect(() => {
+        const base = new Airtable({ apiKey: import.meta.env.VITE_AIRTABLE_TOKEN }).base(import.meta.env.VITE_AIRTABLE_BASE_ID);
+
         base(import.meta.env.VITE_AIRTABLE_TABLE_NAME)
             .select({ view: 'Grid view' })
             .all()
@@ -125,9 +126,6 @@ export default function ProcessDiagram() {
                 const newNodes = [];
                 let idCounter = 1;
                 let unitX = 0;
-                const unitWidth = 5000;
-                const unitHeight = 3000;
-                const subUnitHeight = unitHeight / 9;
 
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
                     const subUnitNames = Object.keys(subUnits);
@@ -135,7 +133,7 @@ export default function ProcessDiagram() {
                         const items = subUnits[subUnit];
                         items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         let itemX = unitX + 40;
-                        const itemY = index * subUnitHeight + 20;
+                        const itemY = index * (3000 / 9) + 20;
                         items.forEach((item) => {
                             const id = `item-${idCounter++}`;
                             const IconComponent = categoryIcons[item.Category];
@@ -146,7 +144,7 @@ export default function ProcessDiagram() {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
                                     icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
                                     scale: 1,
-                                    fullData: item.fullData // ✅ include all Airtable data here
+                                    fullData: item.fullData // ✅ store all Airtable fields here
                                 },
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
@@ -156,7 +154,7 @@ export default function ProcessDiagram() {
                             itemX += 160 + 30;
                         });
                     });
-                    unitX += unitWidth + 100;
+                    unitX += 5000 + 100;
                 });
 
                 setNodes(newNodes);
@@ -165,6 +163,7 @@ export default function ProcessDiagram() {
             })
             .catch(err => console.error(err));
     }, []);
+
 
 
         const newNodes = [];
