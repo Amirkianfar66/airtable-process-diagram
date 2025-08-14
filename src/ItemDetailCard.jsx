@@ -1,35 +1,41 @@
-﻿// ItemDetailCard.js
-import React from 'react';
+﻿import React from 'react';
 
 export default function ItemDetailCard({ item }) {
-    return (
-        <div style={{ padding: 20, fontFamily: 'sans-serif' }}>
-            {/* General Info Section */}
-            <section style={{ marginBottom: 20 }}>
-                <h3>General Info</h3>
-                <p><strong>Generated Code:</strong> {item.Code || ''}</p>
-                <p><strong>Count:</strong> {item.Count || ''}</p>
-                <p><strong>Category:</strong> {item.Category || ''}</p>
-                <p><strong>Class Name:</strong> {item.ClassName || ''}</p>
-                <p><strong>Type Name:</strong> {item.TypeName || ''}</p>
-            </section>
+  if (!item) return null;
 
-            {/* Procurement Info Section */}
-            <section style={{ marginBottom: 20 }}>
-                <h3>Procurement Info</h3>
-                <p><strong>Model Number:</strong> {item.ModelNumber || ''}</p>
-                <p><strong>Size:</strong> {item.Size || ''}</p>
-                <p><strong>Manufacturer:</strong> {item.Manufacturer || ''}</p>
-                <p><strong>Supplier:</strong> {item.Supplier || ''}</p>
-                <p><strong>Supplier Code:</strong> {item.SupplierCode || ''}</p>
-            </section>
+  return (
+    <div style={{
+      background: '#fff',
+      borderRadius: '8px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      padding: '16px',
+      maxWidth: '350px',
+      fontFamily: 'sans-serif'
+    }}>
+      {/* General Info */}
+      <section style={{ marginBottom: '16px' }}>
+        <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>General Info</h3>
+        <div><strong>Code:</strong> {item['Item Code'] || '-'}</div>
+        <div><strong>Name:</strong> {item['Name'] || '-'}</div>
+        <div><strong>Unit:</strong> {item['Unit'] || '-'}</div>
+        <div><strong>Sub-Unit:</strong> {item['Sub Unit'] || '-'}</div>
+        <div><strong>Category:</strong> {item['Category Item Type'] || '-'}</div>
+        <div><strong>Sequence:</strong> {item['Sequence'] || '-'}</div>
+      </section>
 
-            {/* Engineering Info Section */}
-            <section>
-                <h3>Engineering Info</h3>
-                {/* Placeholder for future engineering data */}
-                <p>No engineering data available yet.</p>
-            </section>
-        </div>
-    );
+      {/* Manufacturer Info */}
+      <section style={{ marginBottom: '16px' }}>
+        <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Manufacturer Info</h3>
+        <div><strong>Manufacturer:</strong> {item['Manufacturer'] || '-'}</div>
+        <div><strong>Model Number:</strong> {item['Model Number'] || '-'}</div>
+      </section>
+
+      {/* Supplier Info */}
+      <section>
+        <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Supplier Info</h3>
+        <div><strong>Supplier:</strong> {item['Supplier'] || '-'}</div>
+        <div><strong>Supplier Code:</strong> {item['Supplier Code'] || '-'}</div>
+      </section>
+    </div>
+  );
 }
