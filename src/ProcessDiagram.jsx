@@ -8,7 +8,6 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
-import Airtable from 'airtable';
 
 // Custom components
 import ResizableNode from './ResizableNode';
@@ -76,40 +75,52 @@ export default function ProcessDiagram() {
         setSelectedNodes(nodes);
     }, []);
     useEffect(() => {
-        const base = new Airtable({ apiKey: import.meta.env.VITE_AIRTABLE_TOKEN }).base(import.meta.env.VITE_AIRTABLE_BASE_ID);
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                setNodes((nds) =>
+                    nds.map((node) => ({ ...node, selected: false }))
+                );
+                setEdges((eds) =>
+                    eds.map((edge) => ({ ...edge, selected: false }))
+                );
+            }
+        };
 
-        // Define layout variables
-        const unitWidth = 800;
-        const unitHeight = 600;
-        const subUnitHeight = 250;
-        const itemWidth = 150;
-        const itemGap = 20;
+        window.addEventListener('keydown', handleKeyDown);
 
-        base(import.meta.env.VITE_AIRTABLE_TABLE_NAME)
-            .select({ view: 'Grid view' })
-            .all()
-            .then(records => {
-                const items = records.map(r => ({ id: r.id, ...r.fields }));
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [setNodes, setEdges]);
+    const itemWidth = 160;
+    const itemHeight = 60;
+    const itemGap = 30;
+    const padding = 30;
+    const unitWidth = 5000;
+    const unitHeight = 3000;
+    const subUnitHeight = unitHeight / 9;
 
+    useEffect(() => {
+        fetchData()
+            .then((items) => {
                 const grouped = {};
                 items.forEach((item) => {
                     const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, fullData: item });
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
                 });
 
                 const newNodes = [];
+                const newEdges = [];
                 let idCounter = 1;
                 let unitX = 0;
 
-                // --- Start of Combined Logic ---
-
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
-                    // Add the main "Unit" container node
+                    const unitId = `unit-${unit}`;
                     newNodes.push({
-                        id: `unit-${unit}`,
+                        id: unitId,
                         position: { x: unitX, y: 0 },
                         data: { label: unit },
                         style: {
@@ -125,11 +136,10 @@ export default function ProcessDiagram() {
 
                     const subUnitNames = Object.keys(subUnits);
                     subUnitNames.forEach((subUnit, index) => {
+                        const subId = `sub-${unit}-${subUnit}`;
                         const yOffset = index * subUnitHeight;
-
-                        // Add the "Sub-Unit" container node
                         newNodes.push({
-                            id: `sub-${unit}-${subUnit}`,
+                            id: subId,
                             position: { x: unitX + 10, y: yOffset + 10 },
                             data: { label: subUnit },
                             style: {
@@ -143,12 +153,10 @@ export default function ProcessDiagram() {
                             selectable: false,
                         });
 
-                        // Add the item nodes within the sub-unit
                         const items = subUnits[subUnit];
                         items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         let itemX = unitX + 40;
-                        const itemY = yOffset + 40; // Adjusted Y for better padding
-
+                        const itemY = yOffset + 20;
                         items.forEach((item) => {
                             const id = `item-${idCounter++}`;
                             const IconComponent = categoryIcons[item.Category];
@@ -157,9 +165,10 @@ export default function ProcessDiagram() {
                                 position: { x: itemX, y: itemY },
                                 data: {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
-                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
-                                    scale: 1,
-                                    fullData: item.fullData,
+                                    icon: IconComponent
+                                        ? <IconComponent style={{ width: 20, height: 20 }} />
+                                        : null,
+                                    scale: 1,                // ← initialize the scale factor
                                 },
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
@@ -173,17 +182,15 @@ export default function ProcessDiagram() {
                     unitX += unitWidth + 100;
                 });
 
-                // --- End of Combined Logic ---
-
-                const newEdges = []; // Start with no edges
                 setNodes(newNodes);
                 setEdges(newEdges);
                 setDefaultLayout({ nodes: newNodes, edges: newEdges });
                 localStorage.setItem('diagram-layout', JSON.stringify({ nodes: newNodes, edges: newEdges }));
-
             })
-            .catch(err => console.error(err));
-    }, []); // The dependency array should be at the end of the hook
+            .catch((err) => {
+                console.error(err);
+            });
+    }, []);
 
     const onConnect = useCallback(
         (params) => {
@@ -296,7 +303,7 @@ export default function ProcessDiagram() {
                         setNodes((nds) => {
                             // Mark selected nodes with groupId and clear their borders for clarity
                             const updatedNodes = nds.map((node) =>
-                                (selectedNodes || []).find((sel) => sel.id === node.id)
+                                selectedNodes.find((sel) => sel.id === node.id)
                                     ? {
                                         ...node,
                                         data: {
@@ -323,7 +330,6 @@ export default function ProcessDiagram() {
                                     height: defaultHeight,
                                     onResize: onGroupResize,
                                     id: `group-label-${groupId}`,
-                                    groupId: groupId,
                                 },
                                 selectable: true,
                                 draggable: true,
@@ -366,16 +372,18 @@ export default function ProcessDiagram() {
                                 (groupLabel) => groupLabel.data.groupId || groupLabel.id.replace('group-label-', '')
                             );
 
-                            // Chain filter and map to correctly remove the group and ungroup nodes
+                            // Remove group label nodes and remove groupId from grouped nodes
                             return nds
-                                .filter(node => !(node.type === 'groupLabel' && groupIdsToRemove.includes(node.data.groupId)))
+                                .filter((node) => !groupIdsToRemove.includes(node.data?.groupId) || node.type === 'groupLabel' && !groupIdsToRemove.includes(node.id.replace('group-label-', '')))
                                 .map((node) => {
                                     if (node.data?.groupId && groupIdsToRemove.includes(node.data.groupId)) {
                                         // Ungroup this node by removing groupId
-                                        const { groupId, ...restData } = node.data;
                                         return {
                                             ...node,
-                                            data: restData,
+                                            data: {
+                                                ...node.data,
+                                                groupId: undefined,
+                                            },
                                             style: {
                                                 ...node.style,
                                                 border: '', // or your default border style
