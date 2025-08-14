@@ -1,56 +1,60 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useEffect, useCallback } from 'react';
 import ReactFlow, {
     Controls,
     Background,
-    applyNodeChanges, // Import applyNodeChanges
-    useNodesState,     // Import useNodesState
+    useNodesState,
+    useEdgesState,
+    applyNodeChanges,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Environment variables for Airtable credentials
-const airtableApiKey = import.meta.env.VITE_AIRTABLE_API_KEY;
+// --- CORRECT ENVIRONMENT VARIABLE NAMES ---
+const airtableToken = import.meta.env.VITE_AIRTABLE_TOKEN; // ✅ Use the correct variable name
 const airtableBaseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
 const airtableTableName = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
 
 export default function ProcessDiagram() {
-    // Use the useNodesState hook to manage nodes
-    // This hook provides the nodes array, a setter, and the onNodesChange handler
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-    // Fetches data from Airtable and initializes the nodes
     const fetchData = useCallback(async () => {
+        // Add a console log to confirm the token is loaded
+        console.log("Authenticating with token:", airtableToken ? "Token Loaded" : "Token is UNDEFINED");
+
         try {
-            const response = await fetch(`https://api.airtable.com/v0/${airtableBaseId}/${airtableTableName}`, {
-                headers: { Authorization: `Bearer ${airtableApiKey}` },
+            const res = await fetch(`https://api.airtable.com/v0/${airtableBaseId}/${airtableTableName}`, {
+                headers: {
+                    // ✅ Pass the correct token variable to the header
+                    Authorization: `Bearer ${airtableToken}`
+                },
             });
-
-            if (!response.ok) {
-                throw new Error(`Airtable API request failed with status ${response.status}`);
+            if (!res.ok) {
+                throw new Error(`Airtable fetch failed with status: ${res.status}`);
             }
-
-            const data = await response.json();
+            const data = await res.json();
 
             const initialNodes = data.records.map((record, idx) => ({
                 id: record.id,
                 position: { x: 100 + idx * 150, y: 100 },
                 data: { label: record.fields.Name || 'No name' },
+                // Add any other node properties you need from your old version
             }));
 
             setNodes(initialNodes);
-            localStorage.setItem('diagram-layout', JSON.stringify(initialNodes));
-
+            setEdges([]); // Initialize edges if you have any
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes: initialNodes, edges: [] }));
         } catch (error) {
-            console.error("Error fetching data from Airtable:", error);
+            console.error("Failed to fetch data from Airtable:", error);
         }
-    }, [setNodes]); // setNodes is a stable function from the hook
+    }, [setNodes, setEdges]);
 
-    // Effect to load data from localStorage or fetch from Airtable on initial render
     useEffect(() => {
         const savedLayout = localStorage.getItem('diagram-layout');
         if (savedLayout) {
             try {
-                const parsedLayout = JSON.parse(savedLayout);
-                setNodes(parsedLayout);
+                const { nodes: savedNodes, edges: savedEdges } = JSON.parse(savedLayout);
+                setNodes(savedNodes || []);
+                setEdges(savedEdges || []);
             } catch (error) {
                 console.error("Failed to parse saved layout, fetching new data.", error);
                 fetchData();
@@ -58,29 +62,27 @@ export default function ProcessDiagram() {
         } else {
             fetchData();
         }
-    }, [fetchData, setNodes]); // Dependencies for the initial load
+    }, [fetchData, setNodes, setEdges]);
 
-    // Custom onNodesChange handler to also save to localStorage after a change
-    const handleNodesChange = useCallback(
-        (changes) => {
-            // Let the hook handle the state update
-            onNodesChange(changes);
+    // Custom handler to save changes to localStorage
+    const handleNodesChange = useCallback((changes) => {
+        setNodes((currentNodes) => {
+            const updatedNodes = applyNodeChanges(changes, currentNodes);
+            // Get current edges to avoid overwriting them
+            const currentEdges = JSON.parse(localStorage.getItem('diagram-layout') || '{}').edges || [];
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes: updatedNodes, edges: currentEdges }));
+            return updatedNodes;
+        });
+    }, [setNodes]);
 
-            // Apply changes to the current nodes to get the next state for localStorage
-            setNodes((currentNodes) => {
-                const updatedNodes = applyNodeChanges(changes, currentNodes);
-                localStorage.setItem('diagram-layout', JSON.stringify(updatedNodes));
-                return updatedNodes;
-            });
-        },
-        [onNodesChange, setNodes]
-    );
 
     return (
         <div style={{ width: '100%', height: '100vh' }}>
             <ReactFlow
                 nodes={nodes}
-                onNodesChange={handleNodesChange} // Use the custom handler
+                edges={edges}
+                onNodesChange={handleNodesChange}
+                onEdgesChange={onEdgesChange}
                 fitView
             >
                 <Controls />
