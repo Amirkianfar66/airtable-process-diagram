@@ -167,7 +167,6 @@ export default function ProcessDiagram() {
                     edges={edges}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
-                    onConnect={onConnect} // ✅ enables connecting nodes
                     onSelectionChange={onSelectionChange}
                     fitView
                     selectionOnDrag
