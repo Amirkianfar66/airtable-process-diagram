@@ -36,27 +36,45 @@ const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
-
+// --- UPDATED fetchData FUNCTION TO GET ALL ROWS ---
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
     const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-    const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
+    let allRecords = [];
+    let offset = null;
+    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
-    const res = await fetch(url, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    // Keep fetching pages as long as there's an offset
+    do {
+        const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
 
-    if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
-    }
+        const res = await fetch(url, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
 
-    const data = await res.json();
-    return data.records.map((rec) => rec.fields);
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
+        }
+
+        const data = await res.json();
+
+        // Add the fetched records to our main array
+        allRecords = allRecords.concat(data.records);
+
+        // Get the offset for the next page, if it exists
+        offset = data.offset;
+
+    } while (offset);
+
+    // Now return the fields from all the collected records
+    console.log(`Fetched a total of ${allRecords.length} records from Airtable.`);
+    return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
+
 
 const categoryIcons = {
     Equipment: EquipmentIcon,
@@ -109,12 +127,11 @@ export default function ProcessDiagram() {
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code });
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
                 });
 
                 const newNodes = [];
                 const newEdges = [];
-                let idCounter = 1;
                 let unitX = 0;
 
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
@@ -158,17 +175,16 @@ export default function ProcessDiagram() {
                         let itemX = unitX + 40;
                         const itemY = yOffset + 20;
                         items.forEach((item) => {
-                            const id = `item-${idCounter++}`;
                             const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
-                                id,
+                                id: item.id, // Use the real Airtable record ID for the node
                                 position: { x: itemX, y: itemY },
                                 data: {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
                                     icon: IconComponent
                                         ? <IconComponent style={{ width: 20, height: 20 }} />
                                         : null,
-                                    scale: 1,                // ← initialize the scale factor
+                                    scale: 1,
                                 },
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
@@ -190,14 +206,14 @@ export default function ProcessDiagram() {
             .catch((err) => {
                 console.error(err);
             });
-    }, []);
+    }, [setNodes, setEdges]); // Added dependencies to satisfy ESLint
 
     const onConnect = useCallback(
         (params) => {
             const updated = addEdge(
                 {
                     ...params,
-                    type: 'step', // 👈 orthogonal routing
+                    type: 'step',
                     animated: true,
                     style: { stroke: 'blue', strokeWidth: 2 },
                 },
@@ -207,17 +223,19 @@ export default function ProcessDiagram() {
             setEdges(updated);
             localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));
         },
-        [edges, nodes]
+        [edges, nodes, setEdges] // Added setEdges dependency
     );
 
 
     const onNodeDragStop = useCallback(
         (_, updatedNode) => {
-            const updatedNodes = nodes.map((n) => (n.id === updatedNode.id ? updatedNode : n));
-            setNodes(updatedNodes);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes: updatedNodes, edges }));
+            setNodes((currentNodes) => {
+                const updatedNodes = currentNodes.map((n) => (n.id === updatedNode.id ? updatedNode : n));
+                localStorage.setItem('diagram-layout', JSON.stringify({ nodes: updatedNodes, edges }));
+                return updatedNodes;
+            });
         },
-        [nodes, edges]
+        [edges, setNodes] // Added setNodes dependency
     );
 
     const handleReset = () => {
@@ -261,20 +279,21 @@ export default function ProcessDiagram() {
                 </button>
                 <button
                     onClick={() => {
+                        if (selectedNodes.length === 0) {
+                            alert("Please select nodes to group.");
+                            return;
+                        }
                         const groupId = `group-${Date.now()}`;
                         const groupName = prompt('Enter group name:', 'My Group') || 'Unnamed Group';
 
-                        // Default group size and position
                         const defaultWidth = 300;
                         const defaultHeight = 150;
 
-                        // Position label near first selected node if any
                         const firstSelected = selectedNodes[0];
                         const labelPosition = firstSelected
                             ? { x: firstSelected.position.x - 20, y: firstSelected.position.y - 40 }
                             : { x: 0, y: 0 };
 
-                        // Handler for resize callback
                         const onGroupResize = (id, newSize) => {
                             setNodes((nds) =>
                                 nds.map((node) => {
@@ -301,25 +320,17 @@ export default function ProcessDiagram() {
                         };
 
                         setNodes((nds) => {
-                            // Mark selected nodes with groupId and clear their borders for clarity
+                            const selectedIds = selectedNodes.map(node => node.id);
                             const updatedNodes = nds.map((node) =>
-                                selectedNodes.find((sel) => sel.id === node.id)
+                                selectedIds.includes(node.id)
                                     ? {
                                         ...node,
-                                        data: {
-                                            ...node.data,
-                                            groupId,
-                                        },
-                                        style: {
-                                            ...node.style,
-                                            border: 'none',  // group items themselves have no border
-                                            backgroundColor: 'transparent',
-                                        },
+                                        data: { ...node.data, groupId },
+                                        style: { ...node.style, border: 'none', backgroundColor: 'transparent' },
                                     }
                                     : node
                             );
 
-                            // Add group label node with size and onResize callback
                             updatedNodes.push({
                                 id: `group-label-${groupId}`,
                                 type: 'groupLabel',
@@ -330,6 +341,7 @@ export default function ProcessDiagram() {
                                     height: defaultHeight,
                                     onResize: onGroupResize,
                                     id: `group-label-${groupId}`,
+                                    groupId: groupId,
                                 },
                                 selectable: true,
                                 draggable: true,
@@ -356,39 +368,29 @@ export default function ProcessDiagram() {
                 </button>
                 <button
                     onClick={() => {
-                        // Find all selected group label nodes
                         const selectedGroupLabels = selectedNodes.filter(
                             (node) => node.type === 'groupLabel'
                         );
 
                         if (selectedGroupLabels.length === 0) {
-                            alert('Select a group label node to remove its group');
+                            alert('Select a group label to remove its group');
                             return;
                         }
 
                         setNodes((nds) => {
-                            // Get all group IDs of selected group labels
                             const groupIdsToRemove = selectedGroupLabels.map(
-                                (groupLabel) => groupLabel.data.groupId || groupLabel.id.replace('group-label-', '')
+                                (groupLabel) => groupLabel.data.groupId
                             );
 
-                            // Remove group label nodes and remove groupId from grouped nodes
                             return nds
-                                .filter((node) => !groupIdsToRemove.includes(node.data?.groupId) || node.type === 'groupLabel' && !groupIdsToRemove.includes(node.id.replace('group-label-', '')))
+                                .filter(node => !(node.type === 'groupLabel' && groupIdsToRemove.includes(node.data.groupId)))
                                 .map((node) => {
                                     if (node.data?.groupId && groupIdsToRemove.includes(node.data.groupId)) {
-                                        // Ungroup this node by removing groupId
+                                        const { groupId, ...restData } = node.data;
                                         return {
                                             ...node,
-                                            data: {
-                                                ...node.data,
-                                                groupId: undefined,
-                                            },
-                                            style: {
-                                                ...node.style,
-                                                border: '', // or your default border style
-                                                backgroundColor: '', // or your default bg color
-                                            },
+                                            data: restData,
+                                            style: { ...node.style, border: '', backgroundColor: '' },
                                         };
                                     }
                                     return node;
@@ -421,9 +423,9 @@ export default function ProcessDiagram() {
                 selectionOnDrag={true}
                 minZoom={0.02}
                 defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                nodeTypes={nodeTypes} // ✅ use custom node here
+                nodeTypes={nodeTypes}
                 onPaneContextMenu={(event) => {
-                    event.preventDefault(); // Prevent browser context menu
+                    event.preventDefault();
                     setNodes((nds) =>
                         nds.map((node) => ({
                             ...node,
