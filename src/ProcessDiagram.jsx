@@ -204,7 +204,7 @@ export default function ProcessDiagram() {
     const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), []);
 
     return (
-    <> {/* MODAL: Use a Fragment to render the modal alongside the diagram */}
+        <> {/* MODAL: Use a Fragment to render the modal alongside the diagram */}
             {/* MODAL: The Modal component itself */}
             {modalData && (
                 <div style={modalStyles.backdrop} onClick={() => setModalData(null)}>
@@ -240,4 +240,12 @@ export default function ProcessDiagram() {
                     selectionOnDrag={true}
                     minZoom={0.02}
                     nodeTypes={nodeTypes}
-// ... (rest of the
+                // ... (rest of the props are unchanged) ...
+                >
+                    <Background />
+                    <Controls />
+                </ReactFlow>
+            </div>
+        </>
+    );
+}
