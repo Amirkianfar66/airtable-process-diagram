@@ -16,6 +16,7 @@ import ScalableNode from './ScalableNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
+import AddItemButton from './AddItemButton';
 
 import EquipmentIcon from './Icons/EquipmentIcon';
 import InstrumentIcon from './Icons/InstrumentIcon';
@@ -102,6 +103,28 @@ export default function ProcessDiagram() {
         },
         [edges, nodes]
     );
+    // ✅ New function to create a node dynamically
+    const createNewItem = () => {
+        const newItem = {
+            id: `item-${Date.now()}`,
+            Code: 'NEW001',
+            Name: 'New Item',
+            Category: 'Equipment', // or Pipe/Other
+        };
+
+        const newNode = {
+            id: newItem.id,
+            position: { x: 100, y: 100 }, // default position
+            data: { label: `${newItem.Code} - ${newItem.Name}` },
+            type: newItem.Category === 'Equipment' ? 'equipment' : 'scalableIcon',
+            sourcePosition: 'right',
+            targetPosition: 'left',
+            style: { background: 'transparent' },
+        };
+
+        setNodes((nds) => [...nds, newNode]);
+        setItems((its) => [...its, newItem]);
+    };
 
     useEffect(() => {
         fetchData()
@@ -202,7 +225,22 @@ export default function ProcessDiagram() {
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
             <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
-
+                {/* ✅ Add New Item Button */}
+                <div style={{ padding: 10 }}>
+                    <button
+                        onClick={createNewItem} // function defined earlier
+                        style={{
+                            padding: '6px 12px',
+                            background: '#4CAF50',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Add New Item
+                    </button>
+                </div>
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
