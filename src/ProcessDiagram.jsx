@@ -25,12 +25,9 @@ import InlineValveIcon from './Icons/InlineValveIcon';
 import PipeIcon from './Icons/PipeIcon';
 import ElectricalIcon from './Icons/ElectricalIcon';
 
-// ✅ Node type registry must point to NODE COMPONENTS that include <Handle/>
-//    Do NOT map to raw icon components here.
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
-    // Use the same handle-capable node component for items
     equipment: ScalableIconNode,
     pipe: ScalableIconNode,
     scalable: ScalableNode,
@@ -38,7 +35,6 @@ const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
-// Icons used inside data.icon, rendered by ScalableIconNode
 const categoryIcons = {
     Equipment: EquipmentIcon,
     Instrument: InstrumentIcon,
@@ -47,7 +43,6 @@ const categoryIcons = {
     Electrical: ElectricalIcon,
 };
 
-// ── Fetch all rows from Airtable table configured in env ──────────────────────
 const fetchLinkedRecords = async (ids, table) => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -56,9 +51,7 @@ const fetchLinkedRecords = async (ids, table) => {
 
     do {
         const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100&filterByFormula=OR(${ids.map(id => `RECORD_ID()='${id}'`).join(',')})` + (offset ? `&offset=${offset}` : '');
-        const res = await fetch(url, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error(`Linked table fetch failed: ${res.status} ${res.statusText}`);
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
@@ -78,9 +71,7 @@ const fetchData = async () => {
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-        const res = await fetch(url, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
@@ -92,12 +83,10 @@ const fetchData = async () => {
 
     const mainRecords = allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 
-    // Detect linked fields
     for (let record of mainRecords) {
         record.linkedData = {};
         for (let [fieldName, value] of Object.entries(record)) {
             if (Array.isArray(value) && value.every(v => typeof v === 'string' && v.startsWith('rec'))) {
-                // Fetch linked table name from environment or map (if known)
                 const linkedTable = import.meta.env[`VITE_AIRTABLE_${fieldName.toUpperCase()}_TABLE`];
                 if (linkedTable) {
                     record.linkedData[fieldName] = await fetchLinkedRecords(value, linkedTable);
@@ -109,6 +98,32 @@ const fetchData = async () => {
     return mainRecords;
 };
 
+export default function ProcessDiagram() {
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [items, setItems] = useState([]);
+
+    const onSelectionChange = useCallback(
+        ({ nodes }) => {
+            if (nodes.length === 1) {
+                const match = items.find((i) => i.id === nodes[0].id);
+                setSelectedItem(match || null);
+            } else {
+                setSelectedItem(null);
+            }
+        },
+        [items]
+    );
+
+    const onConnect = useCallback(
+        (params) => {
+            setEdges((eds) =>
+                addEdge({ ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } }, eds)
+            );
+        },
+        []
+    );
 
     useEffect(() => {
         let cancelled = false;
@@ -118,22 +133,18 @@ const fetchData = async () => {
                 if (cancelled) return;
                 setItems(rows);
 
-                // Group: Unit → Sub Unit
                 const grouped = {};
                 for (const item of rows) {
                     const unit = item.Unit || 'Unknown Unit';
                     const subUnit = item['Sub Unit'] || item.SubUnit || 'Unknown Sub Unit';
-
                     if (!grouped[unit]) grouped[unit] = {};
                     if (!grouped[unit][subUnit]) grouped[unit][subUnit] = [];
-
                     grouped[unit][subUnit].push(item);
                 }
 
                 const newNodes = [];
                 const newEdges = [];
-
-                let yOffset = 40; // vertical start
+                let yOffset = 40;
                 const unitGap = 220;
                 const subUnitGap = 160;
                 const itemGapX = 200;
@@ -165,30 +176,25 @@ const fetchData = async () => {
                         newEdges.push({ id: `e-${unitId}-${subId}`, source: unitId, target: subId, type: 'step' });
 
                         let itemX = 520;
-                        itemsInSub
-                            .slice()
-                            .sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0))
-                            .forEach((it) => {
-                                const Icon = categoryIcons[it['Category Item Type']] || null;
-
-                                // 🔑 Use a handle-capable node type for ALL items
-                                newNodes.push({
-                                    id: it.id,
-                                    position: { x: itemX, y: subY + 10 },
-                                    data: {
-                                        label: `${it['Item Code'] || ''} - ${it['Name'] || ''}`.trim(),
-                                        icon: Icon ? <Icon style={{ width: 20, height: 20 }} /> : null,
-                                        scale: 1,
-                                    },
-                                    type: 'scalableIcon',
-                                    sourcePosition: 'right',
-                                    targetPosition: 'left',
-                                });
-
-                                newEdges.push({ id: `e-${subId}-${it.id}`, source: subId, target: it.id, type: 'step' });
-
-                                itemX += itemGapX;
+                        itemsInSub.slice().sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0)).forEach((it) => {
+                            const Icon = categoryIcons[it['Category Item Type']] || null;
+                            newNodes.push({
+                                id: it.id,
+                                position: { x: itemX, y: subY + 10 },
+                                data: {
+                                    label: `${it['Item Code'] || ''} - ${it['Name'] || ''}`.trim(),
+                                    icon: Icon ? <Icon style={{ width: 20, height: 20 }} /> : null,
+                                    scale: 1,
+                                    linkedData: it.linkedData || {},
+                                },
+                                type: 'scalableIcon',
+                                sourcePosition: 'right',
+                                targetPosition: 'left',
                             });
+
+                            newEdges.push({ id: `e-${subId}-${it.id}`, source: subId, target: it.id, type: 'step' });
+                            itemX += itemGapX;
+                        });
 
                         subY += subUnitGap;
                     });
@@ -199,9 +205,7 @@ const fetchData = async () => {
                 setNodes(newNodes);
                 setEdges(newEdges);
             })
-            .catch((err) => {
-                console.error(err);
-            });
+            .catch((err) => console.error(err));
 
         return () => {
             cancelled = true;
