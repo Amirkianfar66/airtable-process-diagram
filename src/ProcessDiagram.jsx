@@ -33,40 +33,32 @@ const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
-// This function now correctly requests the linked 'Type' field to be expanded.
+// This function is correct. It fetches all data from the Airtable table.
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
     const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
     let allRecords = [];
     let offset = null;
-
-    // This URL is constructed to ask Airtable to send back the full record
-    // for any field named "Type". You can add more fields if needed.
-    // Example for multiple fields: `...&fields%5B%5D=Type&fields%5B%5D=AnotherField`
     const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-
         const res = await fetch(url, {
             headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
-
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         offset = data.offset;
     } while (offset);
 
-    // The 'Type' field will now be an array of linked record objects.
+    // We return the full record data, including the raw linked field.
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
-
 
 const categoryIcons = {
     Equipment: EquipmentIcon,
@@ -87,6 +79,7 @@ export default function ProcessDiagram() {
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
         if (nodes.length === 1) {
+            // Find the item from the fully processed 'items' state
             const nodeData = items.find(item => item.id === nodes[0].id);
             setSelectedItem(nodeData || null);
         } else {
@@ -99,55 +92,65 @@ export default function ProcessDiagram() {
             const updatedEdges = addEdge(
                 {
                     ...params,
-                    type: 'step', // orthogonal edges
+                    type: 'step',
                     animated: true,
                     style: { stroke: 'blue', strokeWidth: 2 },
                 },
                 edges
             );
             setEdges(updatedEdges);
-            // Note: Saving layout to localStorage might become very large if you have a lot of data.
-            // Consider a more robust saving mechanism if needed.
+            // Be cautious with saving to localStorage if the diagram becomes very large.
         },
-        [edges] // Removed 'nodes' from dependency array as it's not used in the localStorage logic here.
+        [edges, setEdges]
     );
 
     useEffect(() => {
         fetchData()
             .then((fetchedItems) => {
-                // First, we remap the fetched items to flatten the linked 'Type' field.
-                const processedItems = fetchedItems.map(item => {
-                    // --- MODIFICATION START ---
-                    // The 'Type' field from Airtable will be an array of strings (the linked record's primary field value).
-                    // We extract the first element if it exists, otherwise provide a default.
-                    const itemType = (item.Type && item.Type.length > 0) ? item.Type[0] : 'Unknown';
-
-                    return {
-                        ...item,
-                        // Create a new property 'Category' with the resolved value.
-                        // This avoids confusion with the original 'Type' array.
-                        Category: itemType,
-                    };
-                    // --- MODIFICATION END ---
-                });
-
-                setItems(processedItems);
                 const grouped = {};
 
+                // --- START OF THE FIX ---
+
+                // 1. Process the items first to create a clean 'Category' field
+                const processedItems = fetchedItems.map(item => {
+                    // Access the field using bracket notation because of spaces
+                    const categoryArray = item['Category Item Type'];
+
+                    // Airtable linked records return an array of strings (the primary field's value).
+                    // We safely extract the first string.
+                    const categoryValue = (Array.isArray(categoryArray) && categoryArray.length > 0)
+                        ? categoryArray[0]
+                        : 'Unknown'; // Default value if it's empty or not an array
+
+                    // Return a new object with all original data plus our clean 'Category' field
+                    return {
+                        ...item,
+                        Category: categoryValue,
+                    };
+                });
+
+                // 2. Set the fully processed items to state. This is important for the detail card.
+                setItems(processedItems);
+
+                // 3. Group the processed items for node generation
                 processedItems.forEach((item) => {
-                    // Now, we can directly use the 'Category' property we created.
-                    const { Unit, SubUnit = item['Sub Unit'], Category, Sequence = 0, Name, ['Item Code']: Code, id } = item;
+                    // Now we can safely destructure 'Unit', 'SubUnit', and our new 'Category'
+                    const { Unit, Category } = item;
+                    const SubUnit = item['Sub Unit']; // Also access this directly for safety
 
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-                    // Push all relevant data for later use (e.g., in the detail card).
-                    grouped[Unit][SubUnit].push({ ...item, id });
+
+                    // Push the entire processed item object so all its data is available
+                    grouped[Unit][SubUnit].push(item);
                 });
+
+                // --- END OF THE FIX ---
 
 
                 const newNodes = [];
-                const newEdges = [];
+                // const newEdges = []; // Edges are managed by state, no need to reset here
                 let unitX = 0;
                 const unitWidth = 5000;
                 const unitHeight = 3000;
@@ -163,7 +166,7 @@ export default function ProcessDiagram() {
                         style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
                         draggable: false,
                         selectable: false,
-                        type: 'groupLabel', // Use a simple node type for groups
+                        type: 'groupLabel',
                     });
 
                     Object.entries(subUnits).forEach(([subUnit, itemsInSubUnit], index) => {
@@ -180,18 +183,17 @@ export default function ProcessDiagram() {
 
                         itemsInSubUnit.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         let itemX = unitX + 40;
-
                         itemsInSubUnit.forEach((item) => {
-                            // Use the processed 'Category' field to find the icon
+                            // Use the clean 'Category' field we created
                             const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
                                 id: item.id,
-                                position: { x: itemX, y: yOffset + 40 }, // Increased y-offset to not overlap subunit border
+                                position: { x: itemX, y: yOffset + 40 },
                                 data: {
                                     label: `${item['Item Code'] || ''} - ${item.Name || ''}`,
                                     icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
                                 },
-                                // Use the Category to determine the node type
+                                // Determine node type from our clean 'Category'
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
@@ -204,11 +206,11 @@ export default function ProcessDiagram() {
                 });
 
                 setNodes(newNodes);
-                setEdges(newEdges);
-                setDefaultLayout({ nodes: newNodes, edges: newEdges });
+                // setEdges(newEdges); // Keep existing edges
+                setDefaultLayout({ nodes: newNodes, edges: [] });
             })
             .catch(console.error);
-    }, []); // Empty dependency array ensures this runs only once on mount.
+    }, [setEdges, setNodes]); // Added state setters to dependency array
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
@@ -223,7 +225,6 @@ export default function ProcessDiagram() {
                     fitView
                     selectionOnDrag
                     minZoom={0.02}
-                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={nodeTypes}
                 >
                     <Background />
