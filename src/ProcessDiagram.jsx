@@ -198,6 +198,7 @@ export default function ProcessDiagram() {
                     minZoom={0.02}
                     defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={nodeTypes}
+                    style={{ background: 'transparent' }} // <-- importan
                 >
                     <Background />
                     <Controls />
