@@ -70,12 +70,12 @@ const fetchAllTables = async () => {
             const res = await fetch(url, { headers });
             const data = await res.json();
 
-            // Step 3: If this is Table 13, replace Type IDs with names
+            // Step 3: If this is Table 13, replace Type IDs with objects containing Name
             if (table === "Table 13") {
                 data.records = data.records.map(rec => {
                     const newFields = { ...rec.fields };
                     if (Array.isArray(newFields.Type)) {
-                        newFields.Type = newFields.Type.map(id => overallMap[id] || id);
+                        newFields.Type = newFields.Type.map(id => ({ Name: overallMap[id] || id }));
                     }
                     return { ...rec, fields: newFields };
                 });
@@ -90,10 +90,6 @@ const fetchAllTables = async () => {
 
     return tablesData;
 };
-
-
-
-
 
 
 export default function ProcessDiagram() {
