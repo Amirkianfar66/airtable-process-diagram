@@ -2,7 +2,7 @@
 
 export default function AddItemButton({ addItem }) {
     const [showForm, setShowForm] = useState(false);
-    const [newItem, setNewItem] = useState({
+    const [formData, setFormData] = useState({
         Code: '',
         Name: '',
         Category: 'Equipment',
@@ -10,17 +10,19 @@ export default function AddItemButton({ addItem }) {
         SubUnit: '',
     });
 
-    const handleSubmit = () => {
-        if (!newItem.Code || !newItem.Name || !newItem.Unit || !newItem.SubUnit) {
-            alert('Please fill all fields');
-            return;
-        }
-        addItem({
-            ...newItem,
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleAdd = () => {
+        const newItem = {
             id: `item-${Date.now()}`,
-        });
+            ...formData,
+        };
+        addItem(newItem);
+        setFormData({ Code: '', Name: '', Category: 'Equipment', Unit: '', SubUnit: '' });
         setShowForm(false);
-        setNewItem({ Code: '', Name: '', Category: 'Equipment', Unit: '', SubUnit: '' });
     };
 
     return (
@@ -41,60 +43,40 @@ export default function AddItemButton({ addItem }) {
             </button>
 
             {showForm && (
-                <div style={{
-                    position: 'absolute',
-                    top: 50,
-                    left: 50,
-                    background: '#fff',
-                    padding: 20,
-                    borderRadius: 8,
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-                    zIndex: 1000,
-                }}>
-                    <h4>New Item</h4>
-                    <input
-                        type="text"
-                        placeholder="Item Code"
-                        value={newItem.Code}
-                        onChange={(e) => setNewItem({ ...newItem, Code: e.target.value })}
-                        style={{ marginBottom: 10, width: '100%' }}
-                    />
-                    <input
-                        type="text"
-                        placeholder="Item Name"
-                        value={newItem.Name}
-                        onChange={(e) => setNewItem({ ...newItem, Name: e.target.value })}
-                        style={{ marginBottom: 10, width: '100%' }}
-                    />
-                    <select
-                        value={newItem.Category}
-                        onChange={(e) => setNewItem({ ...newItem, Category: e.target.value })}
-                        style={{ marginBottom: 10, width: '100%' }}
-                    >
-                        <option value="Equipment">Equipment</option>
-                        <option value="Instrument">Instrument</option>
-                        <option value="Inline Valve">Inline Valve</option>
-                        <option value="Pipe">Pipe</option>
-                        <option value="Electrical">Electrical</option>
-                    </select>
-                    <input
-                        type="text"
-                        placeholder="Unit"
-                        value={newItem.Unit}
-                        onChange={(e) => setNewItem({ ...newItem, Unit: e.target.value })}
-                        style={{ marginBottom: 10, width: '100%' }}
-                    />
-                    <input
-                        type="text"
-                        placeholder="SubUnit"
-                        value={newItem.SubUnit}
-                        onChange={(e) => setNewItem({ ...newItem, SubUnit: e.target.value })}
-                        style={{ marginBottom: 10, width: '100%' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <button onClick={handleSubmit} style={{ background: '#4CAF50', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: 4 }}>Add</button>
-                        <button onClick={() => setShowForm(false)} style={{ background: '#ccc', padding: '6px 12px', border: 'none', borderRadius: 4 }}>Cancel</button>
+                <div style={{ position: 'absolute', background: '#fff', padding: 20, border: '1px solid #ccc', borderRadius: 4 }}>
+                    <div>
+                        <label>Code:</label>
+                        <input name="Code" value={formData.Code} onChange={handleChange} />
                     </div>
+                    <div>
+                        <label>Name:</label>
+                        <input name="Name" value={formData.Name} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label>Category:</label>
+                        <select name="Category" value={formData.Category} onChange={handleChange}>
+                            <option>Equipment</option>
+                            <option>Instrument</option>
+                            <option>Inline Valve</option>
+                            <option>Pipe</option>
+                            <option>Electrical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Unit:</label>
+                        <input name="Unit" value={formData.Unit} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label>SubUnit:</label>
+                        <input name="SubUnit" value={formData.SubUnit} onChange={handleChange} />
+                    </div>
+
+                    <button onClick={handleAdd} style={{ marginTop: 10, padding: '5px 10px' }}>
+                        Add
+                    </button>
+                    <button onClick={() => setShowForm(false)} style={{ marginLeft: 10, padding: '5px 10px' }}>
+                        Cancel
+                    </button>
                 </div>
             )}
         </div>
