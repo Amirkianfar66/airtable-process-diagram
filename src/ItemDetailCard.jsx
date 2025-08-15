@@ -10,7 +10,7 @@ export default function ItemDetailCard({ item, onChange }) {
         setLocalItem(item || {});
     }, [item]);
 
-    // Resolve linked "Type" name (like before)
+    // Resolve linked "Type" name
     useEffect(() => {
         const fetchTypeName = async () => {
             if (!item || !item.Type || !Array.isArray(item.Type) || item.Type.length === 0) {
@@ -31,7 +31,6 @@ export default function ItemDetailCard({ item, onChange }) {
                 const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
                 const token = import.meta.env.VITE_AIRTABLE_TOKEN;
                 const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-
                 if (!typesTableId) throw new Error("VITE_AIRTABLE_TYPES_TABLE_ID is not defined");
 
                 const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`;
@@ -74,30 +73,71 @@ export default function ItemDetailCard({ item, onChange }) {
         }}>
             <section style={{ marginBottom: '16px' }}>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px', marginTop: 0 }}>General Info</h3>
-                <div><strong>Code:</strong> <input type="text" value={localItem['Item Code'] || ''} onChange={e => handleFieldChange('Item Code', e.target.value)} /></div>
-                <div><strong>Name:</strong> <input type="text" value={localItem['Name'] || ''} onChange={e => handleFieldChange('Name', e.target.value)} /></div>
+                <div>
+                    <strong>Code:</strong>
+                    <input type="text" value={localItem['Item Code'] || ''} onChange={e => handleFieldChange('Item Code', e.target.value)} />
+                </div>
+                <div>
+                    <strong>Name:</strong>
+                    <input type="text" value={localItem['Name'] || ''} onChange={e => handleFieldChange('Name', e.target.value)} />
+                </div>
                 <div>
                     <strong>Category:</strong>{' '}
-                    <select value={localItem['Category Item Type'] || 'Equipment'} onChange={e => handleFieldChange('Category Item Type', e.target.value)}>
+                    <select
+                        value={localItem['Category Item Type'] || 'Equipment'}
+                        onChange={e => {
+                            handleFieldChange('Category Item Type', e.target.value);
+                            handleFieldChange('Category', e.target.value); // sync for canvas
+                        }}
+                    >
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                 </div>
-                <div><strong>Class Name:</strong> <input type="text" value={localItem['Class Name'] || ''} onChange={e => handleFieldChange('Class Name', e.target.value)} /></div>
+                <div>
+                    <strong>Unit:</strong>
+                    <input type="text" value={localItem['Unit'] || ''} onChange={e => handleFieldChange('Unit', e.target.value)} />
+                </div>
+                <div>
+                    <strong>Sub Unit:</strong>
+                    <input type="text" value={localItem['SubUnit'] || localItem['Sub Unit'] || ''} onChange={e => handleFieldChange('SubUnit', e.target.value)} />
+                </div>
+                <div>
+                    <strong>Class Name:</strong>
+                    <input type="text" value={localItem['Class Name'] || ''} onChange={e => handleFieldChange('Class Name', e.target.value)} />
+                </div>
                 <div><strong>Type:</strong> {resolvedType}</div>
-                <div><strong>Count / Sequence:</strong> <input type="number" value={localItem['Sequence'] || 0} onChange={e => handleFieldChange('Sequence', e.target.value)} /></div>
+                <div>
+                    <strong>Count / Sequence:</strong>
+                    <input type="number" value={localItem['Sequence'] || 0} onChange={e => handleFieldChange('Sequence', e.target.value)} />
+                </div>
             </section>
 
             <section style={{ marginBottom: '16px' }}>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Procurement Info</h3>
-                <div><strong>Model Number:</strong> <input type="text" value={localItem['Model Number'] || ''} onChange={e => handleFieldChange('Model Number', e.target.value)} /></div>
-                <div><strong>Manufacturer:</strong> <input type="text" value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])} onChange={e => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)} /></div>
-                <div><strong>Supplier:</strong> <input type="text" value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])} onChange={e => handleFieldChange('Supplier (from Technical Spec)', e.target.value)} /></div>
-                <div><strong>Supplier Code:</strong> <input type="text" value={localItem['Supplier Code'] || ''} onChange={e => handleFieldChange('Supplier Code', e.target.value)} /></div>
+                <div>
+                    <strong>Model Number:</strong>
+                    <input type="text" value={localItem['Model Number'] || ''} onChange={e => handleFieldChange('Model Number', e.target.value)} />
+                </div>
+                <div>
+                    <strong>Manufacturer:</strong>
+                    <input type="text" value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])} onChange={e => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)} />
+                </div>
+                <div>
+                    <strong>Supplier:</strong>
+                    <input type="text" value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])} onChange={e => handleFieldChange('Supplier (from Technical Spec)', e.target.value)} />
+                </div>
+                <div>
+                    <strong>Supplier Code:</strong>
+                    <input type="text" value={localItem['Supplier Code'] || ''} onChange={e => handleFieldChange('Supplier Code', e.target.value)} />
+                </div>
             </section>
 
             <section>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Engineering Info</h3>
-                <div><strong>Size:</strong> <input type="text" value={localItem['Size'] || ''} onChange={e => handleFieldChange('Size', e.target.value)} /></div>
+                <div>
+                    <strong>Size:</strong>
+                    <input type="text" value={localItem['Size'] || ''} onChange={e => handleFieldChange('Size', e.target.value)} />
+                </div>
             </section>
         </div>
     );
