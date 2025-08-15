@@ -42,46 +42,55 @@ const categoryIcons = {
 
 // Updated fetchAllTables to expand linked records
 const fetchAllTables = async () => {
-    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-    const tableNames = ["Table 13", "Overall", "Items"];
+    const tablesData = {};
+    const tableNames = ["Overall", "Table 13", "Items"];
+    const headers = { Authorization: `Bearer ${apiKey}` };
 
-    let allRecords = [];
+    // Step 1: Fetch "Overall" and build ID → Name map
+    const overallMap = {};
+    let offset;
+    do {
+        const url = `https://api.airtable.com/v0/${baseId}/Overall?pageSize=100${offset ? `&offset=${offset}` : ''}`;
+        const res = await fetch(url, { headers });
+        const data = await res.json();
+        data.records.forEach(r => {
+            overallMap[r.id] = r.fields.Name || "";
+        });
+        offset = data.offset;
+    } while (offset);
+    tablesData["Overall"] = Object.entries(overallMap).map(([id, name]) => ({ id, name }));
+
+    // Step 2: Fetch remaining tables
     for (const table of tableNames) {
-        let offset = null;
+        if (table === "Overall") continue; // Already done above
+        let allRecords = [];
+        offset = null;
         do {
             const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100${offset ? `&offset=${offset}` : ''}`;
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
-            }
-
+            const res = await fetch(url, { headers });
             const data = await res.json();
 
-            allRecords = allRecords.concat(
-                data.records.map(rec => {
-                    const newItem = { id: rec.id, ...rec.fields };
+            // Step 3: If this is Table 13, replace Type IDs with names
+            if (table === "Table 13") {
+                data.records = data.records.map(rec => {
+                    const newFields = { ...rec.fields };
+                    if (Array.isArray(newFields.Type)) {
+                        newFields.Type = newFields.Type.map(id => overallMap[id] || id);
+                    }
+                    return { ...rec, fields: newFields };
+                });
+            }
 
-                    // Automatically expand all linked fields
-                    Object.keys(rec.fields).forEach(key => {
-                        if (Array.isArray(rec.fields[key]) && rec.fields[key].length > 0 && typeof rec.fields[key][0] === 'object') {
-                            newItem[key] = rec.fields[key].map(f => ({ ...f }));
-                        }
-                    });
-
-                    return newItem;
-                })
-            );
-
+            allRecords = [...allRecords, ...data.records];
             offset = data.offset;
         } while (offset);
+
+        tablesData[table] = allRecords;
     }
-    return allRecords;
+
+    return tablesData;
 };
+
 
 
 
