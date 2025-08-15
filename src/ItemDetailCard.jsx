@@ -3,7 +3,13 @@
 export default function ItemDetailCard({ item }) {
     if (!item) return null;
 
-    const linkedType = Array.isArray(item['Type']) ? item['Type'].map(t => t.name || t).join(', ') : item['Type'] || '-';
+    const getLinkedValue = (field) => {
+        // If the field is an array of objects (expanded linked records), show their 'Name' or a specific property
+        if (Array.isArray(field)) {
+            return field.map(f => f.Name || f.name || f).join(', ');
+        }
+        return field || '-';
+    };
 
     return (
         <div style={{
@@ -21,7 +27,7 @@ export default function ItemDetailCard({ item }) {
                 <div><strong>Name:</strong> {item['Name'] || '-'}</div>
                 <div><strong>Category:</strong> {item['Category Item Type'] || '-'}</div>
                 <div><strong>Class Name:</strong> {item['Class Name'] || '-'}</div>
-                <div><strong>Type Name:</strong> {linkedType}</div>
+                <div><strong>Type Name:</strong> {getLinkedValue(item['Type'])}</div>
                 <div><strong>Count / Sequence:</strong> {item['Sequence'] || '-'}</div>
             </section>
 
@@ -38,7 +44,6 @@ export default function ItemDetailCard({ item }) {
             <section>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Engineering Info</h3>
                 <div><strong>Size:</strong> {item['Size'] || '-'}</div>
-                {/* Add more engineering-related fields here */}
             </section>
         </div>
     );
