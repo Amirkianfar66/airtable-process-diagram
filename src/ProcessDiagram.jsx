@@ -205,7 +205,7 @@ export default function ProcessDiagram() {
                 </ReactFlow>
             </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: '#f9f9f9', overflowY: 'auto' }}>
+            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', overflowY: 'auto' }}>
                 {selectedItem ? (
                     <ItemDetailCard item={selectedItem} />
                 ) : (
