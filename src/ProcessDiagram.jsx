@@ -16,6 +16,7 @@ import ScalableNode from './ScalableNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
+import AddItemButton from './AddItemButton';
 
 import EquipmentIcon from './Icons/EquipmentIcon';
 import InstrumentIcon from './Icons/InstrumentIcon';
@@ -102,6 +103,28 @@ export default function ProcessDiagram() {
         },
         [edges, nodes]
     );
+    // ✅ New function to create a node dynamically
+    const createNewItem = () => {
+        const newItem = {
+            id: `item-${Date.now()}`,
+            Code: 'NEW001',
+            Name: 'New Item',
+            Category: 'Equipment', // or Pipe/Other
+        };
+
+        const newNode = {
+            id: newItem.id,
+            position: { x: 100, y: 100 }, // default position
+            data: { label: `${newItem.Code} - ${newItem.Name}` },
+            type: newItem.Category === 'Equipment' ? 'equipment' : 'scalableIcon',
+            sourcePosition: 'right',
+            targetPosition: 'left',
+            style: { background: 'transparent' },
+        };
+
+        setNodes((nds) => [...nds, newNode]);
+        setItems((its) => [...its, newItem]);
+    };
 
     useEffect(() => {
         fetchData()
@@ -113,7 +136,13 @@ export default function ProcessDiagram() {
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
+
+                    // --- START OF FIX ---
+                    // The 'Category' variable here is an array (e.g., ['Equipment']).
+                    // We extract the string value from the array before pushing it.
+                    const categoryString = Array.isArray(Category) ? Category[0] : Category;
+                    grouped[Unit][SubUnit].push({ Category: categoryString, Sequence, Name, Code, id: item.id });
+                    // --- END OF FIX ---
                 });
 
                 const newNodes = [];
@@ -126,28 +155,44 @@ export default function ProcessDiagram() {
                 const itemGap = 30;
 
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    // Unit node
                     newNodes.push({
                         id: `unit-${unit}`,
                         position: { x: unitX, y: 0 },
                         data: { label: unit },
-                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
+                        style: {
+                            width: unitWidth,
+                            height: unitHeight,
+                            border: '4px solid #444',
+                            background: 'transparent', // fully transparent
+                            boxShadow: 'none',
+                        },
                         draggable: false,
                         selectable: false,
                     });
 
                     Object.entries(subUnits).forEach(([subUnit, items], index) => {
                         const yOffset = index * subUnitHeight;
+
+                        // SubUnit node
                         newNodes.push({
                             id: `sub-${unit}-${subUnit}`,
                             position: { x: unitX + 10, y: yOffset + 10 },
                             data: { label: subUnit },
-                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
+                            style: {
+                                width: unitWidth - 20,
+                                height: subUnitHeight - 20,
+                                border: '2px dashed #aaa',
+                                background: 'transparent',
+                                boxShadow: 'none',
+                            },
                             draggable: false,
                             selectable: false,
                         });
 
-                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        // Items inside subunit
                         let itemX = unitX + 40;
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         items.forEach((item) => {
                             const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
@@ -160,6 +205,7 @@ export default function ProcessDiagram() {
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
+                                style: { background: 'transparent', boxShadow: 'none' }, // <-- transparent for items too
                             });
                             itemX += itemWidth + itemGap;
                         });
@@ -167,6 +213,7 @@ export default function ProcessDiagram() {
 
                     unitX += unitWidth + 100;
                 });
+
 
                 setNodes(newNodes);
                 setEdges(newEdges);
@@ -177,7 +224,23 @@ export default function ProcessDiagram() {
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
+                {/* ✅ Add New Item Button */}
+                <div style={{ padding: 10 }}>
+                    <button
+                        onClick={createNewItem} // function defined earlier
+                        style={{
+                            padding: '6px 12px',
+                            background: '#4CAF50',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Add New Item
+                    </button>
+                </div>
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -190,13 +253,13 @@ export default function ProcessDiagram() {
                     minZoom={0.02}
                     defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={nodeTypes}
+                    style={{ background: 'transparent' }} // <-- importan
                 >
-                    <Background />
                     <Controls />
                 </ReactFlow>
             </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: '#f9f9f9', overflowY: 'auto' }}>
+            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', overflowY: 'auto' }}>
                 {selectedItem ? (
                     <ItemDetailCard item={selectedItem} />
                 ) : (
