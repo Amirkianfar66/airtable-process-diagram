@@ -42,9 +42,9 @@ export default function ItemDetailCard({ item }) {
 
                 const record = await res.json();
 
-                // --- THIS IS THE LINE TO CHANGE ---
-                // Replace 'Name' with the actual primary field name from your Airtable table.
-                const typeName = record.fields.Name || 'Unknown Type';
+                // --- CHANGE APPLIED HERE ---
+                // Changed from record.fields.Name to record.fields.Type
+                const typeName = record.fields.Type || 'Unknown Type';
 
                 setResolvedType(typeName);
                 typeCache.set(typeId, typeName);
@@ -86,7 +86,6 @@ export default function ItemDetailCard({ item }) {
                 <div><strong>Count / Sequence:</strong> {item['Sequence'] || '-'}</div>
             </section>
 
-            {/* Other sections remain the same */}
             <section style={{ marginBottom: '16px' }}>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Procurement Info</h3>
                 <div><strong>Model Number:</strong> {item['Model Number'] || '-'}</div>
