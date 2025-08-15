@@ -133,16 +133,19 @@ export default function ProcessDiagram() {
 
     useEffect(() => {
         fetchAllTables()
-            .then((items) => {
-                setItems(items);
+            .then((tables) => {
+                const table13Records = tables["Table 13"] || [];
+                setItems(table13Records);
+
                 const grouped = {};
-                items.forEach((item) => {
-                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+                table13Records.forEach((item) => {
+                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item.fields || {};
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
                     grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
                 });
+
 
                 const newNodes = [];
                 const newEdges = [];
