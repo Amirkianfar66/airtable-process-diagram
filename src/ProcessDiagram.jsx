@@ -43,7 +43,7 @@ const categoryIcons = {
 const fetchAllTables = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-    const tableNames = ["Table 13", "TOverall", "Items"];
+    const tableNames = ["Table 13", "Overall", "Items"];
 
     let allRecords = [];
     for (const table of tableNames) {
