@@ -8,209 +8,126 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
+
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
-import ScalableNode from './ScalableNode';
-import ScalableIconNode from './ScalableIconNode';
-import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 
-import EquipmentIcon from './Icons/EquipmentIcon';
-import InstrumentIcon from './Icons/InstrumentIcon';
-import InlineValveIcon from './Icons/InlineValveIcon';
-import PipeIcon from './Icons/PipeIcon';
-import ElectricalIcon from './Icons/ElectricalIcon';
-
-// Define your Airtable credentials
-const apiKey = import.meta.env.VITE_AIRTABLE_TOKEN;
-const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-
-const nodeTypes = {
-    resizable: ResizableNode,
-    custom: CustomItemNode,
-    pipe: PipeItemNode,
-    equipment: EquipmentIcon,
-    scalable: ScalableNode,
-    scalableIcon: ScalableIconNode,
-    groupLabel: GroupLabelNode,
-};
-
-const categoryIcons = {
-    Equipment: EquipmentIcon,
-    Instrument: InstrumentIcon,
-    'Inline Valve': InlineValveIcon,
-    Pipe: PipeIcon,
-    Electrical: ElectricalIcon,
-};
-
-// Updated fetchAllTables to expand linked records
-const fetchAllTables = async () => {
-    const tablesData = {};
-    const tableNames = ["Overall", "Table 13", "Items"];
-    const headers = { Authorization: `Bearer ${apiKey}` };
-
-    // Step 1: Fetch "Overall" and build ID → Name map
-    const overallMap = {};
-    let offset;
-    do {
-        const url = `https://api.airtable.com/v0/${baseId}/Overall?pageSize=100${offset ? `&offset=${offset}` : ''}`;
-        const res = await fetch(url, { headers });
-        const data = await res.json();
-        data.records.forEach(r => {
-            overallMap[r.id] = r.fields.Name || "";
-        });
-        offset = data.offset;
-    } while (offset);
-    tablesData["Overall"] = Object.entries(overallMap).map(([id, name]) => ({ id, name }));
-
-    // Step 2: Fetch remaining tables
-    for (const table of tableNames) {
-        if (table === "Overall") continue; // Already done above
-        let allRecords = [];
-        offset = null;
-        do {
-            const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100${offset ? `&offset=${offset}` : ''}`;
-            const res = await fetch(url, { headers });
-            const data = await res.json();
-
-            // Step 3: If this is Table 13, replace Type IDs with objects containing Name
-            if (table === "Table 13") {
-                data.records = data.records.map(rec => {
-                    const newFields = { ...rec.fields };
-                    if (Array.isArray(newFields.Type)) {
-                        newFields.Type = newFields.Type.map(id => ({ Name: overallMap[id] || id }));
-                    }
-                    return { ...rec, fields: newFields };
-                });
-            }
-
-            allRecords = [...allRecords, ...data.records];
-            offset = data.offset;
-        } while (offset);
-
-        tablesData[table] = allRecords;
-    }
-
-    return tablesData;
-};
-
-
-export default function ProcessDiagram() {
-    const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
+export default function ProcessDiagram({ table13Records }) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
-    const [items, setItems] = useState([]);
 
-    const onSelectionChange = useCallback(({ nodes }) => {
-        setSelectedNodes(nodes);
-        if (nodes.length === 1) {
-            const nodeData = items.find(item => item.id === nodes[0].id);
-            // Merge ID and fields so ItemDetailCard gets the right props
-            setSelectedItem(nodeData ? { id: nodeData.id, ...nodeData.fields } : null);
-        } else {
-            setSelectedItem(null);
-        }
-    }, [items]);
+    const nodeTypes = {
+        resizable: ResizableNode,
+        equipment: CustomItemNode,
+        pipe: PipeItemNode,
+        scalableIcon: ResizableNode,
+    };
 
-
+    // ✅ Handles connection between nodes
     const onConnect = useCallback(
-        (params) => {
-            const updatedEdges = addEdge(
-                {
-                    ...params,
-                    type: 'step',
-                    animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2 },
-                },
-                edges
-            );
-            setEdges(updatedEdges);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
-        },
-        [edges, nodes]
+        (params) => setEdges((eds) => addEdge(params, eds)),
+        []
     );
 
+    // ✅ Handles selection for detail card
+    const onSelectionChange = useCallback(
+        ({ nodes }) => {
+            setSelectedNodes(nodes);
+            if (nodes.length === 1) {
+                const nodeData = table13Records.find(
+                    (item) => item.id === nodes[0].id
+                );
+                setSelectedItem(nodeData || null);
+            } else {
+                setSelectedItem(null);
+            }
+        },
+        [table13Records]
+    );
+
+    // ✅ Build nodes & edges from Airtable data
     useEffect(() => {
-        fetchAllTables()
-            .then((tables) => {
-                const table13Records = tables["Table 13"] || [];
-                setItems(table13Records);
+        if (!table13Records || !table13Records.length) return;
 
-                const grouped = {};
-                table13Records.forEach((item) => {
-                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item.fields || {};
-                    if (!Unit || !SubUnit) return;
-                    if (!grouped[Unit]) grouped[Unit] = {};
-                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
+        const newNodes = [];
+        const newEdges = [];
+
+        const grouped = {};
+        table13Records.forEach((item) => {
+            const unit = item['Unit'] || 'Unknown Unit';
+            const subUnit = item['Sub Unit'] || 'Unknown Sub Unit';
+            if (!grouped[unit]) grouped[unit] = {};
+            if (!grouped[unit][subUnit]) grouped[unit][subUnit] = [];
+            grouped[unit][subUnit].push(item);
+        });
+
+        let yOffset = 50;
+        let nodeIdCounter = 1;
+
+        Object.entries(grouped).forEach(([unit, subUnits]) => {
+            const unitId = `unit-${nodeIdCounter++}`;
+            newNodes.push({
+                id: unitId,
+                position: { x: 50, y: yOffset },
+                data: { label: unit },
+                type: 'resizable',
+                sourcePosition: 'right',
+                targetPosition: 'left',
+            });
+
+            Object.entries(subUnits).forEach(([subUnit, items]) => {
+                const subUnitId = `subunit-${nodeIdCounter++}`;
+                newNodes.push({
+                    id: subUnitId,
+                    position: { x: 250, y: yOffset + 50 },
+                    data: { label: subUnit },
+                    type: 'resizable',
+                    sourcePosition: 'right',
+                    targetPosition: 'left',
                 });
 
+                newEdges.push({ id: `e-${unitId}-${subUnitId}`, source: unitId, target: subUnitId });
 
-                const newNodes = [];
-                const newEdges = [];
-                let unitX = 0;
-                const unitWidth = 5000;
-                const unitHeight = 3000;
-                const subUnitHeight = unitHeight / 9;
-                const itemWidth = 160;
-                const itemGap = 30;
+                let itemX = 500;
+                items.forEach((item) => {
+                    const category = (item['Category Item Type'] || '').toLowerCase();
+                    let nodeType = 'scalableIcon';
+                    if (category === 'equipment') nodeType = 'equipment';
+                    if (category === 'pipe') nodeType = 'pipe';
 
-                Object.entries(grouped).forEach(([unit, subUnits]) => {
                     newNodes.push({
-                        id: `unit-${unit}`,
-                        position: { x: unitX, y: 0 },
-                        data: { label: unit },
-                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
-                        draggable: false,
-                        selectable: false,
+                        id: item.id,
+                        position: { x: itemX, y: yOffset + 80 },
+                        data: {
+                            label: `${item['Item Code'] || ''} - ${item['Name'] || ''}`,
+                            ...item, // ✅ Pass all fields for ItemDetailCard
+                        },
+                        type: nodeType,
+                        sourcePosition: 'right',
+                        targetPosition: 'left',
                     });
 
-                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
-                        const yOffset = index * subUnitHeight;
-                        newNodes.push({
-                            id: `sub-${unit}-${subUnit}`,
-                            position: { x: unitX + 10, y: yOffset + 10 },
-                            data: { label: subUnit },
-                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
-                            draggable: false,
-                            selectable: false,
-                        });
-
-                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                        let itemX = unitX + 40;
-                        items.forEach((item) => {
-                            const IconComponent = categoryIcons[item.Category];
-                            newNodes.push({
-                                id: item.id,
-                                position: { x: itemX, y: yOffset + 20 },
-                                data: {
-                                    label: `${item.Code || ''} - ${item.Name || ''}`,
-                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
-                                },
-                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
-                                sourcePosition: 'right',
-                                targetPosition: 'left',
-                            });
-                            itemX += itemWidth + itemGap;
-                        });
-                    });
-
-                    unitX += unitWidth + 100;
+                    newEdges.push({ id: `e-${subUnitId}-${item.id}`, source: subUnitId, target: item.id });
+                    itemX += 200;
                 });
 
-                setNodes(newNodes);
-                setEdges(newEdges);
-                setDefaultLayout({ nodes: newNodes, edges: newEdges });
-            })
-            .catch(console.error);
-    }, []);
+                yOffset += Math.max(150, items.length * 120);
+            });
+
+            yOffset += 100;
+        });
+
+        setNodes(newNodes);
+        setEdges(newEdges);
+    }, [table13Records]);
 
     return (
-        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
+        <div style={{ display: 'flex', height: '100%' }}>
+            <div style={{ flex: 1 }}>
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -229,12 +146,9 @@ export default function ProcessDiagram() {
                 </ReactFlow>
             </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: '#f9f9f9', overflowY: 'auto' }}>
-                {selectedItem ? (
-                    <ItemDetailCard item={selectedItem} />
-                ) : (
-                    <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
-                )}
+            {/* ✅ Detail Card */}
+            <div style={{ width: 350, padding: 16, background: '#f9f9f9', overflowY: 'auto' }}>
+                <ItemDetailCard item={selectedItem} />
             </div>
         </div>
     );
