@@ -132,25 +132,38 @@ export default function ProcessDiagram() {
                 const itemGap = 30;
 
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    // Unit node
                     newNodes.push({
                         id: `unit-${unit}`,
                         position: { x: unitX, y: 0 },
                         data: { label: unit },
-                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
+                        style: {
+                            width: unitWidth,
+                            height: unitHeight,
+                            border: '4px solid #444',
+                            background: 'transparent',      // <-- add this
+                            boxShadow: 'none'               // remove shadow if any
+                        },
                         draggable: false,
                         selectable: false,
                     });
 
-                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
-                        const yOffset = index * subUnitHeight;
-                        newNodes.push({
-                            id: `sub-${unit}-${subUnit}`,
-                            position: { x: unitX + 10, y: yOffset + 10 },
-                            data: { label: subUnit },
-                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
-                            draggable: false,
-                            selectable: false,
-                        });
+                    // SubUnit node
+                    newNodes.push({
+                        id: `sub-${unit}-${subUnit}`,
+                        position: { x: unitX + 10, y: yOffset + 10 },
+                        data: { label: subUnit },
+                        style: {
+                            width: unitWidth - 20,
+                            height: subUnitHeight - 20,
+                            border: '2px dashed #aaa',
+                            background: 'transparent',     // <-- add this
+                            boxShadow: 'none'
+                        },
+                        draggable: false,
+                        selectable: false,
+                    });
+
 
                         items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         let itemX = unitX + 40;
