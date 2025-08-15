@@ -65,9 +65,10 @@ const fetchAllTables = async () => {
                 data.records.map(rec => ({
                     id: rec.id,
                     ...rec.fields,
-                    TypeName: rec.fields.Type && rec.fields.Type[0] && rec.fields.Type[0].name ? rec.fields.Type[0].name : ''
+                    Type: rec.fields.Type ? rec.fields.Type : []
                 }))
             );
+
             offset = data.offset;
         } while (offset);
     }
