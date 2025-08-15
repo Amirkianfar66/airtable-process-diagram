@@ -1,26 +1,74 @@
-﻿import React from 'react';
+﻿import React, { useState, useEffect } from 'react';
+
+// A cache to store fetched type names to avoid repeated API calls
+const typeCache = new Map();
 
 export default function ItemDetailCard({ item }) {
-    if (!item) return null;
+    // State to hold the resolved name of the 'Type' field
+    const [resolvedType, setResolvedType] = useState('');
 
-    // --- MODIFICATION ---
-    // This helper function now cleanly handles arrays of strings (the default for linked records)
-    // or arrays of objects (if you ever expand them in the future).
-    const getLinkedValue = (field) => {
-        if (Array.isArray(field) && field.length > 0) {
-            // Map over the array and join the values with a comma.
-            // This works whether the array contains strings like ['Equipment']
-            // or objects like [{Name: 'Value'}].
-            return field.map(value => {
-                if (typeof value === 'object' && value !== null) {
-                    return value.Name || value.name; // For expanded records
+    useEffect(() => {
+        // This function will run whenever the 'item' prop changes
+        const fetchTypeName = async () => {
+            if (!item || !item.Type || !Array.isArray(item.Type) || item.Type.length === 0) {
+                setResolvedType('-'); // No type to resolve
+                return;
+            }
+
+            const typeId = item.Type[0]; // e.g., 'rec4npyPo4LmsDYJ7'
+
+            // 1. Check cache first
+            if (typeCache.has(typeId)) {
+                setResolvedType(typeCache.get(typeId));
+                return;
+            }
+
+            // 2. If not in cache, show loading and fetch from API
+            setResolvedType('Loading...');
+
+            try {
+                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+                // You MUST add this new variable to your .env file.
+                // It's the ID of the table where the types are stored (e.g., your "Overall" table)
+                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+
+                const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`;
+
+                const res = await fetch(url, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+
+                if (!res.ok) {
+                    throw new Error('Failed to fetch type name');
                 }
-                return value; // For simple string arrays
-            }).join(', ');
+
+                const record = await res.json();
+                // Assuming the field you want to display is called 'Name'
+                const typeName = record.fields.Name || 'Unknown Type';
+
+                // Update state and cache
+                setResolvedType(typeName);
+                typeCache.set(typeId, typeName);
+
+            } catch (error) {
+                console.error("Error resolving Type ID:", error);
+                setResolvedType(typeId); // Show the ID as a fallback on error
+            }
+        };
+
+        fetchTypeName();
+    }, [item]); // Dependency array ensures this runs when 'item' changes
+
+    const getSimpleLinkedValue = (field) => {
+        // This handles fields that are simple string arrays, like 'Category Item Type'
+        if (Array.isArray(field)) {
+            return field.join(', ') || '-';
         }
-        // If it's not an array, return it directly.
         return field || '-';
     };
+
+    if (!item) return null;
 
     return (
         <div style={{
@@ -31,28 +79,26 @@ export default function ItemDetailCard({ item }) {
             maxWidth: '350px',
             fontFamily: 'sans-serif'
         }}>
-            {/* General Info */}
             <section style={{ marginBottom: '16px' }}>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>General Info</h3>
                 <div><strong>Code:</strong> {item['Item Code'] || '-'}</div>
                 <div><strong>Name:</strong> {item['Name'] || '-'}</div>
-                {/* --- FIX APPLIED HERE --- */}
-                <div><strong>Category:</strong> {getLinkedValue(item['Category Item Type'])}</div>
+                <div><strong>Category:</strong> {getSimpleLinkedValue(item['Category Item Type'])}</div>
                 <div><strong>Class Name:</strong> {item['Class Name'] || '-'}</div>
-                <div><strong>Type:</strong> {getLinkedValue(item['Type'])}</div>
+                {/* --- FIX APPLIED HERE --- */}
+                <div><strong>Type:</strong> {resolvedType}</div>
                 <div><strong>Count / Sequence:</strong> {item['Sequence'] || '-'}</div>
             </section>
 
-            {/* Procurement Info */}
+            {/* Other sections remain the same */}
             <section style={{ marginBottom: '16px' }}>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Procurement Info</h3>
                 <div><strong>Model Number:</strong> {item['Model Number'] || '-'}</div>
-                <div><strong>Manufacturer:</strong> {getLinkedValue(item['Manufacturer'])}</div>
-                <div><strong>Supplier:</strong> {getLinkedValue(item['Supplier'])}</div>
+                <div><strong>Manufacturer:</strong> {getSimpleLinkedValue(item['Manufacturer'])}</div>
+                <div><strong>Supplier:</strong> {getSimpleLinkedValue(item['Supplier'])}</div>
                 <div><strong>Supplier Code:</strong> {item['Supplier Code'] || '-'}</div>
             </section>
 
-            {/* Engineering Info */}
             <section>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Engineering Info</h3>
                 <div><strong>Size:</strong> {item['Size'] || '-'}</div>
