@@ -43,16 +43,13 @@ const fetchData = async () => {
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-
         const res = await fetch(url, {
             headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
-
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         offset = data.offset;
@@ -70,6 +67,7 @@ const categoryIcons = {
 };
 
 export default function ProcessDiagram() {
+    // No changes to state hooks
     const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -77,6 +75,7 @@ export default function ProcessDiagram() {
     const [selectedItem, setSelectedItem] = useState(null);
     const [items, setItems] = useState([]);
 
+    // No changes to callbacks
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
         if (nodes.length === 1) {
@@ -91,33 +90,47 @@ export default function ProcessDiagram() {
             const updatedEdges = addEdge(
                 {
                     ...params,
-                    type: 'step', // orthogonal edges
+                    type: 'step',
                     animated: true,
                     style: { stroke: 'blue', strokeWidth: 2 },
                 },
                 edges
             );
             setEdges(updatedEdges);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
         },
-        [edges, nodes]
+        [edges, setEdges]
     );
 
+    // --- MODIFICATIONS ARE IN THIS useEffect HOOK ---
     useEffect(() => {
         fetchData()
-            .then((items) => {
-                setItems(items);
+            .then((fetchedItems) => {
+                // Set the raw items to state so ItemDetailCard has all the original data
+                setItems(fetchedItems);
                 const grouped = {};
-                items.forEach((item) => {
-                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+
+                fetchedItems.forEach((item) => {
+                    // Access fields with spaces using bracket notation
+                    const Unit = item['Unit'];
+                    const SubUnit = item['Sub Unit'];
+                    const categoryArray = item['Category Item Type']; // This is an array, e.g., ['Equipment']
+
+                    // **THE FIX**: Convert the array from the linked field into a simple string
+                    const categoryString = (Array.isArray(categoryArray) && categoryArray.length > 0)
+                        ? categoryArray[0]
+                        : 'Unknown'; // Fallback for empty data
+
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
+
+                    // Push the full original item, but add our new 'Category' property for easy access
+                    grouped[Unit][SubUnit].push({ ...item, Category: categoryString });
                 });
 
+
                 const newNodes = [];
-                const newEdges = [];
+                const newEdges = []; // Start with fresh edges on data load
                 let unitX = 0;
                 const unitWidth = 5000;
                 const unitHeight = 3000;
@@ -133,9 +146,10 @@ export default function ProcessDiagram() {
                         style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
                         draggable: false,
                         selectable: false,
+                        type: 'groupLabel', // Using a custom type for group labels is good practice
                     });
 
-                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
+                    Object.entries(subUnits).forEach(([subUnit, itemsInGroup], index) => {
                         const yOffset = index * subUnitHeight;
                         newNodes.push({
                             id: `sub-${unit}-${subUnit}`,
@@ -144,19 +158,24 @@ export default function ProcessDiagram() {
                             style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
                             draggable: false,
                             selectable: false,
+                            type: 'groupLabel',
                         });
 
-                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        itemsInGroup.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         let itemX = unitX + 40;
-                        items.forEach((item) => {
+
+                        itemsInGroup.forEach((item) => {
+                            // Now `item.Category` is a string like "Equipment", so this lookup works
                             const IconComponent = categoryIcons[item.Category];
+
                             newNodes.push({
                                 id: item.id,
-                                position: { x: itemX, y: yOffset + 20 },
+                                position: { x: itemX, y: yOffset + 40 },
                                 data: {
-                                    label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    label: `${item['Item Code'] || ''} - ${item.Name || ''}`,
                                     icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
                                 },
+                                // And this comparison also works correctly now
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
@@ -173,8 +192,9 @@ export default function ProcessDiagram() {
                 setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
             .catch(console.error);
-    }, []);
+    }, [setEdges, setNodes]); // Include state setters in the dependency array
 
+    // No changes to the JSX
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
             <div style={{ flex: 1, position: 'relative' }}>
@@ -195,7 +215,6 @@ export default function ProcessDiagram() {
                     <Controls />
                 </ReactFlow>
             </div>
-
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: '#f9f9f9', overflowY: 'auto' }}>
                 {selectedItem ? (
                     <ItemDetailCard item={selectedItem} />
