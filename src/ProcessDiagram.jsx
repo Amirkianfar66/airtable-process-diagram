@@ -104,7 +104,19 @@ export default function ProcessDiagram() {
     );
 
     useEffect(() => {
-        fetchData()
+        const fetchAllTables = async () => {
+            const base = new Airtable({ apiKey: import.meta.env.VITE_AIRTABLE_TOKEN }).base(import.meta.env.VITE_AIRTABLE_BASE_ID);
+            const tableNames = ["Table 13", "Table Overall", "Items"];
+
+            let allItems = [];
+            for (const name of tableNames) {
+                const records = await base(name).select({ view: 'Grid view' }).all();
+                allItems = [...allItems, ...records.map(r => ({ id: r.id, ...r.fields }))];
+            }
+            return allItems;
+        };
+
+        fetchAllTables()
             .then((items) => {
                 setItems(items);
                 const grouped = {};
@@ -174,6 +186,7 @@ export default function ProcessDiagram() {
             })
             .catch(console.error);
     }, []);
+
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
