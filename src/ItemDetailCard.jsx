@@ -4,17 +4,16 @@
 const typeCache = new Map();
 
 export default function ItemDetailCard({ item }) {
-    // State to hold the resolved name of the 'Type' field
     const [resolvedType, setResolvedType] = useState('');
 
     useEffect(() => {
         const fetchTypeName = async () => {
             if (!item || !item.Type || !Array.isArray(item.Type) || item.Type.length === 0) {
-                setResolvedType('-'); // No type to resolve
+                setResolvedType('-');
                 return;
             }
 
-            const typeId = item.Type[0]; // e.g., 'rec4npyPo4LmsDYJ7'
+            const typeId = item.Type[0];
 
             if (typeCache.has(typeId)) {
                 setResolvedType(typeCache.get(typeId));
@@ -26,11 +25,11 @@ export default function ItemDetailCard({ item }) {
             try {
                 const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
                 const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                // This variable MUST exist in your .env file and your server must be restarted
-                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID; // Reads the new variable
 
+                // --- IMPROVEMENT: Check if the variable exists ---
                 if (!typesTableId) {
-                    throw new Error("VITE_AIRTABLE_TYPES_TABLE_ID is not defined in .env file.");
+                    throw new Error("VITE_AIRTABLE_TYPES_TABLE_ID is not defined in your .env file.");
                 }
 
                 const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`;
@@ -40,11 +39,11 @@ export default function ItemDetailCard({ item }) {
                 });
 
                 if (!res.ok) {
-                    // This is where your 403 error is caught
                     throw new Error(`Failed to fetch type name. Status: ${res.status}`);
                 }
 
                 const record = await res.json();
+                // Assumes the primary display field in your Types table is called 'Name'
                 const typeName = record.fields.Name || 'Unknown Type';
 
                 setResolvedType(typeName);
@@ -52,7 +51,7 @@ export default function ItemDetailCard({ item }) {
 
             } catch (error) {
                 console.error("Error resolving Type ID:", error);
-                setResolvedType(typeId); // Show the ID as a fallback on error
+                setResolvedType(typeId); // Show ID as a fallback on error
             }
         };
 
