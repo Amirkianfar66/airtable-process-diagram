@@ -200,7 +200,6 @@ export default function ProcessDiagram() {
                     nodeTypes={nodeTypes}
                     style={{ background: 'transparent' }} // <-- importan
                 >
-                    <Background />
                     <Controls />
                 </ReactFlow>
             </div>
