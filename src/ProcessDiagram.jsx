@@ -286,6 +286,7 @@ export default function ProcessDiagram() {
                     <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
                 )}
             </div>
+
         </div>
     );
 }
