@@ -141,34 +141,36 @@ export default function ProcessDiagram() {
                             width: unitWidth,
                             height: unitHeight,
                             border: '4px solid #444',
-                            background: 'transparent',      // <-- add this
-                            boxShadow: 'none'               // remove shadow if any
+                            background: 'transparent', // fully transparent
+                            boxShadow: 'none',
                         },
                         draggable: false,
                         selectable: false,
                     });
 
-                    // SubUnit node
-                    newNodes.push({
-                        id: `sub-${unit}-${subUnit}`,
-                        position: { x: unitX + 10, y: yOffset + 10 },
-                        data: { label: subUnit },
-                        style: {
-                            width: unitWidth - 20,
-                            height: subUnitHeight - 20,
-                            border: '2px dashed #aaa',
-                            background: 'transparent',     // <-- add this
-                            boxShadow: 'none'
-                        },
-                        draggable: false,
-                        selectable: false,
-                    });
+                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
+                        const yOffset = index * subUnitHeight;
 
+                        // SubUnit node
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: {
+                                width: unitWidth - 20,
+                                height: subUnitHeight - 20,
+                                border: '2px dashed #aaa',
+                                background: 'transparent',
+                                boxShadow: 'none',
+                            },
+                            draggable: false,
+                            selectable: false,
+                        });
 
-                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        // Items inside subunit
                         let itemX = unitX + 40;
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         items.forEach((item) => {
-                            // Now 'item.Category' is a string, so these lookups will work correctly.
                             const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
                                 id: item.id,
@@ -180,6 +182,7 @@ export default function ProcessDiagram() {
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
+                                style: { background: 'transparent', boxShadow: 'none' }, // <-- transparent for items too
                             });
                             itemX += itemWidth + itemGap;
                         });
@@ -187,6 +190,7 @@ export default function ProcessDiagram() {
 
                     unitX += unitWidth + 100;
                 });
+
 
                 setNodes(newNodes);
                 setEdges(newEdges);
