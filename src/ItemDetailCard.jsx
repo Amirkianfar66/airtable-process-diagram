@@ -3,11 +3,22 @@
 export default function ItemDetailCard({ item }) {
     if (!item) return null;
 
+    // --- MODIFICATION ---
+    // This helper function now cleanly handles arrays of strings (the default for linked records)
+    // or arrays of objects (if you ever expand them in the future).
     const getLinkedValue = (field) => {
-        // If the field is an array of objects (expanded linked records), show their 'Name' or a specific property
-        if (Array.isArray(field)) {
-            return field.map(f => f.Name || f.name || f).join(', ');
+        if (Array.isArray(field) && field.length > 0) {
+            // Map over the array and join the values with a comma.
+            // This works whether the array contains strings like ['Equipment']
+            // or objects like [{Name: 'Value'}].
+            return field.map(value => {
+                if (typeof value === 'object' && value !== null) {
+                    return value.Name || value.name; // For expanded records
+                }
+                return value; // For simple string arrays
+            }).join(', ');
         }
+        // If it's not an array, return it directly.
         return field || '-';
     };
 
@@ -25,7 +36,8 @@ export default function ItemDetailCard({ item }) {
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>General Info</h3>
                 <div><strong>Code:</strong> {item['Item Code'] || '-'}</div>
                 <div><strong>Name:</strong> {item['Name'] || '-'}</div>
-                <div><strong>Category:</strong> {item['Category Item Type'] || '-'}</div>
+                {/* --- FIX APPLIED HERE --- */}
+                <div><strong>Category:</strong> {getLinkedValue(item['Category Item Type'])}</div>
                 <div><strong>Class Name:</strong> {item['Class Name'] || '-'}</div>
                 <div><strong>Type:</strong> {getLinkedValue(item['Type'])}</div>
                 <div><strong>Count / Sequence:</strong> {item['Sequence'] || '-'}</div>
@@ -35,8 +47,8 @@ export default function ItemDetailCard({ item }) {
             <section style={{ marginBottom: '16px' }}>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Procurement Info</h3>
                 <div><strong>Model Number:</strong> {item['Model Number'] || '-'}</div>
-                <div><strong>Manufacturer:</strong> {item['Manufacturer'] || '-'}</div>
-                <div><strong>Supplier:</strong> {item['Supplier'] || '-'}</div>
+                <div><strong>Manufacturer:</strong> {getLinkedValue(item['Manufacturer'])}</div>
+                <div><strong>Supplier:</strong> {getLinkedValue(item['Supplier'])}</div>
                 <div><strong>Supplier Code:</strong> {item['Supplier Code'] || '-'}</div>
             </section>
 

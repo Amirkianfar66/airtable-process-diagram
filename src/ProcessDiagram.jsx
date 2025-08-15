@@ -33,7 +33,6 @@ const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
-// This function is correct. It fetches all data from the Airtable table.
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -44,19 +43,21 @@ const fetchData = async () => {
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
+
         const res = await fetch(url, {
             headers: { Authorization: `Bearer ${token}` },
         });
+
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
+
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         offset = data.offset;
     } while (offset);
 
-    // We return the full record data, including the raw linked field.
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
 
@@ -79,78 +80,44 @@ export default function ProcessDiagram() {
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
         if (nodes.length === 1) {
-            // Find the item from the fully processed 'items' state
             const nodeData = items.find(item => item.id === nodes[0].id);
             setSelectedItem(nodeData || null);
         } else {
             setSelectedItem(null);
         }
     }, [items]);
-
     const onConnect = useCallback(
         (params) => {
             const updatedEdges = addEdge(
                 {
                     ...params,
-                    type: 'step',
+                    type: 'step', // orthogonal edges
                     animated: true,
                     style: { stroke: 'blue', strokeWidth: 2 },
                 },
                 edges
             );
             setEdges(updatedEdges);
-            // Be cautious with saving to localStorage if the diagram becomes very large.
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
         },
-        [edges, setEdges]
+        [edges, nodes]
     );
 
     useEffect(() => {
         fetchData()
-            .then((fetchedItems) => {
+            .then((items) => {
+                setItems(items);
                 const grouped = {};
-
-                // --- START OF THE FIX ---
-
-                // 1. Process the items first to create a clean 'Category' field
-                const processedItems = fetchedItems.map(item => {
-                    // Access the field using bracket notation because of spaces
-                    const categoryArray = item['Category Item Type'];
-
-                    // Airtable linked records return an array of strings (the primary field's value).
-                    // We safely extract the first string.
-                    const categoryValue = (Array.isArray(categoryArray) && categoryArray.length > 0)
-                        ? categoryArray[0]
-                        : 'Unknown'; // Default value if it's empty or not an array
-
-                    // Return a new object with all original data plus our clean 'Category' field
-                    return {
-                        ...item,
-                        Category: categoryValue,
-                    };
-                });
-
-                // 2. Set the fully processed items to state. This is important for the detail card.
-                setItems(processedItems);
-
-                // 3. Group the processed items for node generation
-                processedItems.forEach((item) => {
-                    // Now we can safely destructure 'Unit', 'SubUnit', and our new 'Category'
-                    const { Unit, Category } = item;
-                    const SubUnit = item['Sub Unit']; // Also access this directly for safety
-
+                items.forEach((item) => {
+                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-
-                    // Push the entire processed item object so all its data is available
-                    grouped[Unit][SubUnit].push(item);
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
                 });
 
-                // --- END OF THE FIX ---
-
-
                 const newNodes = [];
-                // const newEdges = []; // Edges are managed by state, no need to reset here
+                const newEdges = [];
                 let unitX = 0;
                 const unitWidth = 5000;
                 const unitHeight = 3000;
@@ -166,10 +133,9 @@ export default function ProcessDiagram() {
                         style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
                         draggable: false,
                         selectable: false,
-                        type: 'groupLabel',
                     });
 
-                    Object.entries(subUnits).forEach(([subUnit, itemsInSubUnit], index) => {
+                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
                         const yOffset = index * subUnitHeight;
                         newNodes.push({
                             id: `sub-${unit}-${subUnit}`,
@@ -178,22 +144,19 @@ export default function ProcessDiagram() {
                             style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
                             draggable: false,
                             selectable: false,
-                            type: 'groupLabel',
                         });
 
-                        itemsInSubUnit.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         let itemX = unitX + 40;
-                        itemsInSubUnit.forEach((item) => {
-                            // Use the clean 'Category' field we created
+                        items.forEach((item) => {
                             const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
                                 id: item.id,
-                                position: { x: itemX, y: yOffset + 40 },
+                                position: { x: itemX, y: yOffset + 20 },
                                 data: {
-                                    label: `${item['Item Code'] || ''} - ${item.Name || ''}`,
+                                    label: `${item.Code || ''} - ${item.Name || ''}`,
                                     icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
                                 },
-                                // Determine node type from our clean 'Category'
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
@@ -206,11 +169,11 @@ export default function ProcessDiagram() {
                 });
 
                 setNodes(newNodes);
-                // setEdges(newEdges); // Keep existing edges
-                setDefaultLayout({ nodes: newNodes, edges: [] });
+                setEdges(newEdges);
+                setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
             .catch(console.error);
-    }, [setEdges, setNodes]); // Added state setters to dependency array
+    }, []);
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
@@ -225,6 +188,7 @@ export default function ProcessDiagram() {
                     fitView
                     selectionOnDrag
                     minZoom={0.02}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={nodeTypes}
                 >
                     <Background />
