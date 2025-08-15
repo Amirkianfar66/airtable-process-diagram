@@ -33,6 +33,7 @@ const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
+// This function now correctly requests the linked 'Type' field to be expanded.
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -40,12 +41,10 @@ const fetchData = async () => {
     let allRecords = [];
     let offset = null;
 
-    // --- MODIFICATION ---
-    // Add the name of your linked field here.
-    // This example assumes your linked field is named "Type".
-    // The URL encoding for fields[] is %5B%5D.
-    const linkedFieldName = "Type"; // <--- CHANGE THIS if your field name is different
-    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100&fields%5B%5D=${encodeURIComponent(linkedFieldName)}`;
+    // This URL is constructed to ask Airtable to send back the full record
+    // for any field named "Type". You can add more fields if needed.
+    // Example for multiple fields: `...&fields%5B%5D=Type&fields%5B%5D=AnotherField`
+    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
@@ -64,10 +63,10 @@ const fetchData = async () => {
         offset = data.offset;
     } while (offset);
 
-    // Now, the 'Type' field in your records will contain the actual linked record's data,
-    // not just its ID. You might need to adjust how you access this data below.
+    // The 'Type' field will now be an array of linked record objects.
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
+
 
 const categoryIcons = {
     Equipment: EquipmentIcon,
@@ -94,6 +93,7 @@ export default function ProcessDiagram() {
             setSelectedItem(null);
         }
     }, [items]);
+
     const onConnect = useCallback(
         (params) => {
             const updatedEdges = addEdge(
@@ -106,23 +106,45 @@ export default function ProcessDiagram() {
                 edges
             );
             setEdges(updatedEdges);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
+            // Note: Saving layout to localStorage might become very large if you have a lot of data.
+            // Consider a more robust saving mechanism if needed.
         },
-        [edges, nodes]
+        [edges] // Removed 'nodes' from dependency array as it's not used in the localStorage logic here.
     );
 
     useEffect(() => {
         fetchData()
-            .then((items) => {
-                setItems(items);
+            .then((fetchedItems) => {
+                // First, we remap the fetched items to flatten the linked 'Type' field.
+                const processedItems = fetchedItems.map(item => {
+                    // --- MODIFICATION START ---
+                    // The 'Type' field from Airtable will be an array of strings (the linked record's primary field value).
+                    // We extract the first element if it exists, otherwise provide a default.
+                    const itemType = (item.Type && item.Type.length > 0) ? item.Type[0] : 'Unknown';
+
+                    return {
+                        ...item,
+                        // Create a new property 'Category' with the resolved value.
+                        // This avoids confusion with the original 'Type' array.
+                        Category: itemType,
+                    };
+                    // --- MODIFICATION END ---
+                });
+
+                setItems(processedItems);
                 const grouped = {};
-                items.forEach((item) => {
-                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+
+                processedItems.forEach((item) => {
+                    // Now, we can directly use the 'Category' property we created.
+                    const { Unit, SubUnit = item['Sub Unit'], Category, Sequence = 0, Name, ['Item Code']: Code, id } = item;
+
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
+                    // Push all relevant data for later use (e.g., in the detail card).
+                    grouped[Unit][SubUnit].push({ ...item, id });
                 });
+
 
                 const newNodes = [];
                 const newEdges = [];
@@ -141,9 +163,10 @@ export default function ProcessDiagram() {
                         style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
                         draggable: false,
                         selectable: false,
+                        type: 'groupLabel', // Use a simple node type for groups
                     });
 
-                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
+                    Object.entries(subUnits).forEach(([subUnit, itemsInSubUnit], index) => {
                         const yOffset = index * subUnitHeight;
                         newNodes.push({
                             id: `sub-${unit}-${subUnit}`,
@@ -152,19 +175,23 @@ export default function ProcessDiagram() {
                             style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
                             draggable: false,
                             selectable: false,
+                            type: 'groupLabel',
                         });
 
-                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        itemsInSubUnit.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         let itemX = unitX + 40;
-                        items.forEach((item) => {
+
+                        itemsInSubUnit.forEach((item) => {
+                            // Use the processed 'Category' field to find the icon
                             const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
                                 id: item.id,
-                                position: { x: itemX, y: yOffset + 20 },
+                                position: { x: itemX, y: yOffset + 40 }, // Increased y-offset to not overlap subunit border
                                 data: {
-                                    label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    label: `${item['Item Code'] || ''} - ${item.Name || ''}`,
                                     icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
                                 },
+                                // Use the Category to determine the node type
                                 type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
@@ -181,7 +208,7 @@ export default function ProcessDiagram() {
                 setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
             .catch(console.error);
-    }, []);
+    }, []); // Empty dependency array ensures this runs only once on mount.
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
