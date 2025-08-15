@@ -27,38 +27,10 @@ const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
     pipe: PipeItemNode,
-    equipment: ScalableIconNode,
+    equipment: EquipmentIcon,
     scalable: ScalableNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
-};
-
-const categoryIcons = {
-    Equipment: EquipmentIcon,
-    Instrument: InstrumentIcon,
-    'Inline Valve': InlineValveIcon,
-    Pipe: PipeIcon,
-    Electrical: ElectricalIcon,
-};
-
-const fetchLinkedRecords = async (ids, table) => {
-    if (!ids || ids.length === 0) return [];
-    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-    let allRecords = [];
-    let offset = null;
-
-    do {
-        const filterFormula = ids.map(id => `RECORD_ID()='${id}'`).join(',');
-        const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100&filterByFormula=OR(${filterFormula})` + (offset ? `&offset=${offset}` : '');
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) throw new Error(`Linked table fetch failed: ${res.status} ${res.statusText}`);
-        const data = await res.json();
-        allRecords = allRecords.concat(data.records);
-        offset = data.offset;
-    } while (offset);
-
-    return allRecords.map(r => ({ id: r.id, ...r.fields }));
 };
 
 const fetchData = async () => {
@@ -71,123 +43,165 @@ const fetchData = async () => {
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+
+        const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
+
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         offset = data.offset;
     } while (offset);
 
-    const mainRecords = allRecords.map(r => ({ id: r.id, ...r.fields }));
+    return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
+};
 
-    // Fetch linked records for each record in parallel
-    await Promise.all(mainRecords.map(async rec => {
-        rec.linkedData = {};
-        await Promise.all(Object.entries(rec).map(async ([key, val]) => {
-            if (Array.isArray(val) && val.every(v => typeof v === 'string' && v.startsWith('rec'))) {
-                const linkedTable = import.meta.env[`VITE_AIRTABLE_${key.toUpperCase()}_TABLE`];
-                if (linkedTable) {
-                    rec.linkedData[key] = await fetchLinkedRecords(val, linkedTable);
-                }
-            }
-        }));
-    }));
-
-    return mainRecords;
+const categoryIcons = {
+    Equipment: EquipmentIcon,
+    Instrument: InstrumentIcon,
+    'Inline Valve': InlineValveIcon,
+    Pipe: PipeIcon,
+    Electrical: ElectricalIcon,
 };
 
 export default function ProcessDiagram() {
+    const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
     const [items, setItems] = useState([]);
 
     const onSelectionChange = useCallback(({ nodes }) => {
+        setSelectedNodes(nodes);
         if (nodes.length === 1) {
-            const match = items.find(i => i.id === nodes[0].id);
-            setSelectedItem(match || null);
-        } else setSelectedItem(null);
+            const nodeData = items.find(item => item.id === nodes[0].id);
+            setSelectedItem(nodeData || null);
+        } else {
+            setSelectedItem(null);
+        }
     }, [items]);
-
-    const onConnect = useCallback(params => {
-        setEdges(eds => addEdge({ ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } }, eds));
-    }, []);
+    const onConnect = useCallback(
+        (params) => {
+            const updatedEdges = addEdge(
+                {
+                    ...params,
+                    type: 'step', // orthogonal edges
+                    animated: true,
+                    style: { stroke: 'blue', strokeWidth: 2 },
+                },
+                edges
+            );
+            setEdges(updatedEdges);
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
+        },
+        [edges, nodes]
+    );
 
     useEffect(() => {
-        let cancelled = false;
         fetchData()
-            .then(rows => {
-                if (cancelled) return;
-                setItems(rows);
-
+            .then((items) => {
+                setItems(items);
                 const grouped = {};
-                rows.forEach(item => {
-                    const unit = item.Unit || 'Unknown Unit';
-                    const subUnit = item['Sub Unit'] || item.SubUnit || 'Unknown Sub Unit';
-                    if (!grouped[unit]) grouped[unit] = {};
-                    if (!grouped[unit][subUnit]) grouped[unit][subUnit] = [];
-                    grouped[unit][subUnit].push(item);
+                items.forEach((item) => {
+                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+                    if (!Unit || !SubUnit) return;
+                    if (!grouped[Unit]) grouped[Unit] = {};
+                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
                 });
 
                 const newNodes = [];
                 const newEdges = [];
-                let yOffset = 40;
-                const unitGap = 220;
-                const subUnitGap = 160;
-                const itemGapX = 200;
+                let unitX = 0;
+                const unitWidth = 5000;
+                const unitHeight = 3000;
+                const subUnitHeight = unitHeight / 9;
+                const itemWidth = 160;
+                const itemGap = 30;
 
-                Object.entries(grouped).forEach(([unit, subUnits], uIdx) => {
-                    const unitId = `unit-${uIdx}`;
-                    newNodes.push({ id: unitId, position: { x: 20, y: yOffset }, data: { label: unit }, type: 'resizable', sourcePosition: 'right', targetPosition: 'left' });
+                Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    newNodes.push({
+                        id: `unit-${unit}`,
+                        position: { x: unitX, y: 0 },
+                        data: { label: unit },
+                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
+                        draggable: false,
+                        selectable: false,
+                    });
 
-                    let subY = yOffset + 70;
-                    Object.entries(subUnits).forEach(([sub, itemsInSub], sIdx) => {
-                        const subId = `${unitId}-sub-${sIdx}`;
-                        newNodes.push({ id: subId, position: { x: 260, y: subY }, data: { label: sub }, type: 'resizable', sourcePosition: 'right', targetPosition: 'left' });
-                        newEdges.push({ id: `e-${unitId}-${subId}`, source: unitId, target: subId, type: 'step' });
+                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
+                        const yOffset = index * subUnitHeight;
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
+                            draggable: false,
+                            selectable: false,
+                        });
 
-                        let itemX = 520;
-                        itemsInSub.slice().sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0)).forEach(it => {
-                            const Icon = categoryIcons[it['Category Item Type']] || null;
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        let itemX = unitX + 40;
+                        items.forEach((item) => {
+                            const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
-                                id: it.id,
-                                position: { x: itemX, y: subY + 10 },
-                                data: { label: `${it['Item Code'] || ''} - ${it['Name'] || ''}`.trim(), icon: Icon ? <Icon style={{ width: 20, height: 20 }} /> : null, scale: 1, linkedData: it.linkedData || {} },
-                                type: 'scalableIcon',
+                                id: item.id,
+                                position: { x: itemX, y: yOffset + 20 },
+                                data: {
+                                    label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
+                                },
+                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
                             });
-                            newEdges.push({ id: `e-${subId}-${it.id}`, source: subId, target: it.id, type: 'step' });
-                            itemX += itemGapX;
+                            itemX += itemWidth + itemGap;
                         });
-
-                        subY += subUnitGap;
                     });
 
-                    yOffset += unitGap;
+                    unitX += unitWidth + 100;
                 });
 
                 setNodes(newNodes);
                 setEdges(newEdges);
+                setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
-            .catch(err => console.error(err));
-
-        return () => { cancelled = true; };
+            .catch(console.error);
     }, []);
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
             <div style={{ flex: 1, position: 'relative' }}>
-                <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onSelectionChange={onSelectionChange} fitView selectionOnDrag minZoom={0.02} defaultViewport={{ x: 0, y: 0, zoom: 1 }} nodeTypes={nodeTypes}>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onSelectionChange={onSelectionChange}
+                    fitView
+                    selectionOnDrag
+                    minZoom={0.02}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                    nodeTypes={nodeTypes}
+                >
                     <Background />
                     <Controls />
                 </ReactFlow>
             </div>
+
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: '#f9f9f9', overflowY: 'auto' }}>
-                {selectedItem ? <ItemDetailCard item={selectedItem} /> : <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>}
+                {selectedItem ? (
+                    <ItemDetailCard item={selectedItem} />
+                ) : (
+                    <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
+                )}
             </div>
         </div>
     );
