@@ -48,61 +48,67 @@ const categoryIcons = {
 };
 
 // ── Fetch all rows from Airtable table configured in env ──────────────────────
+const fetchLinkedRecords = async (ids, table) => {
+    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+    let allRecords = [];
+    let offset = null;
+
+    do {
+        const url = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100&filterByFormula=OR(${ids.map(id => `RECORD_ID()='${id}'`).join(',')})` + (offset ? `&offset=${offset}` : '');
+        const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`Linked table fetch failed: ${res.status} ${res.statusText}`);
+        const data = await res.json();
+        allRecords = allRecords.concat(data.records);
+        offset = data.offset;
+    } while (offset);
+
+    return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
+};
+
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
     const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-
     let allRecords = [];
     let offset = null;
     const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-
+        const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
-
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         offset = data.offset;
     } while (offset);
 
-    const rows = allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
-    console.log(`[Airtable] fetched ${rows.length} rows`);
-    return rows;
+    const mainRecords = allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
+
+    // Detect linked fields
+    for (let record of mainRecords) {
+        record.linkedData = {};
+        for (let [fieldName, value] of Object.entries(record)) {
+            if (Array.isArray(value) && value.every(v => typeof v === 'string' && v.startsWith('rec'))) {
+                // Fetch linked table name from environment or map (if known)
+                const linkedTable = import.meta.env[`VITE_AIRTABLE_${fieldName.toUpperCase()}_TABLE`];
+                if (linkedTable) {
+                    record.linkedData[fieldName] = await fetchLinkedRecords(value, linkedTable);
+                }
+            }
+        }
+    }
+
+    return mainRecords;
 };
 
-export default function ProcessDiagram() {
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [items, setItems] = useState([]);
-
-    const onSelectionChange = useCallback(
-        ({ nodes }) => {
-            if (nodes.length === 1) {
-                const match = items.find((i) => i.id === nodes[0].id);
-                setSelectedItem(match || null);
-            } else {
-                setSelectedItem(null);
-            }
-        },
-        [items]
-    );
-
-    // ✅ Allow connecting nodes
-    const onConnect = useCallback(
-        (params) => {
-            setEdges((eds) =>
-                addEdge({ ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } }, eds)
-            );
-        },
-        []
-    );
 
     useEffect(() => {
         let cancelled = false;
