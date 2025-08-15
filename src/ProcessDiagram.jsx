@@ -39,7 +39,13 @@ const fetchData = async () => {
     const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
     let allRecords = [];
     let offset = null;
-    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
+
+    // --- MODIFICATION ---
+    // Add the name of your linked field here.
+    // This example assumes your linked field is named "Type".
+    // The URL encoding for fields[] is %5B%5D.
+    const linkedFieldName = "Type"; // <--- CHANGE THIS if your field name is different
+    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100&fields%5B%5D=${encodeURIComponent(linkedFieldName)}`;
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
@@ -58,6 +64,8 @@ const fetchData = async () => {
         offset = data.offset;
     } while (offset);
 
+    // Now, the 'Type' field in your records will contain the actual linked record's data,
+    // not just its ID. You might need to adjust how you access this data below.
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
 
