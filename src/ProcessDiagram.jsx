@@ -141,14 +141,14 @@ export default function ProcessDiagram() {
                             width: unitWidth,
                             height: unitHeight,
                             border: '4px solid #444',
-                            backgroundColor: 'transparent' // light grey for unit
+                            backgroundColor: 'transparent' // fully transparent
                         },
                         draggable: false,
                         selectable: false,
                     });
 
                     Object.entries(subUnits).forEach(([subUnit, items], index) => {
-                        const yOffset = index * subUnitHeight; // define yOffset here
+                        const yOffset = index * subUnitHeight;
 
                         // SubUnit node
                         newNodes.push({
@@ -159,7 +159,7 @@ export default function ProcessDiagram() {
                                 width: unitWidth - 20,
                                 height: subUnitHeight - 20,
                                 border: '2px dashed #aaa',
-                                backgroundColor: 'transparent' // white for subunit
+                                backgroundColor: 'transparent' // fully transparent
                             },
                             draggable: false,
                             selectable: false,
@@ -168,6 +168,7 @@ export default function ProcessDiagram() {
 
                     unitX += unitWidth + 100;
                 });
+
 
 
                 setNodes(newNodes);
