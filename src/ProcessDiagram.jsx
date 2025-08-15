@@ -132,44 +132,48 @@ export default function ProcessDiagram() {
                 const itemGap = 30;
 
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
-                    // Unit node
                     newNodes.push({
                         id: `unit-${unit}`,
                         position: { x: unitX, y: 0 },
                         data: { label: unit },
-                        style: {
-                            width: unitWidth,
-                            height: unitHeight,
-                            border: '4px solid #444',
-                            backgroundColor: 'transparent' // fully transparent
-                        },
+                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
                         draggable: false,
                         selectable: false,
                     });
 
                     Object.entries(subUnits).forEach(([subUnit, items], index) => {
                         const yOffset = index * subUnitHeight;
-
-                        // SubUnit node
                         newNodes.push({
                             id: `sub-${unit}-${subUnit}`,
                             position: { x: unitX + 10, y: yOffset + 10 },
                             data: { label: subUnit },
-                            style: {
-                                width: unitWidth - 20,
-                                height: subUnitHeight - 20,
-                                border: '2px dashed #aaa',
-                                backgroundColor: 'transparent' // fully transparent
-                            },
+                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
                             draggable: false,
                             selectable: false,
+                        });
+
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        let itemX = unitX + 40;
+                        items.forEach((item) => {
+                            // Now 'item.Category' is a string, so these lookups will work correctly.
+                            const IconComponent = categoryIcons[item.Category];
+                            newNodes.push({
+                                id: item.id,
+                                position: { x: itemX, y: yOffset + 20 },
+                                data: {
+                                    label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
+                                },
+                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                                sourcePosition: 'right',
+                                targetPosition: 'left',
+                            });
+                            itemX += itemWidth + itemGap;
                         });
                     });
 
                     unitX += unitWidth + 100;
                 });
-
-
 
                 setNodes(newNodes);
                 setEdges(newEdges);
