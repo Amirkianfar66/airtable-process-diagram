@@ -26,8 +26,8 @@ import ElectricalIcon from './Icons/ElectricalIcon';
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
+    pipe: PipeItemNode,
     equipment: ScalableIconNode,
-    pipe: ScalableIconNode,
     scalable: ScalableNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
@@ -83,18 +83,18 @@ const fetchData = async () => {
 
     const mainRecords = allRecords.map(r => ({ id: r.id, ...r.fields }));
 
-    // Fetch linked records for each record
-    for (let rec of mainRecords) {
+    // Fetch linked records for each record in parallel
+    await Promise.all(mainRecords.map(async rec => {
         rec.linkedData = {};
-        for (let [key, val] of Object.entries(rec)) {
+        await Promise.all(Object.entries(rec).map(async ([key, val]) => {
             if (Array.isArray(val) && val.every(v => typeof v === 'string' && v.startsWith('rec'))) {
                 const linkedTable = import.meta.env[`VITE_AIRTABLE_${key.toUpperCase()}_TABLE`];
                 if (linkedTable) {
                     rec.linkedData[key] = await fetchLinkedRecords(val, linkedTable);
                 }
             }
-        }
-    }
+        }));
+    }));
 
     return mainRecords;
 };
