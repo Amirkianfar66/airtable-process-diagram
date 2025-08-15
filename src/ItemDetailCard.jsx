@@ -2,8 +2,11 @@
 
 const typeCache = new Map();
 
-export default function ItemDetailCard({ item }) {
+export default function ItemDetailCard({ item, onChange }) {
     const [resolvedType, setResolvedType] = useState('');
+    const [localItem, setLocalItem] = useState(item);
+
+    useEffect(() => setLocalItem(item), [item]);
 
     useEffect(() => {
         const fetchTypeName = async () => {
@@ -31,25 +34,17 @@ export default function ItemDetailCard({ item }) {
                 }
 
                 const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`;
-
                 const res = await fetch(url, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
 
-                if (!res.ok) {
-                    throw new Error(`Failed to fetch type name. Status: ${res.status}`);
-                }
+                if (!res.ok) throw new Error(`Failed to fetch type name. Status: ${res.status}`);
 
                 const record = await res.json();
-
-                // --- THIS IS THE FINAL FIX ---
-                // We are now accessing the "Still Pipe" field from the response,
-                // which your console log showed contains the correct value.
                 const typeName = record.fields['Still Pipe'] || 'Unknown Type';
 
                 setResolvedType(typeName);
                 typeCache.set(typeId, typeName);
-
             } catch (error) {
                 console.error("Error resolving Type ID:", error);
                 setResolvedType(typeId);
@@ -59,47 +54,67 @@ export default function ItemDetailCard({ item }) {
         fetchTypeName();
     }, [item]);
 
-    // This helper now handles both strings and arrays of strings from Airtable.
     const getSimpleLinkedValue = (field) => {
-        if (Array.isArray(field)) {
-            return field.join(', ') || '-';
-        }
+        if (Array.isArray(field)) return field.join(', ') || '-';
         return field || '-';
     };
 
-    if (!item) return null;
+    if (!localItem) return null;
+
+    const isEditable = !item.id.startsWith('rec'); // Airtable IDs start with "rec", new items are editable
+
+    const handleFieldChange = (field, value) => {
+        const updated = { ...localItem, [field]: value };
+        setLocalItem(updated);
+        if (onChange) onChange(updated);
+    };
+
+    const renderField = (label, fieldName) => (
+        <div style={{ marginBottom: 6 }}>
+            <strong>{label}:</strong>{' '}
+            {isEditable ? (
+                <input
+                    style={{ width: '100%', padding: 4, fontSize: 14 }}
+                    value={localItem[fieldName] || ''}
+                    onChange={(e) => handleFieldChange(fieldName, e.target.value)}
+                />
+            ) : (
+                <span>{getSimpleLinkedValue(localItem[fieldName])}</span>
+            )}
+        </div>
+    );
 
     return (
         <div style={{
             background: '#fff',
-            borderRadius: '8px',
+            borderRadius: 8,
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            padding: '16px',
-            margin: '16px',
-            maxWidth: '350px',
+            padding: 16,
+            margin: 16,
+            maxWidth: 350,
             fontFamily: 'sans-serif'
         }}>
-            <section style={{ marginBottom: '16px' }}>
-                <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px', marginTop: 0 }}>General Info</h3>
-                <div><strong>Code:</strong> {item['Item Code'] || '-'}</div>
-                <div><strong>Name:</strong> {item['Name'] || '-'}</div>
-                <div><strong>Category:</strong> {getSimpleLinkedValue(item['Category Item Type'])}</div>
-                <div><strong>Class Name:</strong> {item['Class Name'] || '-'}</div>
-                <div><strong>Type:</strong> {resolvedType}</div>
-                <div><strong>Count / Sequence:</strong> {item['Sequence'] || '-'}</div>
+            <section style={{ marginBottom: 16 }}>
+                <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 4, marginBottom: 8, marginTop: 0 }}>General Info</h3>
+                {renderField('Code', 'Item Code')}
+                {renderField('Name', 'Name')}
+                {renderField('Category', 'Category Item Type')}
+                {renderField('Class Name', 'Class Name')}
+                {!isEditable && <div><strong>Type:</strong> {resolvedType}</div>}
+                {renderField('Count / Sequence', 'Sequence')}
             </section>
 
-            <section style={{ marginBottom: '16px' }}>
-                <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Procurement Info</h3>
-                <div><strong>Model Number:</strong> {item['Model Number'] || '-'}</div>
-                <div><strong>Manufacturer:</strong> {getSimpleLinkedValue(item['Manufacturer (from Technical Spec)'])}</div>
-                <div><strong>Supplier:</strong> {getSimpleLinkedValue(item['Supplier (from Technical Spec)'])}</div>
-                <div><strong>Supplier Code:</strong> {item['Supplier Code'] || '-'}</div>
+            <section style={{ marginBottom: 16 }}>
+                <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 4, marginBottom: 8 }}>Procurement Info</h3>
+                {renderField('Model Number', 'Model Number')}
+                {renderField('Manufacturer', 'Manufacturer (from Technical Spec)')}
+                {renderField('Supplier', 'Supplier (from Technical Spec)')}
+                {renderField('Supplier Code', 'Supplier Code')}
             </section>
 
             <section>
-                <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Engineering Info</h3>
-                <div><strong>Size:</strong> {item['Size'] || '-'}</div>
+                <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 4, marginBottom: 8 }}>Engineering Info</h3>
+                {renderField('Size', 'Size')}
             </section>
         </div>
     );

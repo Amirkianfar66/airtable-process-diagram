@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react';
 import ReactFlow, {
-    Background,
     Controls,
     useNodesState,
     useEdgesState,
@@ -16,7 +15,6 @@ import ScalableNode from './ScalableNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
-import AddItemButton from './AddItemButton';
 
 import EquipmentIcon from './Icons/EquipmentIcon';
 import InstrumentIcon from './Icons/InstrumentIcon';
@@ -32,6 +30,14 @@ const nodeTypes = {
     scalable: ScalableNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
+};
+
+const categoryIcons = {
+    Equipment: EquipmentIcon,
+    Instrument: InstrumentIcon,
+    'Inline Valve': InlineValveIcon,
+    Pipe: PipeIcon,
+    Electrical: ElectricalIcon,
 };
 
 const fetchData = async () => {
@@ -60,14 +66,6 @@ const fetchData = async () => {
     } while (offset);
 
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
-};
-
-const categoryIcons = {
-    Equipment: EquipmentIcon,
-    Instrument: InstrumentIcon,
-    'Inline Valve': InlineValveIcon,
-    Pipe: PipeIcon,
-    Electrical: ElectricalIcon,
 };
 
 export default function ProcessDiagram() {
@@ -105,7 +103,6 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
 
-    // ✅ Create a new item dynamically
     const createNewItem = () => {
         const newItem = {
             id: `item-${Date.now()}`,
@@ -115,91 +112,136 @@ export default function ProcessDiagram() {
             Unit: 'Unit 1',
             SubUnit: 'Sub 1',
         };
+
+        const newNode = {
+            id: newItem.id,
+            position: { x: 100, y: 100 },
+            data: { label: `${newItem.Code} - ${newItem.Name}` },
+            type: newItem.Category === 'Equipment' ? 'equipment' : 'scalableIcon',
+            sourcePosition: 'right',
+            targetPosition: 'left',
+            style: { background: 'transparent' },
+        };
+
+        setNodes((nds) => [...nds, newNode]);
         setItems((its) => [...its, newItem]);
+        setSelectedItem(newItem);
     };
 
-    // ✅ Fetch Airtable items on mount and merge with any already added items
+    const handleItemChange = (updatedItem) => {
+        setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
+
+        setNodes((nds) =>
+            nds.map((node) => {
+                if (node.id === updatedItem.id) {
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
+                            icon: categoryIcons[updatedItem.Category] ? (
+                                React.createElement(categoryIcons[updatedItem.Category], { style: { width: 20, height: 20 } })
+                            ) : null,
+                        },
+                        type: updatedItem.Category === 'Equipment'
+                            ? 'equipment'
+                            : (updatedItem.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                    };
+                }
+                return node;
+            })
+        );
+
+        setSelectedItem(updatedItem);
+    };
+
     useEffect(() => {
         fetchData()
-            .then((fetchedItems) => {
-                setItems((prevItems) => {
-                    const existingIds = new Set(prevItems.map(i => i.id));
-                    const merged = [...prevItems, ...fetchedItems.filter(i => !existingIds.has(i.id))];
-                    return merged;
+            .then((items) => {
+                setItems(items);
+                const grouped = {};
+                items.forEach((item) => {
+                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+                    if (!Unit || !SubUnit) return;
+                    if (!grouped[Unit]) grouped[Unit] = {};
+                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+
+                    const categoryString = Array.isArray(Category) ? Category[0] : Category;
+                    grouped[Unit][SubUnit].push({ Category: categoryString, Sequence, Name, Code, id: item.id });
                 });
+
+                const newNodes = [];
+                const newEdges = [];
+                let unitX = 0;
+                const unitWidth = 5000;
+                const unitHeight = 3000;
+                const subUnitHeight = unitHeight / 9;
+                const itemWidth = 160;
+                const itemGap = 30;
+
+                Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    newNodes.push({
+                        id: `unit-${unit}`,
+                        position: { x: unitX, y: 0 },
+                        data: { label: unit },
+                        style: {
+                            width: unitWidth,
+                            height: unitHeight,
+                            border: '4px solid #444',
+                            background: 'transparent',
+                            boxShadow: 'none',
+                        },
+                        draggable: false,
+                        selectable: false,
+                    });
+
+                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
+                        const yOffset = index * subUnitHeight;
+
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: {
+                                width: unitWidth - 20,
+                                height: subUnitHeight - 20,
+                                border: '2px dashed #aaa',
+                                background: 'transparent',
+                                boxShadow: 'none',
+                            },
+                            draggable: false,
+                            selectable: false,
+                        });
+
+                        let itemX = unitX + 40;
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        items.forEach((item) => {
+                            const IconComponent = categoryIcons[item.Category];
+                            newNodes.push({
+                                id: item.id,
+                                position: { x: itemX, y: yOffset + 20 },
+                                data: {
+                                    label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
+                                },
+                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                                sourcePosition: 'right',
+                                targetPosition: 'left',
+                                style: { background: 'transparent', boxShadow: 'none' },
+                            });
+                            itemX += itemWidth + itemGap;
+                        });
+                    });
+
+                    unitX += unitWidth + 100;
+                });
+
+                setNodes(newNodes);
+                setEdges(newEdges);
+                setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
             .catch(console.error);
     }, []);
-
-    // ✅ Generate nodes whenever items change
-    useEffect(() => {
-        const grouped = {};
-        items.forEach((item) => {
-            const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
-            if (!Unit || !SubUnit) return;
-            if (!grouped[Unit]) grouped[Unit] = {};
-            if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-            const categoryString = Array.isArray(Category) ? Category[0] : (Category || item.Category);
-            grouped[Unit][SubUnit].push({ Category: categoryString, Sequence, Name, Code, id: item.id });
-        });
-
-        const newNodes = [];
-        const newEdges = [];
-        let unitX = 0;
-        const unitWidth = 5000;
-        const unitHeight = 3000;
-        const subUnitHeight = unitHeight / 9;
-        const itemWidth = 160;
-        const itemGap = 30;
-
-        Object.entries(grouped).forEach(([unit, subUnits]) => {
-            // Unit node
-            newNodes.push({
-                id: `unit-${unit}`,
-                position: { x: unitX, y: 0 },
-                data: { label: unit },
-                style: { width: unitWidth, height: unitHeight, border: '4px solid #444', background: 'transparent', boxShadow: 'none' },
-                draggable: false,
-                selectable: false,
-            });
-
-            Object.entries(subUnits).forEach(([subUnit, items], index) => {
-                const yOffset = index * subUnitHeight;
-
-                // SubUnit node
-                newNodes.push({
-                    id: `sub-${unit}-${subUnit}`,
-                    position: { x: unitX + 10, y: yOffset + 10 },
-                    data: { label: subUnit },
-                    style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent', boxShadow: 'none' },
-                    draggable: false,
-                    selectable: false,
-                });
-
-                let itemX = unitX + 40;
-                items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                items.forEach((item) => {
-                    const IconComponent = categoryIcons[item.Category];
-                    newNodes.push({
-                        id: item.id,
-                        position: { x: itemX, y: yOffset + 20 },
-                        data: { label: `${item.Code || ''} - ${item.Name || ''}`, icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null },
-                        type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
-                        sourcePosition: 'right',
-                        targetPosition: 'left',
-                        style: { background: 'transparent', boxShadow: 'none' },
-                    });
-                    itemX += itemWidth + itemGap;
-                });
-            });
-
-            unitX += unitWidth + 100;
-        });
-
-        setNodes(newNodes);
-        setEdges(newEdges);
-        setDefaultLayout({ nodes: newNodes, edges: newEdges });
-    }, [items]);
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
@@ -207,12 +249,18 @@ export default function ProcessDiagram() {
                 <div style={{ padding: 10 }}>
                     <button
                         onClick={createNewItem}
-                        style={{ padding: '6px 12px', background: '#4CAF50', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                        style={{
+                            padding: '6px 12px',
+                            background: '#4CAF50',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer'
+                        }}
                     >
                         Add New Item
                     </button>
                 </div>
-
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -233,7 +281,7 @@ export default function ProcessDiagram() {
 
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', overflowY: 'auto' }}>
                 {selectedItem ? (
-                    <ItemDetailCard item={selectedItem} />
+                    <ItemDetailCard item={selectedItem} onChange={handleItemChange} />
                 ) : (
                     <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
                 )}
