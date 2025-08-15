@@ -108,11 +108,13 @@ export default function ProcessDiagram() {
         setSelectedNodes(nodes);
         if (nodes.length === 1) {
             const nodeData = items.find(item => item.id === nodes[0].id);
-            setSelectedItem(nodeData || null);
+            // Merge ID and fields so ItemDetailCard gets the right props
+            setSelectedItem(nodeData ? { id: nodeData.id, ...nodeData.fields } : null);
         } else {
             setSelectedItem(null);
         }
     }, [items]);
+
 
     const onConnect = useCallback(
         (params) => {
