@@ -141,50 +141,34 @@ export default function ProcessDiagram() {
                             width: unitWidth,
                             height: unitHeight,
                             border: '4px solid #444',
-                            backgroundColor: 'transparent' // <-- added background color for unit
+                            backgroundColor: '#f0f0f0' // light grey for unit
                         },
                         draggable: false,
                         selectable: false,
                     });
 
-                    // SubUnit node
-                    newNodes.push({
-                        id: `sub-${unit}-${subUnit}`,
-                        position: { x: unitX + 10, y: yOffset + 10 },
-                        data: { label: subUnit },
-                        style: {
-                            width: unitWidth - 20,
-                            height: subUnitHeight - 20,
-                            border: '2px dashed #aaa',
-                            backgroundColor: 'transparent' // <-- added background color for subunit
-                        },
-                        draggable: false,
-                        selectable: false,
-                    });
+                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
+                        const yOffset = index * subUnitHeight; // define yOffset here
 
-
-                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                        let itemX = unitX + 40;
-                        items.forEach((item) => {
-                            // Now 'item.Category' is a string, so these lookups will work correctly.
-                            const IconComponent = categoryIcons[item.Category];
-                            newNodes.push({
-                                id: item.id,
-                                position: { x: itemX, y: yOffset + 20 },
-                                data: {
-                                    label: `${item.Code || ''} - ${item.Name || ''}`,
-                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
-                                },
-                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
-                                sourcePosition: 'right',
-                                targetPosition: 'left',
-                            });
-                            itemX += itemWidth + itemGap;
+                        // SubUnit node
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: {
+                                width: unitWidth - 20,
+                                height: subUnitHeight - 20,
+                                border: '2px dashed #aaa',
+                                backgroundColor: '#ffffff' // white for subunit
+                            },
+                            draggable: false,
+                            selectable: false,
                         });
                     });
 
                     unitX += unitWidth + 100;
                 });
+
 
                 setNodes(newNodes);
                 setEdges(newEdges);
