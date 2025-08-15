@@ -9,6 +9,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
 
+// Node components (must render <Handle> elements inside)
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
@@ -17,36 +18,48 @@ import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 
+// Icons to pass into node data (NOT nodeTypes)
 import EquipmentIcon from './Icons/EquipmentIcon';
 import InstrumentIcon from './Icons/InstrumentIcon';
 import InlineValveIcon from './Icons/InlineValveIcon';
 import PipeIcon from './Icons/PipeIcon';
 import ElectricalIcon from './Icons/ElectricalIcon';
 
+// ✅ Node type registry must point to NODE COMPONENTS that include <Handle/>
+//    Do NOT map to raw icon components here.
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
-    pipe: PipeItemNode,
-    equipment: EquipmentIcon,
+    // Use the same handle-capable node component for items
+    equipment: ScalableIconNode,
+    pipe: ScalableIconNode,
     scalable: ScalableNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
 };
 
+// Icons used inside data.icon, rendered by ScalableIconNode
+const categoryIcons = {
+    Equipment: EquipmentIcon,
+    Instrument: InstrumentIcon,
+    'Inline Valve': InlineValveIcon,
+    Pipe: PipeIcon,
+    Electrical: ElectricalIcon,
+};
+
+// ── Fetch all rows from Airtable table configured in env ──────────────────────
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
     const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+
     let allRecords = [];
     let offset = null;
     const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-
-        const res = await fetch(url, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 
         if (!res.ok) {
             const errorText = await res.text();
@@ -58,121 +71,135 @@ const fetchData = async () => {
         offset = data.offset;
     } while (offset);
 
-    return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
-};
-
-const categoryIcons = {
-    Equipment: EquipmentIcon,
-    Instrument: InstrumentIcon,
-    'Inline Valve': InlineValveIcon,
-    Pipe: PipeIcon,
-    Electrical: ElectricalIcon,
+    const rows = allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
+    console.log(`[Airtable] fetched ${rows.length} rows`);
+    return rows;
 };
 
 export default function ProcessDiagram() {
-    const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
     const [items, setItems] = useState([]);
 
-    const onSelectionChange = useCallback(({ nodes }) => {
-        setSelectedNodes(nodes);
-        if (nodes.length === 1) {
-            const nodeData = items.find(item => item.id === nodes[0].id);
-            setSelectedItem(nodeData || null);
-        } else {
-            setSelectedItem(null);
-        }
-    }, [items]);
+    const onSelectionChange = useCallback(
+        ({ nodes }) => {
+            if (nodes.length === 1) {
+                const match = items.find((i) => i.id === nodes[0].id);
+                setSelectedItem(match || null);
+            } else {
+                setSelectedItem(null);
+            }
+        },
+        [items]
+    );
+
+    // ✅ Allow connecting nodes
     const onConnect = useCallback(
         (params) => {
-            const updatedEdges = addEdge(
-                {
-                    ...params,
-                    type: 'step', // orthogonal edges
-                    animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2 },
-                },
-                edges
+            setEdges((eds) =>
+                addEdge({ ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } }, eds)
             );
-            setEdges(updatedEdges);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
         },
-        [edges, nodes]
+        []
     );
 
     useEffect(() => {
+        let cancelled = false;
+
         fetchData()
-            .then((items) => {
-                setItems(items);
+            .then((rows) => {
+                if (cancelled) return;
+                setItems(rows);
+
+                // Group: Unit → Sub Unit
                 const grouped = {};
-                items.forEach((item) => {
-                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
-                    if (!Unit || !SubUnit) return;
-                    if (!grouped[Unit]) grouped[Unit] = {};
-                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id: item.id });
-                });
+                for (const item of rows) {
+                    const unit = item.Unit || 'Unknown Unit';
+                    const subUnit = item['Sub Unit'] || item.SubUnit || 'Unknown Sub Unit';
+
+                    if (!grouped[unit]) grouped[unit] = {};
+                    if (!grouped[unit][subUnit]) grouped[unit][subUnit] = [];
+
+                    grouped[unit][subUnit].push(item);
+                }
 
                 const newNodes = [];
                 const newEdges = [];
-                let unitX = 0;
-                const unitWidth = 5000;
-                const unitHeight = 3000;
-                const subUnitHeight = unitHeight / 9;
-                const itemWidth = 160;
-                const itemGap = 30;
 
-                Object.entries(grouped).forEach(([unit, subUnits]) => {
+                let yOffset = 40; // vertical start
+                const unitGap = 220;
+                const subUnitGap = 160;
+                const itemGapX = 200;
+
+                Object.entries(grouped).forEach(([unit, subUnits], uIdx) => {
+                    const unitId = `unit-${uIdx}`;
                     newNodes.push({
-                        id: `unit-${unit}`,
-                        position: { x: unitX, y: 0 },
+                        id: unitId,
+                        position: { x: 20, y: yOffset },
                         data: { label: unit },
-                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444' },
-                        draggable: false,
-                        selectable: false,
+                        type: 'resizable',
+                        sourcePosition: 'right',
+                        targetPosition: 'left',
                     });
 
-                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
-                        const yOffset = index * subUnitHeight;
+                    let subY = yOffset + 70;
+
+                    Object.entries(subUnits).forEach(([sub, itemsInSub], sIdx) => {
+                        const subId = `${unitId}-sub-${sIdx}`;
                         newNodes.push({
-                            id: `sub-${unit}-${subUnit}`,
-                            position: { x: unitX + 10, y: yOffset + 10 },
-                            data: { label: subUnit },
-                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa' },
-                            draggable: false,
-                            selectable: false,
+                            id: subId,
+                            position: { x: 260, y: subY },
+                            data: { label: sub },
+                            type: 'resizable',
+                            sourcePosition: 'right',
+                            targetPosition: 'left',
                         });
 
-                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                        let itemX = unitX + 40;
-                        items.forEach((item) => {
-                            const IconComponent = categoryIcons[item.Category];
-                            newNodes.push({
-                                id: item.id,
-                                position: { x: itemX, y: yOffset + 20 },
-                                data: {
-                                    label: `${item.Code || ''} - ${item.Name || ''}`,
-                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
-                                },
-                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
-                                sourcePosition: 'right',
-                                targetPosition: 'left',
+                        newEdges.push({ id: `e-${unitId}-${subId}`, source: unitId, target: subId, type: 'step' });
+
+                        let itemX = 520;
+                        itemsInSub
+                            .slice()
+                            .sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0))
+                            .forEach((it) => {
+                                const Icon = categoryIcons[it['Category Item Type']] || null;
+
+                                // 🔑 Use a handle-capable node type for ALL items
+                                newNodes.push({
+                                    id: it.id,
+                                    position: { x: itemX, y: subY + 10 },
+                                    data: {
+                                        label: `${it['Item Code'] || ''} - ${it['Name'] || ''}`.trim(),
+                                        icon: Icon ? <Icon style={{ width: 20, height: 20 }} /> : null,
+                                        scale: 1,
+                                    },
+                                    type: 'scalableIcon',
+                                    sourcePosition: 'right',
+                                    targetPosition: 'left',
+                                });
+
+                                newEdges.push({ id: `e-${subId}-${it.id}`, source: subId, target: it.id, type: 'step' });
+
+                                itemX += itemGapX;
                             });
-                            itemX += itemWidth + itemGap;
-                        });
+
+                        subY += subUnitGap;
                     });
 
-                    unitX += unitWidth + 100;
+                    yOffset += unitGap;
                 });
 
                 setNodes(newNodes);
                 setEdges(newEdges);
-                setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
-            .catch(console.error);
+            .catch((err) => {
+                console.error(err);
+            });
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     return (
