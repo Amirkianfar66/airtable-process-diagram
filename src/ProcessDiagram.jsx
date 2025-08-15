@@ -40,6 +40,7 @@ const categoryIcons = {
     Electrical: ElectricalIcon,
 };
 
+// Updated fetchAllTables to expand linked records
 const fetchAllTables = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -49,7 +50,7 @@ const fetchAllTables = async () => {
     for (const table of tableNames) {
         let offset = null;
         do {
-            const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100${offset ? `&offset=${offset}` : ''}&expand[]=Type`;
+            const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100&expand[]=Type${offset ? `&offset=${offset}` : ''}`;
             const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -60,22 +61,19 @@ const fetchAllTables = async () => {
             }
 
             const data = await res.json();
-            // Map expanded 'Type' field if exists
-            const records = data.records.map(rec => {
-                const typeField = rec.fields.Type;
-                let typeName = '';
-                if (Array.isArray(typeField) && typeField.length > 0 && typeField[0].name) {
-                    typeName = typeField[0].name;
-                }
-                return { id: rec.id, ...rec.fields, TypeName: typeName };
-            });
-
-            allRecords = allRecords.concat(records);
+            allRecords = allRecords.concat(
+                data.records.map(rec => ({
+                    id: rec.id,
+                    ...rec.fields,
+                    TypeName: rec.fields.Type && rec.fields.Type[0] && rec.fields.Type[0].name ? rec.fields.Type[0].name : ''
+                }))
+            );
             offset = data.offset;
         } while (offset);
     }
     return allRecords;
 };
+
 
 
 
