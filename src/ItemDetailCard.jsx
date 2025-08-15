@@ -27,7 +27,7 @@ export default function ItemDetailCard({ item }) {
                 <div><strong>Name:</strong> {item['Name'] || '-'}</div>
                 <div><strong>Category:</strong> {item['Category Item Type'] || '-'}</div>
                 <div><strong>Class Name:</strong> {item['Class Name'] || '-'}</div>
-                <div><strong>Type Name:</strong> {getLinkedValue(item['Type'])}</div>
+                <div><strong>Type:</strong> {getLinkedValue(item['Type'])}</div>
                 <div><strong>Count / Sequence:</strong> {item['Sequence'] || '-'}</div>
             </section>
 
