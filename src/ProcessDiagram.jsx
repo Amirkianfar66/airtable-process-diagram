@@ -50,7 +50,7 @@ const fetchAllTables = async () => {
     for (const table of tableNames) {
         let offset = null;
         do {
-            const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100&expand[]=Type${offset ? `&offset=${offset}` : ''}`;
+            const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100${offset ? `&offset=${offset}` : ''}`;
             const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -61,12 +61,20 @@ const fetchAllTables = async () => {
             }
 
             const data = await res.json();
+
             allRecords = allRecords.concat(
-                data.records.map(rec => ({
-                    id: rec.id,
-                    ...rec.fields,
-                    Type: rec.fields.Type ? rec.fields.Type : []
-                }))
+                data.records.map(rec => {
+                    const newItem = { id: rec.id, ...rec.fields };
+
+                    // Automatically expand all linked fields
+                    Object.keys(rec.fields).forEach(key => {
+                        if (Array.isArray(rec.fields[key]) && rec.fields[key].length > 0 && typeof rec.fields[key][0] === 'object') {
+                            newItem[key] = rec.fields[key].map(f => ({ ...f }));
+                        }
+                    });
+
+                    return newItem;
+                })
             );
 
             offset = data.offset;
@@ -74,6 +82,7 @@ const fetchAllTables = async () => {
     }
     return allRecords;
 };
+
 
 
 
