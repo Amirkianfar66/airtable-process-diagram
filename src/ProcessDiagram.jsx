@@ -49,7 +49,8 @@ const fetchAllTables = async () => {
     for (const table of tableNames) {
         let offset = null;
         do {
-            const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100${offset ? `&offset=${offset}` : ''}`;
+            // add expand=TypeName to fetch linked record details
+            const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100${offset ? `&offset=${offset}` : ''}&expand[]=Type`;
             const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -60,12 +61,18 @@ const fetchAllTables = async () => {
             }
 
             const data = await res.json();
-            allRecords = allRecords.concat(data.records.map(rec => ({ id: rec.id, ...rec.fields })));
+            allRecords = allRecords.concat(data.records.map(rec => {
+                // replace linked field ID with expanded record name if available
+                const typeField = rec.fields['Type'];
+                const expandedType = rec['expanded']?.Type?.[0]?.name || typeField;
+                return { id: rec.id, ...rec.fields, Type: expandedType };
+            }));
             offset = data.offset;
         } while (offset);
     }
     return allRecords;
 };
+
 
 export default function ProcessDiagram() {
     const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
