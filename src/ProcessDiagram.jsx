@@ -184,7 +184,8 @@ export default function ProcessDiagram() {
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
+
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
