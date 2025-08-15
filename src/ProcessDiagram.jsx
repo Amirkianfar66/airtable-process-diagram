@@ -8,7 +8,6 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
-import Airtable from 'airtable';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
@@ -39,6 +38,33 @@ const categoryIcons = {
     'Inline Valve': InlineValveIcon,
     Pipe: PipeIcon,
     Electrical: ElectricalIcon,
+};
+
+const fetchAllTables = async () => {
+    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+    const tableNames = ["Table 13", "TOverall", "Items"];
+
+    let allRecords = [];
+    for (const table of tableNames) {
+        let offset = null;
+        do {
+            const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?pageSize=100${offset ? `&offset=${offset}` : ''}`;
+            const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
+            }
+
+            const data = await res.json();
+            allRecords = allRecords.concat(data.records.map(rec => ({ id: rec.id, ...rec.fields })));
+            offset = data.offset;
+        } while (offset);
+    }
+    return allRecords;
 };
 
 export default function ProcessDiagram() {
@@ -77,17 +103,6 @@ export default function ProcessDiagram() {
     );
 
     useEffect(() => {
-        const fetchAllTables = async () => {
-            const base = new Airtable({ apiKey: import.meta.env.VITE_AIRTABLE_TOKEN }).base(import.meta.env.VITE_AIRTABLE_BASE_ID);
-            const tableNames = ["Table 13", "Overall", "Items"];
-            let allItems = [];
-            for (const name of tableNames) {
-                const records = await base(name).select({ view: 'Grid view' }).all();
-                allItems = [...allItems, ...records.map(r => ({ id: r.id, ...r.fields }))];
-            }
-            return allItems;
-        };
-
         fetchAllTables()
             .then((items) => {
                 setItems(items);
@@ -179,6 +194,7 @@ export default function ProcessDiagram() {
                     <Controls />
                 </ReactFlow>
             </div>
+
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: '#f9f9f9', overflowY: 'auto' }}>
                 {selectedItem ? (
                     <ItemDetailCard item={selectedItem} />
