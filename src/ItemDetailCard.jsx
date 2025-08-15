@@ -1,6 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
 
-// A cache to store fetched type names to avoid repeated API calls
 const typeCache = new Map();
 
 export default function ItemDetailCard({ item }) {
@@ -25,9 +24,8 @@ export default function ItemDetailCard({ item }) {
             try {
                 const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
                 const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID; // Reads the new variable
+                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
 
-                // --- IMPROVEMENT: Check if the variable exists ---
                 if (!typesTableId) {
                     throw new Error("VITE_AIRTABLE_TYPES_TABLE_ID is not defined in your .env file.");
                 }
@@ -43,7 +41,9 @@ export default function ItemDetailCard({ item }) {
                 }
 
                 const record = await res.json();
-                // Assumes the primary display field in your Types table is called 'Name'
+
+                // --- THIS IS THE LINE TO CHANGE ---
+                // Replace 'Name' with the actual primary field name from your Airtable table.
                 const typeName = record.fields.Name || 'Unknown Type';
 
                 setResolvedType(typeName);
@@ -51,7 +51,7 @@ export default function ItemDetailCard({ item }) {
 
             } catch (error) {
                 console.error("Error resolving Type ID:", error);
-                setResolvedType(typeId); // Show ID as a fallback on error
+                setResolvedType(typeId);
             }
         };
 
@@ -86,6 +86,7 @@ export default function ItemDetailCard({ item }) {
                 <div><strong>Count / Sequence:</strong> {item['Sequence'] || '-'}</div>
             </section>
 
+            {/* Other sections remain the same */}
             <section style={{ marginBottom: '16px' }}>
                 <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '4px', marginBottom: '8px' }}>Procurement Info</h3>
                 <div><strong>Model Number:</strong> {item['Model Number'] || '-'}</div>
