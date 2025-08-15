@@ -3,6 +3,8 @@
 export default function ItemDetailCard({ item }) {
     if (!item) return null;
 
+    const linkedType = Array.isArray(item['Type']) ? item['Type'].map(t => t.name || t).join(', ') : item['Type'] || '-';
+
     return (
         <div style={{
             background: '#fff',
@@ -19,7 +21,7 @@ export default function ItemDetailCard({ item }) {
                 <div><strong>Name:</strong> {item['Name'] || '-'}</div>
                 <div><strong>Category:</strong> {item['Category Item Type'] || '-'}</div>
                 <div><strong>Class Name:</strong> {item['Class Name'] || '-'}</div>
-                <div><strong>Type Name:</strong> {item['Type'] || '-'}</div>
+                <div><strong>Type Name:</strong> {linkedType}</div>
                 <div><strong>Count / Sequence:</strong> {item['Sequence'] || '-'}</div>
             </section>
 
