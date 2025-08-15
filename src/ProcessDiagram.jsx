@@ -33,34 +33,6 @@ const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
-const fetchData = async () => {
-    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-    const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-    let allRecords = [];
-    let offset = null;
-    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
-
-    do {
-        const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-
-        const res = await fetch(url, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
-        }
-
-        const data = await res.json();
-        allRecords = allRecords.concat(data.records);
-        offset = data.offset;
-    } while (offset);
-
-    return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
-};
-
 const categoryIcons = {
     Equipment: EquipmentIcon,
     Instrument: InstrumentIcon,
@@ -86,12 +58,13 @@ export default function ProcessDiagram() {
             setSelectedItem(null);
         }
     }, [items]);
+
     const onConnect = useCallback(
         (params) => {
             const updatedEdges = addEdge(
                 {
                     ...params,
-                    type: 'step', // orthogonal edges
+                    type: 'step',
                     animated: true,
                     style: { stroke: 'blue', strokeWidth: 2 },
                 },
@@ -107,7 +80,6 @@ export default function ProcessDiagram() {
         const fetchAllTables = async () => {
             const base = new Airtable({ apiKey: import.meta.env.VITE_AIRTABLE_TOKEN }).base(import.meta.env.VITE_AIRTABLE_BASE_ID);
             const tableNames = ["Table 13", "Overall", "Items"];
-
             let allItems = [];
             for (const name of tableNames) {
                 const records = await base(name).select({ view: 'Grid view' }).all();
@@ -187,7 +159,6 @@ export default function ProcessDiagram() {
             .catch(console.error);
     }, []);
 
-
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
             <div style={{ flex: 1, position: 'relative' }}>
@@ -208,7 +179,6 @@ export default function ProcessDiagram() {
                     <Controls />
                 </ReactFlow>
             </div>
-
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: '#f9f9f9', overflowY: 'auto' }}>
                 {selectedItem ? (
                     <ItemDetailCard item={selectedItem} />
