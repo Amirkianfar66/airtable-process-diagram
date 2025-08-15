@@ -22,6 +22,10 @@ import InlineValveIcon from './Icons/InlineValveIcon';
 import PipeIcon from './Icons/PipeIcon';
 import ElectricalIcon from './Icons/ElectricalIcon';
 
+// Define your Airtable credentials
+const apiKey = import.meta.env.VITE_AIRTABLE_TOKEN;
+const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
