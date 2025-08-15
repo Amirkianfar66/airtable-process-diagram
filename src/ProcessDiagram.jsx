@@ -141,7 +141,7 @@ export default function ProcessDiagram() {
                             width: unitWidth,
                             height: unitHeight,
                             border: '4px solid #444',
-                            backgroundColor: '#f0f0f0' // light grey for unit
+                            backgroundColor: 'transparent' // light grey for unit
                         },
                         draggable: false,
                         selectable: false,
@@ -159,7 +159,7 @@ export default function ProcessDiagram() {
                                 width: unitWidth - 20,
                                 height: subUnitHeight - 20,
                                 border: '2px dashed #aaa',
-                                backgroundColor: '#ffffff' // white for subunit
+                                backgroundColor: 'transparent' // white for subunit
                             },
                             draggable: false,
                             selectable: false,
