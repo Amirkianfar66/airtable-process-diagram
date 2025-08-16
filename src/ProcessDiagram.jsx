@@ -21,17 +21,8 @@ const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
     pipe: PipeItemNode,
-    equipment: EquipmentIcon,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
-};
-
-const categoryIcons = {
-    Equipment: EquipmentIcon,
-    Instrument: InstrumentIcon,
-    'Inline Valve': InlineValveIcon,
-    Pipe: PipeIcon,
-    Electrical: ElectricalIcon,
 };
 
 const fetchData = async () => {
