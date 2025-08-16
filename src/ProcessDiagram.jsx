@@ -223,24 +223,61 @@ export default function ProcessDiagram() {
         const itemX = baseX + existingItemsInSubUnit.length * 190; // item width + gap
         const itemY = baseY;
 
-        const newNode = {
-            id: newItem.id,
-            position: { x: itemX, y: itemY },
-            data: {
-                label: `${newItem.Code} - ${newItem.Name}`,
-                icon: getItemIcon(newItem, { width: 40, height: 40 }),
-                unit: newItem.Unit,
-                subUnit: newItem.SubUnit,
-            },
-            type: newItem.Category === 'Equipment' ? 'equipment' : 'scalableIcon',
-            sourcePosition: 'right',
-            targetPosition: 'left',
-            style: { background: 'transparent' },
-        };
+        const createNewItem = () => {
+            const newItem = {
+                id: `item-${Date.now()}`,
+                Code: "NEW001",
+                Name: "New Item",
+                Category: "Equipment",
+                Unit: "Unit 1",
+                SubUnit: "Sub 1",
+                Sequence: 0,
+            };
 
-        setNodes((prevNodes) => [...prevNodes, newNode]);
-        setSelectedItem(newItem);
-    };
+            setItems((prevItems) => [...prevItems, newItem]);
+
+            // Find existing Unit/SubUnit nodes
+            const unitNode = nodes.find((n) => n.id === `unit-${newItem.Unit}`);
+            const subUnitNode = nodes.find((n) => n.id === `sub-${newItem.Unit}-${newItem.SubUnit}`);
+
+            // Base position: inside subUnit container if it exists
+            const baseX = subUnitNode?.position.x + 20 || 200;
+            const baseY = subUnitNode?.position.y + 20 || 200;
+
+            // Count existing item nodes in this SubUnit
+            const existingItemsInSubUnit = nodes.filter(
+                (n) =>
+                    n.data?.unit === newItem.Unit &&
+                    n.data?.subUnit === newItem.SubUnit &&
+                    n.id.startsWith("item-")
+            );
+
+            const itemX = baseX + existingItemsInSubUnit.length * 190; // width + gap
+            const itemY = baseY;
+
+            const newNode = {
+                id: newItem.id,
+                position: { x: itemX, y: itemY },
+                data: {
+                    label: `${newItem.Code} - ${newItem.Name}`,
+                    icon: getItemIcon(newItem, { width: 40, height: 40 }),
+                    unit: newItem.Unit,
+                    subUnit: newItem.SubUnit,
+                },
+                type: newItem.Category === "Equipment" ? "equipment" : "scalableIcon",
+                sourcePosition: "right",
+                targetPosition: "left",
+                style: { background: "transparent" },
+            };
+
+            setNodes((prevNodes) => [...prevNodes, newNode]);
+            setSelectedItem(newItem);
+
+            // Optional: scroll/fit view so the new node is visible
+            setTimeout(() => {
+                if (reactFlowInstance) reactFlowInstance.fitView({ padding: 0.1 });
+            }, 50);
+        };
 
 
 
@@ -267,6 +304,7 @@ export default function ProcessDiagram() {
                     minZoom={0.02}
                     nodeTypes={nodeTypes}
                     style={{ background: "transparent" }}
+                    onInit={setReactFlowInstance} // <-- capture instance
                 >
                     <Controls />
                 </ReactFlow>
