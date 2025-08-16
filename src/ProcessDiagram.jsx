@@ -87,20 +87,20 @@ export default function ProcessDiagram() {
     useEffect(() => {
         fetchData()
             .then((items) => {
-                // Normalize Unit/SubUnit fields
-                const normalizedItems = items.map(item => ({
+                // Normalize item fields
+                const normalizedItems = items.map((item) => ({
                     ...item,
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                     Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
                     Code: item['Item Code'] || item.Code || '',
                     Name: item.Name || '',
-                    Sequence: item.Sequence || 0
+                    Sequence: item.Sequence || 0,
                 }));
 
-                setItems(normalizedItems); // <-- state items now have SubUnit
+                setItems(normalizedItems);
 
-                // Group items
+                // Group items by Unit and SubUnit
                 const grouped = {};
                 normalizedItems.forEach((item) => {
                     const { Unit, SubUnit, Category, Sequence, Name, Code, id } = item;
@@ -110,7 +110,7 @@ export default function ProcessDiagram() {
                     grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
                 });
 
-                // Create nodes and edges
+                // Build nodes and edges
                 const newNodes = [];
                 const newEdges = [];
                 let unitX = 0;
@@ -121,6 +121,7 @@ export default function ProcessDiagram() {
                 const itemGap = 30;
 
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    // Unit node
                     newNodes.push({
                         id: `unit-${unit}`,
                         position: { x: unitX, y: 0 },
@@ -139,6 +140,7 @@ export default function ProcessDiagram() {
                     Object.entries(subUnits).forEach(([subUnit, items], index) => {
                         const yOffset = index * subUnitHeight;
 
+                        // SubUnit node
                         newNodes.push({
                             id: `sub-${unit}-${subUnit}`,
                             position: { x: unitX + 10, y: yOffset + 10 },
@@ -154,6 +156,7 @@ export default function ProcessDiagram() {
                             selectable: false,
                         });
 
+                        // Item nodes
                         let itemX = unitX + 40;
                         items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         items.forEach((item) => {
@@ -162,11 +165,9 @@ export default function ProcessDiagram() {
                                 position: { x: itemX, y: yOffset + 20 },
                                 data: {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
-                                    icon: getItemIcon(item, { width: 20, height: 20 }),
+                                    icon: getItemIcon(item), // centralized icon logic
                                 },
-                                type: item.Category === 'Equipment'
-                                    ? 'equipment'
-                                    : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                                type: 'custom', // generic node type for all items
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
                                 style: { background: 'transparent', boxShadow: 'none' },
@@ -184,6 +185,7 @@ export default function ProcessDiagram() {
             })
             .catch(console.error);
     }, []);
+
 
 
     return (
