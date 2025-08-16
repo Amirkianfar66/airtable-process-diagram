@@ -74,7 +74,7 @@ export default function ProcessDiagram() {
                         data: {
                             ...node.data,
                             label: `${updatedItem.Code || ""} - ${updatedItem.Name || ""}`,
-                            icon: getItemIcon(updatedItem), // returns URL string or React component
+                            icon: getItemIcon(updatedItem, { width: 40, height: 40 }), // always React element
                         },
                         type: updatedItem.Category === "Equipment" ? "equipment" : "scalableIcon",
                     };
@@ -86,7 +86,6 @@ export default function ProcessDiagram() {
         // Update selected item
         setSelectedItem(updatedItem);
     };
-
 
     useEffect(() => {
         // Fetch data from Airtable or any API
@@ -117,7 +116,7 @@ export default function ProcessDiagram() {
                 position: { x: 100 + index * 180, y: 50 },
                 data: {
                     label: `${item.Code || ""} - ${item.Name || ""}`,
-                    icon: getItemIcon(item), // no props needed here
+                    icon: getItemIcon(item, { width: 40, height: 40 }),
                 },
                 type: item.Category === "Equipment" ? "equipment" : "scalableIcon",
                 sourcePosition: "right",
@@ -126,7 +125,7 @@ export default function ProcessDiagram() {
             }));
 
             setNodes(newNodes);
-
+        };
 
         fetchData().catch(console.error);
     }, []);
@@ -146,7 +145,10 @@ export default function ProcessDiagram() {
             {
                 id: newItem.id,
                 position: { x: 100, y: 100 },
-                data: { label: `${newItem.Code} - ${newItem.Name}`, icon: getItemIcon(newItem, { width: 20, height: 20 }) },
+                data: {
+                    label: `${newItem.Code} - ${newItem.Name}`,
+                    icon: getItemIcon(newItem, { width: 40, height: 40 }),
+                },
                 type: "equipment",
                 sourcePosition: "right",
                 targetPosition: "left",
@@ -162,7 +164,14 @@ export default function ProcessDiagram() {
                 <div style={{ padding: 10 }}>
                     <button
                         onClick={createNewItem}
-                        style={{ padding: "6px 12px", background: "#4CAF50", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+                        style={{
+                            padding: "6px 12px",
+                            background: "#4CAF50",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 4,
+                            cursor: "pointer",
+                        }}
                     >
                         Add New Item
                     </button>
@@ -185,7 +194,11 @@ export default function ProcessDiagram() {
             </div>
 
             <div style={{ width: 350, borderLeft: "1px solid #ccc", overflowY: "auto", background: "transparent" }}>
-                {selectedItem ? <ItemDetailCard item={selectedItem} onChange={handleItemChange} /> : <div style={{ padding: 20, color: "#888" }}>Select an item to see details</div>}
+                {selectedItem ? (
+                    <ItemDetailCard item={selectedItem} onChange={handleItemChange} />
+                ) : (
+                    <div style={{ padding: 20, color: "#888" }}>Select an item to see details</div>
+                )}
             </div>
         </div>
     );
