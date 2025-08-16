@@ -124,9 +124,8 @@ export default function ProcessDiagram() {
                         data: {
                             ...node.data,
                             label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                            icon: categoryIcons[updatedItem.Category] ? (
-                                React.createElement(categoryIcons[updatedItem.Category], { style: { width: 20, height: 20 } })
-                            ) : null,
+                            icon: getItemIcon(updatedItem, { width: 20, height: 20 }),
+
                         },
                         type: updatedItem.Category === 'Equipment'
                             ? 'equipment'
