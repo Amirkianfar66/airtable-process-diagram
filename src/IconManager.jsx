@@ -31,27 +31,24 @@ const CATEGORY_ICONS = {
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
-    // Equipment handled separately
     if (item.Category === "Equipment") {
-        // Check if Type is defined and mapped
         const typeIcon = item.Type ? EQUIPMENT_TYPE_ICONS[item.Type] : null;
 
         if (typeIcon) {
-            // SVG URL
             if (typeof typeIcon === "string") return <img src={typeIcon} alt={item.Type} {...props} />;
-            // React component
             return React.createElement(typeIcon, props);
         }
 
-        // fallback generic Equipment icon if Type is empty or not mapped
-        return <EquipmentIcon {...props} />;
+        // Fallback to React Flow node component
+        return <EquipmentIcon id={item.id} data={item} />;
     }
 
-    // Non-Equipment categories
     const CategoryComponent = CATEGORY_ICONS[item.Category];
     if (CategoryComponent) return React.createElement(CategoryComponent, props);
 
     return null;
+}
+
 }
 
 
