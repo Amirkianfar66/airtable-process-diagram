@@ -11,7 +11,6 @@ import 'react-resizable/css/styles.css';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
-import ScalableNode from './ScalableNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
@@ -27,7 +26,6 @@ const nodeTypes = {
     custom: CustomItemNode,
     pipe: PipeItemNode,
     equipment: EquipmentIcon,
-    scalable: ScalableNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
 };
