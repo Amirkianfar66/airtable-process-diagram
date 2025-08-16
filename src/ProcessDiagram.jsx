@@ -24,7 +24,28 @@ const nodeTypes = {
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
-    equipment: ScalableIconNode, // fallback for Equipment
+    equipment: ScalableIconNode,
+};
+
+const fetchData = async () => {
+    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+    const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+
+    let allRecords = [];
+    let offset = null;
+    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
+
+    do {
+        const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error("Airtable API error");
+        const data = await res.json();
+        allRecords = allRecords.concat(data.records);
+        offset = data.offset;
+    } while (offset);
+
+    return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
 
 export default function ProcessDiagram() {
@@ -60,10 +81,7 @@ export default function ProcessDiagram() {
     );
 
     const handleItemChange = (updatedItem) => {
-        // Update items list
         setItems((prev) => prev.map((it) => (it.id === updatedItem.id ? updatedItem : it)));
-
-        // Update nodes
         setNodes((nds) =>
             nds.map((node) => {
                 if (node.id === updatedItem.id) {
@@ -72,7 +90,7 @@ export default function ProcessDiagram() {
                         data: {
                             ...node.data,
                             label: `${updatedItem.Code || ""} - ${updatedItem.Name || ""}`,
-                            icon: getItemIcon(updatedItem),
+                            icon: getItemIcon(updatedItem, { width: 20, height: 20 }),
                         },
                         type: updatedItem.Category === "Equipment" ? "equipment" : "scalableIcon",
                     };
@@ -80,113 +98,8 @@ export default function ProcessDiagram() {
                 return node;
             })
         );
-
         setSelectedItem(updatedItem);
     };
-
-    useEffect(() => {
-        // Fetch data from Airtable
-        const fetchData = async () => {
-            const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-            const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-            const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-
-            let allRecords = [];
-            let offset = null;
-            const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
-
-            do {
-                const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-                if (!res.ok) throw new Error("Airtable API error");
-                const data = await res.json();
-                allRecords = allRecords.concat(data.records);
-                offset = data.offset;
-            } while (offset);
-
-            const fetchedItems = allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
-            setItems(fetchedItems);
-
-            // --- Hierarchical layout: Units → Sub-units → Items ---
-            const grouped = {};
-            fetchedItems.forEach((item) => {
-                const unit = item.Unit || "Unit 1";
-                const subUnit = item.SubUnit || "Sub 1";
-                if (!grouped[unit]) grouped[unit] = {};
-                if (!grouped[unit][subUnit]) grouped[unit][subUnit] = [];
-                grouped[unit][subUnit].push(item);
-            });
-
-            const newNodes = [];
-            let unitX = 0;
-            const unitWidth = 1000;
-            const unitHeight = 600;
-            const subUnitHeight = unitHeight / 9;
-            const itemWidth = 160;
-            const itemGap = 30;
-
-            Object.entries(grouped).forEach(([unitName, subUnits]) => {
-                // Unit rectangle
-                newNodes.push({
-                    id: `unit-${unitName}`,
-                    position: { x: unitX, y: 0 },
-                    data: { label: unitName },
-                    style: {
-                        width: unitWidth,
-                        height: unitHeight,
-                        border: "4px solid #444",
-                        background: "transparent",
-                    },
-                    draggable: false,
-                    selectable: false,
-                });
-
-                Object.entries(subUnits).forEach(([subUnitName, items], index) => {
-                    const yOffset = index * subUnitHeight;
-
-                    // Sub-unit rectangle
-                    newNodes.push({
-                        id: `sub-${unitName}-${subUnitName}`,
-                        position: { x: unitX + 10, y: yOffset + 10 },
-                        data: { label: subUnitName },
-                        style: {
-                            width: unitWidth - 20,
-                            height: subUnitHeight - 20,
-                            border: "2px dashed #aaa",
-                            background: "transparent",
-                        },
-                        draggable: false,
-                        selectable: false,
-                    });
-
-                    // Items inside sub-unit
-                    let itemX = unitX + 40;
-                    items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                    items.forEach((item) => {
-                        newNodes.push({
-                            id: item.id,
-                            position: { x: itemX, y: yOffset + 20 },
-                            data: {
-                                label: `${item.Code || ""} - ${item.Name || ""}`,
-                                icon: getItemIcon(item),
-                            },
-                            type: item.Category === "Equipment" ? "equipment" : "scalableIcon",
-                            sourcePosition: "right",
-                            targetPosition: "left",
-                            style: { background: "transparent" },
-                        });
-                        itemX += itemWidth + itemGap;
-                    });
-                });
-
-                unitX += unitWidth + 100;
-            });
-
-            setNodes(newNodes);
-        };
-
-        fetchData().catch(console.error);
-    }, []);
 
     const createNewItem = () => {
         const newItem = {
@@ -199,7 +112,6 @@ export default function ProcessDiagram() {
         };
 
         setItems((its) => [...its, newItem]);
-
         setNodes((nds) => [
             ...nds,
             {
@@ -212,9 +124,85 @@ export default function ProcessDiagram() {
                 style: { background: "transparent" },
             },
         ]);
-
         setSelectedItem(newItem);
     };
+
+    useEffect(() => {
+        fetchData()
+            .then((items) => {
+                setItems(items);
+
+                // Group by Unit → SubUnit
+                const grouped = {};
+                items.forEach((item) => {
+                    const unit = item.Unit || "Unit 1";
+                    const subUnit = item.SubUnit || item["Sub Unit"] || "Sub 1";
+                    const category = Array.isArray(item["Category Item Type"]) ? item["Category Item Type"][0] : item["Category Item Type"];
+                    const sequence = item.Sequence || 0;
+                    const code = item["Item Code"];
+                    const name = item.Name;
+
+                    if (!grouped[unit]) grouped[unit] = {};
+                    if (!grouped[unit][subUnit]) grouped[unit][subUnit] = [];
+                    grouped[unit][subUnit].push({ Category: category, Sequence: sequence, Name: name, Code: code, id: item.id });
+                });
+
+                const newNodes = [];
+                let unitX = 0;
+                const unitWidth = 5000;
+                const unitHeight = 3000;
+                const subUnitHeight = unitHeight / 9;
+                const itemWidth = 160;
+                const itemGap = 30;
+
+                Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    // Unit rectangle
+                    newNodes.push({
+                        id: `unit-${unit}`,
+                        position: { x: unitX, y: 0 },
+                        data: { label: unit },
+                        style: { width: unitWidth, height: unitHeight, border: "4px solid #444", background: "transparent" },
+                        draggable: false,
+                        selectable: false,
+                    });
+
+                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
+                        const yOffset = index * subUnitHeight;
+
+                        // Sub-unit rectangle
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: "2px dashed #aaa", background: "transparent" },
+                            draggable: false,
+                            selectable: false,
+                        });
+
+                        // Items inside sub-unit
+                        let itemX = unitX + 40;
+                        items.sort((a, b) => a.Sequence - b.Sequence);
+                        items.forEach((item) => {
+                            newNodes.push({
+                                id: item.id,
+                                position: { x: itemX, y: yOffset + 20 },
+                                data: { label: `${item.Code || ""} - ${item.Name || ""}`, icon: getItemIcon(item) },
+                                type: item.Category === "Equipment" ? "equipment" : "scalableIcon",
+                                sourcePosition: "right",
+                                targetPosition: "left",
+                                style: { background: "transparent" },
+                            });
+                            itemX += itemWidth + itemGap;
+                        });
+                    });
+
+                    unitX += unitWidth + 100;
+                });
+
+                setNodes(newNodes);
+            })
+            .catch(console.error);
+    }, []);
 
     return (
         <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
@@ -222,14 +210,7 @@ export default function ProcessDiagram() {
                 <div style={{ padding: 10 }}>
                     <button
                         onClick={createNewItem}
-                        style={{
-                            padding: "6px 12px",
-                            background: "#4CAF50",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 4,
-                            cursor: "pointer",
-                        }}
+                        style={{ padding: "6px 12px", background: "#4CAF50", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
                     >
                         Add New Item
                     </button>
@@ -251,7 +232,7 @@ export default function ProcessDiagram() {
                 </ReactFlow>
             </div>
 
-            <div style={{ width: 350, borderLeft: "1px solid #ccc", overflowY: "auto", background: "transparent" }}>
+            <div style={{ width: 350, borderLeft: "1px solid #ccc", background: "transparent", overflowY: "auto" }}>
                 {selectedItem ? <ItemDetailCard item={selectedItem} onChange={handleItemChange} /> : <div style={{ padding: 20, color: "#888" }}>Select an item to see details</div>}
             </div>
         </div>
