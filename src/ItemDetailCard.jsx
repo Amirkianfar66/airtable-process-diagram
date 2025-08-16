@@ -47,10 +47,24 @@ export default function ItemDetailCard({ item, onChange }) {
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
 
     const handleFieldChange = (field, value) => {
-        const updatedItem = { ...localItem, [field]: value };
+        // Map Airtable field names to normalized fields
+        const updatedItem = {
+            ...localItem,
+            [field]: value,
+            // Normalized fields used in IconManager and ProcessDiagram
+            Code: field === 'Item Code' ? value : localItem.Code,
+            Name: field === 'Name' ? value : localItem.Name,
+            Category: field === 'Category Item Type' ? value : localItem.Category,
+            Unit: field === 'Unit' ? value : localItem.Unit,
+            SubUnit: field === 'SubUnit' ? value : localItem.SubUnit,
+            Sequence: field === 'Sequence' ? Number(value) : localItem.Sequence,
+            Type: field === 'Type' ? value : localItem.Type,
+        };
+
         setLocalItem(updatedItem);
         if (onChange) onChange(updatedItem);
     };
+
 
     if (!item) return null;
 
