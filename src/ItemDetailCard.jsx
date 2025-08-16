@@ -44,11 +44,16 @@ export default function ItemDetailCard({ item, onChange }) {
         fetchTypeName();
     }, [item]);
 
-    const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
-
-    
+    // <-- handleFieldChange inside the component, before return
+    const handleFieldChange = (fieldName, value) => {
+        const updated = { ...localItem, [fieldName]: value };
+        setLocalItem(updated);
+        if (onChange) onChange(updated); // propagate to parent
+    };
 
     if (!item) return null;
+
+    const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
 
