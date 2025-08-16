@@ -101,19 +101,24 @@ export default function ProcessDiagram() {
                 offset = data.offset;
             } while (offset);
 
-            const fetchedItems = allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
+            const fetchedItems = allRecords.map((rec) => ({
+                id: rec.id,
+                ...rec.fields,
+                SubUnit: rec.fields.SubUnit || rec.fields["Sub Unit"] || "Default SubUnit",
+            }));
             setItems(fetchedItems);
 
             // Group items by Unit → SubUnit
             const grouped = {};
             fetchedItems.forEach((item) => {
                 const Unit = item.Unit || "Default Unit";
-                const SubUnit = item.SubUnit || item["Sub Unit"] || "Default SubUnit";
+                const SubUnit = item.SubUnit; // now always exists
                 if (!grouped[Unit]) grouped[Unit] = {};
                 if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
 
                 grouped[Unit][SubUnit].push(item);
             });
+
 
             const newNodes = [];
             const newEdges = [];
