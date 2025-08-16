@@ -24,7 +24,7 @@ const nodeTypes = {
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
-    equipment: ScalableIconNode, // fallback for Equipment
+    equipment: ScalableIconNode,
 };
 
 export default function ProcessDiagram() {
@@ -60,10 +60,8 @@ export default function ProcessDiagram() {
     );
 
     const handleItemChange = (updatedItem) => {
-        // Update items list
         setItems((prev) => prev.map((it) => (it.id === updatedItem.id ? updatedItem : it)));
 
-        // Update nodes
         setNodes((nds) =>
             nds.map((node) => {
                 if (node.id === updatedItem.id) {
@@ -72,7 +70,7 @@ export default function ProcessDiagram() {
                         data: {
                             ...node.data,
                             label: `${updatedItem.Code || ""} - ${updatedItem.Name || ""}`,
-                            icon: getItemIcon(updatedItem, { width: 40, height: 40 }),
+                            icon: getItemIcon(updatedItem),
                         },
                         type: updatedItem.Category === "Equipment" ? "equipment" : "scalableIcon",
                     };
@@ -81,12 +79,10 @@ export default function ProcessDiagram() {
             })
         );
 
-        // Update selected item
         setSelectedItem(updatedItem);
     };
 
     useEffect(() => {
-        // Fetch data from Airtable
         const fetchData = async () => {
             const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
             const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -108,19 +104,82 @@ export default function ProcessDiagram() {
             const fetchedItems = allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
             setItems(fetchedItems);
 
-            // Create nodes with icons from IconManager
-            const newNodes = fetchedItems.map((item, index) => ({
-                id: item.id,
-                position: { x: 100 + index * 180, y: 50 },
-                data: {
-                    label: `${item.Code || ""} - ${item.Name || ""}`,
-                    icon: getItemIcon(item, { width: 40, height: 40 }),
-                },
-                type: item.Category === "Equipment" ? "equipment" : "scalableIcon",
-                sourcePosition: "right",
-                targetPosition: "left",
-                style: { background: "transparent" },
-            }));
+            // --- Hierarchical layout: Units → Sub-units → Items ---
+            const grouped = {};
+            fetchedItems.forEach((item) => {
+                const unit = item.Unit || "Unit 1";
+                const subUnit = item.SubUnit || "Sub 1";
+                if (!grouped[unit]) grouped[unit] = {};
+                if (!grouped[unit][subUnit]) grouped[unit][subUnit] = [];
+                grouped[unit][subUnit].push(item);
+            });
+
+            const newNodes = [];
+            let unitX = 0;
+            const unitWidth = 1000;
+            const unitHeight = 600;
+            const subUnitHeight = unitHeight / 9;
+            const itemWidth = 160;
+            const itemGap = 30;
+
+            Object.entries(grouped).forEach(([unitName, subUnits]) => {
+                // Unit rectangle
+                newNodes.push({
+                    id: `unit-${unitName}`,
+                    position: { x: unitX, y: 0 },
+                    data: { label: unitName },
+                    style: {
+                        width: unitWidth,
+                        height: unitHeight,
+                        border: "4px solid #444",
+                        background: "transparent",
+                        boxShadow: "none",
+                    },
+                    draggable: false,
+                    selectable: false,
+                });
+
+                Object.entries(subUnits).forEach(([subUnitName, items], index) => {
+                    const yOffset = index * subUnitHeight;
+
+                    // Sub-unit rectangle
+                    newNodes.push({
+                        id: `sub-${unitName}-${subUnitName}`,
+                        position: { x: unitX + 10, y: yOffset + 10 },
+                        data: { label: subUnitName },
+                        style: {
+                            width: unitWidth - 20,
+                            height: subUnitHeight - 20,
+                            border: "2px dashed #aaa",
+                            background: "transparent",
+                            boxShadow: "none",
+                        },
+                        draggable: false,
+                        selectable: false,
+                    });
+
+                    // Items inside sub-unit
+                    let itemX = unitX + 40;
+                    items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                    items.forEach((item) => {
+                        newNodes.push({
+                            id: item.id,
+                            position: { x: itemX, y: yOffset + 20 },
+                            data: {
+                                label: `${item.Code || ""} - ${item.Name || ""}`,
+                                icon: getItemIcon(item),
+                            },
+                            type: item.Category === "Equipment" ? "equipment" : "scalableIcon",
+                            sourcePosition: "right",
+                            targetPosition: "left",
+                            style: { background: "transparent", boxShadow: "none" },
+                        });
+                        itemX += itemWidth + itemGap;
+                    });
+                });
+
+                unitX += unitWidth + 100;
+            });
 
             setNodes(newNodes);
         };
@@ -143,7 +202,7 @@ export default function ProcessDiagram() {
             {
                 id: newItem.id,
                 position: { x: 100, y: 100 },
-                data: { label: `${newItem.Code} - ${newItem.Name}`, icon: getItemIcon(newItem, { width: 40, height: 40 }) },
+                data: { label: `${newItem.Code} - ${newItem.Name}`, icon: getItemIcon(newItem) },
                 type: "equipment",
                 sourcePosition: "right",
                 targetPosition: "left",
