@@ -35,25 +35,26 @@ export function EquipmentNodeWrapper({ item, ...props }) {
 /**
  * Get icon for an item (used in React Flow nodes)
  */
-export function getItemIcon(item, props = {}) {
+export function getItemIcon(item) {
     if (!item) return null;
 
     if (item.Category === "Equipment") {
         if (item.Type && EQUIPMENT_TYPE_ICONS[item.Type]) {
             const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
-            return typeof typeIcon === "string"
-                ? <img src={typeIcon} alt={item.Type} {...props} />
-                : React.createElement(typeIcon, props);
+            return (props) =>
+                typeof typeIcon === "string"
+                    ? <img src={typeIcon} alt={item.Type} {...props} />
+                    : React.createElement(typeIcon, props);
         }
-        // fallback to scalable EquipmentIcon
-        return <EquipmentNodeWrapper item={item} {...props} />;
+        return (props) => <EquipmentIcon id={item.id} data={item} {...props} />;
     }
 
     const CategoryComponent = CATEGORY_ICONS[item.Category];
-    if (CategoryComponent) return React.createElement(CategoryComponent, props);
+    if (CategoryComponent) return (props) => <CategoryComponent {...props} />;
 
     return null;
 }
+
 
 /**
  * Create a new item and React Flow node
@@ -121,15 +122,14 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     setNodes((nds) =>
         nds.map((node) => {
             if (node.id === updatedItem.id) {
+                const IconComponent = getItemIcon(updatedItem); // function component
                 return {
                     ...node,
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        // Automatically get the correct icon based on current Category/Type
-                        icon: getItemIcon(updatedItem),
+                        icon: <IconComponent /> // <-- always re-renders
                     },
-                    // Optional: you can also change node type dynamically if needed
                     type: updatedItem.Category === 'Equipment'
                         ? 'equipment'
                         : (updatedItem.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
@@ -138,6 +138,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
             return node;
         })
     );
+
 
     setSelectedItem(updatedItem);
 }
