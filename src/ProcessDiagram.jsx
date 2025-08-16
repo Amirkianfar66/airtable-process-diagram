@@ -198,27 +198,44 @@ export default function ProcessDiagram() {
     const createNewItem = () => {
         const newItem = {
             id: `item-${Date.now()}`,
-            Code: "NEW001",
-            Name: "New Item",
-            Category: "Equipment",
-            Unit: "Unit 1",
-            SubUnit: "Sub 1",
+            Code: 'NEW001',
+            Name: 'New Item',
+            Category: 'Equipment',       // Adjust category if needed
+            Unit: 'Unit 1',
+            SubUnit: 'Sub 1',
+            Sequence: 0,                 // optional, for sorting inside SubUnit
         };
-        setItems((its) => [...its, newItem]);
-        setNodes((nds) => [
-            ...nds,
-            {
-                id: newItem.id,
-                position: { x: 100, y: 100 },
-                data: { label: `${newItem.Code} - ${newItem.Name}`, icon: getItemIcon(newItem, { width: 40, height: 40 }) },
-                type: "equipment",
-                sourcePosition: "right",
-                targetPosition: "left",
-                style: { background: "transparent" },
+
+        // Add to items state
+        setItems((prevItems) => [...prevItems, newItem]);
+
+        // Determine the x/y position based on existing nodes in the same Unit/SubUnit
+        const unitNodes = nodes.filter(
+            (n) => n.data?.unit === newItem.Unit && n.data?.subUnit === newItem.SubUnit
+        );
+        const x = 100 + unitNodes.length * 190; // offset by item width + gap
+        const y = 100; // you can adjust or calculate dynamically
+
+        // Create new node for ReactFlow
+        const newNode = {
+            id: newItem.id,
+            position: { x, y },
+            data: {
+                label: `${newItem.Code} - ${newItem.Name}`,
+                icon: getItemIcon(newItem, { width: 40, height: 40 }),
+                unit: newItem.Unit,
+                subUnit: newItem.SubUnit,
             },
-        ]);
+            type: newItem.Category === 'Equipment' ? 'equipment' : 'scalableIcon',
+            sourcePosition: 'right',
+            targetPosition: 'left',
+            style: { background: 'transparent' },
+        };
+
+        setNodes((prevNodes) => [...prevNodes, newNode]);
         setSelectedItem(newItem);
     };
+
 
     return (
         <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
