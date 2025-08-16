@@ -15,7 +15,7 @@ import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import { getItemIcon } from './IconManager';
-
+import { AddItemButton, handleItemChangeNode } from './IconManager';
 
 const nodeTypes = {
     resizable: ResizableNode,
@@ -88,30 +88,6 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
 
-    const createNewItem = () => {
-        const newItem = {
-            id: `item-${Date.now()}`,
-            Code: 'NEW001',
-            Name: 'New Item',
-            Category: 'Equipment',
-            Unit: 'Unit 1',
-            SubUnit: 'Sub 1',
-        };
-
-        const newNode = {
-            id: newItem.id,
-            position: { x: 100, y: 100 },
-            data: { label: `${newItem.Code} - ${newItem.Name}` },
-            type: newItem.Category === 'Equipment' ? 'equipment' : 'scalableIcon',
-            sourcePosition: 'right',
-            targetPosition: 'left',
-            style: { background: 'transparent' },
-        };
-
-        setNodes((nds) => [...nds, newNode]);
-        setItems((its) => [...its, newItem]);
-        setSelectedItem(newItem);
-    };
 
     const handleItemChange = (updatedItem) => {
         setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
@@ -233,20 +209,13 @@ export default function ProcessDiagram() {
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
             <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
                 <div style={{ padding: 10 }}>
-                    <button
-                        onClick={createNewItem}
-                        style={{
-                            padding: '6px 12px',
-                            background: '#4CAF50',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 4,
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Add New Item
-                    </button>
+                    <AddItemButton
+                        setNodes={setNodes}
+                        setItems={setItems}
+                        setSelectedItem={setSelectedItem}
+                    />
                 </div>
+
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -267,7 +236,11 @@ export default function ProcessDiagram() {
 
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', overflowY: 'auto' }}>
                 {selectedItem ? (
-                    <ItemDetailCard item={selectedItem} onChange={handleItemChange} />
+                    <ItemDetailCard
+                        item={selectedItem}
+                        onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)}
+                    />
+
                 ) : (
                     <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
                 )}
