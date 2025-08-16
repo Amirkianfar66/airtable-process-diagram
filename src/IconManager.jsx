@@ -7,6 +7,16 @@ import InlineValveIcon from './Icons/InlineValveIcon';
 import PipeIcon from './Icons/PipeIcon';
 import ElectricalIcon from './Icons/ElectricalIcon';
 
+
+/** Map Category → Node Type */
+const categoryTypeMap = {
+    Equipment: "equipment",
+    Pipe: "pipe",
+    Instrument: "instrument",
+    "Inline Valve": "valve",
+    Electrical: "electrical",
+};
+
 /** Type-specific icons for Equipment */
 const EQUIPMENT_TYPE_ICONS = {
     Tank: TankSVG,
