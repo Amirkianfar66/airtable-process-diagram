@@ -26,7 +26,14 @@ const CATEGORY_ICONS = {
 };
 
 /**
- * Get icon for an item
+ * Wrapper for scalable EquipmentIcon
+ */
+export function EquipmentNodeWrapper({ item, ...props }) {
+    return <EquipmentIcon id={item.id} data={item} {...props} />;
+}
+
+/**
+ * Get icon for an item (used in React Flow nodes)
  */
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
@@ -38,8 +45,8 @@ export function getItemIcon(item, props = {}) {
                 ? <img src={typeIcon} alt={item.Type} {...props} />
                 : React.createElement(typeIcon, props);
         }
-        // fallback EquipmentIcon, pass id and full item data
-        return <EquipmentIcon id={item.id} data={item} />;
+        // fallback to scalable EquipmentIcon
+        return <EquipmentNodeWrapper item={item} {...props} />;
     }
 
     const CategoryComponent = CATEGORY_ICONS[item.Category];
@@ -48,11 +55,8 @@ export function getItemIcon(item, props = {}) {
     return null;
 }
 
-
-
-
 /**
- * Create a new item and node
+ * Create a new item and React Flow node
  */
 export function createNewItemNode(setNodes, setItems, setSelectedItem) {
     const newItem = {
@@ -64,19 +68,19 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         Unit: 'Unit 1',
         SubUnit: 'Sub 1',
     };
+
     const newNode = {
         id: newItem.id,
         position: { x: 100, y: 100 },
         data: {
             label: `${newItem.Code} - ${newItem.Name}`,
-            icon: getItemIcon(newItem), // no width/height override for fallback EquipmentIcon
+            icon: getItemIcon(newItem), // automatic fallback handled
         },
-        type: 'equipment', // make sure your node type renders data.icon
+        type: 'equipment',
         sourcePosition: 'right',
         targetPosition: 'left',
         style: { background: 'transparent' },
     };
-
 
     setNodes((nds) => [...nds, newNode]);
     setItems((its) => [...its, newItem]);
@@ -84,7 +88,7 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
 }
 
 /**
- * Add Item Button component
+ * Button component to add new item
  */
 export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
     return (
@@ -105,7 +109,7 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 }
 
 /**
- * Handle updates to an item and its node
+ * Update an item and its node in React Flow
  */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
     setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
@@ -118,7 +122,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        icon: getItemIcon(updatedItem), // same here
+                        icon: getItemIcon(updatedItem), // automatic fallback
                     },
                     type: updatedItem.Category === 'Equipment'
                         ? 'equipment'
@@ -128,7 +132,6 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
             return node;
         })
     );
-
 
     setSelectedItem(updatedItem);
 }
