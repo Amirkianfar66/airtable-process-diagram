@@ -61,9 +61,7 @@ export default function ProcessDiagram() {
 
     const handleItemChange = (updatedItem) => {
         // Update items list
-        setItems((prev) =>
-            prev.map((it) => (it.id === updatedItem.id ? updatedItem : it))
-        );
+        setItems((prev) => prev.map((it) => (it.id === updatedItem.id ? updatedItem : it)));
 
         // Update nodes
         setNodes((nds) =>
@@ -74,7 +72,7 @@ export default function ProcessDiagram() {
                         data: {
                             ...node.data,
                             label: `${updatedItem.Code || ""} - ${updatedItem.Name || ""}`,
-                            icon: getItemIcon(updatedItem, { width: 40, height: 40 }), // always React element
+                            icon: getItemIcon(updatedItem, { width: 40, height: 40 }),
                         },
                         type: updatedItem.Category === "Equipment" ? "equipment" : "scalableIcon",
                     };
@@ -88,7 +86,7 @@ export default function ProcessDiagram() {
     };
 
     useEffect(() => {
-        // Fetch data from Airtable or any API
+        // Fetch data from Airtable
         const fetchData = async () => {
             const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
             const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -110,7 +108,7 @@ export default function ProcessDiagram() {
             const fetchedItems = allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
             setItems(fetchedItems);
 
-            // Create nodes
+            // Create nodes with icons from IconManager
             const newNodes = fetchedItems.map((item, index) => ({
                 id: item.id,
                 position: { x: 100 + index * 180, y: 50 },
@@ -145,10 +143,7 @@ export default function ProcessDiagram() {
             {
                 id: newItem.id,
                 position: { x: 100, y: 100 },
-                data: {
-                    label: `${newItem.Code} - ${newItem.Name}`,
-                    icon: getItemIcon(newItem, { width: 40, height: 40 }),
-                },
+                data: { label: `${newItem.Code} - ${newItem.Name}`, icon: getItemIcon(newItem, { width: 40, height: 40 }) },
                 type: "equipment",
                 sourcePosition: "right",
                 targetPosition: "left",
@@ -164,14 +159,7 @@ export default function ProcessDiagram() {
                 <div style={{ padding: 10 }}>
                     <button
                         onClick={createNewItem}
-                        style={{
-                            padding: "6px 12px",
-                            background: "#4CAF50",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 4,
-                            cursor: "pointer",
-                        }}
+                        style={{ padding: "6px 12px", background: "#4CAF50", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
                     >
                         Add New Item
                     </button>
@@ -194,11 +182,7 @@ export default function ProcessDiagram() {
             </div>
 
             <div style={{ width: 350, borderLeft: "1px solid #ccc", overflowY: "auto", background: "transparent" }}>
-                {selectedItem ? (
-                    <ItemDetailCard item={selectedItem} onChange={handleItemChange} />
-                ) : (
-                    <div style={{ padding: 20, color: "#888" }}>Select an item to see details</div>
-                )}
+                {selectedItem ? <ItemDetailCard item={selectedItem} onChange={handleItemChange} /> : <div style={{ padding: 20, color: "#888" }}>Select an item to see details</div>}
             </div>
         </div>
     );
