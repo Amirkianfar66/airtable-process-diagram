@@ -1,8 +1,8 @@
 ﻿import React from "react";
 
 // Import all SVG files
-import { ReactComponent as TankSVG } from "./tank.svg";
-import { ReactComponent as PumpSVG } from "./pump.svg";
+import { ReactComponent as TankSVG } from "./Icons/tank.svg";
+import { ReactComponent as PumpSVG } from "./Icons//pump.svg";
 
 // Import category React components
 import EquipmentIcon from "../components/Icons/EquipmentIcon";
