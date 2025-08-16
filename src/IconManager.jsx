@@ -35,14 +35,22 @@ export function getItemIcon(item, props = {}) {
     if (item.Category === "Equipment") {
         if (item.Type && EQUIPMENT_TYPE_ICONS[item.Type]) {
             const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
-            // If string (imported SVG), render <img>
             return typeof typeIcon === "string"
                 ? <img src={typeIcon} alt={item.Type} {...props} />
                 : React.createElement(typeIcon, props);
         }
-        // Fallback to dynamic EquipmentIcon React Flow node
+        // Default Equipment icon
         return <EquipmentIcon id={item.id} data={item} {...props} />;
     }
+
+    // Non-equipment categories
+    const CategoryComponent = CATEGORY_ICONS[item.Category];
+    if (CategoryComponent) return <CategoryComponent {...props} />;
+
+    // If category unknown, fallback
+    return <EquipmentIcon id={item.id} data={item} {...props} />;
+}
+
 
     // Other categories
     const CategoryComponent = CATEGORY_ICONS[item.Category];
