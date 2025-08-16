@@ -200,26 +200,32 @@ export default function ProcessDiagram() {
             id: `item-${Date.now()}`,
             Code: 'NEW001',
             Name: 'New Item',
-            Category: 'Equipment',       // Adjust category if needed
+            Category: 'Equipment',
             Unit: 'Unit 1',
             SubUnit: 'Sub 1',
-            Sequence: 0,                 // optional, for sorting inside SubUnit
+            Sequence: 0,
         };
 
-        // Add to items state
         setItems((prevItems) => [...prevItems, newItem]);
 
-        // Determine the x/y position based on existing nodes in the same Unit/SubUnit
-        const unitNodes = nodes.filter(
+        // Find existing Unit/SubUnit nodes
+        const unitNode = nodes.find((n) => n.id === `unit-${newItem.Unit}`);
+        const subUnitNode = nodes.find((n) => n.id === `sub-${newItem.Unit}-${newItem.SubUnit}`);
+
+        // Fallback position if containers don’t exist yet
+        const baseX = subUnitNode?.position.x + 30 || 100;
+        const baseY = subUnitNode?.position.y + 20 || 100;
+
+        // Count existing items in this subunit to offset
+        const existingItemsInSubUnit = nodes.filter(
             (n) => n.data?.unit === newItem.Unit && n.data?.subUnit === newItem.SubUnit
         );
-        const x = 100 + unitNodes.length * 190; // offset by item width + gap
-        const y = 100; // you can adjust or calculate dynamically
+        const itemX = baseX + existingItemsInSubUnit.length * 190; // item width + gap
+        const itemY = baseY;
 
-        // Create new node for ReactFlow
         const newNode = {
             id: newItem.id,
-            position: { x, y },
+            position: { x: itemX, y: itemY },
             data: {
                 label: `${newItem.Code} - ${newItem.Name}`,
                 icon: getItemIcon(newItem, { width: 40, height: 40 }),
@@ -235,6 +241,7 @@ export default function ProcessDiagram() {
         setNodes((prevNodes) => [...prevNodes, newNode]);
         setSelectedItem(newItem);
     };
+
 
 
     return (
