@@ -32,14 +32,13 @@ export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
     if (item.Category === "Equipment") {
-        const typeIcon = item.Type ? EQUIPMENT_TYPE_ICONS[item.Type] : null;
-
-        if (typeIcon) {
-            if (typeof typeIcon === "string") return <img src={typeIcon} alt={item.Type} {...props} />;
-            return React.createElement(typeIcon, props);
+        if (item.Type && EQUIPMENT_TYPE_ICONS[item.Type]) {
+            const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
+            return typeof typeIcon === "string"
+                ? <img src={typeIcon} alt={item.Type} {...props} />
+                : React.createElement(typeIcon, props);
         }
-
-        // Fallback to React Flow node component
+        // fallback EquipmentIcon, pass id and full item data
         return <EquipmentIcon id={item.id} data={item} />;
     }
 
@@ -48,6 +47,7 @@ export function getItemIcon(item, props = {}) {
 
     return null;
 }
+
 
 
 
@@ -64,19 +64,19 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         Unit: 'Unit 1',
         SubUnit: 'Sub 1',
     };
-
     const newNode = {
         id: newItem.id,
         position: { x: 100, y: 100 },
         data: {
             label: `${newItem.Code} - ${newItem.Name}`,
-            icon: getItemIcon(newItem, { width: 40, height: 40 }),
+            icon: getItemIcon(newItem), // no width/height override for fallback EquipmentIcon
         },
-        type: 'equipment',
+        type: 'equipment', // make sure your node type renders data.icon
         sourcePosition: 'right',
         targetPosition: 'left',
         style: { background: 'transparent' },
     };
+
 
     setNodes((nds) => [...nds, newNode]);
     setItems((its) => [...its, newItem]);
@@ -118,7 +118,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        icon: getItemIcon(updatedItem, { width: 20, height: 20 }),
+                        icon: getItemIcon(updatedItem), // same here
                     },
                     type: updatedItem.Category === 'Equipment'
                         ? 'equipment'
@@ -128,6 +128,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
             return node;
         })
     );
+
 
     setSelectedItem(updatedItem);
 }
