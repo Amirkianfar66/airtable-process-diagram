@@ -91,14 +91,16 @@ export default function ProcessDiagram() {
                 const normalizedItems = items.map(item => ({
                     ...item,
                     Unit: item.Unit || 'Default Unit',
-                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit', // <-- normalized here
                     Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
                     Code: item['Item Code'] || item.Code || '',
                     Name: item.Name || '',
                     Sequence: item.Sequence || 0
                 }));
 
-                setItems(normalizedItems);
+                setItems(normalizedItems); // now state items have SubUnit
+
+
 
                 const grouped = {};
                 normalizedItems.forEach((item) => {
