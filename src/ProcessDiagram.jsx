@@ -206,13 +206,16 @@ export default function ProcessDiagram() {
                                 position: { x: itemX, y: yOffset + 20 },
                                 data: {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
-                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
+                                    icon: getItemIcon(item, { width: 20, height: 20 }),
                                 },
-                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                                type: item.Category === 'Equipment'
+                                    ? 'equipment'
+                                    : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
                                 style: { background: 'transparent', boxShadow: 'none' },
                             });
+
                             itemX += itemWidth + itemGap;
                         });
                     });
