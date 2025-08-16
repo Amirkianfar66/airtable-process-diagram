@@ -105,24 +105,29 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 /** Update an item and its node (category/type changes reflected) */
 
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
+    // Update the items array
     setItems(prev => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
 
+    // Update the nodes array
     setNodes(nds =>
         nds.map(node =>
             node.id === updatedItem.id
                 ? {
                     ...node,
-                    type: categoryTypeMap[updatedItem.Category] || "scalableIcon",
+                    type: categoryTypeMap[updatedItem.Category] || "scalableIcon", // update node type
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ""} - ${updatedItem.Name || ""}`,
-                        item: updatedItem, // ⬅️ re-render based on new item
+                        item: updatedItem,
+                        icon: getItemIcon(updatedItem), // update icon if Category/Type changed
                     },
                 }
                 : node
         )
     );
 
+    // Update selected item
     setSelectedItem(updatedItem);
 }
+
 

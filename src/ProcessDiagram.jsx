@@ -165,15 +165,17 @@ export default function ProcessDiagram() {
                                 position: { x: itemX, y: yOffset + 20 },
                                 data: {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    item: item, // include the raw item for consistency
                                     icon: getItemIcon(item), // centralized icon logic
                                 },
-                                type: 'custom', // generic node type for all items
+                                type: categoryTypeMap[item.Category] || 'scalableIcon', // use dynamic node type
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
                                 style: { background: 'transparent', boxShadow: 'none' },
                             });
                             itemX += itemWidth + itemGap;
                         });
+
                     });
 
                     unitX += unitWidth + 100;
