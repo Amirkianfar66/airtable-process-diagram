@@ -91,17 +91,16 @@ export default function ProcessDiagram() {
                 const normalizedItems = items.map(item => ({
                     ...item,
                     Unit: item.Unit || 'Default Unit',
-                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit', // <-- normalized here
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                     Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
                     Code: item['Item Code'] || item.Code || '',
                     Name: item.Name || '',
                     Sequence: item.Sequence || 0
                 }));
 
-                setItems(normalizedItems); // now state items have SubUnit
+                setItems(normalizedItems); // <-- state items now have SubUnit
 
-
-
+                // Group items
                 const grouped = {};
                 normalizedItems.forEach((item) => {
                     const { Unit, SubUnit, Category, Sequence, Name, Code, id } = item;
@@ -111,12 +110,7 @@ export default function ProcessDiagram() {
                     grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
                 });
 
-                // ... rest of your node generation code ...
-            })
-            .catch(console.error);
-    }, []);
-
-
+                // Create nodes and edges
                 const newNodes = [];
                 const newEdges = [];
                 let unitX = 0;
@@ -190,6 +184,7 @@ export default function ProcessDiagram() {
             })
             .catch(console.error);
     }, []);
+
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
