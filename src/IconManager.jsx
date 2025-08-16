@@ -111,9 +111,13 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 /**
  * Update an item and its node in React Flow
  */
+// IconManager.js
+
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
+    // Update the item in the items state
     setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
 
+    // Update the node in the nodes state
     setNodes((nds) =>
         nds.map((node) => {
             if (node.id === updatedItem.id) {
@@ -122,8 +126,10 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        icon: getItemIcon(updatedItem), // automatic fallback
+                        // Automatically get the correct icon based on current Category/Type
+                        icon: getItemIcon(updatedItem),
                     },
+                    // Optional: you can also change node type dynamically if needed
                     type: updatedItem.Category === 'Equipment'
                         ? 'equipment'
                         : (updatedItem.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
@@ -135,3 +141,4 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
 
     setSelectedItem(updatedItem);
 }
+
