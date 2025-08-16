@@ -26,33 +26,30 @@ const CATEGORY_ICONS = {
 };
 
 /**
- * Get icon for an item
+ * Return a React component for an item icon
  */
-export function getItemIcon(item, props = {}) {
+export function getItemIcon(item) {
     if (!item) return null;
 
     if (item.Category === "Equipment") {
         if (item.Type && EQUIPMENT_TYPE_ICONS[item.Type]) {
             const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
-            return typeof typeIcon === "string"
-                ? <img src={typeIcon} alt={item.Type} {...props} />
-                : React.createElement(typeIcon, props);
+            return (props) =>
+                typeof typeIcon === "string"
+                    ? <img src={typeIcon} alt={item.Type} {...props} />
+                    : React.createElement(typeIcon, props);
         }
-        // fallback EquipmentIcon, pass id and full item data
-        return <EquipmentIcon id={item.id} data={item} />;
+        return (props) => <EquipmentIcon id={item.id} data={item} {...props} />;
     }
 
     const CategoryComponent = CATEGORY_ICONS[item.Category];
-    if (CategoryComponent) return React.createElement(CategoryComponent, props);
+    if (CategoryComponent) return (props) => <CategoryComponent {...props} />;
 
     return null;
 }
 
-
-
-
 /**
- * Create a new item and node
+ * Create a new item node
  */
 export function createNewItemNode(setNodes, setItems, setSelectedItem) {
     const newItem = {
@@ -60,23 +57,25 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         Code: 'NEW001',
         Name: 'New Item',
         Category: 'Equipment',
-        Type: 'Tank', // default Equipment type
+        Type: 'Tank',
         Unit: 'Unit 1',
         SubUnit: 'Sub 1',
     };
+
+    const IconComponent = getItemIcon(newItem);
+
     const newNode = {
         id: newItem.id,
         position: { x: 100, y: 100 },
         data: {
             label: `${newItem.Code} - ${newItem.Name}`,
-            icon: getItemIcon(newItem), // no width/height override for fallback EquipmentIcon
+            icon: <IconComponent />, // always a component
         },
-        type: 'equipment', // make sure your node type renders data.icon
+        type: 'equipment',
         sourcePosition: 'right',
         targetPosition: 'left',
         style: { background: 'transparent' },
     };
-
 
     setNodes((nds) => [...nds, newNode]);
     setItems((its) => [...its, newItem]);
@@ -84,7 +83,7 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
 }
 
 /**
- * Add Item Button component
+ * Add Item Button
  */
 export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
     return (
@@ -105,7 +104,7 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 }
 
 /**
- * Handle updates to an item and its node
+ * Update item and its React Flow node
  */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
     setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
@@ -113,12 +112,13 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     setNodes((nds) =>
         nds.map((node) => {
             if (node.id === updatedItem.id) {
+                const IconComponent = getItemIcon(updatedItem);
                 return {
                     ...node,
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        icon: getItemIcon(updatedItem), // same here
+                        icon: <IconComponent />,
                     },
                     type: updatedItem.Category === 'Equipment'
                         ? 'equipment'
@@ -128,7 +128,6 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
             return node;
         })
     );
-
 
     setSelectedItem(updatedItem);
 }
