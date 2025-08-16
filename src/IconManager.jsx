@@ -98,6 +98,11 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     setNodes(nds =>
         nds.map(node => {
             if (node.id === updatedItem.id) {
+                const newIcon = getItemIcon(updatedItem, { width: 20, height: 20 });
+                const iconWithKey = React.isValidElement(newIcon)
+                    ? React.cloneElement(newIcon, { key: `${updatedItem.id}-${updatedItem.Category}-${updatedItem.Type}` })
+                    : newIcon;
+
                 return {
                     ...node,
                     type: updatedItem.Category === 'Equipment'
@@ -106,11 +111,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        // Force icon update with key
-                        icon: React.cloneElement(
-                            getItemIcon(updatedItem, { width: 20, height: 20 }),
-                            { key: `${updatedItem.id}-${updatedItem.Category}-${Date.now()}` }
-                        ),
+                        icon: iconWithKey,
                     },
                 };
             }
@@ -120,3 +121,4 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
 
     setSelectedItem(updatedItem);
 }
+
