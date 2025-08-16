@@ -5,11 +5,11 @@ import { ReactComponent as TankSVG } from "./Icons/tank.svg";
 import { ReactComponent as PumpSVG } from "./Icons//pump.svg";
 
 // Import category React components
-import EquipmentIcon from "../Icons/EquipmentIcon";
-import InstrumentIcon from "../Icons/InstrumentIcon";
-import InlineValveIcon from "../Icons/InlineValveIcon";
-import PipeIcon from "../Icons/PipeIcon";
-import ElectricalIcon from "../Icons/ElectricalIcon";
+import EquipmentIcon from './Icons/EquipmentIcon';
+import InstrumentIcon from './Icons/InstrumentIcon';
+import InlineValveIcon from './Icons/InlineValveIcon';
+import PipeIcon from './Icons/PipeIcon';
+import ElectricalIcon from './Icons/ElectricalIcon';
 
 // Map of Type-specific SVGs
 const TYPE_SVGS = {
