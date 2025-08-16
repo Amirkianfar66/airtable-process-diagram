@@ -1,5 +1,4 @@
 ﻿import React from "react";
-
 import TankSVG from "./Icons/tank.svg";
 import PumpSVG from "./Icons/pump.svg";
 import EquipmentIcon from './Icons/EquipmentIcon';
@@ -9,18 +8,17 @@ import PipeIcon from './Icons/PipeIcon';
 import ElectricalIcon from './Icons/ElectricalIcon';
 
 /**
- * Map of Type-specific icons (can be URLs or React components)
+ * Type-specific icons (only Equipment types)
  */
-const TYPE_ICONS = {
-    EquipmentTank: TankSVG,
-    EquipmentPump: PumpSVG,
+const EQUIPMENT_TYPE_ICONS = {
+    Tank: TankSVG,
+    Pump: PumpSVG,
 };
 
 /**
- * Map of Category default icons (React components)
+ * Category fallback icons
  */
 const CATEGORY_ICONS = {
-    Equipment: EquipmentIcon,
     Instrument: InstrumentIcon,
     "Inline Valve": InlineValveIcon,
     Pipe: PipeIcon,
@@ -28,29 +26,27 @@ const CATEGORY_ICONS = {
 };
 
 /**
- * Get the icon for a given item
- * @param {Object} item - { Category, Type }
- * @param {Object} props - optional props for React components (width, height, style)
- * @returns string|ReactComponent
+ * Get icon for an item
  */
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
-    const typeKey = `${item.Category}${item.Type || ""}`;
-
-    // 1️⃣ Type-specific icon (URL or component)
-    const typeIcon = TYPE_ICONS[typeKey];
-    if (typeIcon) {
-        // if it's a string (URL), return <img>
-        if (typeof typeIcon === "string") return <img src={typeIcon} alt={item.Type} {...props} />;
-        // if it's a React component
-        return React.createElement(typeIcon, props);
+    // Equipment handled separately
+    if (item.Category === "Equipment") {
+        const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
+        if (typeIcon) {
+            // SVG URL
+            if (typeof typeIcon === "string") return <img src={typeIcon} alt={item.Type} {...props} />;
+            // React component
+            return React.createElement(typeIcon, props);
+        }
+        // fallback generic Equipment icon
+        return <EquipmentIcon {...props} />;
     }
 
-    // 2️⃣ Category fallback
+    // Non-Equipment categories
     const CategoryComponent = CATEGORY_ICONS[item.Category];
     if (CategoryComponent) return React.createElement(CategoryComponent, props);
 
-    // 3️⃣ No icon
     return null;
 }
