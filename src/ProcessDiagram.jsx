@@ -200,7 +200,6 @@ export default function ProcessDiagram() {
                         let itemX = unitX + 40;
                         items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         items.forEach((item) => {
-                            const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
                                 id: item.id,
                                 position: { x: itemX, y: yOffset + 20 },
@@ -215,9 +214,9 @@ export default function ProcessDiagram() {
                                 targetPosition: 'left',
                                 style: { background: 'transparent', boxShadow: 'none' },
                             });
-
                             itemX += itemWidth + itemGap;
                         });
+
                     });
 
                     unitX += unitWidth + 100;
