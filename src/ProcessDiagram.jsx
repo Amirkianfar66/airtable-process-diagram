@@ -60,7 +60,12 @@ export default function ProcessDiagram() {
     );
 
     const handleItemChange = (updatedItem) => {
-        setItems((prev) => prev.map((it) => (it.id === updatedItem.id ? updatedItem : it)));
+        // Update items list
+        setItems((prev) =>
+            prev.map((it) => (it.id === updatedItem.id ? updatedItem : it))
+        );
+
+        // Update nodes
         setNodes((nds) =>
             nds.map((node) => {
                 if (node.id === updatedItem.id) {
@@ -69,7 +74,7 @@ export default function ProcessDiagram() {
                         data: {
                             ...node.data,
                             label: `${updatedItem.Code || ""} - ${updatedItem.Name || ""}`,
-                            icon: getItemIcon(updatedItem, { width: 20, height: 20 }),
+                            icon: getItemIcon(updatedItem), // returns URL string or React component
                         },
                         type: updatedItem.Category === "Equipment" ? "equipment" : "scalableIcon",
                     };
@@ -77,8 +82,11 @@ export default function ProcessDiagram() {
                 return node;
             })
         );
+
+        // Update selected item
         setSelectedItem(updatedItem);
     };
+
 
     useEffect(() => {
         // Fetch data from Airtable or any API
@@ -109,7 +117,7 @@ export default function ProcessDiagram() {
                 position: { x: 100 + index * 180, y: 50 },
                 data: {
                     label: `${item.Code || ""} - ${item.Name || ""}`,
-                    icon: getItemIcon(item, { width: 20, height: 20 }),
+                    icon: getItemIcon(item), // no props needed here
                 },
                 type: item.Category === "Equipment" ? "equipment" : "scalableIcon",
                 sourcePosition: "right",
@@ -118,7 +126,7 @@ export default function ProcessDiagram() {
             }));
 
             setNodes(newNodes);
-        };
+
 
         fetchData().catch(console.error);
     }, []);

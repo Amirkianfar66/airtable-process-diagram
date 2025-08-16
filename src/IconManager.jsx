@@ -1,26 +1,21 @@
-﻿// src/IconManager.jsx
-import React from "react";
-
-// ✅ Import SVGs as React components (requires vite-plugin-svgr)
+﻿// src/IconManager.js
 import TankSVG from "./Icons/tank.svg";
 import PumpSVG from "./Icons/pump.svg";
 
-
-// ✅ Import category React components
+// Category default icons (you can replace these with other URLs or components)
 import EquipmentIcon from "./Icons/EquipmentIcon";
 import InstrumentIcon from "./Icons/InstrumentIcon";
 import InlineValveIcon from "./Icons/InlineValveIcon";
 import PipeIcon from "./Icons/PipeIcon";
 import ElectricalIcon from "./Icons/ElectricalIcon";
 
-// Map of Type-specific SVGs
-const TYPE_SVGS = {
-    EquipmentTank: (props) => <img src={TankSVG} alt="Tank" {...props} />,
-    EquipmentPump: (props) => <img src={PumpSVG} alt="Pump" {...props} />,
+// Map of Type-specific icons (just URLs)
+const TYPE_ICONS = {
+    EquipmentTank: TankSVG,
+    EquipmentPump: PumpSVG,
 };
 
-
-// Map of Category default icons
+// Map of Category default icons (could be React components)
 const CATEGORY_ICONS = {
     Equipment: EquipmentIcon,
     Instrument: InstrumentIcon,
@@ -30,29 +25,21 @@ const CATEGORY_ICONS = {
 };
 
 /**
- * Get the icon component for a given item
- * @param {Object} item - The item object
- * @param {string} item.Category - Category name
- * @param {string} item.Type - Type name (optional)
- * @param {Object} props - Props to pass to the component (style, width, height, etc.)
- * @returns JSX.Element
+ * Get the icon URL or component for a given item
+ * @param {Object} item - item object
+ * @returns string|ReactComponent
  */
-export function getItemIcon(item, props = {}) {
+export function getItemIcon(item) {
     if (!item) return null;
 
-    const typeKey = `${item.Category}${item.Type || ""}`; // e.g., "EquipmentTank"
+    const typeKey = `${item.Category}${item.Type || ""}`;
 
-    // 1️⃣ Try type-specific SVG first
-    if (TYPE_SVGS[typeKey]) {
-        return TYPE_SVGS[typeKey](props);
-    }
+    // 1️⃣ Try type-specific icon
+    if (TYPE_ICONS[typeKey]) return TYPE_ICONS[typeKey];
 
-    // 2️⃣ Fallback to category component
+    // 2️⃣ Fallback to category icon
     const CategoryComponent = CATEGORY_ICONS[item.Category];
-    if (CategoryComponent) {
-        return <CategoryComponent {...props} />;
-    }
+    if (CategoryComponent) return CategoryComponent;
 
-    // 3️⃣ Default fallback (optional)
     return null;
 }

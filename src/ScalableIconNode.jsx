@@ -1,79 +1,37 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
-import { useReactFlow } from 'reactflow';
+﻿import React from "react";
 
-export default function ScalableIconNode({ id, data }) {
-    const { setNodes } = useReactFlow();
-    const [hovered, setHovered] = useState(false);
-    const [visible, setVisible] = useState(false);
-    const timeoutRef = useRef(null);
-    const iconRef = useRef(null);
-
-    const scale = data.scale || 1;
-    const label = data.label || '';
-
-    const handleMouseEnter = () => {
-        setHovered(true);
-        setVisible(true);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-
-    const handleMouseLeave = () => {
-        setHovered(false);
-        timeoutRef.current = setTimeout(() => setVisible(false), 3000);
-    };
-
-    useEffect(() => {
-        return () => clearTimeout(timeoutRef.current);
-    }, []);
-
-    const baseSize = 100;
-    const size = baseSize * scale;
+export default function ScalableIconNode({ data }) {
+    const icon = data.icon;
 
     return (
         <div
             style={{
-                position: 'relative',
-                width: size,
-                height: size + 20,
-                pointerEvents: 'all',
-                textAlign: 'center',
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 6,
+                border: "1px solid #aaa",
+                borderRadius: 6,
+                background: "#fff",
+                minWidth: 60,
+                minHeight: 60,
             }}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onClick={(e) => e.stopPropagation()}
         >
-            {/* SVG Icon scaled inside */}
-            <div
-                ref={iconRef}
-                style={{
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'top left',
-                    width: baseSize,
-                    height: baseSize,
-                    pointerEvents: 'none',
-                }}
-            >
-                {data.icon}
-            </div>
-
-            {/* Label below SVG */}
-            <div
-                style={{
-                    fontSize: 13,
-                    marginTop: -8,     // small negative margin to move label up
-                    position: 'relative',
-                    top: -10,           // shift label upward
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    color: '#333',
-                    width: '100%',
-                    textAlign: 'left',
-                    paddingLeft: 5,
-                }}
-            >
-                {label.substring(0, 5)}
-            </div>
+            {icon && (
+                // if icon is a string (URL)
+                typeof icon === "string" ? (
+                    <img
+                        src={icon}
+                        alt="icon"
+                        style={{ width: 40, height: 40, objectFit: "contain", marginBottom: 4 }}
+                    />
+                ) : (
+                    // if icon is a React component
+                    React.createElement(icon, { width: 40, height: 40, style: { marginBottom: 4 } })
+                )
+            )}
+            <div style={{ fontSize: 12, textAlign: "center" }}>{data.label}</div>
         </div>
     );
 }
