@@ -15,7 +15,7 @@ import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 
-import { getItemIcon } from '../Icons/IconManager';
+import { getItemIcon } from './IconManager';
 
 const nodeTypes = {
     resizable: ResizableNode,
