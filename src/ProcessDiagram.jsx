@@ -15,27 +15,14 @@ import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 
-import EquipmentIcon from './Icons/EquipmentIcon';
-import InstrumentIcon from './Icons/InstrumentIcon';
-import InlineValveIcon from './Icons/InlineValveIcon';
-import PipeIcon from './Icons/PipeIcon';
-import ElectricalIcon from './Icons/ElectricalIcon';
+import { getItemIcon } from '../Icons/IconManager';
 
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
     pipe: PipeItemNode,
-    equipment: EquipmentIcon,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
-};
-
-const categoryIcons = {
-    Equipment: EquipmentIcon,
-    Instrument: InstrumentIcon,
-    'Inline Valve': InlineValveIcon,
-    Pipe: PipeIcon,
-    Electrical: ElectricalIcon,
 };
 
 const fetchData = async () => {
@@ -114,8 +101,8 @@ export default function ProcessDiagram() {
         const newNode = {
             id: newItem.id,
             position: { x: 100, y: 100 },
-            data: { label: `${newItem.Code} - ${newItem.Name}` },
-            type: newItem.Category === 'Equipment' ? 'equipment' : 'scalableIcon',
+            data: { label: `${newItem.Code} - ${newItem.Name}`, icon: getItemIcon(newItem, { style: { width: 20, height: 20 } }) },
+            type: 'scalableIcon',
             sourcePosition: 'right',
             targetPosition: 'left',
             style: { background: 'transparent' },
@@ -137,13 +124,8 @@ export default function ProcessDiagram() {
                         data: {
                             ...node.data,
                             label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                            icon: categoryIcons[updatedItem.Category] ? (
-                                React.createElement(categoryIcons[updatedItem.Category], { style: { width: 20, height: 20 } })
-                            ) : null,
+                            icon: getItemIcon(updatedItem, { style: { width: 20, height: 20 } }),
                         },
-                        type: updatedItem.Category === 'Equipment'
-                            ? 'equipment'
-                            : (updatedItem.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
                     };
                 }
                 return node;
@@ -165,7 +147,7 @@ export default function ProcessDiagram() {
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
 
                     const categoryString = Array.isArray(Category) ? Category[0] : Category;
-                    grouped[Unit][SubUnit].push({ Category: categoryString, Sequence, Name, Code, id: item.id });
+                    grouped[Unit][SubUnit].push({ Category: categoryString, Sequence, Name, Code, id: item.id, Type: item.Type });
                 });
 
                 const newNodes = [];
@@ -214,15 +196,14 @@ export default function ProcessDiagram() {
                         let itemX = unitX + 40;
                         items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         items.forEach((item) => {
-                            const IconComponent = categoryIcons[item.Category];
                             newNodes.push({
                                 id: item.id,
                                 position: { x: itemX, y: yOffset + 20 },
                                 data: {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
-                                    icon: IconComponent ? <IconComponent style={{ width: 20, height: 20 }} /> : null,
+                                    icon: getItemIcon(item, { style: { width: 20, height: 20 } }),
                                 },
-                                type: item.Category === 'Equipment' ? 'equipment' : (item.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                                type: 'scalableIcon',
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
                                 style: { background: 'transparent', boxShadow: 'none' },
