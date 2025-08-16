@@ -24,7 +24,7 @@ const nodeTypes = {
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
-    equipment: ScalableIconNode,
+    equipment: ScalableIconNode, // fallback for Equipment
 };
 
 export default function ProcessDiagram() {
@@ -60,8 +60,10 @@ export default function ProcessDiagram() {
     );
 
     const handleItemChange = (updatedItem) => {
+        // Update items list
         setItems((prev) => prev.map((it) => (it.id === updatedItem.id ? updatedItem : it)));
 
+        // Update nodes
         setNodes((nds) =>
             nds.map((node) => {
                 if (node.id === updatedItem.id) {
@@ -83,6 +85,7 @@ export default function ProcessDiagram() {
     };
 
     useEffect(() => {
+        // Fetch data from Airtable
         const fetchData = async () => {
             const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
             const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -133,7 +136,6 @@ export default function ProcessDiagram() {
                         height: unitHeight,
                         border: "4px solid #444",
                         background: "transparent",
-                        boxShadow: "none",
                     },
                     draggable: false,
                     selectable: false,
@@ -152,7 +154,6 @@ export default function ProcessDiagram() {
                             height: subUnitHeight - 20,
                             border: "2px dashed #aaa",
                             background: "transparent",
-                            boxShadow: "none",
                         },
                         draggable: false,
                         selectable: false,
@@ -172,7 +173,7 @@ export default function ProcessDiagram() {
                             type: item.Category === "Equipment" ? "equipment" : "scalableIcon",
                             sourcePosition: "right",
                             targetPosition: "left",
-                            style: { background: "transparent", boxShadow: "none" },
+                            style: { background: "transparent" },
                         });
                         itemX += itemWidth + itemGap;
                     });
@@ -196,7 +197,9 @@ export default function ProcessDiagram() {
             Unit: "Unit 1",
             SubUnit: "Sub 1",
         };
+
         setItems((its) => [...its, newItem]);
+
         setNodes((nds) => [
             ...nds,
             {
@@ -209,6 +212,7 @@ export default function ProcessDiagram() {
                 style: { background: "transparent" },
             },
         ]);
+
         setSelectedItem(newItem);
     };
 
@@ -218,7 +222,14 @@ export default function ProcessDiagram() {
                 <div style={{ padding: 10 }}>
                     <button
                         onClick={createNewItem}
-                        style={{ padding: "6px 12px", background: "#4CAF50", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+                        style={{
+                            padding: "6px 12px",
+                            background: "#4CAF50",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 4,
+                            cursor: "pointer",
+                        }}
                     >
                         Add New Item
                     </button>
