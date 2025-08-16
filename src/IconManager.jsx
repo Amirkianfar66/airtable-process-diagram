@@ -49,7 +49,6 @@ export function getItemIcon(item, props = {}) {
     return null;
 }
 
-}
 
 
 /**
