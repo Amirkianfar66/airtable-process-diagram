@@ -33,14 +33,17 @@ export function getItemIcon(item, props = {}) {
 
     // Equipment handled separately
     if (item.Category === "Equipment") {
-        const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
+        // Check if Type is defined and mapped
+        const typeIcon = item.Type ? EQUIPMENT_TYPE_ICONS[item.Type] : null;
+
         if (typeIcon) {
             // SVG URL
             if (typeof typeIcon === "string") return <img src={typeIcon} alt={item.Type} {...props} />;
             // React component
             return React.createElement(typeIcon, props);
         }
-        // fallback generic Equipment icon
+
+        // fallback generic Equipment icon if Type is empty or not mapped
         return <EquipmentIcon {...props} />;
     }
 
@@ -50,6 +53,7 @@ export function getItemIcon(item, props = {}) {
 
     return null;
 }
+
 
 /**
  * Create a new item and node
