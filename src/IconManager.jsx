@@ -2,8 +2,9 @@
 import React from "react";
 
 // ✅ Import SVGs as React components (requires vite-plugin-svgr)
-import { ReactComponent as TankSVG } from "./Icons/tank.svg";
-import { ReactComponent as PumpSVG } from "./Icons/pump.svg";
+import TankSVG from "./Icons/tank.svg";
+import PumpSVG from "./Icons/pump.svg";
+
 
 // ✅ Import category React components
 import EquipmentIcon from "./Icons/EquipmentIcon";
@@ -14,9 +15,10 @@ import ElectricalIcon from "./Icons/ElectricalIcon";
 
 // Map of Type-specific SVGs
 const TYPE_SVGS = {
-    EquipmentTank: (props) => <TankSVG {...props} />,
-    EquipmentPump: (props) => <PumpSVG {...props} />,
+    EquipmentTank: (props) => <img src={TankSVG} alt="Tank" {...props} />,
+    EquipmentPump: (props) => <img src={PumpSVG} alt="Pump" {...props} />,
 };
+
 
 // Map of Category default icons
 const CATEGORY_ICONS = {
