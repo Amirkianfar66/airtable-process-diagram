@@ -108,21 +108,25 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
  * Update an item and its React Flow node
  */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
-    setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
+    setItems(prev => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
 
-    setNodes((nds) =>
-        nds.map((node) => {
+    setNodes(nds =>
+        nds.map(node => {
             if (node.id === updatedItem.id) {
                 return {
                     ...node,
-                    data: {
-                        ...node.data,
-                        label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        icon: getItemIcon(updatedItem, { width: 20, height: 20 }), // JSX
-                    },
                     type: updatedItem.Category === 'Equipment'
                         ? 'equipment'
                         : (updatedItem.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                    data: {
+                        ...node.data,
+                        label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
+                        // Force re-render with key
+                        icon: React.cloneElement(
+                            getItemIcon(updatedItem, { width: 20, height: 20 }),
+                            { key: `${updatedItem.id}-${updatedItem.Category}-${Date.now()}` }
+                        ),
+                    },
                 };
             }
             return node;
@@ -131,3 +135,4 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
 
     setSelectedItem(updatedItem);
 }
+
