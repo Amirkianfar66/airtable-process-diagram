@@ -26,24 +26,27 @@ const CATEGORY_ICONS = {
 };
 
 /**
- * Return a React component for an item icon
+ * Return a React element for an item icon
  */
-export function getItemIcon(item) {
+export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
+    // Equipment category
     if (item.Category === "Equipment") {
         if (item.Type && EQUIPMENT_TYPE_ICONS[item.Type]) {
             const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
-            return (props) =>
-                typeof typeIcon === "string"
-                    ? <img src={typeIcon} alt={item.Type} {...props} />
-                    : React.createElement(typeIcon, props);
+            // If string (imported SVG), render <img>
+            return typeof typeIcon === "string"
+                ? <img src={typeIcon} alt={item.Type} {...props} />
+                : React.createElement(typeIcon, props);
         }
-        return (props) => <EquipmentIcon id={item.id} data={item} {...props} />;
+        // Fallback to dynamic EquipmentIcon React Flow node
+        return <EquipmentIcon id={item.id} data={item} {...props} />;
     }
 
+    // Other categories
     const CategoryComponent = CATEGORY_ICONS[item.Category];
-    if (CategoryComponent) return (props) => <CategoryComponent {...props} />;
+    if (CategoryComponent) return <CategoryComponent {...props} />;
 
     return null;
 }
@@ -57,19 +60,17 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         Code: 'NEW001',
         Name: 'New Item',
         Category: 'Equipment',
-        Type: 'Tank',
+        Type: 'Tank', // default type
         Unit: 'Unit 1',
         SubUnit: 'Sub 1',
     };
-
-    const IconComponent = getItemIcon(newItem);
 
     const newNode = {
         id: newItem.id,
         position: { x: 100, y: 100 },
         data: {
             label: `${newItem.Code} - ${newItem.Name}`,
-            icon: <IconComponent />, // always a component
+            icon: getItemIcon(newItem, { width: 40, height: 40 }), // always JSX
         },
         type: 'equipment',
         sourcePosition: 'right',
@@ -104,7 +105,7 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 }
 
 /**
- * Update item and its React Flow node
+ * Update an item and its React Flow node
  */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
     setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
@@ -112,13 +113,12 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     setNodes((nds) =>
         nds.map((node) => {
             if (node.id === updatedItem.id) {
-                const IconComponent = getItemIcon(updatedItem);
                 return {
                     ...node,
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        icon: <IconComponent />,
+                        icon: getItemIcon(updatedItem, { width: 20, height: 20 }), // JSX
                     },
                     type: updatedItem.Category === 'Equipment'
                         ? 'equipment'
