@@ -14,8 +14,7 @@ import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
-import { getItemIcon } from './IconManager';
-import { AddItemButton, handleItemChangeNode } from './IconManager';
+import { getItemIcon, AddItemButton, handleItemChangeNode } from './IconManager';
 
 const nodeTypes = {
     resizable: ResizableNode,
@@ -35,16 +34,13 @@ const fetchData = async () => {
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-
         const res = await fetch(url, {
             headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
-
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         offset = data.offset;
@@ -87,33 +83,6 @@ export default function ProcessDiagram() {
         },
         [edges, nodes]
     );
-
-
-    const handleItemChange = (updatedItem) => {
-        setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
-
-        setNodes((nds) =>
-            nds.map((node) => {
-                if (node.id === updatedItem.id) {
-                    return {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                            icon: getItemIcon(updatedItem, { width: 20, height: 20 }),
-
-                        },
-                        type: updatedItem.Category === 'Equipment'
-                            ? 'equipment'
-                            : (updatedItem.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
-                    };
-                }
-                return node;
-            })
-        );
-
-        setSelectedItem(updatedItem);
-    };
 
     useEffect(() => {
         fetchData()
@@ -192,7 +161,6 @@ export default function ProcessDiagram() {
                             });
                             itemX += itemWidth + itemGap;
                         });
-
                     });
 
                     unitX += unitWidth + 100;
@@ -238,14 +206,14 @@ export default function ProcessDiagram() {
                 {selectedItem ? (
                     <ItemDetailCard
                         item={selectedItem}
-                        onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)}
+                        onChange={(updatedItem) =>
+                            handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
+                        }
                     />
-
                 ) : (
                     <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
                 )}
             </div>
-
         </div>
     );
 }
