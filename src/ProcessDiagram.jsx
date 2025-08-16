@@ -87,17 +87,33 @@ export default function ProcessDiagram() {
     useEffect(() => {
         fetchData()
             .then((items) => {
-                setItems(items);
+                // Normalize Unit/SubUnit fields
+                const normalizedItems = items.map(item => ({
+                    ...item,
+                    Unit: item.Unit || 'Default Unit',
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
+                    Code: item['Item Code'] || item.Code || '',
+                    Name: item.Name || '',
+                    Sequence: item.Sequence || 0
+                }));
+
+                setItems(normalizedItems);
+
                 const grouped = {};
-                items.forEach((item) => {
-                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
+                normalizedItems.forEach((item) => {
+                    const { Unit, SubUnit, Category, Sequence, Name, Code, id } = item;
                     if (!Unit || !SubUnit) return;
                     if (!grouped[Unit]) grouped[Unit] = {};
                     if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-
-                    const categoryString = Array.isArray(Category) ? Category[0] : Category;
-                    grouped[Unit][SubUnit].push({ Category: categoryString, Sequence, Name, Code, id: item.id });
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
                 });
+
+                // ... rest of your node generation code ...
+            })
+            .catch(console.error);
+    }, []);
+
 
                 const newNodes = [];
                 const newEdges = [];
