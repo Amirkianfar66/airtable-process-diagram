@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useState, useCallback } from 'react';
+﻿// src/ProcessDiagram.js
+import React, { useEffect, useState, useCallback } from 'react';
 import ReactFlow, {
     Controls,
     useNodesState,
@@ -17,6 +18,7 @@ import ItemDetailCard from './ItemDetailCard';
 
 import { getItemIcon } from './IconManager';
 
+// Define node types
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -25,6 +27,9 @@ const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
+/**
+ * Fetch items from Airtable
+ */
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -35,7 +40,6 @@ const fetchData = async () => {
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-
         const res = await fetch(url, {
             headers: { Authorization: `Bearer ${token}` },
         });
@@ -54,22 +58,24 @@ const fetchData = async () => {
 };
 
 export default function ProcessDiagram() {
-    const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
     const [items, setItems] = useState([]);
 
-    const onSelectionChange = useCallback(({ nodes }) => {
-        setSelectedNodes(nodes);
-        if (nodes.length === 1) {
-            const nodeData = items.find(item => item.id === nodes[0].id);
-            setSelectedItem(nodeData || null);
-        } else {
-            setSelectedItem(null);
-        }
-    }, [items]);
+    const onSelectionChange = useCallback(
+        ({ nodes }) => {
+            setSelectedNodes(nodes);
+            if (nodes.length === 1) {
+                const nodeData = items.find((item) => item.id === nodes[0].id);
+                setSelectedItem(nodeData || null);
+            } else {
+                setSelectedItem(null);
+            }
+        },
+        [items]
+    );
 
     const onConnect = useCallback(
         (params) => {
@@ -101,8 +107,11 @@ export default function ProcessDiagram() {
         const newNode = {
             id: newItem.id,
             position: { x: 100, y: 100 },
-            data: { label: `${newItem.Code} - ${newItem.Name}`, icon: getItemIcon(newItem, { style: { width: 20, height: 20 } }) },
-            type: 'scalableIcon',
+            data: {
+                label: `${newItem.Code} - ${newItem.Name}`,
+                icon: getItemIcon(newItem, { width: 20, height: 20 }),
+            },
+            type: newItem.Category === 'Equipment' ? 'equipment' : 'scalableIcon',
             sourcePosition: 'right',
             targetPosition: 'left',
             style: { background: 'transparent' },
@@ -114,8 +123,7 @@ export default function ProcessDiagram() {
     };
 
     const handleItemChange = (updatedItem) => {
-        setItems((prev) => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
-
+        setItems((prev) => prev.map((it) => (it.id === updatedItem.id ? updatedItem : it)));
         setNodes((nds) =>
             nds.map((node) => {
                 if (node.id === updatedItem.id) {
@@ -124,14 +132,18 @@ export default function ProcessDiagram() {
                         data: {
                             ...node.data,
                             label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                            icon: getItemIcon(updatedItem, { style: { width: 20, height: 20 } }),
+                            icon: getItemIcon(updatedItem, { width: 20, height: 20 }),
                         },
+                        type: updatedItem.Category === 'Equipment'
+                            ? 'equipment'
+                            : updatedItem.Category === 'Pipe'
+                                ? 'pipe'
+                                : 'scalableIcon',
                     };
                 }
                 return node;
             })
         );
-
         setSelectedItem(updatedItem);
     };
 
@@ -139,15 +151,17 @@ export default function ProcessDiagram() {
         fetchData()
             .then((items) => {
                 setItems(items);
+
+                // Group items by Unit > SubUnit
                 const grouped = {};
                 items.forEach((item) => {
-                    const { Unit, SubUnit = item['Sub Unit'], ['Category Item Type']: Category, Sequence = 0, Name, ['Item Code']: Code } = item;
-                    if (!Unit || !SubUnit) return;
-                    if (!grouped[Unit]) grouped[Unit] = {};
-                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+                    const unit = item.Unit;
+                    const subUnit = item.SubUnit || item['Sub Unit'];
+                    if (!unit || !subUnit) return;
+                    if (!grouped[unit]) grouped[unit] = {};
+                    if (!grouped[unit][subUnit]) grouped[unit][subUnit] = [];
 
-                    const categoryString = Array.isArray(Category) ? Category[0] : Category;
-                    grouped[Unit][SubUnit].push({ Category: categoryString, Sequence, Name, Code, id: item.id, Type: item.Type });
+                    grouped[unit][subUnit].push(item);
                 });
 
                 const newNodes = [];
@@ -201,9 +215,13 @@ export default function ProcessDiagram() {
                                 position: { x: itemX, y: yOffset + 20 },
                                 data: {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
-                                    icon: getItemIcon(item, { style: { width: 20, height: 20 } }),
+                                    icon: getItemIcon(item, { width: 20, height: 20 }),
                                 },
-                                type: 'scalableIcon',
+                                type: item.Category === 'Equipment'
+                                    ? 'equipment'
+                                    : item.Category === 'Pipe'
+                                        ? 'pipe'
+                                        : 'scalableIcon',
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
                                 style: { background: 'transparent', boxShadow: 'none' },
@@ -217,7 +235,6 @@ export default function ProcessDiagram() {
 
                 setNodes(newNodes);
                 setEdges(newEdges);
-                setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
             .catch(console.error);
     }, []);
@@ -234,12 +251,13 @@ export default function ProcessDiagram() {
                             color: '#fff',
                             border: 'none',
                             borderRadius: 4,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
                         }}
                     >
                         Add New Item
                     </button>
                 </div>
+
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -258,14 +276,20 @@ export default function ProcessDiagram() {
                 </ReactFlow>
             </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', overflowY: 'auto' }}>
+            <div
+                style={{
+                    width: 350,
+                    borderLeft: '1px solid #ccc',
+                    background: 'transparent',
+                    overflowY: 'auto',
+                }}
+            >
                 {selectedItem ? (
                     <ItemDetailCard item={selectedItem} onChange={handleItemChange} />
                 ) : (
                     <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
                 )}
             </div>
-
         </div>
     );
 }
