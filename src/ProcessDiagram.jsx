@@ -16,7 +16,7 @@ import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 
 // ✅ Import categoryTypeMap along with functions
-import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
+
 
 const nodeTypes = {
     resizable: ResizableNode,
