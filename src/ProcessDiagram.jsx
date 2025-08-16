@@ -14,9 +14,7 @@ import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
-
-// ✅ Import categoryTypeMap along with functions
-
+import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
 
 const nodeTypes = {
     resizable: ResizableNode,
@@ -25,7 +23,6 @@ const nodeTypes = {
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
 };
-
 
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
