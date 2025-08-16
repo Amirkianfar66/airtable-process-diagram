@@ -1,13 +1,11 @@
 ﻿import React from "react";
+import { getItemIcon } from "./IconManager";
 
 export default function ScalableIconNode({ data }) {
-    const icon = data.icon;
-
     const renderIcon = () => {
-        if (!icon) return <div style={{ width: 40, height: 40 }} />; // placeholder
-        if (React.isValidElement(icon)) return React.cloneElement(icon, { width: 40, height: 40, style: { marginBottom: 4 } });
-        if (typeof icon === "string") return <img src={icon} alt="icon" style={{ width: 40, height: 40, objectFit: "contain", marginBottom: 4 }} />;
-        return null;
+        if (!data.item) return <div style={{ width: 40, height: 40 }} />;
+
+        return getItemIcon(data.item, { width: 40, height: 40 });
     };
 
     return (
