@@ -1,11 +1,10 @@
 ﻿import TankSVG from "./Icons/tank.svg";
 import PumpSVG from "./Icons/pump.svg";
-
-import EquipmentIcon from "./Icons/EquipmentIcon";
-import InstrumentIcon from "./Icons/InstrumentIcon";
-import InlineValveIcon from "./Icons/InlineValveIcon";
-import PipeIcon from "./Icons/PipeIcon";
-import ElectricalIcon from "./Icons/ElectricalIcon";
+import EquipmentIcon from './Icons/EquipmentIcon';
+import InstrumentIcon from './Icons/InstrumentIcon';
+import InlineValveIcon from './Icons/InlineValveIcon';
+import PipeIcon from './Icons/PipeIcon';
+import ElectricalIcon from './Icons/ElectricalIcon';
 
 /**
  * Map of Type-specific icons (can be URLs or React components)

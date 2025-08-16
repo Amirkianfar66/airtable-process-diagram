@@ -15,12 +15,7 @@ import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 
-import EquipmentIcon from './Icons/EquipmentIcon';
-import InstrumentIcon from './Icons/InstrumentIcon';
-import InlineValveIcon from './Icons/InlineValveIcon';
-import PipeIcon from './Icons/PipeIcon';
-import ElectricalIcon from './Icons/ElectricalIcon';
-import { getItemIcon } from './IconManager';
+
 
 
 const nodeTypes = {
