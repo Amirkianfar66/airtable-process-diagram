@@ -92,31 +92,26 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 }
 
 /** Update an item and its node (category/type changes reflected) */
+
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
     setItems(prev => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
 
     setNodes(nds =>
-        nds.map(node => {
-            if (node.id === updatedItem.id) {
-                return {
+        nds.map(node =>
+            node.id === updatedItem.id
+                ? {
                     ...node,
-                    type: updatedItem.Category === 'Equipment'
-                        ? 'equipment'
-                        : (updatedItem.Category === 'Pipe' ? 'pipe' : 'scalableIcon'),
+                    type: categoryTypeMap[updatedItem.Category] || "scalableIcon",
                     data: {
                         ...node.data,
-                        label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        // Force icon update with key
-                        icon: React.cloneElement(
-                            getItemIcon(updatedItem, { width: 20, height: 20 }),
-                            { key: `${updatedItem.id}-${updatedItem.Category}-${Date.now()}` }
-                        ),
+                        label: `${updatedItem.Code || ""} - ${updatedItem.Name || ""}`,
+                        item: updatedItem, // ⬅️ re-render based on new item
                     },
-                };
-            }
-            return node;
-        })
+                }
+                : node
+        )
     );
 
     setSelectedItem(updatedItem);
 }
+
