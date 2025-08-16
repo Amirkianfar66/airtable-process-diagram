@@ -69,13 +69,14 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         position: { x: 100, y: 100 },
         data: {
             label: `${newItem.Code} - ${newItem.Name}`,
-            icon: getItemIcon(newItem, { width: 40, height: 40 }),
+            item: newItem, // ✅ keep raw item
         },
-        type: 'equipment',
-        sourcePosition: 'right',
-        targetPosition: 'left',
-        style: { background: 'transparent' },
+        type: categoryTypeMap[newItem.Category] || "scalableIcon",
+        sourcePosition: "right",
+        targetPosition: "left",
+        style: { background: "transparent" },
     };
+
 
     setNodes(nds => [...nds, newNode]);
     setItems(its => [...its, newItem]);
