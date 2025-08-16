@@ -8,7 +8,7 @@ import PipeIcon from './Icons/PipeIcon';
 import ElectricalIcon from './Icons/ElectricalIcon';
 
 /**
- * Type-specific icons (only Equipment types)
+ * Type-specific icons (Equipment only)
  */
 const EQUIPMENT_TYPE_ICONS = {
     Tank: TankSVG,
@@ -26,8 +26,7 @@ const CATEGORY_ICONS = {
 };
 
 /**
- * Return a React component for an item icon.
- * Always returns a functional component that renders JSX.
+ * Return a React component for an item icon
  */
 export function getItemIcon(item) {
     if (!item) return () => null;
@@ -36,11 +35,11 @@ export function getItemIcon(item) {
     if (item.Category === "Equipment") {
         if (item.Type && EQUIPMENT_TYPE_ICONS[item.Type]) {
             const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
-            return (props) => (
-                <img src={typeIcon} alt={item.Type} {...props} />
-            );
+            return (props) =>
+                typeof typeIcon === "string"
+                    ? <img src={typeIcon} alt={item.Type} {...props} />
+                    : React.createElement(typeIcon, props);
         }
-        // Fallback Equipment icon
         return (props) => <EquipmentIcon id={item.id} data={item} {...props} />;
     }
 
@@ -48,7 +47,7 @@ export function getItemIcon(item) {
     const CategoryComponent = CATEGORY_ICONS[item.Category];
     if (CategoryComponent) return (props) => <CategoryComponent {...props} />;
 
-    // Unknown category fallback
+    // Fallback
     return (props) => <EquipmentIcon id={item.id} data={item} {...props} />;
 }
 
@@ -61,7 +60,7 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         Code: 'NEW001',
         Name: 'New Item',
         Category: 'Equipment',
-        Type: 'Tank',
+        Type: 'Tank', // default type
         Unit: 'Unit 1',
         SubUnit: 'Sub 1',
     };
@@ -108,7 +107,7 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 }
 
 /**
- * Update item and its node
+ * Update an item and its React Flow node
  */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
     setItems(prev => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
@@ -125,7 +124,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                     data: {
                         ...node.data,
                         label: `${updatedItem.Code || ''} - ${updatedItem.Name || ''}`,
-                        icon: <IconComponent key={`${updatedItem.id}-${updatedItem.Category}-${updatedItem.Type}`} width={20} height={20} />,
+                        icon: <IconComponent key={`${updatedItem.id}-${updatedItem.Category}-${updatedItem.Type}-${Date.now()}`} width={20} height={20} />,
                     },
                 };
             }
