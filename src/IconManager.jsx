@@ -1,4 +1,6 @@
-﻿import TankSVG from "./Icons/tank.svg";
+﻿import React from "react";
+
+import TankSVG from "./Icons/tank.svg";
 import PumpSVG from "./Icons/pump.svg";
 import EquipmentIcon from './Icons/EquipmentIcon';
 import InstrumentIcon from './Icons/InstrumentIcon';
