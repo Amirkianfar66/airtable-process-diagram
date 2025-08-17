@@ -1,41 +1,38 @@
 ﻿// aiParser.js
-import OpenAI from "openai";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 /**
- * Parse a text description into { Name, Category, Type } using GPT
+ * Frontend helper: calls the backend /api/parse-item endpoint.
+ * Returns { Name, Category, Type } or null on failure.
  */
-export async function parseItemText(description, categories = ["Equipment", "Instrument", "Inline Valve", "Pipe", "Electrical"]) {
-  if (!description) return null;
 
-  const prompt = `
-You are an assistant that extracts structured information from a short item description.
-Extract Name, Category, and Type from the following text.
+export async function parseItemText(description, categories = undefined) {
+    if (!description) return null;
+    try {
+        const body = { description };
+        if (Array.isArray(categories)) body.categories = categories;
 
-Text: "${description}"
+        const res = await fetch('/api/parse-item', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
 
-Rules:
-- Name is usually a unique code like UXXXX.
-- Category must be one of: ${categories.join(", ")}.
-- Type is the remaining description that is not Name or Category.
-- Return JSON only, like:
-{ "Name": "...", "Category": "...", "Type": "..." }
-`;
+        if (!res.ok) {
+            console.error('parseItemText: server returned', res.status);
+            return null;
+        }
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0,
-  });
-
-  try {
-    const content = response.choices[0].message.content;
-    return JSON.parse(content);
-  } catch (err) {
-    console.error("GPT parse error:", err, response.choices[0].message.content);
-    return null;
-  }
+        const data = await res.json();
+        // Expect object with Name, Category, Type
+        if (data && typeof data === 'object') {
+            return {
+                Name: (data.Name ?? data.name ?? '').toString(),
+                Category: (data.Category ?? data.category ?? '').toString(),
+                Type: (data.Type ?? data.type ?? '').toString(),
+            };
+        }
+        return null;
+    } catch (err) {
+        console.error('parseItemText error', err);
+        return null;
+    }
 }
