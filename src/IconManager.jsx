@@ -1,7 +1,5 @@
 ﻿import React from "react";
-import TankSVG from "./Icons/tank.svg";
-import PumpSVG from "./Icons/pump.svg";
-import EquipmentIcon from "./Icons/EquipmentIcon";
+import EquipmentIcon from "./EquipmentIcon";
 import InstrumentIcon from "./Icons/InstrumentIcon";
 import InlineValveIcon from "./Icons/InlineValveIcon";
 import PipeIcon from "./Icons/PipeIcon";
@@ -16,49 +14,28 @@ export const categoryTypeMap = {
     Electrical: "scalableIcon",
 };
 
-/** Type-specific icons for Equipment */
-const EQUIPMENT_TYPE_ICONS = {
-    Tank: TankSVG,
-    Pump: PumpSVG,
-};
-
-/** Fallback icons for other categories */
-const CATEGORY_ICONS = {
+/** Category components */
+const CATEGORY_COMPONENTS = {
+    Equipment: EquipmentIcon,
     Instrument: InstrumentIcon,
     "Inline Valve": InlineValveIcon,
     Pipe: PipeIcon,
     Electrical: ElectricalIcon,
 };
-/** Map of type-specific icons for each category */
-const CATEGORY_TYPE_ICONS = {
-    Equipment: EQUIPMENT_TYPE_ICONS,
-    // If in future you have type-specific icons for Instrument, Inline Valve, etc., add here
-};
 
 /** Return a React element for an item icon */
-
-
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
     const category = item.Category ?? item["Category Item Type"];
+    const CategoryComponent = CATEGORY_COMPONENTS[category];
 
-    // Check type-specific icon for the category
-    const typeIcons = CATEGORY_TYPE_ICONS[category];
-    if (typeIcons && item.Type && typeIcons[item.Type]) {
-        const TypeIcon = typeIcons[item.Type];
-        return typeof TypeIcon === "string"
-            ? <img src={TypeIcon} alt={item.Type} {...props} />
-            : React.createElement(TypeIcon, props);
+    if (CategoryComponent) {
+        return <CategoryComponent id={item.id} data={item} {...props} />;
     }
 
-    // fallback to category icon
-    const CategoryComponent = CATEGORY_ICONS[category];
-    if (CategoryComponent) return <CategoryComponent {...props} />;
-
-    return <EquipmentIcon id={item.id} data={item} {...props} />;
+    return <div style={{ width: props.width || 40, height: props.height || 40, background: "#ccc" }} />;
 }
-
 
 /** Create a new item node */
 export function createNewItemNode(setNodes, setItems, setSelectedItem) {
