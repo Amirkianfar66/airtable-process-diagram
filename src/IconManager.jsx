@@ -27,7 +27,8 @@ const CATEGORY_COMPONENTS = {
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
-    const category = item.Category ?? item["Category Item Type"];
+    // Normalize category text
+    const category = (item.Category || item["Category Item Type"] || "").trim();
     const CategoryComponent = CATEGORY_COMPONENTS[category];
 
     if (CategoryComponent) {
@@ -36,6 +37,7 @@ export function getItemIcon(item, props = {}) {
 
     return <div style={{ width: props.width || 40, height: props.height || 40, background: "#ccc" }} />;
 }
+
 
 /** Create a new item node */
 export function createNewItemNode(setNodes, setItems, setSelectedItem) {
