@@ -30,7 +30,7 @@ function parseDescription(description, itemsLibrary) {
     };
 }
 
-export default async function AIPNIDGenerator(description, itemsLibrary = [], existingNodes = [], existingEdges = []) {
+export default async function AIPNIDGenerator(description, itemsLibrary = [], existingNodes = [], existingEdges = [], setSelectedItem) {
     if (!description || !Array.isArray(itemsLibrary) || itemsLibrary.length === 0) return { nodes: existingNodes, edges: existingEdges };
 
     const matchedItem = parseDescription(description, itemsLibrary);
@@ -40,16 +40,23 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
     const nodeId = `${item.id}-${Date.now()}-${Math.random()}`;
     const label = `${item.Code || ''} - ${name}`;
 
+    const newItem = { ...item, Name: name, Type: type, Category: category };
+
     const newNode = {
         id: nodeId,
         position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
         data: {
             label,
-            item: { ...item, Name: name, Type: type, Category: category },
-            icon: getItemIcon(item)
+            item: newItem,
+            icon: getItemIcon(newItem)
         },
         type: categoryTypeMap[category] || 'scalableIcon',
     };
+
+    // Automatically select the new item so ItemDetailCard shows it
+    if (typeof setSelectedItem === 'function') {
+        setSelectedItem(newItem);
+    }
 
     return {
         nodes: [...existingNodes, newNode],
