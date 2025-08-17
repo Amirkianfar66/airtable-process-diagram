@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
 // Import type-specific SVGs
-import TankSVG from './tank.svg';
-import PumpSVG from './pump.svg';
+import TankSVG from './EquipmentIcon/tank.svg';
+import PumpSVG from './EquipmentIcon/pump.svg';
 
 export default function EquipmentIcon({ id, data }) {
     const { setNodes } = useReactFlow();
