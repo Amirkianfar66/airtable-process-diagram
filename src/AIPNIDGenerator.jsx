@@ -1,4 +1,4 @@
-// AIPNIDGenerator.jsx
+﻿// AIPNIDGenerator.jsx
 
 import { getItemIcon, categoryTypeMap } from './IconManager';
  const CATEGORY_LIST = Object.keys(categoryTypeMap);
@@ -78,7 +78,7 @@ export default async function AIPNIDGenerator(
 
     // Use the original item.id as node.id so selection works
     const newItemId = item.id || `ai-${Date.now()}-${Math.random()}`;
-    const newItem = { ...item, id: newItemId, Name: name, Type: type, Category: category };
+    const newItem = { ...item, id: newItemId, Name: name, Type: type, Category: category, 'Category Item Type': category, };
 
     const newNode = {
         id: newItemId,
@@ -91,7 +91,7 @@ export default async function AIPNIDGenerator(
         type: categoryTypeMap[category] || 'scalableIcon',
     };
 
-    // ? Make ItemDetailCard show the correct category
+    // ✅ Make ItemDetailCard show the correct category
     if (typeof setSelectedItem === "function") {
         setSelectedItem(newItem);
     }
