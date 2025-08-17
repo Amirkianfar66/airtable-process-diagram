@@ -20,29 +20,28 @@ function parseDescription(description, itemsLibrary) {
         return nameMatch || typeMatch || categoryMatch;
     });
 
-    if (!match) return [];
+    if (!match) return null;
 
-    return [{
+    return {
         item: match,
         name: match.Name || '',
         type: match.Type || '',
         category: match.Category || ''
-    }];
+    };
 }
 
 export default async function AIPNIDGenerator(description, itemsLibrary = [], existingNodes = [], existingEdges = []) {
     if (!description || !Array.isArray(itemsLibrary) || itemsLibrary.length === 0) return { nodes: existingNodes, edges: existingEdges };
 
-    const matchedItems = parseDescription(description, itemsLibrary);
-    if (matchedItems.length === 0) return { nodes: existingNodes, edges: existingEdges };
+    const matchedItem = parseDescription(description, itemsLibrary);
+    if (!matchedItem) return { nodes: existingNodes, edges: existingEdges };
 
-    const newNodes = [];
-    const newEdges = [];
-
-    const { item, name, type, category } = matchedItems[0]; // take only the first match
+    const { item, name, type, category } = matchedItem;
+    const nodeId = `${item.id}-${Date.now()}-${Math.random()}`;
     const label = `${item.Code || ''} - ${name}`;
-    newNodes.push({
-        id: `${item.id}-${Date.now()}-${Math.random()}`,
+
+    const newNode = {
+        id: nodeId,
         position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
         data: {
             label,
@@ -50,10 +49,10 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
             icon: getItemIcon(item)
         },
         type: categoryTypeMap[category] || 'scalableIcon',
-    });
+    };
 
     return {
-        nodes: [...existingNodes, ...newNodes],
-        edges: [...existingEdges, ...newEdges]
+        nodes: [...existingNodes, newNode],
+        edges: [...existingEdges]
     };
 }
