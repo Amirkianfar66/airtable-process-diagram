@@ -79,7 +79,6 @@ export default async function AIPNIDGenerator(
 
     // Use the original item.id as node.id so selection works
     // Generate a unique node ID to avoid conflicts
-    const newNodeId = `${item.id}-${Date.now()}-${Math.random()}`;
     const newNode = {
         id: item.id, // <- use the original item.id here
         position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
