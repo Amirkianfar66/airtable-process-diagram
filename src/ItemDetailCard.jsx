@@ -164,8 +164,14 @@ export default function ItemDetailCard({ item, onChange }) {
 
                 <div style={rowStyle}>
                     <label style={labelStyle}>Type:</label>
-                    <span>{resolvedType}</span>
+                    <input
+                        style={inputStyle}
+                        type="text"
+                        value={localItem.Type || ''}
+                        onChange={e => handleFieldChange('Type', e.target.value)}
+                    />
                 </div>
+
 
                 <div style={rowStyle}>
                     <label style={labelStyle}>Count / Seq:</label>

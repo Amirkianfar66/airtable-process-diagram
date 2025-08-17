@@ -93,6 +93,7 @@ export default function ProcessDiagram() {
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                     Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
+                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Code: item['Item Code'] || item.Code || '',
                     Name: item.Name || '',
                     Sequence: item.Sequence || 0,
