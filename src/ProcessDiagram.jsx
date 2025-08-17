@@ -96,20 +96,24 @@ export default function ProcessDiagram() {
             setNodes(aiNodes);
             setEdges(aiEdges);
 
-            // Add AI-generated items to the items state so ItemDetailCard can show them
+            // Extract items from new AI nodes
             const newItems = aiNodes
                 .map(n => n.data?.item)
                 .filter(Boolean);
 
-            if (newItems.length > 0) {
-                setItems(prev => [...prev, ...newItems]);
-            }
+            // Add AI items to the items library if they don't already exist
+            setItems(prev => {
+                const existingIds = new Set(prev.map(i => i.id));
+                const filteredNew = newItems.filter(i => !existingIds.has(i.id));
+                return [...prev, ...filteredNew];
+            });
 
             setDefaultLayout({ nodes: aiNodes, edges: aiEdges });
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
     };
+
 
 
 
