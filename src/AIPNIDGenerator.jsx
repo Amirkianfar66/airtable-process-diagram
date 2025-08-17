@@ -2,6 +2,12 @@
 
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
+// Fuzzy-match helper
+function fuzzyMatch(text, keyword) {
+    if (!text || !keyword) return false;
+    return text.toLowerCase().includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(text.toLowerCase());
+}
+
 export default async function AIPNIDGenerator(description, itemsLibrary = [], existingNodes = [], existingEdges = []) {
     if (!description || !Array.isArray(itemsLibrary) || itemsLibrary.length === 0) return { nodes: existingNodes, edges: existingEdges };
 
@@ -9,15 +15,14 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
     const newNodes = [];
     const newEdges = [];
 
-    // Loop through the library to find matching items
+    // Loop through the library to find matching items using fuzzy match
     itemsLibrary.forEach((item) => {
         if (!item) return;
         const label = `${item.Code || ''} - ${item.Name || ''}`;
         const name = item.Name || '';
         const type = item.Type || '';
 
-        // Match item only if description contains its name or type
-        if (name && lower.includes(name.toLowerCase()) || type && lower.includes(type.toLowerCase())) {
+        if (fuzzyMatch(lower, name) || fuzzyMatch(lower, type)) {
             newNodes.push({
                 id: `${item.id}-${Date.now()}-${Math.random()}`,
                 position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
@@ -27,7 +32,7 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
         }
     });
 
-    // Create edges between new nodes only if there are at least 2 new nodes
+    // Create edges between new nodes if at least 2 nodes are matched
     if (newNodes.length > 1) {
         for (let i = 1; i < newNodes.length; i++) {
             newEdges.push({
