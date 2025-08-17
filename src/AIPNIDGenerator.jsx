@@ -30,25 +30,33 @@ function parseDescription(description, itemsLibrary) {
     };
 }
 
-export default async function AIPNIDGenerator(description, itemsLibrary = [], existingNodes = [], existingEdges = [], setSelectedItem) {
-    if (!description || !Array.isArray(itemsLibrary) || itemsLibrary.length === 0) return { nodes: existingNodes, edges: existingEdges };
+export default async function AIPNIDGenerator(
+    description,
+    itemsLibrary = [],
+    existingNodes = [],
+    existingEdges = [],
+    setSelectedItem
+) {
+    if (!description || !Array.isArray(itemsLibrary) || itemsLibrary.length === 0)
+        return { nodes: existingNodes, edges: existingEdges };
 
     const matchedItem = parseDescription(description, itemsLibrary);
     if (!matchedItem) return { nodes: existingNodes, edges: existingEdges };
 
     const { item, name, type, category } = matchedItem;
-    const nodeId = `${item.id}-${Date.now()}-${Math.random()}`;
+
     const label = `${item.Code || ''} - ${name}`;
 
     const newItem = { ...item, Name: name, Type: type, Category: category };
 
+    // Use the original item.id as node.id so selection works
     const newNode = {
-        id: nodeId,
+        id: item.id,
         position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
         data: {
             label,
             item: newItem,
-            icon: getItemIcon(newItem)
+            icon: getItemIcon(newItem),
         },
         type: categoryTypeMap[category] || 'scalableIcon',
     };
@@ -60,6 +68,7 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
 
     return {
         nodes: [...existingNodes, newNode],
-        edges: [...existingEdges]
+        edges: [...existingEdges],
     };
 }
+
