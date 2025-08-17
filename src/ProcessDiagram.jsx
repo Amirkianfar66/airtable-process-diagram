@@ -1,7 +1,10 @@
-﻿// ProcessDiagram.jsx (fixed for AI-generated ItemDetailCard)
-
-import React, { useEffect, useState, useCallback } from 'react';
-import ReactFlow, { Controls, useNodesState, useEdgesState, addEdge } from 'reactflow';
+﻿import React, { useEffect, useState, useCallback } from 'react';
+import ReactFlow, {
+    Controls,
+    useNodesState,
+    useEdgesState,
+    addEdge,
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
 
@@ -12,7 +15,8 @@ import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
-import AIPNIDGenerator from './AIPNIDGenerator';
+
+import AIPNIDGenerator from './AIPNIDGenerator'; // import your AI PNID generator
 
 const nodeTypes = {
     resizable: ResizableNode,
@@ -22,32 +26,71 @@ const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
+const fetchData = async () => {
+    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+    const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+    let allRecords = [];
+    let offset = null;
+    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
+
+    do {
+        const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
+        const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
+        }
+        const data = await res.json();
+        allRecords = allRecords.concat(data.records);
+        offset = data.offset;
+    } while (offset);
+
+    return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
+};
+
 export default function ProcessDiagram() {
+    const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [items, setItems] = useState([]);
+    const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
-    const [aiDescription, setAiDescription] = useState('');
+    const [items, setItems] = useState([]);
 
-    const onSelectionChange = useCallback(({ nodes: selectedNodes }) => {
-        if (selectedNodes.length === 1) {
-            const node = selectedNodes[0];
-            const nodeItem = node.data?.item;
-            setSelectedItem(nodeItem || null);
+    const onSelectionChange = useCallback(({ nodes }) => {
+        setSelectedNodes(nodes);
+        if (nodes.length === 1) {
+            const nodeData = items.find(item => item.id === nodes[0].id);
+            setSelectedItem(nodeData || null);
         } else {
             setSelectedItem(null);
         }
-    }, []);
+    }, [items]);
 
     const onConnect = useCallback(
         (params) => {
-            setEdges((eds) => addEdge({ ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } }, eds));
+            const updatedEdges = addEdge(
+                {
+                    ...params,
+                    type: 'step',
+                    animated: true,
+                    style: { stroke: 'blue', strokeWidth: 2 },
+                },
+                edges
+            );
+            setEdges(updatedEdges);
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
         },
-        []
+        [edges, nodes]
     );
+    const [aiDescription, setAiDescription] = useState('');
 
+    // inside ProcessDiagram.jsx
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
+
         try {
             const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
                 aiDescription,
@@ -57,64 +100,149 @@ export default function ProcessDiagram() {
                 setSelectedItem // pass setter so new item is selected
             );
 
-            // Merge AI nodes and edges with existing ones
-            setNodes(aiNodes);
-            setEdges(aiEdges);
+            // Extract new AI items from nodes
+            const newItems = aiNodes
+                .map(n => n.data?.item)
+                .filter(Boolean);
 
-            // Extract new items from AI nodes
-            const newItems = aiNodes.map(n => n.data?.item).filter(Boolean);
             setItems(prev => {
                 const existingIds = new Set(prev.map(i => i.id));
                 const filteredNew = newItems.filter(i => !existingIds.has(i.id));
-                return [...prev, ...filteredNew];
+                const updatedItems = [...prev, ...filteredNew];
+
+                // Automatically select the first new AI item
+                if (filteredNew.length > 0) {
+                    setSelectedItem(filteredNew[0]);
+                }
+
+                return updatedItems;
             });
 
-        } catch (err) {
-            console.error('AI PNID generation failed:', err);
-        }
-    };
+            // Merge nodes and edges
+            setNodes(aiNodes);
+            setEdges(aiEdges);
+
+
+
+
+
 
     useEffect(() => {
-        // Fetch items from Airtable or any source and normalize them
-        async function fetchData() {
-            const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-            const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-            const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-            let allRecords = [];
-            let offset = null;
-            const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
+        fetchData()
+            .then((items) => {
+                // Normalize item fields
+                const normalizedItems = items.map((item) => ({
+                    ...item,
+                    Unit: item.Unit || 'Default Unit',
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
+                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
+                    Code: item['Item Code'] || item.Code || '',
+                    Name: item.Name || '',
+                    Sequence: item.Sequence || 0,
+                }));
 
-            do {
-                const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-                const data = await res.json();
-                allRecords = allRecords.concat(data.records);
-                offset = data.offset;
-            } while (offset);
+                setItems(normalizedItems);
 
-            const normalizedItems = allRecords.map(rec => ({
-                id: rec.id,
-                Code: rec.fields['Item Code'] || rec.fields.Code || '',
-                Name: rec.fields.Name || '',
-                Category: Array.isArray(rec.fields['Category Item Type']) ? rec.fields['Category Item Type'][0] : rec.fields['Category Item Type'] || '',
-                Type: Array.isArray(rec.fields.Type) ? rec.fields.Type[0] : rec.fields.Type || '',
-                Unit: rec.fields.Unit || 'Default Unit',
-                SubUnit: rec.fields.SubUnit || rec.fields['Sub Unit'] || 'Default SubUnit',
-                Sequence: rec.fields.Sequence || 0,
-            }));
+                // Group items by Unit and SubUnit
+                const grouped = {};
+                normalizedItems.forEach((item) => {
+                    const { Unit, SubUnit, Category, Sequence, Name, Code, id } = item;
+                    if (!Unit || !SubUnit) return;
+                    if (!grouped[Unit]) grouped[Unit] = {};
+                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
+                });
 
-            setItems(normalizedItems);
+                // Build nodes and edges
+                const newNodes = [];
+                const newEdges = [];
+                let unitX = 0;
+                const unitWidth = 5000;
+                const unitHeight = 3000;
+                const subUnitHeight = unitHeight / 9;
+                const itemWidth = 160;
+                const itemGap = 30;
 
-            // Optionally: populate initial nodes if needed
-        }
-        fetchData().catch(console.error);
+                Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    // Unit node
+                    newNodes.push({
+                        id: `unit-${unit}`,
+                        position: { x: unitX, y: 0 },
+                        data: { label: unit },
+                        style: {
+                            width: unitWidth,
+                            height: unitHeight,
+                            border: '4px solid #444',
+                            background: 'transparent',
+                            boxShadow: 'none',
+                        },
+                        draggable: false,
+                        selectable: false,
+                    });
+
+                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
+                        const yOffset = index * subUnitHeight;
+
+                        // SubUnit node
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: {
+                                width: unitWidth - 20,
+                                height: subUnitHeight - 20,
+                                border: '2px dashed #aaa',
+                                background: 'transparent',
+                                boxShadow: 'none',
+                            },
+                            draggable: false,
+                            selectable: false,
+                        });
+
+                        // Item nodes
+                        let itemX = unitX + 40;
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        items.forEach((item) => {
+                            newNodes.push({
+                                id: item.id,
+                                position: { x: itemX, y: yOffset + 20 },
+                                data: {
+                                    label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    item: item, // include the raw item for consistency
+                                    icon: getItemIcon(item), // centralized icon logic
+                                },
+                                type: categoryTypeMap[item.Category] || 'scalableIcon', // use dynamic node type
+                                sourcePosition: 'right',
+                                targetPosition: 'left',
+                                style: { background: 'transparent', boxShadow: 'none' },
+                            });
+                            itemX += itemWidth + itemGap;
+                        });
+
+                    });
+
+                    unitX += unitWidth + 100;
+                });
+
+                setNodes(newNodes);
+                setEdges(newEdges);
+                setDefaultLayout({ nodes: newNodes, edges: newEdges });
+            })
+            .catch(console.error);
     }, []);
 
+
+
     return (
-        <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
+        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
+            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
                 <div style={{ padding: 10 }}>
-                    <AddItemButton setNodes={setNodes} setItems={setItems} setSelectedItem={setSelectedItem} />
+                    <AddItemButton
+                        setNodes={setNodes}
+                        setItems={setItems}
+                        setSelectedItem={setSelectedItem}
+                    />
                 </div>
 
                 <div style={{ padding: 10, display: 'flex', gap: 6 }}>
@@ -127,7 +255,6 @@ export default function ProcessDiagram() {
                     />
                     <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
                 </div>
-
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -138,6 +265,7 @@ export default function ProcessDiagram() {
                     fitView
                     selectionOnDrag
                     minZoom={0.02}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={nodeTypes}
                     style={{ background: 'transparent' }}
                 >
@@ -145,11 +273,13 @@ export default function ProcessDiagram() {
                 </ReactFlow>
             </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', overflowY: 'auto' }}>
+            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', overflowY: 'auto' }}>
                 {selectedItem ? (
                     <ItemDetailCard
                         item={selectedItem}
-                        onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)}
+                        onChange={(updatedItem) =>
+                            handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
+                        }
                     />
                 ) : (
                     <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
