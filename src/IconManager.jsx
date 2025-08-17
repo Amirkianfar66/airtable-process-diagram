@@ -1,21 +1,20 @@
 ﻿import React from "react";
 import TankSVG from "./Icons/tank.svg";
 import PumpSVG from "./Icons/pump.svg";
-import EquipmentIcon from './Icons/EquipmentIcon';
-import InstrumentIcon from './Icons/InstrumentIcon';
-import InlineValveIcon from './Icons/InlineValveIcon';
-import PipeIcon from './Icons/PipeIcon';
-import ElectricalIcon from './Icons/ElectricalIcon';
+import EquipmentIcon from "./Icons/EquipmentIcon";
+import InstrumentIcon from "./Icons/InstrumentIcon";
+import InlineValveIcon from "./Icons/InlineValveIcon";
+import PipeIcon from "./Icons/PipeIcon";
+import ElectricalIcon from "./Icons/ElectricalIcon";
 
-
+/** Map Category → ReactFlow node type (must match keys in `nodeTypes` in ProcessDiagram) */
 export const categoryTypeMap = {
-    Equipment: "equipment",
     Pipe: "pipe",
-    Instrument: "instrument",
-    "Inline Valve": "valve",
-    Electrical: "electrical",
+    Equipment: "scalableIcon",
+    Instrument: "scalableIcon",
+    "Inline Valve": "scalableIcon",
+    Electrical: "scalableIcon",
 };
-
 
 /** Type-specific icons for Equipment */
 const EQUIPMENT_TYPE_ICONS = {
@@ -35,17 +34,20 @@ const CATEGORY_ICONS = {
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
-    if (item.Category === "Equipment") {
+    // Use normalized Category if present, otherwise Airtable raw
+    const category = item.Category ?? item["Category Item Type"];
+
+    if (category === "Equipment") {
         if (item.Type && EQUIPMENT_TYPE_ICONS[item.Type]) {
-            const typeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
-            return typeof typeIcon === "string"
-                ? <img src={typeIcon} alt={item.Type} {...props} />
-                : React.createElement(typeIcon, props);
+            const TypeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
+            return typeof TypeIcon === "string"
+                ? <img src={TypeIcon} alt={item.Type} {...props} />
+                : React.createElement(TypeIcon, props);
         }
         return <EquipmentIcon id={item.id} data={item} {...props} />;
     }
 
-    const CategoryComponent = CATEGORY_ICONS[item.Category];
+    const CategoryComponent = CATEGORY_ICONS[category];
     if (CategoryComponent) return <CategoryComponent {...props} />;
 
     // fallback for unknown category
@@ -56,12 +58,14 @@ export function getItemIcon(item, props = {}) {
 export function createNewItemNode(setNodes, setItems, setSelectedItem) {
     const newItem = {
         id: `item-${Date.now()}`,
-        Code: 'NEW001',
-        Name: 'New Item',
-        Category: 'Equipment',
-        Type: 'Tank',
-        Unit: 'Unit 1',
-        SubUnit: 'Sub 1',
+        Code: "NEW001",
+        "Item Code": "NEW001",
+        Name: "New Item",
+        Category: "Equipment",
+        "Category Item Type": "Equipment",
+        Type: "Tank",
+        Unit: "Unit 1",
+        SubUnit: "Sub 1",
     };
 
     const newNode = {
@@ -69,7 +73,8 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         position: { x: 100, y: 100 },
         data: {
             label: `${newItem.Code} - ${newItem.Name}`,
-            item: newItem, // ✅ keep raw item
+            item: newItem,
+            icon: getItemIcon(newItem, { width: 40, height: 40 }),
         },
         type: categoryTypeMap[newItem.Category] || "scalableIcon",
         sourcePosition: "right",
@@ -77,9 +82,8 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         style: { background: "transparent" },
     };
 
-
-    setNodes(nds => [...nds, newNode]);
-    setItems(its => [...its, newItem]);
+    setNodes((nds) => [...nds, newNode]);
+    setItems((its) => [...its, newItem]);
     setSelectedItem(newItem);
 }
 
@@ -89,12 +93,12 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
         <button
             onClick={() => createNewItemNode(setNodes, setItems, setSelectedItem)}
             style={{
-                padding: '6px 12px',
-                background: '#4CAF50',
-                color: '#fff',
-                border: 'none',
+                padding: "6px 12px",
+                background: "#4CAF50",
+                color: "#fff",
+                border: "none",
                 borderRadius: 4,
-                cursor: 'pointer',
+                cursor: "pointer",
             }}
         >
             Add New Item
@@ -103,31 +107,32 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 }
 
 /** Update an item and its node (category/type changes reflected) */
-
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
-    // Update the items array
-    setItems(prev => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
+    // Keep normalized mirrors in sync
+    const next = { ...updatedItem };
+    if (!next.Category && next["Category Item Type"]) next.Category = next["Category Item Type"];
+    if (!next["Category Item Type"] && next.Category) next["Category Item Type"] = next.Category;
+    if (!next.Code && next["Item Code"]) next.Code = next["Item Code"];
+    if (!next["Item Code"] && next.Code) next["Item Code"] = next.Code;
 
-    // Update the nodes array
-    setNodes(nds =>
-        nds.map(node =>
-            node.id === updatedItem.id
+    setItems((prev) => prev.map((it) => (it.id === next.id ? next : it)));
+
+    setNodes((nds) =>
+        nds.map((node) =>
+            node.id === next.id
                 ? {
                     ...node,
-                    type: categoryTypeMap[updatedItem.Category] || "scalableIcon", // update node type
+                    type: categoryTypeMap[next.Category] || "scalableIcon",
                     data: {
                         ...node.data,
-                        label: `${updatedItem.Code || ""} - ${updatedItem.Name || ""}`,
-                        item: updatedItem,
-                        icon: getItemIcon(updatedItem), // update icon if Category/Type changed
+                        label: `${next.Code || ""} - ${next.Name || ""}`,
+                        item: next,
+                        icon: getItemIcon(next, { width: 40, height: 40 }),
                     },
                 }
                 : node
         )
     );
 
-    // Update selected item
-    setSelectedItem(updatedItem);
+    setSelectedItem(next);
 }
-
-
