@@ -124,11 +124,18 @@ export default function ItemDetailCard({ item, onChange }) {
                         style={inputStyle}
                         value={localItem['Category Item Type'] || 'Equipment'}
                         onChange={e => {
-                            handleFieldChange('Category Item Type', e.target.value);
-                            // reset Type if category changes
-                            handleFieldChange('Type', '');
+                            const newCategory = e.target.value;
+                            const updated = {
+                                ...localItem,
+                                'Category Item Type': newCategory,
+                                Category: newCategory, // normalize for IconManager
+                                Type: '', // reset Type
+                            };
+                            setLocalItem(updated);
+                            if (onChange) onChange(updated); // propagate single, complete object
                         }}
                     >
+
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                 </div>
