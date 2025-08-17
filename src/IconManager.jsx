@@ -29,30 +29,35 @@ const CATEGORY_ICONS = {
     Pipe: PipeIcon,
     Electrical: ElectricalIcon,
 };
+/** Map of type-specific icons for each category */
+const CATEGORY_TYPE_ICONS = {
+    Equipment: EQUIPMENT_TYPE_ICONS,
+    // If in future you have type-specific icons for Instrument, Inline Valve, etc., add here
+};
 
+* Return a React element for an item icon */
 /** Return a React element for an item icon */
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
-    // Use normalized Category if present, otherwise Airtable raw
     const category = item.Category ?? item["Category Item Type"];
 
-    if (category === "Equipment") {
-        if (item.Type && EQUIPMENT_TYPE_ICONS[item.Type]) {
-            const TypeIcon = EQUIPMENT_TYPE_ICONS[item.Type];
-            return typeof TypeIcon === "string"
-                ? <img src={TypeIcon} alt={item.Type} {...props} />
-                : React.createElement(TypeIcon, props);
-        }
-        return <EquipmentIcon id={item.id} data={item} {...props} />;
+    // Check type-specific icon for the category
+    const typeIcons = CATEGORY_TYPE_ICONS[category];
+    if (typeIcons && item.Type && typeIcons[item.Type]) {
+        const TypeIcon = typeIcons[item.Type];
+        return typeof TypeIcon === "string"
+            ? <img src={TypeIcon} alt={item.Type} {...props} />
+            : React.createElement(TypeIcon, props);
     }
 
+    // fallback to category icon
     const CategoryComponent = CATEGORY_ICONS[category];
     if (CategoryComponent) return <CategoryComponent {...props} />;
 
-    // fallback for unknown category
     return <EquipmentIcon id={item.id} data={item} {...props} />;
 }
+
 
 /** Create a new item node */
 export function createNewItemNode(setNodes, setItems, setSelectedItem) {
