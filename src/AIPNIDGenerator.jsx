@@ -4,12 +4,12 @@
 // using the existing category and type library from your icon manager.
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
-export default async function AIPNIDGenerator(description, itemsLibrary = []) {
+export default async function AIPNIDGenerator(description, itemsLibrary = [], existingNodes = [], existingEdges = []) {
     if (!description || !Array.isArray(itemsLibrary)) return { nodes: [], edges: [] };
 
     const lower = description.toLowerCase();
-    const nodes = [];
-    const edges = [];
+    const newNodes = [];
+    const newEdges = [];
 
     // Loop through the library to find matching items
     itemsLibrary.forEach((item) => {
@@ -19,7 +19,7 @@ export default async function AIPNIDGenerator(description, itemsLibrary = []) {
         const type = item.Type || '';
 
         if (lower.includes(name.toLowerCase()) || lower.includes(type.toLowerCase())) {
-            nodes.push({
+            newNodes.push({
                 id: `${item.id}-${Date.now()}-${Math.random()}`, // unique ID
                 position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
                 data: { label, item, icon: getItemIcon(item) },
@@ -28,14 +28,17 @@ export default async function AIPNIDGenerator(description, itemsLibrary = []) {
         }
     });
 
-    // Create edges between nodes based on simple sequence (optional, can be enhanced)
-    for (let i = 1; i < nodes.length; i++) {
-        edges.push({
+    // Create edges between new nodes
+    for (let i = 1; i < newNodes.length; i++) {
+        newEdges.push({
             id: `e${i}-${i + 1}-${Date.now()}-${Math.random()}`,
-            source: nodes[i - 1].id,
-            target: nodes[i].id
+            source: newNodes[i - 1].id,
+            target: newNodes[i].id
         });
     }
 
-    return { nodes, edges };
+    return {
+        nodes: [...existingNodes, ...newNodes],
+        edges: [...existingEdges, ...newEdges]
+    };
 }
