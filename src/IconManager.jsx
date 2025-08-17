@@ -35,7 +35,7 @@ export function getItemIcon(item, props = {}) {
         return <CategoryComponent id={item.id} data={item} {...props} />;
     }
 
-    return <div style={{ width: props.width || 40, height: props.height || 40, background: "#ccc" }} />;
+    return <div style={{ width: props.width || 40, height: props.height || 100, background: "#ccc" }} />;
 }
 
 
