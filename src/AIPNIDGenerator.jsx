@@ -1,43 +1,36 @@
 // AIPNIDGenerator.jsx
 
-// This module exports a function that generates PNID nodes and edges based on a text description.
-// It is not a React component and can be used in your ProcessDiagram directly.
+// This module exports a function that generates PNID nodes and edges based on a text description
+// using the existing category and type library from your icon manager.
+import { getItemIcon, categoryTypeMap } from './IconManager';
 
-export default async function AIPNIDGenerator(description) {
-    // Replace this with your real AI API call
-    const aiResult = await mockAiApiCall(description);
-    return aiResult;
-}
-
-// Mock AI API call: returns example nodes/edges for a description
-async function mockAiApiCall(description) {
+export default async function AIPNIDGenerator(description, itemsLibrary) {
     if (!description) return { nodes: [], edges: [] };
 
     const lower = description.toLowerCase();
-
     const nodes = [];
     const edges = [];
 
-    if (lower.includes('tank')) {
-        nodes.push({
-            id: 'tank1',
-            position: { x: 100, y: 100 },
-            data: { label: 'Tank (Open Top)' },
-            type: 'scalableIcon'
-        });
-    }
+    // Loop through the library to find matching items
+    itemsLibrary.forEach((item) => {
+        const label = `${item.Code || ''} - ${item.Name || ''}`;
+        if (lower.includes(item.Name.toLowerCase()) || lower.includes(item.Type.toLowerCase())) {
+            nodes.push({
+                id: `${item.id}-${Date.now()}`, // unique ID
+                position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                data: { label, item, icon: getItemIcon(item) },
+                type: categoryTypeMap[item.Category] || 'scalableIcon',
+            });
+        }
+    });
 
-    if (lower.includes('level')) {
-        nodes.push({
-            id: 'level1',
-            position: { x: 250, y: 100 },
-            data: { label: 'Level Instrument' },
-            type: 'scalableIcon'
+    // Create edges between nodes based on simple sequence (optional, can be enhanced)
+    for (let i = 1; i < nodes.length; i++) {
+        edges.push({
+            id: `e${i}-${i + 1}-${Date.now()}`,
+            source: nodes[i - 1].id,
+            target: nodes[i].id
         });
-    }
-
-    if (nodes.length > 1) {
-        edges.push({ id: 'e1-2', source: nodes[1].id, target: nodes[0].id });
     }
 
     return { nodes, edges };
