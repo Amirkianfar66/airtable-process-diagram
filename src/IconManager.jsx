@@ -35,8 +35,9 @@ const CATEGORY_TYPE_ICONS = {
     // If in future you have type-specific icons for Instrument, Inline Valve, etc., add here
 };
 
-* Return a React element for an item icon */
 /** Return a React element for an item icon */
+
+
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
