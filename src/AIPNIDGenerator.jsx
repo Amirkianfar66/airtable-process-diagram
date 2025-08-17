@@ -18,44 +18,48 @@ function parseDescription(description, itemsLibrary) {
     // 1. Detect category
     let category = CATEGORY_LIST.find(cat => lower.includes(cat.toLowerCase())) || "";
 
-    
-    // 2. Detect type dynamically from itemsLibrary (supports multi-word types)
+    // 2. Detect type dynamically from itemsLibrary or fallback to last word
     let type = "";
-    if (itemsLibrary.length > 0) {
-        const allTypes = Array.from(new Set(itemsLibrary.map(i => i.Type).filter(Boolean)))
-            .sort((a, b) => b.length - a.length); // longest first
+    const allTypes = Array.from(new Set(itemsLibrary.map(i => i.Type).filter(Boolean)));
 
-        for (const t of allTypes) {
-            const regex = new RegExp(`\\b${t}\\b`, "i");
-            if (regex.test(lower)) {
-                type = t;
-                break;
-            }
+    // Try to match known types first
+    for (const t of allTypes.sort((a, b) => b.length - a.length)) {
+        if (lower.includes(t.toLowerCase())) {
+            type = t;
+            break;
         }
     }
 
+    // If no type matched, guess type as **last word that isn’t category**
+    if (!type) {
+        const words = description.trim().split(/\s+/);
+        const lastWord = words[words.length - 1];
+        if (lastWord.toLowerCase() !== category.toLowerCase()) {
+            type = lastWord;
+        }
+    }
 
-
-    // 3. Detect name
-    // Remove detected category and type from text to get name
+    // 3. Detect name: remove category and type
     let name = description;
     if (category) name = name.replace(new RegExp(category, "i"), "").trim();
     if (type) name = name.replace(new RegExp(type, "i"), "").trim();
 
     // 4. Optional: match existing item if exact match exists
-    const match = itemsLibrary.find(item =>
-        item.Name.toLowerCase() === name.toLowerCase() &&
-        item.Category === category &&
-        item.Type === type
+    const match = itemsLibrary.find(
+        (item) =>
+            item.Name.toLowerCase() === name.toLowerCase() &&
+            item.Category === category &&
+            item.Type === type
     );
 
     return {
         item: match || { Name: name, Category: category, Type: type },
         name,
         type,
-        category
+        category,
     };
 }
+
 
 
 export default async function AIPNIDGenerator(
