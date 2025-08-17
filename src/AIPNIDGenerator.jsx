@@ -75,10 +75,8 @@ export default async function AIPNIDGenerator(
 
     const label = `${item.Code || ''} - ${name}`;
 
-    const newItem = { ...item, Name: name, Type: type, Category: category };
 
     // Use the original item.id as node.id so selection works
-    // Generate a unique node ID to avoid conflicts
     const newItemId = item.id || `ai-${Date.now()}-${Math.random()}`;
     const newItem = { ...item, id: newItemId, Name: name, Type: type, Category: category };
 
@@ -92,6 +90,7 @@ export default async function AIPNIDGenerator(
         },
         type: categoryTypeMap[category] || 'scalableIcon',
     };
+
 
 
     return {
