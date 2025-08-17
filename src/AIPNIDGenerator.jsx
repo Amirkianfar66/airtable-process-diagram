@@ -19,7 +19,13 @@ function parseDescription(description, itemsLibrary) {
     let category = CATEGORY_LIST.find(cat => lower.includes(cat.toLowerCase())) || "";
 
     // 2. Detect type
-    let type = TYPE_LIST.find(t => lower.includes(t.toLowerCase())) || "";
+    // Detect type dynamically from itemsLibrary
+    let type = "";
+    if (itemsLibrary.length > 0) {
+        const allTypes = Array.from(new Set(itemsLibrary.map(i => i.Type).filter(Boolean)));
+        type = allTypes.find(t => lower.includes(t.toLowerCase())) || "";
+    }
+
 
     // 3. Detect name
     // Remove detected category and type from text to get name
