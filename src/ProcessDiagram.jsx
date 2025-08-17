@@ -91,13 +91,21 @@ export default function ProcessDiagram() {
         if (!aiDescription) return;
         try {
             const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(aiDescription);
-            setNodes(aiNodes);
-            setEdges(aiEdges);
-            setDefaultLayout({ nodes: aiNodes, edges: aiEdges });
+
+            // Merge AI nodes with existing nodes
+            setNodes((prevNodes) => [...prevNodes, ...aiNodes]);
+            setEdges((prevEdges) => [...prevEdges, ...aiEdges]);
+
+            // Optionally, update defaultLayout if you rely on it
+            setDefaultLayout((prev) => ({
+                nodes: [...prev.nodes, ...aiNodes],
+                edges: [...prev.edges, ...aiEdges],
+            }));
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
     };
+
 
     useEffect(() => {
         fetchData()
