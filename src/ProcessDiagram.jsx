@@ -87,24 +87,26 @@ export default function ProcessDiagram() {
     );
     const [aiDescription, setAiDescription] = useState('');
 
+    // inside ProcessDiagram.jsx
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
+
         try {
-            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(aiDescription);
+            const result = await AIPNIDGenerator(
+                aiDescription,
+                items,      // your loaded itemsLibrary
+                nodes,      // pass current nodes to preserve them
+                edges       // pass current edges to preserve them
+            );
 
-            // Merge AI nodes with existing nodes
-            setNodes((prevNodes) => [...prevNodes, ...aiNodes]);
-            setEdges((prevEdges) => [...prevEdges, ...aiEdges]);
-
-            // Optionally, update defaultLayout if you rely on it
-            setDefaultLayout((prev) => ({
-                nodes: [...prev.nodes, ...aiNodes],
-                edges: [...prev.edges, ...aiEdges],
-            }));
+            setNodes(result.nodes);
+            setEdges(result.edges);
+            setDefaultLayout({ nodes: result.nodes, edges: result.edges });
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
     };
+
 
 
     useEffect(() => {
