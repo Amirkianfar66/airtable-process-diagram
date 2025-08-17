@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
-import { getItemIcon } from './IconManager';
 
 export default function EquipmentIcon({ id, data }) {
     const { setNodes } = useReactFlow();
@@ -8,19 +7,11 @@ export default function EquipmentIcon({ id, data }) {
     const [scale, setScale] = useState(data?.scale || 1);
     const timeoutRef = useRef(null);
 
-    // Track icon element dynamically
-    const [iconElement, setIconElement] = useState(getItemIcon(data?.item, { width: 150, height: 150 }));
-
     useEffect(() => {
         if (data?.scale !== undefined && data.scale !== scale) {
             setScale(data.scale);
         }
     }, [data?.scale]);
-
-    useEffect(() => {
-        // Update icon whenever item Type changes
-        setIconElement(getItemIcon(data?.item, { width: 150, height: 150 }));
-    }, [data?.item?.Type, data?.item?.Category]);
 
     const updateScale = (newScale) => {
         setScale(newScale);
@@ -58,28 +49,149 @@ export default function EquipmentIcon({ id, data }) {
         <div
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            style={{ position: 'relative', width: 200, height: 200, textAlign: 'center', userSelect: 'none' }}
+            style={{
+                position: 'relative',
+                width: 200,
+                height: 200,
+                textAlign: 'center',
+                userSelect: 'none',
+            }}
         >
-            <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', position: 'relative', width: 150, height: 150 }}>
-                {iconElement}
+            {/* Scalable container with both SVG and handles */}
+            <div
+                style={{
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top left',
+                    position: 'relative',
+                    width: 150,
+                    height: 150,
+                }}
+            >
+                <svg
+                    width="200"
+                    height="200"
+                    viewBox="0 0 200 200"
+                    style={{
+                        pointerEvents: 'none',
+                        display: 'block',
+                        margin: '0 auto',
+                    }}
+                >
+                    <rect x="0" y="0" width="150" height="150" fill="green" />
+                    <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
+                        EQ
+                    </text>
+                </svg>
 
-                {/* Handles */}
-                <Handle type="target" position={Position.Left} style={{ position: 'absolute', top: '50%', left: -7, background: 'red', borderRadius: '50%', width: 14, height: 14, transform: 'translateY(-50%)', opacity: hovered ? 1 : 0.01 }} id="left" />
-                <Handle type="source" position={Position.Right} style={{ position: 'absolute', top: '50%', right: -7, background: 'blue', borderRadius: '50%', width: 14, height: 14, transform: 'translateY(-50%)', opacity: hovered ? 1 : 0.01 }} id="right" />
-                <Handle type="target" position={Position.Top} style={{ position: 'absolute', top: -7, left: '50%', background: 'green', borderRadius: '50%', width: 14, height: 14, transform: 'translateX(-50%)', opacity: hovered ? 1 : 0.01 }} id="top" />
-                <Handle type="source" position={Position.Bottom} style={{ position: 'absolute', bottom: -7, left: '50%', background: 'orange', borderRadius: '50%', width: 14, height: 14, transform: 'translateX(-50%)', opacity: hovered ? 1 : 0.01 }} id="bottom" />
+                {/* Handles inside scaled container */}
+                <Handle
+                    type="target"
+                    position={Position.Left}
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: -7,
+                        background: 'red',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateY(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="left"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Right}
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        right: -7,
+                        background: 'blue',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateY(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="right"
+                />
+                <Handle
+                    type="target"
+                    position={Position.Top}
+                    style={{
+                        position: 'absolute',
+                        top: -7,
+                        left: '50%',
+                        background: 'green',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateX(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="top"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Bottom}
+                    style={{
+                        position: 'absolute',
+                        bottom: -7,
+                        left: '50%',
+                        background: 'orange',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateX(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="bottom"
+                />
             </div>
 
             {/* Floating scale/reset buttons */}
             {hovered && (
-                <div style={{ position: 'absolute', top: -32, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, background: 'rgba(255, 255, 255, 0.85)', padding: '2px 6px', borderRadius: 6, boxShadow: '0 0 5px rgba(0,0,0,0.2)', zIndex: 10 }}>
-                    <button onClick={onScale} style={{ fontSize: 12, cursor: 'pointer' }}>×2</button>
-                    <button onClick={onReset} style={{ fontSize: 12, cursor: 'pointer' }}>Reset</button>
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: -32,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        display: 'flex',
+                        gap: 6,
+                        background: 'rgba(255, 255, 255, 0.85)',
+                        padding: '2px 6px',
+                        borderRadius: 6,
+                        boxShadow: '0 0 5px rgba(0,0,0,0.2)',
+                        zIndex: 10,
+                    }}
+                >
+                    <button onClick={onScale} style={{ fontSize: 12, cursor: 'pointer' }}>
+                        ×2
+                    </button>
+                    <button onClick={onReset} style={{ fontSize: 12, cursor: 'pointer' }}>
+                        Reset
+                    </button>
                 </div>
             )}
 
             {/* Label */}
-            <div style={{ position: 'absolute', top: 160, left: '50%', transform: 'translateX(-50%)', fontSize: 13, textAlign: 'Left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#333', paddingLeft: 5 }}>
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 160, // place below the green box
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    fontSize: 13,
+                    textAlign: 'Left',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: '#333',
+                    paddingLeft: 5,
+                }}
+            >
                 {data?.label?.substring(0, 5)}
             </div>
         </div>
