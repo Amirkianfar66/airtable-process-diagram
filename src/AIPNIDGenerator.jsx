@@ -91,12 +91,16 @@ export default async function AIPNIDGenerator(
         type: categoryTypeMap[category] || 'scalableIcon',
     };
 
-
+    // ? Make ItemDetailCard show the correct category
+    if (typeof setSelectedItem === "function") {
+        setSelectedItem(newItem);
+    }
 
     return {
         nodes: [...existingNodes, newNode],
         edges: [...existingEdges],
     };
+
 
 }
 
