@@ -1,110 +1,38 @@
-﻿// AIPNIDGenerator.jsx
+﻿import { getItemIcon, categoryTypeMap } from './IconManager';
+import { parseItemText } from './aiParser';
 
-import { getItemIcon, categoryTypeMap } from './IconManager';
- const CATEGORY_LIST = Object.keys(categoryTypeMap);
+export default async function AIPNIDGenerator(description, itemsLibrary = [], existingNodes = [], existingEdges = [], setSelectedItem) {
+    if (!description) return { nodes: existingNodes, edges: existingEdges };
 
+    // AI-powered parsing
+    const parsed = await parseItemText(description);
+    if (!parsed) return { nodes: existingNodes, edges: existingEdges };
 
-// Fuzzy-match helper
-function fuzzyMatch(text, keyword) {
-    if (!text || !keyword) return false;
-    return text.toLowerCase().includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(text.toLowerCase());
-}
+    const { Name, Category, Type } = parsed;
 
-// Parse description to detect name, category, and type
-function parseDescription(description, itemsLibrary) {
-    if (!description) return null;
-    const lower = description.toLowerCase();
-
-    // 1. Detect category
-    let category = CATEGORY_LIST.find(cat => lower.includes(cat.toLowerCase())) || "";
-
-    // 2. Detect type dynamically from itemsLibrary or fallback to last word
-    let type = "";
-    const allTypes = Array.from(new Set(itemsLibrary.map(i => i.Type).filter(Boolean)));
-
-    // Try to match known types first
-    for (const t of allTypes.sort((a, b) => b.length - a.length)) {
-        if (lower.includes(t.toLowerCase())) {
-            type = t;
-            break;
-        }
-    }
-
-    // If no type matched, guess type as **last word that isn’t category**
-    if (!type) {
-        const words = description.trim().split(/\s+/);
-        const lastWord = words[words.length - 1];
-        if (lastWord.toLowerCase() !== category.toLowerCase()) {
-            type = lastWord;
-        }
-    }
-
-    // 3. Detect name: remove category and type
-    let name = description;
-    if (category) name = name.replace(new RegExp(category, "i"), "").trim();
-    if (type) name = name.replace(new RegExp(type, "i"), "").trim();
-
-    // 4. Optional: match existing item if exact match exists
-    const match = itemsLibrary.find(
-        (item) =>
-            item.Name.toLowerCase() === name.toLowerCase() &&
-            item.Category === category &&
-            item.Type === type
+    // Check if item exists
+    const match = itemsLibrary.find(item =>
+        item.Name === Name && item.Category === Category && item.Type === Type
     );
 
-    return {
-        item: match || { Name: name, Category: category, Type: type },
-        name,
-        type,
-        category,
-    };
-}
-
-
-
-export default async function AIPNIDGenerator(
-    description,
-    itemsLibrary = [],
-    existingNodes = [],
-    existingEdges = [],
-    setSelectedItem
-) {
-    if (!description || !Array.isArray(itemsLibrary) || itemsLibrary.length === 0)
-        return { nodes: existingNodes, edges: existingEdges };
-
-    const matchedItem = parseDescription(description, itemsLibrary);
-    if (!matchedItem) return { nodes: existingNodes, edges: existingEdges };
-
-    const { item, name, type, category } = matchedItem;
-
-    const label = `${item.Code || ''} - ${name}`;
-
-
-    // Use the original item.id as node.id so selection works
-    const newItemId = item.id || `ai-${Date.now()}-${Math.random()}`;
-    const newItem = { ...item, id: newItemId, Name: name, Type: type, Category: category, 'Category Item Type': category, };
+    const item = match || { Name, Category, Type, id: `ai-${Date.now()}-${Math.random()}` };
+    const label = `${item.Code || ''} - ${item.Name || Name}`;
 
     const newNode = {
-        id: newItemId,
+        id: item.id,
         position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
         data: {
             label,
-            item: newItem,
-            icon: getItemIcon(newItem),
+            item,
+            icon: getItemIcon(item),
         },
-        type: categoryTypeMap[category] || 'scalableIcon',
+        type: categoryTypeMap[Category] || 'scalableIcon',
     };
 
-    // ✅ Make ItemDetailCard show the correct category
-    if (typeof setSelectedItem === "function") {
-        setSelectedItem(newItem);
-    }
+    if (typeof setSelectedItem === "function") setSelectedItem(item);
 
     return {
         nodes: [...existingNodes, newNode],
         edges: [...existingEdges],
     };
-
-
 }
-
