@@ -16,6 +16,8 @@ import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
 
+import AIPNIDGenerator from './AIPNIDGenerator'; // import your AI PNID generator
+
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -83,6 +85,19 @@ export default function ProcessDiagram() {
         },
         [edges, nodes]
     );
+    const [aiDescription, setAiDescription] = useState('');
+
+    const handleGeneratePNID = async () => {
+        if (!aiDescription) return;
+        try {
+            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(aiDescription);
+            setNodes(aiNodes);
+            setEdges(aiEdges);
+            setDefaultLayout({ nodes: aiNodes, edges: aiEdges });
+        } catch (err) {
+            console.error('AI PNID generation failed:', err);
+        }
+    };
 
     useEffect(() => {
         fetchData()
@@ -202,6 +217,16 @@ export default function ProcessDiagram() {
                     />
                 </div>
 
+                <div style={{ padding: 10, display: 'flex', gap: 6 }}>
+                    <input
+                        type="text"
+                        placeholder="Describe PNID for AI..."
+                        value={aiDescription}
+                        onChange={(e) => setAiDescription(e.target.value)}
+                        style={{ flex: 1, padding: 4 }}
+                    />
+                    <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
+                </div>
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
