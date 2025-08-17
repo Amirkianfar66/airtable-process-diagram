@@ -123,6 +123,12 @@ export default function ProcessDiagram() {
             setEdges(aiEdges);
 
 
+        } catch (err) {
+            console.error('AI PNID generation failed:', err);
+        }
+    };
+
+
 
 
 
