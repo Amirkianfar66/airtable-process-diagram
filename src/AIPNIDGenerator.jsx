@@ -81,7 +81,7 @@ export default async function AIPNIDGenerator(
     // Generate a unique node ID to avoid conflicts
     const newNodeId = `${item.id}-${Date.now()}-${Math.random()}`;
     const newNode = {
-        id: newNodeId,
+        id: item.id, // <- use the original item.id here
         position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
         data: {
             label,
@@ -90,7 +90,6 @@ export default async function AIPNIDGenerator(
         },
         type: categoryTypeMap[category] || 'scalableIcon',
     };
-
 
     // Automatically select the new item so ItemDetailCard shows it
     if (typeof setSelectedItem === 'function') {
@@ -101,5 +100,6 @@ export default async function AIPNIDGenerator(
         nodes: [...existingNodes, newNode],
         edges: [...existingEdges],
     };
+
 }
 
