@@ -10,25 +10,36 @@ function fuzzyMatch(text, keyword) {
 
 // Parse description to detect name, category, and type
 function parseDescription(description, itemsLibrary) {
+    if (!description) return null;
     const lower = description.toLowerCase();
-    // Return only the first best match
-    const match = itemsLibrary.find(item => {
-        if (!item) return false;
-        const nameMatch = fuzzyMatch(lower, item.Name || '');
-        const typeMatch = fuzzyMatch(lower, item.Type || '');
-        const categoryMatch = fuzzyMatch(lower, item.Category || '');
-        return nameMatch || typeMatch || categoryMatch;
-    });
 
-    if (!match) return null;
+    // 1. Detect category
+    let category = CATEGORY_LIST.find(cat => lower.includes(cat.toLowerCase())) || "";
+
+    // 2. Detect type
+    let type = TYPE_LIST.find(t => lower.includes(t.toLowerCase())) || "";
+
+    // 3. Detect name
+    // Remove detected category and type from text to get name
+    let name = description;
+    if (category) name = name.replace(new RegExp(category, "i"), "").trim();
+    if (type) name = name.replace(new RegExp(type, "i"), "").trim();
+
+    // 4. Optional: match existing item if exact match exists
+    const match = itemsLibrary.find(item =>
+        item.Name.toLowerCase() === name.toLowerCase() &&
+        item.Category === category &&
+        item.Type === type
+    );
 
     return {
-        item: match,
-        name: match.Name || '',
-        type: match.Type || '',
-        category: match.Category || ''
+        item: match || { Name: name, Category: category, Type: type },
+        name,
+        type,
+        category
     };
 }
+
 
 export default async function AIPNIDGenerator(
     description,
