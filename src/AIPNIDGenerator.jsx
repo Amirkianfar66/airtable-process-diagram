@@ -126,7 +126,7 @@ export default async function AIPNIDGenerator(
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
     // Update Code
-    const updatedCode = generateCode({
+    const Code = generateCode({
         Category,
         Type,
         Unit,
@@ -135,55 +135,34 @@ export default async function AIPNIDGenerator(
         SensorType: parsed.SensorType || ""
     });
 
-
-
     // Generate nodes
-    // --------------------------
-    // Use updatedCode instead of Code
-    const allCodes = [updatedCode].concat(parsed._otherCodes || []);
+    const allCodes = [Code].concat(parsed._otherCodes || []);
 
-
-    newNodes = allCodes.map(code => {
-        // For each code, try to get a name and type specific to it
-        let nodeType = Type; // fallback
-        let nodeName = Name; // fallback
-
-        // Optionally, split original description to find Type/Name per code
-        const match = description.match(new RegExp(`${code}\\s+Name\\s+(\\S+)\\s+${Category}\\s+(\\S+)`, 'i'));
-        if (match) {
-            nodeName = match[1];
-            nodeType = match[2];
-        }
-
+    newNodes = allCodes.map((code, index) => {
         const id = `ai-${Date.now()}-${Math.random()}`;
         const item = {
-            Name: nodeName,
-            Code: code,
-            'Item Code': code,
+            Name: Name,
+            Code: code,           // <- This is what ItemDetailCard reads
+            'Item Code': code,    // <- keep for consistency
             Category,
-            Type: nodeType,
-            Unit: parsed.Unit,      // <-- add Unit
-            SubUnit: parsed.SubUnit, // <-- add SubUnit
+            Type,
+            Unit,
+            SubUnit,
             id
         };
-
-        const label = `${item.Code} - ${item.Name}`;
-
         return {
-            id: item.id,
+            id,
             position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
-            data: { label, item, icon: getItemIcon(item) },
+            data: { label: `${item.Code} - ${item.Name}`, item, icon: getItemIcon(item) },
             type: categoryTypeMap[Category] || 'scalableIcon',
         };
     });
 
-
-
-
+    // Pass the first node's item to the detail card
     if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
-        // ✅ Pass a new object to trigger re-render
         setSelectedItem({ ...newNodes[0].data.item });
     }
+
 
     // --------------------------
     // Explicit connections (e.g., "Connect U123 to U456")
