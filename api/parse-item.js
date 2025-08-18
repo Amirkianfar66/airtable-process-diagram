@@ -33,21 +33,27 @@ export default async function handler(req, res) {
     // 👉 Updated prompt to include a human-style explanation AND JSON
     const prompt = `
 You are a process engineer assistant.
-Given a description of a process item, do TWO things:
+Extract structured data from the text. 
+Return a short natural explanation + JSON.
 
-1. Write a short natural explanation of what the item seems to be.
-2. Then output JSON ONLY with keys: Name, Category, Type.
+JSON keys required: Name, Code, Category, Type, Number.
+- Code: must always start with 'U' followed by digits if present.
+- Number: how many items to generate (default 1 if not given).
+- Category: one of [${categoriesList.join(", ")}].
 
 Example format:
-Explanation: "Looks like you want an equipment tank named U123."
+Explanation: "Looks like you want 2 equipment tanks named U123."
 {
-  "Name": "U123",
+  "Name": "Tank",
+  "Code": "U123",
   "Category": "Equipment",
-  "Type": "Tank"
+  "Type": "Tank",
+  "Number": 2
 }
 
 Text: "${description}"
 `;
+
 
     let explanation = "";
     let parsed = null;
@@ -70,8 +76,19 @@ Text: "${description}"
 
     if (!parsed) {
         // ✅ Fallback regex parsing
-        const codeMatch = description.match(/\b(U[A-Za-z0-9\-]+|[A-Za-z0-9]{2,})\b/);
-        const Name = codeMatch ? codeMatch[0] : "";
+        // Code must always start with U + digits
+        const codeMatch = description.match(/\bU\d{3,}\b/);
+        const Code = codeMatch ? codeMatch[0] : "";
+
+        // Try to extract a number of items (e.g. "2 Tanks")
+        const numberMatch = description.match(/\b\d+\b/);
+        const Number = numberMatch ? parseInt(numberMatch[0], 10) : 1;
+
+        // Fallback Name = if no code, fallback to first token
+        const words = description.trim().split(/\s+/).filter(Boolean);
+        const Name = Code || words[0] || "";
+
+        // Category = find closest match
         let Category = "";
         for (const c of categoriesList) {
             if (description.toLowerCase().includes(c.toLowerCase())) {
@@ -79,13 +96,16 @@ Text: "${description}"
                 break;
             }
         }
-        const words = description.trim().split(/\s+/).filter(Boolean);
+
+        // Type = last word not equal to Name/Category
         const Type = words.filter(
-            w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
+            w =>
+                w.toLowerCase() !== Name.toLowerCase() &&
+                w.toLowerCase() !== Category.toLowerCase()
         ).pop() || "";
 
-        parsed = { Name, Category, Type };
-        explanation = `I guessed this looks like a ${Category || "process item"} named ${Name} of type ${Type}.`;
+        parsed = { Name, Code, Category, Type, Number };
+        explanation = `I guessed this looks like ${Number} ${Category || "process item"}(s) named ${Code || Name} of type ${Type}.`;
     }
 
     return res.json({
@@ -93,3 +113,4 @@ Text: "${description}"
         parsed
     });
 }
+
