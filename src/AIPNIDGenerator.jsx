@@ -47,7 +47,6 @@ export default async function AIPNIDGenerator(
     let newNodes = [];
     let newEdges = [...existingEdges];
 
-    // --------------------------
     // Generate nodes
     // --------------------------
     for (let i = 0; i < NumberOfItems; i++) {
@@ -64,6 +63,7 @@ export default async function AIPNIDGenerator(
 
         newNodes.push(newNode);
     }
+
 
     if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
         // ✅ Pass a new object to trigger re-render
