@@ -1,10 +1,23 @@
 ﻿import { getItemIcon, categoryTypeMap } from './IconManager';
 import { parseItemText } from './aiParser';
 
+// Export ChatBox component
+export function ChatBox({ messages }) {
+    return (
+        <div style={{ padding: 10 }}>
+            {messages.map((msg, idx) => (
+                <div key={idx} style={{ marginBottom: 6, color: msg.sender === 'AI' ? 'blue' : 'black' }}>
+                    <strong>{msg.sender}:</strong> {msg.message}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// Default export: AI PNID generator
 export default async function AIPNIDGenerator(description, itemsLibrary = [], existingNodes = [], existingEdges = [], setSelectedItem, setChatMessages) {
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
-    // AI-powered parsing
     const parsed = await parseItemText(description);
     if (!parsed) return { nodes: existingNodes, edges: existingEdges };
 
@@ -12,7 +25,6 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
     const Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     const Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
-    // Check if item exists
     const match = itemsLibrary.find(item =>
         item.Name?.toLowerCase() === Name.toLowerCase() &&
         item.Category?.toLowerCase() === Category.toLowerCase() &&
@@ -35,7 +47,6 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
 
     if (typeof setSelectedItem === 'function') setSelectedItem(item);
 
-    // Send AI response to chatbox
     if (typeof setChatMessages === 'function') {
         setChatMessages(prev => [...prev, {
             sender: 'AI',
