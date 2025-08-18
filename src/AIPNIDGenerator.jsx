@@ -48,25 +48,36 @@ export default async function AIPNIDGenerator(
     let newEdges = [...existingEdges];
 
     // --------------------------
+    // --------------------------
     // Generate nodes
     // --------------------------
     // Collect all codes: main code + other codes (if any)
     const allCodes = [Code].concat(parsed._otherCodes || []);
 
-    for (let code of allCodes) {
+    newNodes = allCodes.map(code => {
+        // For each code, try to get a name and type specific to it
+        let nodeType = Type; // fallback
+        let nodeName = Name; // fallback
+
+        // Optionally, split original description to find Type/Name per code
+        const match = description.match(new RegExp(`${code}\\s+Name\\s+(\\S+)\\s+${Category}\\s+(\\S+)`, 'i'));
+        if (match) {
+            nodeName = match[1];
+            nodeType = match[2];
+        }
+
         const id = `ai-${Date.now()}-${Math.random()}`;
-        const item = { Name, Code: code, 'Item Code': code, Category, Type, id };
+        const item = { Name: nodeName, Code: code, 'Item Code': code, Category, Type: nodeType, id };
         const label = `${item.Code} - ${item.Name}`;
 
-        const newNode = {
+        return {
             id: item.id,
             position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
             data: { label, item, icon: getItemIcon(item) },
             type: categoryTypeMap[Category] || 'scalableIcon',
         };
+    });
 
-        newNodes.push(newNode);
-    }
 
 
 
