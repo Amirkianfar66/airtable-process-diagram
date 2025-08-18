@@ -36,7 +36,9 @@ export default async function AIPNIDGenerator(
     const aiResult = await parseItemText(description);
     if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
-    const { explanation, parsed, connection } = aiResult;
+    const { explanation, connection } = aiResult;
+    let parsed = aiResult.parsed;  // now we can reassign
+
 
     const Name = (parsed?.Name || description).trim();
     const Code = (parsed?.Code || `U${Math.floor(1000 + Math.random() * 9000)}`).trim();
@@ -51,11 +53,14 @@ export default async function AIPNIDGenerator(
 
     // Extract Unit/SubUnit from description if mentioned
     const unitMatch = description.match(/unit\s+([^\n,]+)/i);
-    const subUnitMatch = description.match(/subunit\s+([^\n,]+)/i);
+    if (unitMatch) Unit = unitMatch[1].trim();
 
+    const subUnitMatch = description.match(/subunit\s+([^\n,]+)/i);
+    if (subUnitMatch) SubUnit = subUnitMatch[1].trim();
 
     // Update parsed object
     parsed = { ...parsed, Unit, SubUnit };
+
 
     // --------------------------
     // --------------------------
