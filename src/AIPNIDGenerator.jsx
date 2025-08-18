@@ -3,16 +3,6 @@ import { parseItemText } from './aiParser';
 import { generateCode } from './codeGenerator';
 
 
-// Use generateCode as before:
-let Code = generateCode({
-    Category,
-    Type,
-    Unit,
-    SubUnit,
-    Sequence,
-    SensorType
-});
-
 
 // --------------------------
 // ChatBox component
