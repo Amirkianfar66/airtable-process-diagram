@@ -52,6 +52,7 @@ function generateCode({ Category, Type, Unit = 0, SubUnit = 0, Sequence = null, 
     return finalCode.toString().slice(0, 5);
 }
 
+
 // --------------------------
 // ChatBox component
 // --------------------------
@@ -97,19 +98,18 @@ export default async function AIPNIDGenerator(
     let Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
     const NumberOfItems = parsed?.Number && parsed.Number > 0 ? parsed.Number : 1;
 
-    // Generate code (first assignment)
-    let Code = generateCode({
+    // Generate code
+    const Code = generateCode({
         Category,
         Type,
         Unit: parsed.Unit ?? 0,
         SubUnit: parsed.SubUnit ?? 0,
-        Sequence: parsed.Sequence,
+        Sequence: parsed.Sequence,       // optional
         SensorType: parsed.SensorType || ""
     });
 
     let newNodes = [];
     let newEdges = [...existingEdges];
-
     // Extract Unit/SubUnit first
     let Unit = 0;
     let SubUnit = 0;
@@ -125,8 +125,8 @@ export default async function AIPNIDGenerator(
     Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
-    // Update Code (assign, do NOT redeclare)
-    Code = generateCode({
+    // Update Code
+    const Code = generateCode({
         Category,
         Type,
         Unit,
@@ -135,34 +135,8 @@ export default async function AIPNIDGenerator(
         SensorType: parsed.SensorType || ""
     });
 
-    // Generate nodes
-    const allCodes = [Code].concat(parsed._otherCodes || []);
+   
 
-    newNodes = allCodes.map((code, index) => {
-        const id = `ai-${Date.now()}-${Math.random()}`;
-        const item = {
-            Name: Name,
-            Code: code,           // internal logic
-            'Item Code': code,    // <-- ItemDetailCard reads this
-            Category,
-            Type,
-            Unit,
-            SubUnit,
-            id
-        };
-
-        return {
-            id,
-            position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
-            data: { label: `${item.Code} - ${item.Name}`, item, icon: getItemIcon(item) },
-            type: categoryTypeMap[Category] || 'scalableIcon',
-        };
-    });
-
-    // ✅ Pass the first node's item to the detail card after nodes are created
-    if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
-        setSelectedItem({ ...newNodes[0].data.item });
-    }
 
     // --------------------------
     // Explicit connections (e.g., "Connect U123 to U456")
@@ -207,3 +181,28 @@ export default async function AIPNIDGenerator(
                 });
             }
         }
+
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: 'AI', message: `→ Automatically connected ${newNodes.length} nodes in sequence.` }
+            ]);
+        }
+    }
+
+    // --------------------------
+    // Add AI explanation and generated info
+    // --------------------------
+    if (typeof setChatMessages === 'function') {
+        setChatMessages(prev => [
+            ...prev,
+            { sender: 'AI', message: explanation || 'I parsed your item.' },
+            { sender: 'AI', message: `→ Generated ${newNodes.length} item(s): ${Category} - ${Type}` }
+        ]);
+    }
+
+    return {
+        nodes: [...existingNodes, ...newNodes],
+        edges: newEdges,
+    };
+}
