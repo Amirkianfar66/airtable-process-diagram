@@ -88,55 +88,38 @@ Text: "${description}"
     }
 
     if (!parsed) {
-        // Fallback regex parsing for multiple codes
-        const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
-        let parsedItems = [];
+        // Fallback regex parsing
+        const codeMatch = description.match(/\bU\d{3,}\b/);
+        const Code = codeMatch ? codeMatch[0] : "";
 
-        if (codeMatches.length > 0) {
-            parsedItems = codeMatches.map(code => {
-                const words = description.trim().split(/\s+/).filter(Boolean);
-                let Category = "";
-                for (const c of categoriesList) {
-                    if (description.toLowerCase().includes(c.toLowerCase())) {
-                        Category = c;
-                        break;
-                    }
-                }
-                const Type = words.filter(
-                    w => w.toLowerCase() !== code.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
-                ).pop() || "Generic";
+        const numberMatch = description.match(/\b\d+\b/);
+        const Number = numberMatch ? parseInt(numberMatch[0], 10) : 1;
 
-                return {
-                    Name: description,
-                    Code: code,
-                    Category,
-                    Type,
-                    Number: 1
-                };
-            });
-        } else {
-            // fallback single item
-            const codeMatch = description.match(/\bU\d{3,}\b/);
-            const Code = codeMatch ? codeMatch[0] : `U${Math.floor(1000 + Math.random() * 9000)}`;
-            const words = description.trim().split(/\s+/).filter(Boolean);
-            const Name = Code || words[0] || "";
-            let Category = "";
-            for (const c of categoriesList) {
-                if (description.toLowerCase().includes(c.toLowerCase())) {
-                    Category = c;
-                    break;
-                }
+        const words = description.trim().split(/\s+/).filter(Boolean);
+        const Name = Code || words[0] || "";
+
+        let Category = "";
+        for (const c of categoriesList) {
+            if (description.toLowerCase().includes(c.toLowerCase())) {
+                Category = c;
+                break;
             }
-            const Type = words.filter(
-                w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
-            ).pop() || "Generic";
-
-            parsedItems = [{ Name, Code, Category, Type, Number: 1 }];
         }
 
-        // ✅ Always use the first item for frontend single-object expectation
-        parsed = parsedItems[0];
+        const Type = words.filter(
+            w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
+        ).pop() || "";
 
-        explanation = `I guessed this looks like ${parsedItems.length} item(s) based on your description.`;
+        parsed = { Name, Code, Category, Type, Number };
+        explanation = `I guessed this looks like ${Number} ${Category || "process item"}(s) named ${Code || Name} of type ${Type}.`;
     }
 
+    // ✅ Parse connection if present
+    const connection = parseConnection(description);
+
+    return res.json({
+        explanation,
+        parsed,
+        connection // null if no connect instruction
+    });
+}
