@@ -96,18 +96,20 @@ export default async function AIPNIDGenerator(
 
     // ✅ Guard against bad returns like 0/null/undefined
     if (!updatedCode || updatedCode === 0) {
-        // Optional soft fallback: try with a default sequence
         const fallbackSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
-        updatedCode = generateCode({ Category, Type, Unit, SubUnit, Sequence: fallbackSeq, SensorType: parsed.SensorType || "" });
+        updatedCode = generateCode({
+            Category,
+            Type,
+            Unit,
+            SubUnit,
+            Sequence: fallbackSeq,
+            SensorType: parsed.SensorType || ""
+        });
     }
 
     // --------------------
     // Generate nodes
     // --------------------
-    /**
-     * Keep your original behavior (use _otherCodes when provided).
-     * If not provided and NumberOfItems > 1, synthesize more codes by incrementing Sequence.
-     */
     let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
 
     // ✅ If no _otherCodes but we have multiple items, generate additional sequential codes
@@ -128,6 +130,7 @@ export default async function AIPNIDGenerator(
 
     const generatedCodesMessages = [];
     const allMessages = [];
+
     // ... (rest of your node creation & messaging stays the same)
 
     // Generate nodes
