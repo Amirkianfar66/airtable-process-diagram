@@ -39,7 +39,7 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
     if (typeof setChatMessages === 'function') {
         setChatMessages(prev => [...prev, {
             sender: 'AI',
-            message: `Parsed Item: Name=${item.Name}, Category=${item.Category}, Type=${item.Type}`
+            message: `AI Parsed: Name=${item.Name}, Category=${item.Category}, Type=${item.Type}`
         }]);
     }
 
