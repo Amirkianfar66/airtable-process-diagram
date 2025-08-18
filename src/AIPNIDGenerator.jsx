@@ -116,7 +116,7 @@ export default async function AIPNIDGenerator(
     // --------------------------
     // Implicit connections for multi-item generation ("connect them")
     // --------------------------
-    const implicitConnect = /connect\s+them/i.test(description);
+    const implicitConnect = /connect/i.test(description);
     if (implicitConnect && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
             const exists = newEdges.some(e => e.source === newNodes[i].id && e.target === newNodes[i + 1].id);
