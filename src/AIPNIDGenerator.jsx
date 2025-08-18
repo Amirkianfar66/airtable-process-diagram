@@ -1,9 +1,7 @@
 ﻿import { getItemIcon, categoryTypeMap } from './IconManager';
 import { parseItemText } from './aiParser';
-
 import { generateCode } from './codeGenerator';
-import { getItemIcon, categoryTypeMap } from './IconManager';
-import { parseItemText } from './aiParser';
+
 
 // Use generateCode as before:
 let Code = generateCode({
@@ -89,7 +87,6 @@ export default async function AIPNIDGenerator(
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
     // Update Code
-    // After generating updatedCode
     const updatedCode = generateCode({
         Category,
         Type,
@@ -98,17 +95,6 @@ export default async function AIPNIDGenerator(
         Sequence: parsed.Sequence,
         SensorType: parsed.SensorType || ""
     });
-
-    // --------------------------
-    // Send generated code to ChatBox
-    // --------------------------
-    if (typeof setChatMessages === 'function') {
-        setChatMessages(prev => [
-            ...prev,
-            { sender: 'AI', message: `→ Generated code: ${updatedCode}` }
-        ]);
-    }
-
 
 
 
