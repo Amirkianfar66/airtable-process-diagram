@@ -52,7 +52,6 @@ function generateCode({ Category, Type, Unit = 0, SubUnit = 0, Sequence = null, 
     return finalCode.toString().slice(0, 5);
 }
 
-
 // --------------------------
 // ChatBox component
 // --------------------------
@@ -98,18 +97,19 @@ export default async function AIPNIDGenerator(
     let Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
     const NumberOfItems = parsed?.Number && parsed.Number > 0 ? parsed.Number : 1;
 
-    // Generate code
-    const Code = generateCode({
+    // Generate code (first assignment)
+    let Code = generateCode({
         Category,
         Type,
         Unit: parsed.Unit ?? 0,
         SubUnit: parsed.SubUnit ?? 0,
-        Sequence: parsed.Sequence,       // optional
+        Sequence: parsed.Sequence,
         SensorType: parsed.SensorType || ""
     });
 
     let newNodes = [];
     let newEdges = [...existingEdges];
+
     // Extract Unit/SubUnit first
     let Unit = 0;
     let SubUnit = 0;
@@ -125,8 +125,8 @@ export default async function AIPNIDGenerator(
     Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
-    // Update Code
-    const Code = generateCode({
+    // Update Code (assign, do NOT redeclare)
+    Code = generateCode({
         Category,
         Type,
         Unit,
@@ -163,8 +163,6 @@ export default async function AIPNIDGenerator(
     if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
         setSelectedItem({ ...newNodes[0].data.item });
     }
-
-
 
     // --------------------------
     // Explicit connections (e.g., "Connect U123 to U456")
@@ -209,28 +207,3 @@ export default async function AIPNIDGenerator(
                 });
             }
         }
-
-        if (typeof setChatMessages === 'function') {
-            setChatMessages(prev => [
-                ...prev,
-                { sender: 'AI', message: `→ Automatically connected ${newNodes.length} nodes in sequence.` }
-            ]);
-        }
-    }
-
-    // --------------------------
-    // Add AI explanation and generated info
-    // --------------------------
-    if (typeof setChatMessages === 'function') {
-        setChatMessages(prev => [
-            ...prev,
-            { sender: 'AI', message: explanation || 'I parsed your item.' },
-            { sender: 'AI', message: `→ Generated ${newNodes.length} item(s): ${Category} - ${Type}` }
-        ]);
-    }
-
-    return {
-        nodes: [...existingNodes, ...newNodes],
-        edges: newEdges,
-    };
-}
