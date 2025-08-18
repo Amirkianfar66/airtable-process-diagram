@@ -135,7 +135,42 @@ export default async function AIPNIDGenerator(
         SensorType: parsed.SensorType || ""
     });
 
-   
+    // Generate nodes
+    const allCodes = [Code].concat(parsed._otherCodes || []);
+
+    newNodes = allCodes.map((code, index) => {
+        const id = `ai-${Date.now()}-${Math.random()}`;
+        const item = {
+            Name: Name,
+            Code: code,           // internal logic
+            'Item Code': code,    // <-- must be set for ItemDetailCard
+            Category,
+            Type,
+            Unit,
+            SubUnit,
+            id
+        };
+
+        // When setting selected item
+        if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
+            setSelectedItem({
+                ...newNodes[0].data.item,
+                'Item Code': newNodes[0].data.item.Code // enforce the correct field
+            });
+        }
+
+        return {
+            id,
+            position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+            data: { label: `${item.Code} - ${item.Name}`, item, icon: getItemIcon(item) },
+            type: categoryTypeMap[Category] || 'scalableIcon',
+        };
+    });
+
+    // Pass the first node's item to the detail card
+    if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
+        setSelectedItem({ ...newNodes[0].data.item });
+    }
 
 
     // --------------------------
