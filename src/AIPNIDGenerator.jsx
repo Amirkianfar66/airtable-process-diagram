@@ -134,13 +134,16 @@ export default async function AIPNIDGenerator(
     // ... (rest of your node creation & messaging stays the same)
 
     // Generate nodes
-    const allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
+    // ... keep everything above unchanged
+
+    let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
     const generatedCodesMessages = [];
     const allMessages = [];
 
+    // Generate nodes
     allCodes.forEach(code => {
-        const nodeName = Name; // fallback
-        const nodeType = Type; // fallback
+        const nodeName = Name;
+        const nodeType = Type;
 
         const id = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
         const item = {
@@ -163,11 +166,16 @@ export default async function AIPNIDGenerator(
             type: categoryTypeMap[Category] || 'scalableIcon',
         });
 
-        // Collect generated code message
         generatedCodesMessages.push({ sender: 'AI', message: `Generated code: ${code}` });
     });
 
+    // Merge messages
+    allMessages.push({ sender: 'User', message: input });
+    allMessages.push({ sender: 'AI', message: explanation });
     allMessages.push(...generatedCodesMessages);
+
+    // ... rest of your node/edge/message handling logic
+
 
     // --------------------------
     // Explicit connections
