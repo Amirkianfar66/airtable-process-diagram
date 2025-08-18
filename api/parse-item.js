@@ -8,25 +8,27 @@ export default async function handler(req, res) {
   const { description } = req.body;
   if (!description) return res.status(400).json({ error: "Missing description" });
 
-  try {
-    const prompt = `
-Extract Name, Category, Type from the text:
-"${description}"
-Return JSON only with keys: Name, Category, Type
-Example: "Draw an U123 Equipment Tank" → { "Name": "U123", "Category": "Equipment", "Type": "Tank" }
-`;
+try {
+  const result = await model.generateContent(prompt);
+  const content = result?.response?.text();
+  const parsed = extractJSON(content);
 
-    const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0,
-    });
-
-    const content = response.choices[0].message.content;
-    const parsed = JSON.parse(content);
-    res.status(200).json(parsed);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "AI parse failed", details: err.message });
+  if (parsed) {
+    const Name = (parsed.Name ?? "").toString().trim();
+    const Category = (parsed.Category ?? "").toString().trim();
+    const Type = (parsed.Type ?? "").toString().trim();
+    return res.json({ Name, Category, Type });
   }
+} catch (err) {
+  console.error("Gemini parse failed, falling back to regex", err);
 }
+
+// Always fallback regex parsing
+const codeMatch = description.match(/\b(U[A-Za-z0-9\-]+|[A-Za-z0-9]{2,})\b/);
+let Name = codeMatch ? codeMatch[0] : "";
+let Category = "";
+for (const c of categoriesList) if (description.toLowerCase().includes(c.toLowerCase())) { Category = c; break; }
+const words = description.trim().split(/\s+/).filter(Boolean);
+let Type = words.filter(w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()).pop() || "";
+
+return res.json({ Name, Category, Type });
