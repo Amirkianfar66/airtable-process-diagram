@@ -8,10 +8,7 @@ export function ChatBox({ messages }) {
             {messages.map((msg, idx) => (
                 <div
                     key={idx}
-                    style={{
-                        marginBottom: 6,
-                        color: msg.sender === 'AI' ? 'blue' : 'black',
-                    }}
+                    style={{ marginBottom: 6, color: msg.sender === 'AI' ? 'blue' : 'black' }}
                 >
                     <strong>{msg.sender}:</strong> {msg.message}
                 </div>
@@ -31,11 +28,11 @@ export default async function AIPNIDGenerator(
 ) {
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
-    // ✅ parseItemText now returns { explanation, parsed }
+    // ✅ parseItemText now returns { explanation, parsed, connection }
     const aiResult = await parseItemText(description);
     if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
-    const { explanation, parsed } = aiResult;
+    const { explanation, parsed, connection } = aiResult;
 
     const Name = (parsed?.Name || description).trim();
     const Code = (parsed?.Code || `U${Math.floor(1000 + Math.random() * 9000)}`).trim();
@@ -60,7 +57,32 @@ export default async function AIPNIDGenerator(
         newNodes.push(newNode);
     }
 
-    if (typeof setSelectedItem === 'function') setSelectedItem(newNodes[0].data.item);
+    if (typeof setSelectedItem === 'function' && newNodes.length > 0) setSelectedItem(newNodes[0].data.item);
+
+    // --------------------------
+    // Handle connections (edges)
+    // --------------------------
+    let newEdges = [...existingEdges];
+    if (connection) {
+        const sourceNode = [...existingNodes, ...newNodes].find(n => n.data.item.Code === connection.sourceCode);
+        const targetNode = [...existingNodes, ...newNodes].find(n => n.data.item.Code === connection.targetCode);
+
+        if (sourceNode && targetNode) {
+            newEdges.push({
+                id: `edge-${sourceNode.id}-${targetNode.id}`,
+                source: sourceNode.id,
+                target: targetNode.id,
+                animated: true, // optional
+            });
+
+            if (typeof setChatMessages === 'function') {
+                setChatMessages(prev => [
+                    ...prev,
+                    { sender: 'AI', message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` }
+                ]);
+            }
+        }
+    }
 
     if (typeof setChatMessages === 'function') {
         setChatMessages(prev => [
@@ -71,10 +93,7 @@ export default async function AIPNIDGenerator(
     }
 
     return {
-        nodes: [...existingNodes, ...newNodes], // ✅ use newNodes array
-        edges: [...existingEdges],
+        nodes: [...existingNodes, ...newNodes],
+        edges: newEdges,
     };
-
 }
-
-
