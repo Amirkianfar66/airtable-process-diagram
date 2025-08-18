@@ -9,7 +9,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' https://limenetbim.preview.softr.app"
+          "value": "frame-ancestors 'self' https://limenetbim.preview.softr.app https://limenetbim.softr.app"
         }
       ]
     }
