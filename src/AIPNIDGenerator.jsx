@@ -47,11 +47,15 @@ export default async function AIPNIDGenerator(
     let newNodes = [];
     let newEdges = [...existingEdges];
 
+    // --------------------------
     // Generate nodes
     // --------------------------
-    for (let i = 0; i < NumberOfItems; i++) {
+    // Collect all codes: main code + other codes (if any)
+    const allCodes = [Code].concat(parsed._otherCodes || []);
+
+    for (let code of allCodes) {
         const id = `ai-${Date.now()}-${Math.random()}`;
-        const item = { Name, Code, 'Item Code': Code, Category, Type, id };
+        const item = { Name, Code: code, 'Item Code': code, Category, Type, id };
         const label = `${item.Code} - ${item.Name}`;
 
         const newNode = {
@@ -63,6 +67,7 @@ export default async function AIPNIDGenerator(
 
         newNodes.push(newNode);
     }
+
 
 
     if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
