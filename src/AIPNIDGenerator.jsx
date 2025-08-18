@@ -66,7 +66,8 @@ export default async function AIPNIDGenerator(
     }
 
     if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
-        setSelectedItem(newNodes[0].data.item);
+        // ✅ Pass a new object to trigger re-render
+        setSelectedItem({ ...newNodes[0].data.item });
     }
 
     // --------------------------
