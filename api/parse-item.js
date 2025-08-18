@@ -33,104 +33,96 @@ function parseConnection(text) {
 // API Handler
 // ----------------------
 export default async function handler(req, res) {
-    if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-
-    const { description, categories } = req.body;
-    if (!description) return res.status(400).json({ error: "Missing description" });
-
-    const categoriesList = Array.isArray(categories) && categories.length
-        ? categories
-        : ["Equipment", "Instrument", "Inline Valve", "Pipe", "Electrical"];
-
-    let explanation = "";
-    let parsed = null;
-
-    // ----------------------
-    // AI parsing
-    // ----------------------
-    const prompt = `
-You are a process engineer assistant.
-Extract structured data from the text. 
-Return a short natural explanation + JSON.
-
-JSON keys required: Name, Code, Category, Type, Number.
-- Code: must always start with 'U' followed by digits if present.
-- Number: how many items to generate (default 1 if not given).
-- Category: one of [${categoriesList.join(", ")}].
-
-Example format:
-Explanation: "Looks like you want 2 equipment tanks named U123."
-{
-  "Name": "Tank",
-  "Code": "U123",
-  "Category": "Equipment",
-  "Type": "Tank",
-  "Number": 2
-}
-
-Text: "${description}"
-`;
-
     try {
-        const result = await model.generateContent(prompt);
-        const content = result?.response?.text();
+        if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
-        // Split explanation from JSON if present
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            parsed = extractJSON(jsonMatch[0]);
-            explanation = content.replace(jsonMatch[0], "").trim();
-        } else {
-            explanation = content.trim();
+        const { description, categories } = req.body;
+        if (!description) return res.status(400).json({ error: "Missing description" });
+
+        const categoriesList = Array.isArray(categories) && categories.length
+            ? categories
+            : ["Equipment", "Instrument", "Inline Valve", "Pipe", "Electrical"];
+
+        let explanation = "";
+        let parsed = null;
+
+        // ----------------------
+        // AI parsing (your existing prompt code)
+        // ----------------------
+        const prompt = `...`; // keep exactly as in your current code
+
+        try {
+            const result = await model.generateContent(prompt);
+            const content = result?.response?.text();
+
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                parsed = extractJSON(jsonMatch[0]);
+                explanation = content.replace(jsonMatch[0], "").trim();
+            } else {
+                explanation = content.trim();
+            }
+        } catch (err) {
+            console.error("Gemini parse failed, falling back to regex", err);
         }
+
+        // ----------------------
+        // Fallback regex parsing (your existing code)
+        // ----------------------
+        if (!parsed) {
+            const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
+
+            if (codeMatches.length > 0) {
+                const code = codeMatches[0];
+                const words = description.trim().split(/\s+/).filter(Boolean);
+
+                let Category = "";
+                for (const c of categoriesList) {
+                    if (description.toLowerCase().includes(c.toLowerCase())) {
+                        Category = c;
+                        break;
+                    }
+                }
+
+                const Type = words.filter(
+                    w => !codeMatches.includes(w) && w.toLowerCase() !== Category.toLowerCase()
+                ).pop() || "Generic";
+
+                const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
+
+                parsed = { Name, Code: code, Category, Type, Number: 1 };
+                parsed._otherCodes = codeMatches.slice(1);
+                explanation = `I guessed this looks like ${codeMatches.length} item(s) based on your description.`;
+            } else {
+                const codeMatch = description.match(/\bU\d{3,}\b/);
+                const Code = codeMatch ? codeMatch[0] : "";
+                const words = description.trim().split(/\s+/).filter(Boolean);
+                const Name = Code || words[0] || "";
+                let Category = "";
+                for (const c of categoriesList) {
+                    if (description.toLowerCase().includes(c.toLowerCase())) {
+                        Category = c;
+                        break;
+                    }
+                }
+                const Type = words.filter(
+                    w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
+                ).pop() || "";
+
+                parsed = { Name, Code, Category, Type, Number: 1 };
+                explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code || Name} of type ${Type}.`;
+            }
+        }
+
+        // ----------------------
+        // Parse connection (your existing helper)
+        // ----------------------
+        const connection = parseConnection(description);
+
+        // ✅ FINAL RESPONSE
+        return res.json({ explanation, parsed, connection });
     } catch (err) {
-        console.error("Gemini parse failed, falling back to regex", err);
+        console.error("API handler failed:", err);
+        return res.status(500).json({ error: "Server error", details: err.message });
     }
-
-    if (!parsed) {
-        const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
-
-        if (codeMatches.length > 0) {
-            // For backward compatibility, pick the first code as 'parsed'
-            const code = codeMatches[0];
-            const words = description.trim().split(/\s+/).filter(Boolean);
-
-            let Category = "";
-            for (const c of categoriesList) {
-                if (description.toLowerCase().includes(c.toLowerCase())) {
-                    Category = c;
-                    break;
-                }
-            }
-
-            const Type = words.filter(
-                w => !codeMatches.includes(w) && w.toLowerCase() !== Category.toLowerCase()
-            ).pop() || "Generic";
-
-            const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
-
-            parsed = { Name, Code: code, Category, Type, Number: 1 };
-
-            // Optional: store other codes for later if you want multiple nodes
-            parsed._otherCodes = codeMatches.slice(1);
-            explanation = `I guessed this looks like ${codeMatches.length} item(s) based on your description.`;
-        } else {
-            // fallback single item
-            const codeMatch = description.match(/\bU\d{3,}\b/);
-            const Code = codeMatch ? codeMatch[0] : "";
-            const words = description.trim().split(/\s+/).filter(Boolean);
-            const Name = Code || words[0] || "";
-            let Category = "";
-            for (const c of categoriesList) {
-                if (description.toLowerCase().includes(c.toLowerCase())) {
-                    Category = c;
-                    break;
-                }
-            }
-            const Type = words.filter(
-                w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
-            ).pop() || "";
-            parsed = { Name, Code, Category, Type, Number: 1 };
-            explanation = `I guessed this looks like ${Number} ${Category || "process item"}(s) named ${Code || Name} of type ${Type}.`;
-        }
-    }
+}
