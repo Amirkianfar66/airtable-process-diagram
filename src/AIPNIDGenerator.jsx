@@ -126,7 +126,7 @@ export default async function AIPNIDGenerator(
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
     // Update Code
-    const Code = generateCode({
+    const updatedCode = generateCode({
         Category,
         Type,
         Unit,
@@ -135,43 +135,55 @@ export default async function AIPNIDGenerator(
         SensorType: parsed.SensorType || ""
     });
 
-    // Generate nodes
-    const allCodes = [Code].concat(parsed._otherCodes || []);
 
-    newNodes = allCodes.map((code, index) => {
+
+    // Generate nodes
+    // --------------------------
+    // Use updatedCode instead of Code
+    const allCodes = [updatedCode].concat(parsed._otherCodes || []);
+
+
+    newNodes = allCodes.map(code => {
+        // For each code, try to get a name and type specific to it
+        let nodeType = Type; // fallback
+        let nodeName = Name; // fallback
+
+        // Optionally, split original description to find Type/Name per code
+        const match = description.match(new RegExp(`${code}\\s+Name\\s+(\\S+)\\s+${Category}\\s+(\\S+)`, 'i'));
+        if (match) {
+            nodeName = match[1];
+            nodeType = match[2];
+        }
+
         const id = `ai-${Date.now()}-${Math.random()}`;
         const item = {
-            Name: Name,
-            Code: code,           // internal logic
-            'Item Code': code,    // <-- must be set for ItemDetailCard
+            Name: nodeName,
+            Code: code,
+            'Item Code': code,
             Category,
-            Type,
-            Unit,
-            SubUnit,
+            Type: nodeType,
+            Unit: parsed.Unit,      // <-- add Unit
+            SubUnit: parsed.SubUnit, // <-- add SubUnit
             id
         };
 
-        // When setting selected item
-        if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
-            setSelectedItem({
-                ...newNodes[0].data.item,
-                'Item Code': newNodes[0].data.item.Code // enforce the correct field
-            });
-        }
+        const label = `${item.Code} - ${item.Name}`;
 
         return {
-            id,
+            id: item.id,
             position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
-            data: { label: `${item.Code} - ${item.Name}`, item, icon: getItemIcon(item) },
+            data: { label, item, icon: getItemIcon(item) },
             type: categoryTypeMap[Category] || 'scalableIcon',
         };
     });
 
-    // Pass the first node's item to the detail card
+
+
+
     if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
+        // ✅ Pass a new object to trigger re-render
         setSelectedItem({ ...newNodes[0].data.item });
     }
-
 
     // --------------------------
     // Explicit connections (e.g., "Connect U123 to U456")
