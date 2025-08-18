@@ -89,43 +89,59 @@ export default async function AIPNIDGenerator(
     if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
     const { explanation, connection } = aiResult;
-    let parsed = aiResult.parsed;  // now we can reassign
-
+    let parsed = aiResult.parsed;  // can reassign
 
     const Name = (parsed?.Name || description).trim();
+
+    // Only declare once
+    let Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
+    let Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
+    const NumberOfItems = parsed?.Number && parsed.Number > 0 ? parsed.Number : 1;
+
+    // Generate code
     const Code = generateCode({
         Category,
         Type,
-        Unit: parsed.Unit,
-        SubUnit: parsed.SubUnit,
+        Unit: parsed.Unit ?? 0,
+        SubUnit: parsed.SubUnit ?? 0,
         Sequence: parsed.Sequence,       // optional
         SensorType: parsed.SensorType || ""
     });
 
-    const Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
-    const Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
-    const NumberOfItems = parsed?.Number && parsed.Number > 0 ? parsed.Number : 1;
-
     let newNodes = [];
     let newEdges = [...existingEdges];
+    // Extract Unit/SubUnit first
     let Unit = 0;
     let SubUnit = 0;
-
-    // Match "unit", "Unit", "UNIT", etc.
     const unitMatch = description.match(/unit\s*[:\-]?\s*([0-9])/i);
     if (unitMatch) Unit = parseInt(unitMatch[1], 10);
 
-    // Match "subunit", "sub unit", "sub-unit", etc.
     const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9])/i);
     if (subUnitMatch) SubUnit = parseInt(subUnitMatch[1], 10);
 
-    // Update parsed object
     parsed = { ...parsed, Unit, SubUnit };
+
+    // Update Category/Type if needed (without redeclaring)
+    Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
+    Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
+
+    // Update Code
+    const updatedCode = generateCode({
+        Category,
+        Type,
+        Unit,
+        SubUnit,
+        Sequence: parsed.Sequence,
+        SensorType: parsed.SensorType || ""
+    });
+
+
 
     // Generate nodes
     // --------------------------
-    // Collect all codes: main code + other codes (if any)
-    const allCodes = [Code].concat(parsed._otherCodes || []);
+    // Use updatedCode instead of Code
+    const allCodes = [updatedCode].concat(parsed._otherCodes || []);
+
 
     newNodes = allCodes.map(code => {
         // For each code, try to get a name and type specific to it
