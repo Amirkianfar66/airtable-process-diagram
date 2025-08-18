@@ -52,7 +52,7 @@ export default async function AIPNIDGenerator(
     // --------------------------
     for (let i = 0; i < NumberOfItems; i++) {
         const id = `ai-${Date.now()}-${Math.random()}`;
-        const item = { Name, Code: `${Code}-${i + 1}`, 'Item Code': `${Code}-${i + 1}`, Category, Type, id };
+        const item = { Name, Code, 'Item Code': Code, Category, Type, id };
         const label = `${item.Code} - ${item.Name}`;
 
         const newNode = {
