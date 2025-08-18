@@ -18,21 +18,25 @@ export function ChatBox({ messages }) {
                 backgroundColor: '#f9f9f9'
             }}
         >
-            {messages.map((msg, idx) => (
-                <div
-                    key={idx}
-                    style={{
-                        marginBottom: 6,
-                        color: msg.sender === 'AI' ? 'blue' : 'black',
-                        fontSize: msg.sender === 'AI' ? '14px' : '12px' // change font size here
-                    }}
-                >
-                    <strong>{msg.sender}:</strong> {msg.message}
-                </div>
-            ))}
+            {messages
+                .filter(msg => msg.sender === 'AI') // only show AI messages
+                .map((msg, idx) => (
+                    <div
+                        key={idx}
+                        style={{
+                            marginBottom: 6,
+                            color: 'blue',
+                            fontSize: '14px' // AI font size
+                        }}
+                    >
+                        <strong>{msg.sender}:</strong> {msg.message}
+                    </div>
+                ))
+            }
         </div>
     );
 }
+
 
 
 // --------------------------
