@@ -61,6 +61,8 @@ export default async function AIPNIDGenerator(
     let newNodes = [];
     let newEdges = [...existingEdges];
 
+    // ... (everything above unchanged)
+
     // Extract Unit/SubUnit first
     let Unit = 0;
     let SubUnit = 0;
@@ -70,6 +72,12 @@ export default async function AIPNIDGenerator(
     const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9]+)/i);
     if (subUnitMatch) SubUnit = parseInt(subUnitMatch[1], 10);
 
+    // ✅ NEW: ensure Sequence is captured even if parseItemText missed it
+    if (parsed?.Sequence == null) {
+        const seqMatch = description.match(/sequence\s*[:\-]?\s*([0-9]+)/i);
+        if (seqMatch) parsed = { ...parsed, Sequence: parseInt(seqMatch[1], 10) };
+    }
+
     parsed = { ...parsed, Unit, SubUnit };
 
     // Update Category/Type
@@ -77,7 +85,7 @@ export default async function AIPNIDGenerator(
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
     // ✅ Generate code **after parsing all necessary info**
-    const updatedCode = generateCode({
+    let updatedCode = generateCode({
         Category,
         Type,
         Unit,
@@ -85,6 +93,42 @@ export default async function AIPNIDGenerator(
         Sequence: parsed.Sequence,
         SensorType: parsed.SensorType || ""
     });
+
+    // ✅ Guard against bad returns like 0/null/undefined
+    if (!updatedCode || updatedCode === 0) {
+        // Optional soft fallback: try with a default sequence
+        const fallbackSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
+        updatedCode = generateCode({ Category, Type, Unit, SubUnit, Sequence: fallbackSeq, SensorType: parsed.SensorType || "" });
+    }
+
+    // --------------------
+    // Generate nodes
+    // --------------------
+    /**
+     * Keep your original behavior (use _otherCodes when provided).
+     * If not provided and NumberOfItems > 1, synthesize more codes by incrementing Sequence.
+     */
+    let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
+
+    // ✅ If no _otherCodes but we have multiple items, generate additional sequential codes
+    if ((!parsed._otherCodes || parsed._otherCodes.length === 0) && NumberOfItems > 1) {
+        const baseSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
+        for (let i = 1; i < NumberOfItems; i++) {
+            const nextCode = generateCode({
+                Category,
+                Type,
+                Unit,
+                SubUnit,
+                Sequence: baseSeq + i,
+                SensorType: parsed.SensorType || ""
+            });
+            if (nextCode && nextCode !== 0) allCodes.push(nextCode);
+        }
+    }
+
+    const generatedCodesMessages = [];
+    const allMessages = [];
+    // ... (rest of your node creation & messaging stays the same)
 
     // Generate nodes
     const allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
