@@ -48,20 +48,8 @@ export default async function AIPNIDGenerator(
     let Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
     const NumberOfItems = parsed?.Number && parsed.Number > 0 ? parsed.Number : 1;
 
-    // Generate code
-    const Code = generateCode({
-        Category,
-        Type,
-        Unit: parsed.Unit ?? 0,
-        SubUnit: parsed.SubUnit ?? 0,
-        Sequence: parsed.Sequence,       // optional
-        SensorType: parsed.SensorType || ""
-    });
-
     let newNodes = [];
     let newEdges = [...existingEdges];
-
-    // ... (everything above unchanged)
 
     // Extract Unit/SubUnit first
     let Unit = 0;
@@ -72,7 +60,7 @@ export default async function AIPNIDGenerator(
     const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9]+)/i);
     if (subUnitMatch) SubUnit = parseInt(subUnitMatch[1], 10);
 
-    // ✅ NEW: ensure Sequence is captured even if parseItemText missed it
+    // Ensure Sequence is captured even if parseItemText missed it
     if (parsed?.Sequence == null) {
         const seqMatch = description.match(/sequence\s*[:\-]?\s*([0-9]+)/i);
         if (seqMatch) parsed = { ...parsed, Sequence: parseInt(seqMatch[1], 10) };
@@ -84,7 +72,7 @@ export default async function AIPNIDGenerator(
     Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
-    // ✅ Generate code **after parsing all necessary info**
+    // Generate code after parsing all necessary info
     let updatedCode = generateCode({
         Category,
         Type,
@@ -94,7 +82,7 @@ export default async function AIPNIDGenerator(
         SensorType: parsed.SensorType || ""
     });
 
-    // ✅ Guard against bad returns like 0/null/undefined
+    // Guard against bad returns like 0/null/undefined
     if (!updatedCode || updatedCode === 0) {
         const fallbackSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
         updatedCode = generateCode({
@@ -112,7 +100,7 @@ export default async function AIPNIDGenerator(
     // --------------------
     let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
 
-    // ✅ If no _otherCodes but we have multiple items, generate additional sequential codes
+    // If no _otherCodes but we have multiple items, generate additional sequential codes
     if ((!parsed._otherCodes || parsed._otherCodes.length === 0) && NumberOfItems > 1) {
         const baseSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
         for (let i = 1; i < NumberOfItems; i++) {
@@ -128,15 +116,6 @@ export default async function AIPNIDGenerator(
         }
     }
 
-    const generatedCodesMessages = [];
-    const allMessages = [];
-
-    // ... (rest of your node creation & messaging stays the same)
-
-    // Generate nodes
-    // ... keep everything above unchanged
-
-    let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
     const generatedCodesMessages = [];
     const allMessages = [];
 
@@ -170,12 +149,9 @@ export default async function AIPNIDGenerator(
     });
 
     // Merge messages
-    allMessages.push({ sender: 'User', message: input });
-    allMessages.push({ sender: 'AI', message: explanation });
+    allMessages.push({ sender: 'User', message: description }); // ✅ fixed "input" → "description"
+    if (explanation) allMessages.push({ sender: 'AI', message: explanation });
     allMessages.push(...generatedCodesMessages);
-
-    // ... rest of your node/edge/message handling logic
-
 
     // --------------------------
     // Explicit connections
