@@ -10,13 +10,26 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
 
     const { Name, Category, Type } = parsed;
 
+    // Normalize values to avoid case mismatches
+    const normName = (Name || '').trim();
+    const normCategory = (Category || '').trim();
+    const normType = (Type || '').trim();
+
     // Check if item exists
     const match = itemsLibrary.find(item =>
-        item.Name === Name && item.Category === Category && item.Type === Type
+        item.Name?.toLowerCase() === normName.toLowerCase() &&
+        item.Category?.toLowerCase() === normCategory.toLowerCase() &&
+        item.Type?.toLowerCase() === normType.toLowerCase()
     );
 
-    const item = match || { Name, Category, Type, id: `ai-${Date.now()}-${Math.random()}` };
-    const label = `${item.Code || ''} - ${item.Name || Name}`;
+    const item = match || {
+        Name: normName,
+        Category: normCategory,
+        Type: normType,
+        id: `ai-${Date.now()}-${Math.random()}`
+    };
+
+    const label = `${item.Code || ''}${item.Code ? ' - ' : ''}${item.Name || normName}`;
 
     const newNode = {
         id: item.id,
@@ -26,7 +39,7 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
             item,
             icon: getItemIcon(item),
         },
-        type: categoryTypeMap[Category] || 'scalableIcon',
+        type: categoryTypeMap[normCategory] || 'scalableIcon',
     };
 
     if (typeof setSelectedItem === "function") setSelectedItem(item);
