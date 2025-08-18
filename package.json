@@ -7,6 +7,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "openai": "^5.12.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

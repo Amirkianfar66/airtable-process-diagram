@@ -1,11 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\pages",
-    "\\pages\\api",
     "\\src",
     "\\src\\Icons"
   ],
-  "SelectedNode": "\\pages\\api\\parse-item.js",
+  "SelectedNode": "\\src\\AIPNIDGenerator.jsx",
   "PreviewInSolutionExplorer": false
 }
