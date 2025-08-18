@@ -51,20 +51,17 @@ export default async function AIPNIDGenerator(
     let Unit = 0;
     let SubUnit = 0;
 
-    // Extract Unit/SubUnit from description if mentioned
-    const unitMatch = description.match(/unit\s+([0-9])/i);
+    // Match "unit", "Unit", "UNIT", etc.
+    const unitMatch = description.match(/unit\s*[:\-]?\s*([0-9])/i);
     if (unitMatch) Unit = parseInt(unitMatch[1], 10);
 
-    const subUnitMatch = description.match(/subunit\s+([0-9])/i);
+    // Match "subunit", "sub unit", "sub-unit", etc.
+    const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9])/i);
     if (subUnitMatch) SubUnit = parseInt(subUnitMatch[1], 10);
 
     // Update parsed object
     parsed = { ...parsed, Unit, SubUnit };
 
-
-
-    // --------------------------
-    // --------------------------
     // Generate nodes
     // --------------------------
     // Collect all codes: main code + other codes (if any)
