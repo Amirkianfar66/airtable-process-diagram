@@ -88,42 +88,34 @@ Text: "${description}"
     }
 
     if (!parsed) {
-        // Fallback regex parsing for multiple codes
         const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
 
         if (codeMatches.length > 0) {
-            // Generate a parsed object for each code
-            parsed = codeMatches.map(code => {
-                const words = description.trim().split(/\s+/).filter(Boolean);
+            // For backward compatibility, pick the first code as 'parsed'
+            const code = codeMatches[0];
+            const words = description.trim().split(/\s+/).filter(Boolean);
 
-                // Detect category from description
-                let Category = "";
-                for (const c of categoriesList) {
-                    if (description.toLowerCase().includes(c.toLowerCase())) {
-                        Category = c;
-                        break;
-                    }
+            let Category = "";
+            for (const c of categoriesList) {
+                if (description.toLowerCase().includes(c.toLowerCase())) {
+                    Category = c;
+                    break;
                 }
+            }
 
-                // Detect type: last word that is not code or category
-                const Type = words.filter(
-                    w => !codeMatches.includes(w) && w.toLowerCase() !== Category.toLowerCase()
-                ).pop() || "Generic";
+            const Type = words.filter(
+                w => !codeMatches.includes(w) && w.toLowerCase() !== Category.toLowerCase()
+            ).pop() || "Generic";
 
-                // Name: fallback to remaining words after code and type removal
-                const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
+            const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
 
-                return {
-                    Name,
-                    Code: code,
-                    Category,
-                    Type,
-                    Number: 1
-                };
-            });
-            explanation = `I guessed this looks like ${parsed.length} item(s) based on your description.`;
+            parsed = { Name, Code: code, Category, Type, Number: 1 };
+
+            // Optional: store other codes for later if you want multiple nodes
+            parsed._otherCodes = codeMatches.slice(1);
+            explanation = `I guessed this looks like ${codeMatches.length} item(s) based on your description.`;
         } else {
-            // fallback single item (keep existing logic)
+            // fallback single item
             const codeMatch = description.match(/\bU\d{3,}\b/);
             const Code = codeMatch ? codeMatch[0] : "";
             const words = description.trim().split(/\s+/).filter(Boolean);
