@@ -62,21 +62,22 @@ export default async function AIPNIDGenerator(
     let newNodes = [];
     let newEdges = [...existingEdges];
     // Extract Unit/SubUnit first
+    // Extract Unit/SubUnit first
     let Unit = 0;
     let SubUnit = 0;
-    const unitMatch = description.match(/unit\s*[:\-]?\s*([0-9])/i);
+    const unitMatch = description.match(/unit\s*[:\-]?\s*([0-9]+)/i);
     if (unitMatch) Unit = parseInt(unitMatch[1], 10);
 
-    const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9])/i);
+    const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9]+)/i);
     if (subUnitMatch) SubUnit = parseInt(subUnitMatch[1], 10);
 
     parsed = { ...parsed, Unit, SubUnit };
 
-    // Update Category/Type if needed (without redeclaring)
+    // Update Category/Type
     Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
-    // Update Code
+    // ✅ Generate code **after parsing all necessary info**
     const updatedCode = generateCode({
         Category,
         Type,
@@ -89,20 +90,13 @@ export default async function AIPNIDGenerator(
 
 
     // Generate nodes
-    // --------------------------
-    // Use updatedCode instead of Code
     const allCodes = [updatedCode].concat(parsed._otherCodes || []);
+    const newNodes = [];
+    const generatedCodesMessages = [];
 
-
-    newNodes = allCodes.map(code => {
-        let nodeType = Type; // fallback
-        let nodeName = Name; // fallback
-
-        const match = description.match(new RegExp(`${code}\\s+Name\\s+(\\S+)\\s+${Category}\\s+(\\S+)`, 'i'));
-        if (match) {
-            nodeName = match[1];
-            nodeType = match[2];
-        }
+    allCodes.forEach(code => {
+        const nodeName = Name; // fallback
+        const nodeType = Type; // fallback
 
         const id = `ai-${Date.now()}-${Math.random()}`;
         const item = {
@@ -118,29 +112,22 @@ export default async function AIPNIDGenerator(
 
         const label = `${item.Code} - ${item.Name}`;
 
-        // ✅ Tell ChatBox the generated code
-        if (typeof setChatMessages === 'function') {
-            setChatMessages(prev => [
-                ...prev,
-                { sender: 'AI', message: `Generated code: ${code}` }
-            ]);
-        }
-
-        return {
+        newNodes.push({
             id: item.id,
             position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
             data: { label, item, icon: getItemIcon(item) },
             type: categoryTypeMap[Category] || 'scalableIcon',
-        };
+        });
+
+        // Collect generated code message
+        generatedCodesMessages.push({ sender: 'AI', message: `Generated code: ${code}` });
     });
 
-
-
-
-    if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
-        // ✅ Pass a new object to trigger re-render
-        setSelectedItem({ ...newNodes[0].data.item });
+    // Update ChatBox once
+    if (typeof setChatMessages === 'function') {
+        setChatMessages(prev => [...prev, ...generatedCodesMessages]);
     }
+
 
     // --------------------------
     // Explicit connections (e.g., "Connect U123 to U456")
