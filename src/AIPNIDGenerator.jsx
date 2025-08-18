@@ -46,6 +46,16 @@ export default async function AIPNIDGenerator(
 
     let newNodes = [];
     let newEdges = [...existingEdges];
+    let Unit = "";
+    let SubUnit = "";
+
+    // Extract Unit/SubUnit from description if mentioned
+    const unitMatch = description.match(/unit\s+([^\n,]+)/i);
+    const subUnitMatch = description.match(/subunit\s+([^\n,]+)/i);
+
+
+    // Update parsed object
+    parsed = { ...parsed, Unit, SubUnit };
 
     // --------------------------
     // --------------------------
@@ -67,7 +77,17 @@ export default async function AIPNIDGenerator(
         }
 
         const id = `ai-${Date.now()}-${Math.random()}`;
-        const item = { Name: nodeName, Code: code, 'Item Code': code, Category, Type: nodeType, id };
+        const item = {
+            Name: nodeName,
+            Code: code,
+            'Item Code': code,
+            Category,
+            Type: nodeType,
+            Unit: parsed.Unit,      // <-- add Unit
+            SubUnit: parsed.SubUnit, // <-- add SubUnit
+            id
+        };
+
         const label = `${item.Code} - ${item.Name}`;
 
         return {
