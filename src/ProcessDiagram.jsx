@@ -17,6 +17,7 @@ import ItemDetailCard from './ItemDetailCard';
 import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
 
 import AIPNIDGenerator from './AIPNIDGenerator'; // import your AI PNID generator
+import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator'; // import generator and ChatBox
 
 const nodeTypes = {
     resizable: ResizableNode,
@@ -98,6 +99,7 @@ export default function ProcessDiagram() {
                 nodes,
                 edges,
                 setSelectedItem // pass setter so new item is selected
+                setChatMessages // pass chat setter
             );
 
             // Extract new AI items from nodes
@@ -128,6 +130,18 @@ export default function ProcessDiagram() {
         }
     };
 
+    const [chatMessages, setChatMessages] = useState([]);
+
+<AIPNIDGenerator
+  description={aiDescription}
+  itemsLibrary={items}
+  existingNodes={nodes}
+  existingEdges={edges}
+  setSelectedItem={setSelectedItem}
+  setChatMessages={setChatMessages}
+/>
+
+<ChatBox messages={chatMessages} />
 
 
 
@@ -261,6 +275,7 @@ export default function ProcessDiagram() {
                     />
                     <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
                 </div>
+
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -279,18 +294,22 @@ export default function ProcessDiagram() {
                 </ReactFlow>
             </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', overflowY: 'auto' }}>
-                {selectedItem ? (
-                    <ItemDetailCard
-                        item={selectedItem}
-                        onChange={(updatedItem) =>
-                            handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
-                        }
-                    />
-                ) : (
-                    <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
-                )}
+            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    <ChatBox messages={chatMessages} />
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {selectedItem ? (
+                        <ItemDetailCard
+                            item={selectedItem}
+                            onChange={(updatedItem) =>
+                                handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
+                            }
+                        />
+                    ) : (
+                        <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
+                    )}
+                </div>
             </div>
         </div>
     );
-}
