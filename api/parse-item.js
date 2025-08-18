@@ -49,7 +49,33 @@ export default async function handler(req, res) {
         // ----------------------
         // AI parsing (your existing prompt code)
         // ----------------------
-        const prompt = `...`; // keep exactly as in your current code
+        const prompt = `
+You are a process engineer assistant.
+Extract structured data from the text. 
+Return a short natural explanation + JSON.
+
+JSON keys required: Name, Code, Category, Type, Number, Unit, SubUnit.
+- Code: must always start with 'U' followed by digits if present.
+- Number: how many items to generate (default 1 if not given).
+- Category: one of [${categoriesList.join(", ")}].
+- Unit: the main system/unit this item belongs to (if mentioned).
+- SubUnit: the sub-unit or section (if mentioned).
+
+Example format:
+Explanation: "Looks like you want 2 equipment tanks named U123 in Unit A, SubUnit 1."
+{
+  "Name": "Tank",
+  "Code": "U123",
+  "Category": "Equipment",
+  "Type": "Tank",
+  "Number": 2,
+  "Unit": "Unit A",
+  "SubUnit": "SubUnit 1"
+}
+
+Text: "${description}"
+`;
+
 
         try {
             const result = await model.generateContent(prompt);
@@ -73,6 +99,7 @@ export default async function handler(req, res) {
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
 
             if (codeMatches.length > 0) {
+                // ... your existing fallback logic for multiple codes
                 const code = codeMatches[0];
                 const words = description.trim().split(/\s+/).filter(Boolean);
 
@@ -90,14 +117,25 @@ export default async function handler(req, res) {
 
                 const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
 
-                parsed = { Name, Code: code, Category, Type, Number: 1 };
+                // ← Add Unit/SubUnit extraction here
+                let Unit = "";
+                let SubUnit = "";
+                const unitMatch = description.match(/unit\s+([^\s]+)/i);
+                if (unitMatch) Unit = unitMatch[1];
+                const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
+                if (subUnitMatch) SubUnit = subUnitMatch[1];
+
+                parsed = { Name, Code: code, Category, Type, Number: 1, Unit, SubUnit };
                 parsed._otherCodes = codeMatches.slice(1);
                 explanation = `I guessed this looks like ${codeMatches.length} item(s) based on your description.`;
-            } else {
+            }
+            else {
+                // ... fallback for single code
                 const codeMatch = description.match(/\bU\d{3,}\b/);
                 const Code = codeMatch ? codeMatch[0] : "";
                 const words = description.trim().split(/\s+/).filter(Boolean);
                 const Name = Code || words[0] || "";
+
                 let Category = "";
                 for (const c of categoriesList) {
                     if (description.toLowerCase().includes(c.toLowerCase())) {
@@ -105,14 +143,24 @@ export default async function handler(req, res) {
                         break;
                     }
                 }
+
                 const Type = words.filter(
                     w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
                 ).pop() || "";
 
-                parsed = { Name, Code, Category, Type, Number: 1 };
+                // ← Add Unit/SubUnit extraction here as well
+                let Unit = "";
+                let SubUnit = "";
+                const unitMatch = description.match(/unit\s+([^\s]+)/i);
+                if (unitMatch) Unit = unitMatch[1];
+                const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
+                if (subUnitMatch) SubUnit = subUnitMatch[1];
+
+                parsed = { Name, Code, Category, Type, Number: 1, Unit, SubUnit };
                 explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code || Name} of type ${Type}.`;
             }
         }
+
 
         // ----------------------
         // Parse connection (your existing helper)
