@@ -95,11 +95,9 @@ export default async function AIPNIDGenerator(
 
 
     newNodes = allCodes.map(code => {
-        // For each code, try to get a name and type specific to it
         let nodeType = Type; // fallback
         let nodeName = Name; // fallback
 
-        // Optionally, split original description to find Type/Name per code
         const match = description.match(new RegExp(`${code}\\s+Name\\s+(\\S+)\\s+${Category}\\s+(\\S+)`, 'i'));
         if (match) {
             nodeName = match[1];
@@ -113,12 +111,20 @@ export default async function AIPNIDGenerator(
             'Item Code': code,
             Category,
             Type: nodeType,
-            Unit: parsed.Unit,      // <-- add Unit
-            SubUnit: parsed.SubUnit, // <-- add SubUnit
+            Unit: parsed.Unit,
+            SubUnit: parsed.SubUnit,
             id
         };
 
         const label = `${item.Code} - ${item.Name}`;
+
+        // ✅ Tell ChatBox the generated code
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: 'AI', message: `Generated code: ${code}` }
+            ]);
+        }
 
         return {
             id: item.id,
