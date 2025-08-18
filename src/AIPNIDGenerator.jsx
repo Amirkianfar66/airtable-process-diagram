@@ -8,11 +8,23 @@ import { generateCode } from './codeGenerator';
 // --------------------------
 export function ChatBox({ messages }) {
     return (
-        <div style={{ padding: 10 }}>
+        <div
+            style={{
+                padding: 10,
+                border: '2px solid #007bff', // blue border
+                borderRadius: 8,             // optional rounded corners
+                maxHeight: '300px',           // optional: set max height
+                overflowY: 'auto',            // scroll if messages overflow
+                backgroundColor: '#f9f9f9'   // optional: background color
+            }}
+        >
             {messages.map((msg, idx) => (
                 <div
                     key={idx}
-                    style={{ marginBottom: 6, color: msg.sender === 'AI' ? 'blue' : 'black' }}
+                    style={{
+                        marginBottom: 6,
+                        color: msg.sender === 'AI' ? 'blue' : 'black'
+                    }}
                 >
                     <strong>{msg.sender}:</strong> {msg.message}
                 </div>
