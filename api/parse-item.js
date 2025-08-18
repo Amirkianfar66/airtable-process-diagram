@@ -88,38 +88,57 @@ Text: "${description}"
     }
 
     if (!parsed) {
-        // Fallback regex parsing
-        const codeMatch = description.match(/\bU\d{3,}\b/);
-        const Code = codeMatch ? codeMatch[0] : "";
+        // Fallback regex parsing for multiple codes
+        const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
 
-        const numberMatch = description.match(/\b\d+\b/);
-        const Number = numberMatch ? parseInt(numberMatch[0], 10) : 1;
+        if (codeMatches.length > 0) {
+            // Generate a parsed object for each code
+            parsed = codeMatches.map(code => {
+                const words = description.trim().split(/\s+/).filter(Boolean);
 
-        const words = description.trim().split(/\s+/).filter(Boolean);
-        const Name = Code || words[0] || "";
+                // Detect category from description
+                let Category = "";
+                for (const c of categoriesList) {
+                    if (description.toLowerCase().includes(c.toLowerCase())) {
+                        Category = c;
+                        break;
+                    }
+                }
 
-        let Category = "";
-        for (const c of categoriesList) {
-            if (description.toLowerCase().includes(c.toLowerCase())) {
-                Category = c;
-                break;
+                // Detect type: last word that is not code or category
+                const Type = words.filter(
+                    w => !codeMatches.includes(w) && w.toLowerCase() !== Category.toLowerCase()
+                ).pop() || "Generic";
+
+                // Name: fallback to remaining words after code and type removal
+                const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
+
+                return {
+                    Name,
+                    Code: code,
+                    Category,
+                    Type,
+                    Number: 1
+                };
+            });
+            explanation = `I guessed this looks like ${parsed.length} item(s) based on your description.`;
+        } else {
+            // fallback single item (keep existing logic)
+            const codeMatch = description.match(/\bU\d{3,}\b/);
+            const Code = codeMatch ? codeMatch[0] : "";
+            const words = description.trim().split(/\s+/).filter(Boolean);
+            const Name = Code || words[0] || "";
+            let Category = "";
+            for (const c of categoriesList) {
+                if (description.toLowerCase().includes(c.toLowerCase())) {
+                    Category = c;
+                    break;
+                }
             }
+            const Type = words.filter(
+                w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
+            ).pop() || "";
+            parsed = { Name, Code, Category, Type, Number: 1 };
+            explanation = `I guessed this looks like ${Number} ${Category || "process item"}(s) named ${Code || Name} of type ${Type}.`;
         }
-
-        const Type = words.filter(
-            w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
-        ).pop() || "";
-
-        parsed = { Name, Code, Category, Type, Number };
-        explanation = `I guessed this looks like ${Number} ${Category || "process item"}(s) named ${Code || Name} of type ${Type}.`;
     }
-
-    // ✅ Parse connection if present
-    const connection = parseConnection(description);
-
-    return res.json({
-        explanation,
-        parsed,
-        connection // null if no connect instruction
-    });
-}
