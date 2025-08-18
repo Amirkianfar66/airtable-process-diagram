@@ -90,9 +90,10 @@ Text: "${description}"
     if (!parsed) {
         // Fallback regex parsing for multiple codes
         const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
+        let parsedItems = [];
 
         if (codeMatches.length > 0) {
-            parsed = codeMatches.map(code => {
+            parsedItems = codeMatches.map(code => {
                 const words = description.trim().split(/\s+/).filter(Boolean);
                 let Category = "";
                 for (const c of categoriesList) {
@@ -106,7 +107,7 @@ Text: "${description}"
                 ).pop() || "Generic";
 
                 return {
-                    Name: description, // fallback, or parse properly if needed
+                    Name: description,
                     Code: code,
                     Category,
                     Type,
@@ -116,7 +117,7 @@ Text: "${description}"
         } else {
             // fallback single item
             const codeMatch = description.match(/\bU\d{3,}\b/);
-            const Code = codeMatch ? codeMatch[0] : "";
+            const Code = codeMatch ? codeMatch[0] : `U${Math.floor(1000 + Math.random() * 9000)}`;
             const words = description.trim().split(/\s+/).filter(Boolean);
             const Name = Code || words[0] || "";
             let Category = "";
@@ -130,9 +131,12 @@ Text: "${description}"
                 w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
             ).pop() || "Generic";
 
-            parsed = [{ Name, Code, Category, Type, Number: 1 }];
+            parsedItems = [{ Name, Code, Category, Type, Number: 1 }];
         }
 
-        explanation = `I guessed this looks like ${parsed.length} item(s) based on your description.`;
+        // ✅ Always use the first item for frontend single-object expectation
+        parsed = parsedItems[0];
+
+        explanation = `I guessed this looks like ${parsedItems.length} item(s) based on your description.`;
     }
 
