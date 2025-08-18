@@ -7,6 +7,12 @@ import { generateCode } from './codeGenerator';
 // ChatBox component
 // --------------------------
 export function ChatBox({ messages }) {
+    // Combine all AI messages into one paragraph
+    const aiMessage = messages
+        .filter(msg => msg.sender === 'AI')
+        .map(msg => msg.message)
+        .join(' '); // join with space
+
     return (
         <div
             style={{
@@ -18,20 +24,21 @@ export function ChatBox({ messages }) {
                 backgroundColor: '#f9f9f9'
             }}
         >
-            {messages.map((msg, idx) => (
+            {aiMessage && (
                 <div
-                    key={idx}
                     style={{
-                        marginBottom: 6,
-                        color: msg.sender === 'AI' ? 'blue' : 'black',
-                        fontSize: msg.sender === 'AI' ? '12px' : '12px' // change font size here
+                        color: 'blue',
+                        fontSize: '14px',
+                        lineHeight: '1.5'
                     }}
                 >
-                    <strong>{msg.sender}:</strong> {msg.message}
+                    <strong>AI:</strong> {aiMessage}
                 </div>
-            ))}
+            )}
         </div>
     );
+}
+
 }
 
 
