@@ -142,14 +142,15 @@ export default async function AIPNIDGenerator(
         const id = `ai-${Date.now()}-${Math.random()}`;
         const item = {
             Name: Name,
-            Code: code,           // <- This is what ItemDetailCard reads
-            'Item Code': code,    // <- keep for consistency
+            Code: code,           // internal logic
+            'Item Code': code,    // <-- ItemDetailCard reads this
             Category,
             Type,
             Unit,
             SubUnit,
             id
         };
+
         return {
             id,
             position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
@@ -158,10 +159,11 @@ export default async function AIPNIDGenerator(
         };
     });
 
-    // Pass the first node's item to the detail card
+    // ✅ Pass the first node's item to the detail card after nodes are created
     if (typeof setSelectedItem === 'function' && newNodes.length > 0) {
         setSelectedItem({ ...newNodes[0].data.item });
     }
+
 
 
     // --------------------------
