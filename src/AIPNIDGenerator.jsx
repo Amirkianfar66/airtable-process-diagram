@@ -3,7 +3,6 @@ import { parseItemText } from './aiParser';
 import { generateCode } from './codeGenerator';
 
 
-
 // --------------------------
 // ChatBox component
 // --------------------------
@@ -61,7 +60,7 @@ export default async function AIPNIDGenerator(
 
     let newNodes = [];
     let newEdges = [...existingEdges];
-    // Extract Unit/SubUnit first
+
     // Extract Unit/SubUnit first
     let Unit = 0;
     let SubUnit = 0;
@@ -87,18 +86,16 @@ export default async function AIPNIDGenerator(
         SensorType: parsed.SensorType || ""
     });
 
-
-
     // Generate nodes
-    const allCodes = [updatedCode].concat(parsed._otherCodes || []);
-    const newNodes = [];
+    const allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
     const generatedCodesMessages = [];
+    const allMessages = [];
 
     allCodes.forEach(code => {
         const nodeName = Name; // fallback
         const nodeType = Type; // fallback
 
-        const id = `ai-${Date.now()}-${Math.random()}`;
+        const id = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
         const item = {
             Name: nodeName,
             Code: code,
@@ -123,14 +120,10 @@ export default async function AIPNIDGenerator(
         generatedCodesMessages.push({ sender: 'AI', message: `Generated code: ${code}` });
     });
 
-    // Update ChatBox once
-    if (typeof setChatMessages === 'function') {
-        setChatMessages(prev => [...prev, ...generatedCodesMessages]);
-    }
-
+    allMessages.push(...generatedCodesMessages);
 
     // --------------------------
-    // Explicit connections (e.g., "Connect U123 to U456")
+    // Explicit connections
     // --------------------------
     if (connection) {
         const sourceNode = [...existingNodes, ...newNodes].find(n => n.data.item.Code === connection.sourceCode);
@@ -146,18 +139,12 @@ export default async function AIPNIDGenerator(
                     animated: true,
                 });
             }
-
-            if (typeof setChatMessages === 'function') {
-                setChatMessages(prev => [
-                    ...prev,
-                    { sender: 'AI', message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` }
-                ]);
-            }
+            allMessages.push({ sender: 'AI', message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` });
         }
     }
 
     // --------------------------
-    // Implicit connections for multi-item generation ("connect them")
+    // Implicit connections for multi-item generation
     // --------------------------
     const implicitConnect = /connect/i.test(description);
     if (implicitConnect && newNodes.length > 1) {
@@ -172,24 +159,20 @@ export default async function AIPNIDGenerator(
                 });
             }
         }
-
-        if (typeof setChatMessages === 'function') {
-            setChatMessages(prev => [
-                ...prev,
-                { sender: 'AI', message: `→ Automatically connected ${newNodes.length} nodes in sequence.` }
-            ]);
-        }
+        allMessages.push({ sender: 'AI', message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
     }
 
     // --------------------------
     // Add AI explanation and generated info
     // --------------------------
-    if (typeof setChatMessages === 'function') {
-        setChatMessages(prev => [
-            ...prev,
-            { sender: 'AI', message: explanation || 'I parsed your item.' },
-            { sender: 'AI', message: `→ Generated ${newNodes.length} item(s): ${Category} - ${Type}` }
-        ]);
+    allMessages.push(
+        { sender: 'AI', message: explanation || 'I parsed your item.' },
+        { sender: 'AI', message: `→ Generated ${newNodes.length} item(s): ${Category} - ${Type}` }
+    );
+
+    // ✅ Update ChatBox once
+    if (typeof setChatMessages === 'function' && allMessages.length > 0) {
+        setChatMessages(prev => [...prev, ...allMessages]);
     }
 
     return {
