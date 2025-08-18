@@ -71,7 +71,9 @@ export default async function AIPNIDGenerator(
     }
 
     return {
-        nodes: [...existingNodes, ...newNodes],
+        nodes: [...existingNodes, newNode],
         edges: [...existingEdges],
     };
+}  // <-- closes the function
+
 
