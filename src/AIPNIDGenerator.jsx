@@ -8,28 +8,19 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
     const parsed = await parseItemText(description);
     if (!parsed) return { nodes: existingNodes, edges: existingEdges };
 
-    const { Name, Category, Type } = parsed;
-
-    // Normalize values
-    const normName = (Name || '').trim();
-    const normCategory = (Category || 'Equipment').trim();
-    const normType = (Type || 'Generic').trim();
+    const Name = (parsed?.Name || description).trim();
+    const Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
+    const Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
     // Check if item exists
     const match = itemsLibrary.find(item =>
-        item.Name?.toLowerCase() === normName.toLowerCase() &&
-        item.Category?.toLowerCase() === normCategory.toLowerCase() &&
-        item.Type?.toLowerCase() === normType.toLowerCase()
+        item.Name?.toLowerCase() === Name.toLowerCase() &&
+        item.Category?.toLowerCase() === Category.toLowerCase() &&
+        item.Type?.toLowerCase() === Type.toLowerCase()
     );
 
-    const item = match || {
-        Name: normName,
-        Category: normCategory,
-        Type: normType,
-        id: `ai-${Date.now()}-${Math.random()}`
-    };
-
-    const label = `${item.Code || ''}${item.Code ? ' - ' : ''}${item.Name || normName}`;
+    const item = match || { Name, Category, Type, id: `ai-${Date.now()}-${Math.random()}` };
+    const label = `${item.Code || ''}${item.Code ? ' - ' : ''}${item.Name}`;
 
     const newNode = {
         id: item.id,
@@ -39,7 +30,7 @@ export default async function AIPNIDGenerator(description, itemsLibrary = [], ex
             item,
             icon: getItemIcon(item),
         },
-        type: categoryTypeMap[normCategory] || 'scalableIcon',
+        type: categoryTypeMap[Category] || 'scalableIcon',
     };
 
     if (typeof setSelectedItem === 'function') setSelectedItem(item);
