@@ -11,11 +11,11 @@ export function ChatBox({ messages }) {
         <div
             style={{
                 padding: 10,
-                border: '2px solid #007bff', // blue border
-                borderRadius: 8,             // optional rounded corners
-                maxHeight: '300px',           // optional: set max height
-                overflowY: 'auto',            // scroll if messages overflow
-                backgroundColor: '#f9f9f9'   // optional: background color
+                border: '2px solid #007bff',
+                borderRadius: 8,
+                maxHeight: '300px',
+                overflowY: 'auto',
+                backgroundColor: '#f9f9f9'
             }}
         >
             {messages.map((msg, idx) => (
@@ -23,7 +23,8 @@ export function ChatBox({ messages }) {
                     key={idx}
                     style={{
                         marginBottom: 6,
-                        color: msg.sender === 'AI' ? 'blue' : 'black'
+                        color: msg.sender === 'AI' ? 'blue' : 'black',
+                        fontSize: msg.sender === 'AI' ? '14px' : '12px' // change font size here
                     }}
                 >
                     <strong>{msg.sender}:</strong> {msg.message}
@@ -32,6 +33,7 @@ export function ChatBox({ messages }) {
         </div>
     );
 }
+
 
 // --------------------------
 // AI PNID generator
