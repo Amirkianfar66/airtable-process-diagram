@@ -2,7 +2,8 @@
   "ExpandedNodes": [
     "",
     "\\src",
-    "\\src\\Icons"
+    "\\src\\Icons",
+    "\\src\\Icons\\EquipmentIcon"
   ],
   "SelectedNode": "\\src\\Icons\\EquipmentIcon.jsx",
   "PreviewInSolutionExplorer": false
