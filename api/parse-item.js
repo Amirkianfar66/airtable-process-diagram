@@ -143,8 +143,6 @@ Text: "${description}"
                 parsed._otherCodes = codeMatches.slice(1);
                 explanation = `I guessed this looks like ${codeMatches.length} item(s) based on your description.`;
             } else {
-                const codeMatch = description.match(/\bU\d{3,}\b/);
-                let Code = codeMatch ? codeMatch[0] : "U001"; // <-- fallback code to avoid generateCode 0
                 const words = description.trim().split(/\s+/).filter(Boolean);
 
                 let Category = "";
@@ -156,7 +154,8 @@ Text: "${description}"
                 }
 
                 const Type = pickType(description, Category);
-                const Name = Code || words[0] || Type || "";
+                const Name = Type;
+                const Code = "U001"; // default code to avoid 0
 
                 let Unit = "";
                 let SubUnit = "";
@@ -166,7 +165,7 @@ Text: "${description}"
                 if (subUnitMatch) SubUnit = subUnitMatch[1];
 
                 parsed = { Name, Code, Category, Type, Number: 1, Unit, SubUnit };
-                explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code || Name} of type ${Type}.`;
+                explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code} of type ${Type}.`;
             }
         }
 
