@@ -1,11 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\src"
+    "\\src",
+    "\\src\\Icons"
   ],
-<<<<<<< HEAD
-  "SelectedNode": "\\src\\ResizableNode.jsx",
-=======
->>>>>>> ec4791055f22723ee69742a328d125c652026a2a
+  "SelectedNode": "\\src\\Icons\\EquipmentIcon.jsx",
   "PreviewInSolutionExplorer": false
 }
