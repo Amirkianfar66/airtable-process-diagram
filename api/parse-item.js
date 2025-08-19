@@ -118,8 +118,8 @@ Text: "${description}"
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
 
             // Detect number of items mentioned in description
-            let numberMatch = description.match(/(\d+)\s+(equipment|instrument|valve|pipe|electrical)/i);
-            let Number = numberMatch ? parseInt(numberMatch[1], 10) : 1;
+            let numberMatch = description.match(/(\d+)\s+(equipment|instrument|valve|pipe|electrical)/ig);
+            let Number = numberMatch ? numberMatch.length : 1;
 
             if (codeMatches.length > 0) {
                 const code = codeMatches[0];
@@ -159,7 +159,7 @@ Text: "${description}"
 
                 const Type = pickType(description, Category);
                 const Name = Type;
-                const Code = "U001"; // default code to avoid 0
+                const Code = "U001";
 
                 let Unit = "";
                 let SubUnit = "";
@@ -168,9 +168,8 @@ Text: "${description}"
                 const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
                 if (subUnitMatch) SubUnit = subUnitMatch[1];
 
-                // Detect number of items mentioned
-                let numberMatch2 = description.match(/(\d+)\s+(equipment|instrument|valve|pipe|electrical)/i);
-                let Number = numberMatch2 ? parseInt(numberMatch2[1], 10) : 1;
+                let numberMatch2 = description.match(/(\d+)\s+(equipment|instrument|valve|pipe|electrical)/ig);
+                let Number = numberMatch2 ? numberMatch2.length : 1;
 
                 parsed = { Name, Code, Category, Type, Number, Unit, SubUnit };
                 explanation = `I guessed this looks like ${Number} ${Category || "process item"} named ${Code} of type ${Type}.`;
