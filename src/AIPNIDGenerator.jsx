@@ -1,4 +1,5 @@
-﻿import { getItemIcon, categoryTypeMap } from './IconManager';
+﻿//AIPNIDGenerator
+import { getItemIcon, categoryTypeMap } from './IconManager';
 import { parseItemText } from './aiParser';
 import { generateCode } from './codeGenerator';
 
