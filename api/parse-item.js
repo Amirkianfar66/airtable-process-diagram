@@ -117,6 +117,10 @@ Text: "${description}"
         if (!parsed) {
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
 
+            // Detect number of items mentioned in description
+            let numberMatch = description.match(/(\d+)\s+(equipment|instrument|valve|pipe|electrical)/i);
+            let Number = numberMatch ? parseInt(numberMatch[1], 10) : 1;
+
             if (codeMatches.length > 0) {
                 const code = codeMatches[0];
                 const words = description.trim().split(/\s+/).filter(Boolean);
@@ -139,9 +143,9 @@ Text: "${description}"
                 const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
                 if (subUnitMatch) SubUnit = subUnitMatch[1];
 
-                parsed = { Name, Code: code, Category, Type, Number: 1, Unit, SubUnit };
+                parsed = { Name, Code: code, Category, Type, Number, Unit, SubUnit };
                 parsed._otherCodes = codeMatches.slice(1);
-                explanation = `I guessed this looks like ${codeMatches.length} item(s) based on your description.`;
+                explanation = `I guessed this looks like ${Number} item(s) based on your description.`;
             } else {
                 const words = description.trim().split(/\s+/).filter(Boolean);
 
@@ -164,8 +168,12 @@ Text: "${description}"
                 const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
                 if (subUnitMatch) SubUnit = subUnitMatch[1];
 
-                parsed = { Name, Code, Category, Type, Number: 1, Unit, SubUnit };
-                explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code} of type ${Type}.`;
+                // Detect number of items mentioned
+                let numberMatch2 = description.match(/(\d+)\s+(equipment|instrument|valve|pipe|electrical)/i);
+                let Number = numberMatch2 ? parseInt(numberMatch2[1], 10) : 1;
+
+                parsed = { Name, Code, Category, Type, Number, Unit, SubUnit };
+                explanation = `I guessed this looks like ${Number} ${Category || "process item"} named ${Code} of type ${Type}.`;
             }
         }
 
