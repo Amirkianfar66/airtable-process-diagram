@@ -27,7 +27,7 @@ export function ChatBox({ messages }) {
             {aiMessage && (
                 <div
                     style={{
-                        color: 'blue',
+                        color: 'black',
                         fontSize: '14px',
                         lineHeight: '1.5'
                     }}
