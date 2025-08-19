@@ -1,21 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
-// Import type-specific SVGs
-import TankSVG from './EquipmentIcon/tank.svg';
-import PumpSVG from './EquipmentIcon/pump.svg';
+// Auto-import all SVGs from the folder
+const modules = import.meta.glob('./EquipmentIcon/*.svg', { eager: true });
+
+// Build a mapping: { tank: 'tank.svg', pump: 'pump.svg', ... } all lowercase
+const typeIcons = {};
+for (const path in modules) {
+    const name = path.split('/').pop().replace('.svg', '').toLowerCase();
+    typeIcons[name] = modules[path];
+}
 
 export default function EquipmentIcon({ id, data }) {
     const { setNodes } = useReactFlow();
     const [hovered, setHovered] = useState(false);
     const [scale, setScale] = useState(data?.scale || 1);
     const timeoutRef = useRef(null);
-
-    // Map types to SVG components
-    const typeIcons = {
-        Tank: TankSVG,
-        Pump: PumpSVG,
-    };
 
     useEffect(() => {
         if (data?.scale !== undefined && data.scale !== scale) {
@@ -55,8 +55,9 @@ export default function EquipmentIcon({ id, data }) {
         return () => clearTimeout(timeoutRef.current);
     }, []);
 
-    // Determine which SVG to render based on data.Type
-    const TypeSVG = data?.Type && typeIcons[data.Type] ? typeIcons[data.Type] : null;
+    // Lookup is case-insensitive, fallback if missing
+    const key = data?.Type?.toLowerCase();
+    const TypeSVG = key && typeIcons[key] ? typeIcons[key] : null;
 
     return (
         <div
@@ -89,29 +90,121 @@ export default function EquipmentIcon({ id, data }) {
                         style={{ pointerEvents: 'none', display: 'block', margin: '0 auto' }}
                     >
                         <rect x="0" y="0" width="150" height="150" fill="green" />
-                        <text x="50" y="55" fontSize="16" textAnchor="middle" fill="white">
-                            EQ
+                        <text x="75" y="85" fontSize="16" textAnchor="middle" fill="white">
+                            {data?.Type || 'EQ'}
                         </text>
                     </svg>
                 )}
 
                 {/* Handles */}
-                <Handle type="target" position={Position.Left} style={{ position: 'absolute', top: '50%', left: -7, background: 'red', borderRadius: '50%', width: 14, height: 14, transform: 'translateY(-50%)', opacity: hovered ? 1 : 0.01 }} id="left" />
-                <Handle type="source" position={Position.Right} style={{ position: 'absolute', top: '50%', right: -7, background: 'blue', borderRadius: '50%', width: 14, height: 14, transform: 'translateY(-50%)', opacity: hovered ? 1 : 0.01 }} id="right" />
-                <Handle type="target" position={Position.Top} style={{ position: 'absolute', top: -7, left: '50%', background: 'green', borderRadius: '50%', width: 14, height: 14, transform: 'translateX(-50%)', opacity: hovered ? 1 : 0.01 }} id="top" />
-                <Handle type="source" position={Position.Bottom} style={{ position: 'absolute', bottom: -7, left: '50%', background: 'orange', borderRadius: '50%', width: 14, height: 14, transform: 'translateX(-50%)', opacity: hovered ? 1 : 0.01 }} id="bottom" />
+                <Handle
+                    type="target"
+                    position={Position.Left}
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: -7,
+                        background: 'red',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateY(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="left"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Right}
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        right: -7,
+                        background: 'blue',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateY(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="right"
+                />
+                <Handle
+                    type="target"
+                    position={Position.Top}
+                    style={{
+                        position: 'absolute',
+                        top: -7,
+                        left: '50%',
+                        background: 'green',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateX(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="top"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Bottom}
+                    style={{
+                        position: 'absolute',
+                        bottom: -7,
+                        left: '50%',
+                        background: 'orange',
+                        borderRadius: '50%',
+                        width: 14,
+                        height: 14,
+                        transform: 'translateX(-50%)',
+                        opacity: hovered ? 1 : 0.01,
+                    }}
+                    id="bottom"
+                />
             </div>
 
             {/* Floating buttons */}
             {hovered && (
-                <div style={{ position: 'absolute', top: -32, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, background: 'rgba(255, 255, 255, 0.85)', padding: '2px 6px', borderRadius: 6, boxShadow: '0 0 5px rgba(0,0,0,0.2)', zIndex: 10 }}>
-                    <button onClick={onScale} style={{ fontSize: 12, cursor: 'pointer' }}>×2</button>
-                    <button onClick={onReset} style={{ fontSize: 12, cursor: 'pointer' }}>Reset</button>
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: -32,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        display: 'flex',
+                        gap: 6,
+                        background: 'rgba(255, 255, 255, 0.85)',
+                        padding: '2px 6px',
+                        borderRadius: 6,
+                        boxShadow: '0 0 5px rgba(0,0,0,0.2)',
+                        zIndex: 10,
+                    }}
+                >
+                    <button onClick={onScale} style={{ fontSize: 12, cursor: 'pointer' }}>
+                        ×2
+                    </button>
+                    <button onClick={onReset} style={{ fontSize: 12, cursor: 'pointer' }}>
+                        Reset
+                    </button>
                 </div>
             )}
 
             {/* Label */}
-            <div style={{ position: 'absolute', top: 160, left: '50%', transform: 'translateX(-50%)', fontSize: 13, textAlign: 'Left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#333', paddingLeft: 5 }}>
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 160,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    fontSize: 13,
+                    textAlign: 'Left',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: '#333',
+                    paddingLeft: 5,
+                }}
+            >
                 {data?.label?.substring(0, 5)}
             </div>
         </div>
