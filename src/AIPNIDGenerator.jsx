@@ -28,7 +28,7 @@ export function ChatBox({ messages }) {
                 <div
                     style={{
                         color: 'black',
-                        fontSize: '14px',
+                        fontSize: '18px',
                         lineHeight: '1.5'
                     }}
                 >
