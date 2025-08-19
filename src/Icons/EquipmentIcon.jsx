@@ -1,21 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
-// Import type-specific SVGs
-import TankSVG from './EquipmentIcon/tank.svg';
-import PumpSVG from './EquipmentIcon/pump.svg';
+// Auto-import all SVGs from EquipmentIcon folder
+const modules = import.meta.glob('./EquipmentIcon/*.svg', { eager: true });
+
+const typeIcons = {};
+for (const path in modules) {
+    const name = path.split('/').pop().replace('.svg', '');
+    const mod = modules[path];
+    typeIcons[name] = typeof mod === "string" ? mod : mod.default;
+}
 
 export default function EquipmentIcon({ id, data }) {
     const { setNodes } = useReactFlow();
     const [hovered, setHovered] = useState(false);
     const [scale, setScale] = useState(data?.scale || 1);
     const timeoutRef = useRef(null);
-
-    // Map types to SVG components
-    const typeIcons = {
-        Tank: TankSVG,
-        Pump: PumpSVG,
-    };
 
     useEffect(() => {
         if (data?.scale !== undefined && data.scale !== scale) {
@@ -55,8 +55,9 @@ export default function EquipmentIcon({ id, data }) {
         return () => clearTimeout(timeoutRef.current);
     }, []);
 
-    // Determine which SVG to render based on data.Type
-    const TypeSVG = data?.Type && typeIcons[data.Type] ? typeIcons[data.Type] : null;
+    // Normalize: lookup by Type case-insensitive
+    const key = data?.Type?.toLowerCase();
+    const TypeSVG = key && typeIcons[key] ? typeIcons[key] : null;
 
     return (
         <div
