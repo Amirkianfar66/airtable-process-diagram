@@ -19,19 +19,17 @@ function extractJSON(text) {
 }
 
 function parseConnection(text, items) {
-    // Matches: "Connect X to Y" or "X connect Y"
     const regex1 = /connect\s+(\w+)\s+to\s+(\w+)/i;
     const regex2 = /(\w+)\s+connect\s+(\w+)/i;
     let match = text.match(regex1);
     if (!match) match = text.match(regex2);
     if (!match) return null;
 
-    // Try to resolve source/target by name or code
     const findItemCode = (token) => {
         const item = items?.find(i =>
-            i.Code.toLowerCase() === token.toLowerCase() ||
-            i.Name.toLowerCase() === token.toLowerCase() ||
-            i.Type.toLowerCase() === token.toLowerCase()
+            i?.Code?.toLowerCase() === token.toLowerCase() ||
+            i?.Name?.toLowerCase() === token.toLowerCase() ||
+            i?.Type?.toLowerCase() === token.toLowerCase()
         );
         return item ? item.Code : token;
     };
@@ -41,6 +39,20 @@ function parseConnection(text, items) {
 
 function generateCode(idx) {
     return `U${(idx + 1).toString().padStart(3, "0")}`;
+}
+
+// Ensure every item has a valid Code
+function normalizeItems(items) {
+    return items.map((item, idx) => {
+        if (!item.Code || typeof item.Code !== "string") {
+            item.Code = generateCode(idx);
+        }
+        if (!item.Type) item.Type = "Generic";
+        if (!item.Category) item.Category = "Equipment";
+        if (!item.Number) item.Number = 1;
+        if (!item.Name) item.Name = item.Type;
+        return item;
+    });
 }
 
 // ----------------------
@@ -60,9 +72,6 @@ export default async function handler(req, res) {
         let explanation = "";
         let parsed = null;
 
-        // ----------------------
-        // AI parsing (your existing prompt code)
-        // ----------------------
         const prompt = `
 You are a process engineer assistant.
 Extract structured data from the text. 
@@ -122,9 +131,6 @@ Text: "${description}"
             console.error("Gemini parse failed, falling back to regex", err);
         }
 
-        // ----------------------
-        // Fallback regex parsing (multi-item + auto code)
-        // ----------------------
         if (!parsed) {
             const itemPhrases = description.split(/\band\b|,|\+/i).map(s => s.trim()).filter(Boolean);
 
@@ -161,15 +167,14 @@ Text: "${description}"
             explanation = `I guessed this looks like ${items.length} item(s) based on your description.`;
         }
 
-        // ----------------------
-        // Parse connection (safe lookup)
-        // ----------------------
+        // Normalize items to always have valid fields
+        parsed.Items = normalizeItems(parsed.Items || []);
+
         const connection = parseConnection(description, parsed?.Items);
         if (parsed && !parsed.Connection && connection) {
             parsed.Connection = connection;
         }
 
-        // ✅ FINAL RESPONSE
         return res.json({ explanation, parsed, connection: parsed.Connection || null });
     } catch (err) {
         console.error("API handler failed:", err);
