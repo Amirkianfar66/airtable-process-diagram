@@ -163,15 +163,41 @@ Text: "${description}"
                 explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code || Name} of type ${Type}.`;
             }
         }
-
-
         // ----------------------
-        // Parse connection (your existing helper)
+        // Parse connection first
+        const connection = parseConnection(description);// Auto-handle multiple items and sequential connections
         // ----------------------
-        const connection = parseConnection(description);
+        if (parsed && parsed.Number && parsed.Number > 1) {
+            // Generate unique codes if _otherCodes not present
+            if (!Array.isArray(parsed._otherCodes) || !parsed._otherCodes.length) {
+                parsed._otherCodes = [];
+                const baseCode = parseInt(parsed.Code.replace(/^U/, "")) || 101;
+                for (let i = 1; i < parsed.Number; i++) {
+                    parsed._otherCodes.push(`U${baseCode + i}`);
+                }
+            }
+        }
 
-        // ✅ FINAL RESPONSE
-        return res.json({ explanation, parsed, connection });
+        // Auto-generate sequential connections if description says "connect" or "sequentially"
+        let autoConnections = [];
+        if (/connect|sequentially/i.test(description) && parsed) {
+            const allCodes = [parsed.Code, ...(parsed._otherCodes || [])];
+            for (let i = 0; i < allCodes.length - 1; i++) {
+                autoConnections.push({
+                    sourceCode: allCodes[i],
+                    targetCode: allCodes[i + 1]
+                });
+            }
+        }
+
+        // Merge with your existing connection parsing
+        const finalConnection = connection || (autoConnections.length ? autoConnections : null);
+
+        // Replace the return line with:
+        return res.json({ explanation, parsed, connection: finalConnection });
+
+
+        
     } catch (err) {
         console.error("API handler failed:", err);
         return res.status(500).json({ error: "Server error", details: err.message });
