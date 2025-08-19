@@ -4,10 +4,10 @@ import { Handle, Position, useReactFlow } from 'reactflow';
 // Auto-import all SVGs from the folder
 const modules = import.meta.glob('./EquipmentIcon/*.svg', { eager: true });
 
-// Build a mapping: { Tank: 'tank.svg', Pump: 'pump.svg', ... }
+// Build a mapping: { tank: 'tank.svg', pump: 'pump.svg', ... }
 const typeIcons = {};
 for (const path in modules) {
-    const name = path.split('/').pop().replace('.svg', ''); // e.g. "tank"
+    const name = path.split('/').pop().replace('.svg', '');
     typeIcons[name] = modules[path];
 }
 
@@ -16,12 +16,6 @@ export default function EquipmentIcon({ id, data }) {
     const [hovered, setHovered] = useState(false);
     const [scale, setScale] = useState(data?.scale || 1);
     const timeoutRef = useRef(null);
-
-    // Map types to SVG components
-    const typeIcons = {
-        Tank: TankSVG,
-        Pump: PumpSVG,
-    };
 
     useEffect(() => {
         if (data?.scale !== undefined && data.scale !== scale) {
@@ -61,10 +55,8 @@ export default function EquipmentIcon({ id, data }) {
         return () => clearTimeout(timeoutRef.current);
     }, []);
 
-    // Determine which SVG to render based on data.Type
-    // Pick the right SVG based on data.Type
+    // Pick the right SVG based on data.Type (case-sensitive!)
     const TypeSVG = data?.Type && typeIcons[data.Type] ? typeIcons[data.Type] : null;
-
 
     return (
         <div
