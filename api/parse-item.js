@@ -26,14 +26,8 @@ function parseConnection(text) {
 }
 
 function pickType(description, fallbackCategory) {
-    const TYPE_KEYWORDS = [
-        'filter', 'tank', 'pump', 'valve', 'heater', 'cooler', 'compressor', 'column', 'vessel', 'reactor', 'mixer', 'blower',
-        'chiller', 'exchanger', 'condenser', 'separator', 'drum', 'silo', 'sensor', 'transmitter', 'strainer', 'nozzle', 'pipe'
-    ];
-    const STOPWORDS = new Set([
-        'draw', 'generate', 'pnid', 'and', 'to', 'the', 'a', 'an', 'of', 'for', 'with', 'on', 'in', 'by', 'then', 'connect',
-        'connected', 'connecting', 'them', 'it', 'this', 'that', (fallbackCategory || '').toLowerCase()
-    ]);
+    const TYPE_KEYWORDS = ['filter', 'tank', 'pump', 'valve', 'heater', 'cooler', 'compressor', 'column', 'vessel', 'reactor', 'mixer', 'blower', 'chiller', 'exchanger', 'condenser', 'separator', 'drum', 'silo', 'sensor', 'transmitter', 'strainer', 'nozzle', 'pipe'];
+    const STOPWORDS = new Set(['draw', 'generate', 'pnid', 'and', 'to', 'the', 'a', 'an', 'of', 'for', 'with', 'on', 'in', 'by', 'then', 'connect', 'connected', 'connecting', 'them', 'it', 'this', 'that', (fallbackCategory || '').toLowerCase()]);
 
     const kwRegex = new RegExp(`\\b(${TYPE_KEYWORDS.join('|')})s?\\b`, 'gi');
     const matches = [...(description || '').matchAll(kwRegex)];
@@ -117,63 +111,28 @@ Text: "${description}"
         if (!parsed) {
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
 
-            // Detect number of items mentioned in description
-            let numberMatch = description.match(/(\d+)\s+(equipment|instrument|valve|pipe|electrical)/ig);
-            let Number = numberMatch ? numberMatch.length : 1;
+            // Split description by 'and' to handle multiple different items
+            const parts = description.split(/\band\b/i).map(p => p.trim()).filter(Boolean);
+            const items = [];
 
-            if (codeMatches.length > 0) {
-                const code = codeMatches[0];
-                const words = description.trim().split(/\s+/).filter(Boolean);
-
-                let Category = "";
-                for (const c of categoriesList) {
-                    if (description.toLowerCase().includes(c.toLowerCase())) {
-                        Category = c;
-                        break;
-                    }
-                }
-
-                const Type = pickType(description, Category);
-                const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
-
-                let Unit = "";
-                let SubUnit = "";
-                const unitMatch = description.match(/unit\s+([^\s]+)/i);
-                if (unitMatch) Unit = unitMatch[1];
-                const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
-                if (subUnitMatch) SubUnit = subUnitMatch[1];
-
-                parsed = { Name, Code: code, Category, Type, Number, Unit, SubUnit };
-                parsed._otherCodes = codeMatches.slice(1);
-                explanation = `I guessed this looks like ${Number} item(s) based on your description.`;
-            } else {
-                const words = description.trim().split(/\s+/).filter(Boolean);
-
-                let Category = "";
-                for (const c of categoriesList) {
-                    if (description.toLowerCase().includes(c.toLowerCase())) {
-                        Category = c;
-                        break;
-                    }
-                }
-
-                const Type = pickType(description, Category);
+            parts.forEach((part, idx) => {
+                const Type = pickType(part);
+                const Category = categoriesList.find(c => part.toLowerCase().includes(c.toLowerCase())) || "Equipment";
                 const Name = Type;
-                const Code = "U001";
+                const Code = codeMatches[idx] || `U${(idx + 1).toString().padStart(3, '0')}`;
 
                 let Unit = "";
                 let SubUnit = "";
-                const unitMatch = description.match(/unit\s+([^\s]+)/i);
+                const unitMatch = part.match(/unit\s+([^\s]+)/i);
                 if (unitMatch) Unit = unitMatch[1];
-                const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
+                const subUnitMatch = part.match(/subunit\s+([^\s]+)/i);
                 if (subUnitMatch) SubUnit = subUnitMatch[1];
 
-                let numberMatch2 = description.match(/(\d+)\s+(equipment|instrument|valve|pipe|electrical)/ig);
-                let Number = numberMatch2 ? numberMatch2.length : 1;
+                items.push({ Name, Code, Category, Type, Number: 1, Unit, SubUnit });
+            });
 
-                parsed = { Name, Code, Category, Type, Number, Unit, SubUnit };
-                explanation = `I guessed this looks like ${Number} ${Category || "process item"} named ${Code} of type ${Type}.`;
-            }
+            parsed = items.length === 1 ? items[0] : items;
+            explanation = `Detected ${items.length} item(s) from description.`;
         }
 
         const connection = parseConnection(description);
