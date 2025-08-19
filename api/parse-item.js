@@ -51,8 +51,9 @@ export default async function handler(req, res) {
         let explanation = "";
         let parsed = null;
 
+        const prompt = `You are a process engineer assistant. Extract structured data from the text. Return a short natural explanation + JSON. JSON keys: Name, Code, Category, Type, Number, Unit, SubUnit. Text: "${description}"`;
+
         try {
-            const prompt = `You are a process engineer assistant. Extract structured data from the text. Return explanation + JSON for each distinct item. JSON keys: Name, Code, Category, Type, Number, Unit, SubUnit. Text: "${description}"`;
             const result = await model.generateContent(prompt);
             const content = result?.response?.text();
             const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -68,26 +69,25 @@ export default async function handler(req, res) {
 
         if (!parsed) {
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
-            const itemParts = description.split(/,|\band\b/i).map(p => p.trim()).filter(Boolean);
+            const parts = description.split(/\band\b/i).map(p => p.trim()).filter(Boolean);
             const items = [];
-            let codeCounter = 1;
 
-            itemParts.forEach(part => {
-                const numMatch = part.match(/(\d+)\s+equipment/i);
-                const count = numMatch ? parseInt(numMatch[1], 10) : 1;
+            parts.forEach((part, idx) => {
+                // Extract number if present
+                let numMatch = part.match(/(\d+)\s+equipment/i);
+                let count = numMatch ? parseInt(numMatch[1], 10) : 1;
+
                 const Type = pickType(part);
                 const Category = categoriesList.find(c => part.toLowerCase().includes(c.toLowerCase())) || "Equipment";
 
                 for (let i = 0; i < count; i++) {
-                    const Code = codeMatches[items.length] || `U${codeCounter.toString().padStart(3, '0')}`;
-                    codeCounter++;
+                    const Code = codeMatches[idx + i] || `U${(items.length + 1).toString().padStart(3, '0')}`;
                     let Unit = "";
                     let SubUnit = "";
                     const unitMatch = part.match(/unit\s+([^\s]+)/i);
                     if (unitMatch) Unit = unitMatch[1];
                     const subUnitMatch = part.match(/subunit\s+([^\s]+)/i);
                     if (subUnitMatch) SubUnit = subUnitMatch[1];
-
                     items.push({ Name: Type, Code, Category, Type, Number: 1, Unit, SubUnit });
                 }
             });
@@ -98,7 +98,6 @@ export default async function handler(req, res) {
 
         const connection = parseConnection(description);
         return res.json({ explanation, parsed, connection });
-
     } catch (err) {
         console.error("API handler failed:", err);
         return res.status(500).json({ error: "Server error", details: err.message });
