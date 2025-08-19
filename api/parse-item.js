@@ -18,14 +18,25 @@ function extractJSON(text) {
     }
 }
 
-function parseConnection(text) {
+function parseConnection(text, items) {
     // Matches: "Connect X to Y" or "X connect Y"
     const regex1 = /connect\s+(\w+)\s+to\s+(\w+)/i;
     const regex2 = /(\w+)\s+connect\s+(\w+)/i;
     let match = text.match(regex1);
     if (!match) match = text.match(regex2);
     if (!match) return null;
-    return { sourceCode: match[1], targetCode: match[2] };
+
+    // Try to resolve source/target by name or code
+    const findItemCode = (token) => {
+        const item = items?.find(i =>
+            i.Code.toLowerCase() === token.toLowerCase() ||
+            i.Name.toLowerCase() === token.toLowerCase() ||
+            i.Type.toLowerCase() === token.toLowerCase()
+        );
+        return item ? item.Code : token;
+    };
+
+    return { sourceCode: findItemCode(match[1]), targetCode: findItemCode(match[2]) };
 }
 
 function generateCode(idx) {
@@ -151,15 +162,15 @@ Text: "${description}"
         }
 
         // ----------------------
-        // Parse connection
+        // Parse connection (safe lookup)
         // ----------------------
-        const connection = parseConnection(description);
+        const connection = parseConnection(description, parsed?.Items);
         if (parsed && !parsed.Connection && connection) {
             parsed.Connection = connection;
         }
 
         // ✅ FINAL RESPONSE
-        return res.json({ explanation, parsed, connection });
+        return res.json({ explanation, parsed, connection: parsed.Connection || null });
     } catch (err) {
         console.error("API handler failed:", err);
         return res.status(500).json({ error: "Server error", details: err.message });
