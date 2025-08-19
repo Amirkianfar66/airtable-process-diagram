@@ -1,3 +1,5 @@
 .vs/
 /src/AIPNIDGenerator.jsx
 /.gitignore
+/src/Icons/EquipmentIcon/TankSVG.jsx
+/src/assets/icons/Tank.svg
