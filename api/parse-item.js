@@ -25,24 +25,11 @@ function parseConnection(text) {
     return { sourceCode: match[1], targetCode: match[2] };
 }
 
-function pickType(description, fallbackCategory) {
+function pickType(description) {
     const TYPE_KEYWORDS = ['filter', 'tank', 'pump', 'valve', 'heater', 'cooler', 'compressor', 'column', 'vessel', 'reactor', 'mixer', 'blower', 'chiller', 'exchanger', 'condenser', 'separator', 'drum', 'silo', 'sensor', 'transmitter', 'strainer', 'nozzle', 'pipe'];
-    const STOPWORDS = new Set(['draw', 'generate', 'pnid', 'and', 'to', 'the', 'a', 'an', 'of', 'for', 'with', 'on', 'in', 'by', 'then', 'connect', 'connected', 'connecting', 'them', 'it', 'this', 'that', (fallbackCategory || '').toLowerCase()]);
-
-    const kwRegex = new RegExp(`\\b(${TYPE_KEYWORDS.join('|')})s?\\b`, 'gi');
-    const matches = [...(description || '').matchAll(kwRegex)];
-    if (matches.length) {
-        const word = matches[matches.length - 1][1];
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-    }
-
-    const words = (description || '').split(/\s+/).filter(Boolean);
-    for (let i = words.length - 1; i >= 0; i--) {
-        const w = words[i].replace(/[^a-z0-9]/gi, '');
-        if (!w) continue;
-        if (/^U\d{3,}$/i.test(w)) continue;
-        if (STOPWORDS.has(w.toLowerCase())) continue;
-        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    const descLower = description.toLowerCase();
+    for (const keyword of TYPE_KEYWORDS) {
+        if (descLower.includes(keyword)) return keyword.charAt(0).toUpperCase() + keyword.slice(1);
     }
     return 'Generic';
 }
@@ -64,39 +51,11 @@ export default async function handler(req, res) {
         let explanation = "";
         let parsed = null;
 
-        const prompt = `
-You are a process engineer assistant.
-Extract structured data from the text. 
-Return a short natural explanation + JSON.
-
-JSON keys required: Name, Code, Category, Type, Number, Unit, SubUnit.
-- Code: must always start with 'U' followed by digits if present.
-- Number: how many items to generate (default 1 if not given).
-- Category: one of [${categoriesList.join(", ")}].
-- Unit: the main system/unit this item belongs to (if mentioned).
-- SubUnit: the sub-unit or section (if mentioned).
-
-IMPORTANT: Do not output meaningless types like "them" / "it" / verbs. If unclear, use "Generic".
-
-Example format:
-Explanation: "Looks like you want 2 equipment tanks named U123 in Unit A, SubUnit 1."
-{
-  "Name": "Tank",
-  "Code": "U123",
-  "Category": "Equipment",
-  "Type": "Tank",
-  "Number": 2,
-  "Unit": "Unit A",
-  "SubUnit": "SubUnit 1"
-}
-
-Text: "${description}"
-`;
+        const prompt = `You are a process engineer assistant. Extract structured data from the text. Return a short natural explanation + JSON. JSON keys: Name, Code, Category, Type, Number, Unit, SubUnit. Text: "${description}"`;
 
         try {
             const result = await model.generateContent(prompt);
             const content = result?.response?.text();
-
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 parsed = extractJSON(jsonMatch[0]);
@@ -110,25 +69,27 @@ Text: "${description}"
 
         if (!parsed) {
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
-
-            // Split description by 'and' to handle multiple different items
             const parts = description.split(/\band\b/i).map(p => p.trim()).filter(Boolean);
             const items = [];
 
             parts.forEach((part, idx) => {
+                // Extract number if present
+                let numMatch = part.match(/(\d+)\s+equipment/i);
+                let count = numMatch ? parseInt(numMatch[1], 10) : 1;
+
                 const Type = pickType(part);
                 const Category = categoriesList.find(c => part.toLowerCase().includes(c.toLowerCase())) || "Equipment";
-                const Name = Type;
-                const Code = codeMatches[idx] || `U${(idx + 1).toString().padStart(3, '0')}`;
 
-                let Unit = "";
-                let SubUnit = "";
-                const unitMatch = part.match(/unit\s+([^\s]+)/i);
-                if (unitMatch) Unit = unitMatch[1];
-                const subUnitMatch = part.match(/subunit\s+([^\s]+)/i);
-                if (subUnitMatch) SubUnit = subUnitMatch[1];
-
-                items.push({ Name, Code, Category, Type, Number: 1, Unit, SubUnit });
+                for (let i = 0; i < count; i++) {
+                    const Code = codeMatches[idx + i] || `U${(items.length + 1).toString().padStart(3, '0')}`;
+                    let Unit = "";
+                    let SubUnit = "";
+                    const unitMatch = part.match(/unit\s+([^\s]+)/i);
+                    if (unitMatch) Unit = unitMatch[1];
+                    const subUnitMatch = part.match(/subunit\s+([^\s]+)/i);
+                    if (subUnitMatch) SubUnit = subUnitMatch[1];
+                    items.push({ Name: Type, Code, Category, Type, Number: 1, Unit, SubUnit });
+                }
             });
 
             parsed = items.length === 1 ? items[0] : items;
