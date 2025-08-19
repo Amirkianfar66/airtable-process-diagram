@@ -19,17 +19,12 @@ function extractJSON(text) {
 }
 
 function parseConnection(text) {
-    // Matches: "Connect U123 to U456"
     const regex = /connect\s+(\S+)\s+to\s+(\S+)/i;
     const match = text.match(regex);
     if (!match) return null;
-    return {
-        sourceCode: match[1],
-        targetCode: match[2]
-    };
+    return { sourceCode: match[1], targetCode: match[2] };
 }
 
-// NEW: pick a meaningful Type from free text (avoid words like "them", "connect", etc.)
 function pickType(description, fallbackCategory) {
     const TYPE_KEYWORDS = [
         'filter', 'tank', 'pump', 'valve', 'heater', 'cooler', 'compressor', 'column', 'vessel', 'reactor', 'mixer', 'blower',
@@ -40,7 +35,6 @@ function pickType(description, fallbackCategory) {
         'connected', 'connecting', 'them', 'it', 'this', 'that', (fallbackCategory || '').toLowerCase()
     ]);
 
-    // 1) Prefer the last domain keyword present
     const kwRegex = new RegExp(`\\b(${TYPE_KEYWORDS.join('|')})s?\\b`, 'gi');
     const matches = [...(description || '').matchAll(kwRegex)];
     if (matches.length) {
@@ -48,7 +42,6 @@ function pickType(description, fallbackCategory) {
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     }
 
-    // 2) Fallback: last non-stopword token
     const words = (description || '').split(/\s+/).filter(Boolean);
     for (let i = words.length - 1; i >= 0; i--) {
         const w = words[i].replace(/[^a-z0-9]/gi, '');
@@ -77,9 +70,6 @@ export default async function handler(req, res) {
         let explanation = "";
         let parsed = null;
 
-        // ----------------------
-        // AI parsing (your existing prompt code)
-        // ----------------------
         const prompt = `
 You are a process engineer assistant.
 Extract structured data from the text. 
@@ -124,14 +114,10 @@ Text: "${description}"
             console.error("Gemini parse failed, falling back to regex", err);
         }
 
-        // ----------------------
-        // Fallback regex parsing (your existing code, with smarter Type)
-        // ----------------------
         if (!parsed) {
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
 
             if (codeMatches.length > 0) {
-                // ... your existing fallback logic for multiple codes
                 const code = codeMatches[0];
                 const words = description.trim().split(/\s+/).filter(Boolean);
 
@@ -143,12 +129,9 @@ Text: "${description}"
                     }
                 }
 
-                // UPDATED: choose meaningful Type
                 const Type = pickType(description, Category);
-
                 const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
 
-                // ← Add Unit/SubUnit extraction here
                 let Unit = "";
                 let SubUnit = "";
                 const unitMatch = description.match(/unit\s+([^\s]+)/i);
@@ -159,11 +142,9 @@ Text: "${description}"
                 parsed = { Name, Code: code, Category, Type, Number: 1, Unit, SubUnit };
                 parsed._otherCodes = codeMatches.slice(1);
                 explanation = `I guessed this looks like ${codeMatches.length} item(s) based on your description.`;
-            }
-            else {
-                // ... fallback for single code
+            } else {
                 const codeMatch = description.match(/\bU\d{3,}\b/);
-                const Code = codeMatch ? codeMatch[0] : "";
+                let Code = codeMatch ? codeMatch[0] : "U001"; // <-- fallback code to avoid generateCode 0
                 const words = description.trim().split(/\s+/).filter(Boolean);
 
                 let Category = "";
@@ -174,12 +155,9 @@ Text: "${description}"
                     }
                 }
 
-                // UPDATED: choose meaningful Type
                 const Type = pickType(description, Category);
-
                 const Name = Code || words[0] || Type || "";
 
-                // ← Add Unit/SubUnit extraction here as well
                 let Unit = "";
                 let SubUnit = "";
                 const unitMatch = description.match(/unit\s+([^\s]+)/i);
@@ -192,12 +170,7 @@ Text: "${description}"
             }
         }
 
-        // ----------------------
-        // Parse connection (your existing helper)
-        // ----------------------
         const connection = parseConnection(description);
-
-        // ✅ FINAL RESPONSE
         return res.json({ explanation, parsed, connection });
     } catch (err) {
         console.error("API handler failed:", err);
