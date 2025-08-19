@@ -51,39 +51,54 @@ export default async function handler(req, res) {
         let explanation = "";
         let parsed = null;
 
-        // Split description into parts for multiple items
-        const itemParts = description.split(/,|\band\b/i).map(p => p.trim()).filter(Boolean);
-        const items = [];
-        let codeCounter = 1;
-
-        itemParts.forEach(part => {
-            // Extract number if present
-            const numMatch = part.match(/(\d+)\s+equipment/i);
-            const count = numMatch ? parseInt(numMatch[1], 10) : 1;
-
-            const Type = pickType(part);
-            const Category = categoriesList.find(c => part.toLowerCase().includes(c.toLowerCase())) || "Equipment";
-
-            for (let i = 0; i < count; i++) {
-                const Code = `U${codeCounter.toString().padStart(3, '0')}`;
-                codeCounter++;
-
-                let Unit = "";
-                let SubUnit = "";
-                const unitMatch = part.match(/unit\s+([^\s]+)/i);
-                if (unitMatch) Unit = unitMatch[1];
-                const subUnitMatch = part.match(/subunit\s+([^\s]+)/i);
-                if (subUnitMatch) SubUnit = subUnitMatch[1];
-
-                items.push({ Name: Type, Code, Category, Type, Number: 1, Unit, SubUnit });
+        try {
+            const prompt = `You are a process engineer assistant. Extract structured data from the text. Return explanation + JSON for each distinct item. JSON keys: Name, Code, Category, Type, Number, Unit, SubUnit. Text: "${description}"`;
+            const result = await model.generateContent(prompt);
+            const content = result?.response?.text();
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                parsed = extractJSON(jsonMatch[0]);
+                explanation = content.replace(jsonMatch[0], "").trim();
+            } else {
+                explanation = content.trim();
             }
-        });
+        } catch (err) {
+            console.error("Gemini parse failed, falling back to regex", err);
+        }
 
-        parsed = items.length === 1 ? items[0] : items;
-        explanation = `Detected ${items.length} item(s) from description.`;
+        if (!parsed) {
+            const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
+            const itemParts = description.split(/,|\band\b/i).map(p => p.trim()).filter(Boolean);
+            const items = [];
+            let codeCounter = 1;
+
+            itemParts.forEach(part => {
+                const numMatch = part.match(/(\d+)\s+equipment/i);
+                const count = numMatch ? parseInt(numMatch[1], 10) : 1;
+                const Type = pickType(part);
+                const Category = categoriesList.find(c => part.toLowerCase().includes(c.toLowerCase())) || "Equipment";
+
+                for (let i = 0; i < count; i++) {
+                    const Code = codeMatches[items.length] || `U${codeCounter.toString().padStart(3, '0')}`;
+                    codeCounter++;
+                    let Unit = "";
+                    let SubUnit = "";
+                    const unitMatch = part.match(/unit\s+([^\s]+)/i);
+                    if (unitMatch) Unit = unitMatch[1];
+                    const subUnitMatch = part.match(/subunit\s+([^\s]+)/i);
+                    if (subUnitMatch) SubUnit = subUnitMatch[1];
+
+                    items.push({ Name: Type, Code, Category, Type, Number: 1, Unit, SubUnit });
+                }
+            });
+
+            parsed = items.length === 1 ? items[0] : items;
+            explanation = `Detected ${items.length} item(s) from description.`;
+        }
 
         const connection = parseConnection(description);
         return res.json({ explanation, parsed, connection });
+
     } catch (err) {
         console.error("API handler failed:", err);
         return res.status(500).json({ error: "Server error", details: err.message });
