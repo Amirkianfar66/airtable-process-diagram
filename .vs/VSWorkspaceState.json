@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\src"
   ],
-  "SelectedNode": "\\.env",
+  "SelectedNode": "\\src\\ResizableNode.jsx",
   "PreviewInSolutionExplorer": false
 }
