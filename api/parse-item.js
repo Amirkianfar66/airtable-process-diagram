@@ -107,6 +107,13 @@ Return a short natural explanation paragraph and JSON.
   { "text": "Draw Pump in Subunit 5 of Unit AC.", "explanation": "Place one Pump in Unit AC, Subunit 5.", "parsed": [{ "Name": "Pump", "Code": "U147", "Category": "Equipment", "Type": "Pump", "Number": 1, "Unit": "Unit AC", "SubUnit": "Subunit 5" }] },
   { "text": "Add Chiller and connect to Tank U142.", "explanation": "Connect Chiller to Tank U142.", "parsed": [{ "Name": "Chiller", "Code": "U148", "Category": "Equipment", "Type": "Chiller", "Number": 1, "Unit": "", "SubUnit": "" }], "connection": { "sourceCode": "U148", "targetCode": "U142" } },
   { "text": "Draw 2 Inline Valves in Unit AB, connect them.", "explanation": "Place two Inline Valves in Unit AB, connected sequentially.", "parsed": [{ "Name": "Inline Valve", "Code": "U146", "Category": "Inline Valve", "Type": "Valve", "Number": 2, "Unit": "Unit AB", "SubUnit": "" }] },
+  Text: "Draw equipment filter and equipment tank, connect them."
+Explanation: "Place one Equipment Filter and one Equipment Tank, connected sequentially."
+JSON: [
+  { "Name": "Filter", "Code": "U101", "Category": "Equipment", "Type": "Filter", "Number": 1, "Unit": "", "SubUnit": "" },
+  { "Name": "Tank", "Code": "U102", "Category": "Equipment", "Type": "Tank", "Number": 1, "Unit": "", "SubUnit": "" }
+]
+
 ]
 
 
