@@ -19,14 +19,17 @@ function extractJSON(text) {
 }
 
 function parseConnection(text) {
-    // Matches: "Connect U123 to U456"
-    const regex = /connect\s+(\S+)\s+to\s+(\S+)/i;
-    const match = text.match(regex);
+    // Matches: "Connect X to Y" or "X connect Y"
+    const regex1 = /connect\s+(\w+)\s+to\s+(\w+)/i;
+    const regex2 = /(\w+)\s+connect\s+(\w+)/i;
+    let match = text.match(regex1);
+    if (!match) match = text.match(regex2);
     if (!match) return null;
-    return {
-        sourceCode: match[1],
-        targetCode: match[2]
-    };
+    return { sourceCode: match[1], targetCode: match[2] };
+}
+
+function generateCode(idx) {
+    return `U${(idx + 1).toString().padStart(3, "0")}`;
 }
 
 // ----------------------
@@ -109,18 +112,14 @@ Text: "${description}"
         }
 
         // ----------------------
-        // Fallback regex parsing (improved for multiple items)
+        // Fallback regex parsing (multi-item + auto code)
         // ----------------------
         if (!parsed) {
-            const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
-            const words = description.trim().split(/\s+/).filter(Boolean);
-
-            // Split items by common separators
             const itemPhrases = description.split(/\band\b|,|\+/i).map(s => s.trim()).filter(Boolean);
 
             const items = itemPhrases.map((phrase, idx) => {
                 const codeMatch = phrase.match(/\bU\d{3,}\b/);
-                const Code = codeMatch ? codeMatch[0] : (codeMatches[idx] || "");
+                const Code = codeMatch ? codeMatch[0] : generateCode(idx);
                 const parts = phrase.split(/\s+/).filter(Boolean);
 
                 let Category = "";
@@ -135,7 +134,7 @@ Text: "${description}"
                     w => w.toLowerCase() !== Category.toLowerCase() && !/U\d+/.test(w)
                 ).pop() || "Generic";
 
-                const Name = Code || Type;
+                const Name = Type;
 
                 let Unit = "";
                 let SubUnit = "";
@@ -144,7 +143,7 @@ Text: "${description}"
                 const subUnitMatch = phrase.match(/subunit\s+([^\s]+)/i);
                 if (subUnitMatch) SubUnit = subUnitMatch[1];
 
-                return { Name, Code, Category, Type, Number: 1, Unit, SubUnit };
+                return { Name, Code, Category: Category || "Equipment", Type, Number: 1, Unit, SubUnit };
             });
 
             parsed = { Items: items };
@@ -152,7 +151,7 @@ Text: "${description}"
         }
 
         // ----------------------
-        // Parse connection (your existing helper)
+        // Parse connection
         // ----------------------
         const connection = parseConnection(description);
         if (parsed && !parsed.Connection && connection) {
