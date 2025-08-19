@@ -26,12 +26,13 @@ function parseConnection(text, items) {
     if (!match) return null;
 
     const findItemCode = (token) => {
-        const item = items?.find(i =>
-            i?.Code?.toLowerCase() === token.toLowerCase() ||
-            i?.Name?.toLowerCase() === token.toLowerCase() ||
-            i?.Type?.toLowerCase() === token.toLowerCase()
-        );
-        return item ? item.Code : token;
+        const item = items?.find(i => {
+            if (!i) return false;
+            return [i.Code, i.Name, i.Type]
+                .filter(Boolean)
+                .some(v => v.toLowerCase() === token.toLowerCase());
+        });
+        return item?.Code || token;
     };
 
     return { sourceCode: findItemCode(match[1]), targetCode: findItemCode(match[2]) };
