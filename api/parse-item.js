@@ -61,21 +61,37 @@ JSON keys required: Name, Code, Category, Type, Number, Unit, SubUnit.
 - Unit: the main system/unit this item belongs to (if mentioned).
 - SubUnit: the sub-unit or section (if mentioned).
 
+⚠️ VERY IMPORTANT: Do not invent meaningless types like "them". If the type is unclear, use "Generic" instead.
+⚠️ VERY IMPORTANT: If the text describes a connection (e.g., "connect tank to filter"), extract BOTH items separately and also include a connection object {sourceCode, targetCode}.
+
 Example format:
-Explanation: "Looks like you want 2 equipment tanks named U123 in Unit A, SubUnit 1."
+Explanation: "Looks like you want 2 equipment tanks named U123 in Unit A, SubUnit 1, connected to U456."
 {
-  "Name": "Tank",
-  "Code": "U123",
-  "Category": "Equipment",
-  "Type": "Tank",
-  "Number": 2,
-  "Unit": "Unit A",
-  "SubUnit": "SubUnit 1"
+  "Items": [
+    {
+      "Name": "Tank",
+      "Code": "U123",
+      "Category": "Equipment",
+      "Type": "Tank",
+      "Number": 2,
+      "Unit": "Unit A",
+      "SubUnit": "SubUnit 1"
+    },
+    {
+      "Name": "Filter",
+      "Code": "U456",
+      "Category": "Equipment",
+      "Type": "Filter",
+      "Number": 1,
+      "Unit": "Unit A",
+      "SubUnit": "SubUnit 1"
+    }
+  ],
+  "Connection": {"sourceCode": "U123", "targetCode": "U456"}
 }
 
 Text: "${description}"
 `;
-
 
         try {
             const result = await model.generateContent(prompt);
@@ -93,79 +109,55 @@ Text: "${description}"
         }
 
         // ----------------------
-        // Fallback regex parsing (your existing code)
+        // Fallback regex parsing (improved for multiple items)
         // ----------------------
         if (!parsed) {
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
+            const words = description.trim().split(/\s+/).filter(Boolean);
 
-            if (codeMatches.length > 0) {
-                // ... your existing fallback logic for multiple codes
-                const code = codeMatches[0];
-                const words = description.trim().split(/\s+/).filter(Boolean);
+            // Split items by common separators
+            const itemPhrases = description.split(/\band\b|,|\+/i).map(s => s.trim()).filter(Boolean);
+
+            const items = itemPhrases.map((phrase, idx) => {
+                const codeMatch = phrase.match(/\bU\d{3,}\b/);
+                const Code = codeMatch ? codeMatch[0] : (codeMatches[idx] || "");
+                const parts = phrase.split(/\s+/).filter(Boolean);
 
                 let Category = "";
                 for (const c of categoriesList) {
-                    if (description.toLowerCase().includes(c.toLowerCase())) {
+                    if (phrase.toLowerCase().includes(c.toLowerCase())) {
                         Category = c;
                         break;
                     }
                 }
 
-                const Type = words.filter(
-                    w => !codeMatches.includes(w) && w.toLowerCase() !== Category.toLowerCase()
+                const Type = parts.filter(
+                    w => w.toLowerCase() !== Category.toLowerCase() && !/U\d+/.test(w)
                 ).pop() || "Generic";
 
-                const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
+                const Name = Code || Type;
 
-                // ← Add Unit/SubUnit extraction here
                 let Unit = "";
                 let SubUnit = "";
-                const unitMatch = description.match(/unit\s+([^\s]+)/i);
+                const unitMatch = phrase.match(/unit\s+([^\s]+)/i);
                 if (unitMatch) Unit = unitMatch[1];
-                const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
+                const subUnitMatch = phrase.match(/subunit\s+([^\s]+)/i);
                 if (subUnitMatch) SubUnit = subUnitMatch[1];
 
-                parsed = { Name, Code: code, Category, Type, Number: 1, Unit, SubUnit };
-                parsed._otherCodes = codeMatches.slice(1);
-                explanation = `I guessed this looks like ${codeMatches.length} item(s) based on your description.`;
-            }
-            else {
-                // ... fallback for single code
-                const codeMatch = description.match(/\bU\d{3,}\b/);
-                const Code = codeMatch ? codeMatch[0] : "";
-                const words = description.trim().split(/\s+/).filter(Boolean);
-                const Name = Code || words[0] || "";
+                return { Name, Code, Category, Type, Number: 1, Unit, SubUnit };
+            });
 
-                let Category = "";
-                for (const c of categoriesList) {
-                    if (description.toLowerCase().includes(c.toLowerCase())) {
-                        Category = c;
-                        break;
-                    }
-                }
-
-                const Type = words.filter(
-                    w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
-                ).pop() || "";
-
-                // ← Add Unit/SubUnit extraction here as well
-                let Unit = "";
-                let SubUnit = "";
-                const unitMatch = description.match(/unit\s+([^\s]+)/i);
-                if (unitMatch) Unit = unitMatch[1];
-                const subUnitMatch = description.match(/subunit\s+([^\s]+)/i);
-                if (subUnitMatch) SubUnit = subUnitMatch[1];
-
-                parsed = { Name, Code, Category, Type, Number: 1, Unit, SubUnit };
-                explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code || Name} of type ${Type}.`;
-            }
+            parsed = { Items: items };
+            explanation = `I guessed this looks like ${items.length} item(s) based on your description.`;
         }
-
 
         // ----------------------
         // Parse connection (your existing helper)
         // ----------------------
         const connection = parseConnection(description);
+        if (parsed && !parsed.Connection && connection) {
+            parsed.Connection = connection;
+        }
 
         // ✅ FINAL RESPONSE
         return res.json({ explanation, parsed, connection });
