@@ -29,6 +29,37 @@ function parseConnection(text) {
     };
 }
 
+// NEW: pick a meaningful Type from free text (avoid words like "them", "connect", etc.)
+function pickType(description, fallbackCategory) {
+    const TYPE_KEYWORDS = [
+        'filter', 'tank', 'pump', 'valve', 'heater', 'cooler', 'compressor', 'column', 'vessel', 'reactor', 'mixer', 'blower',
+        'chiller', 'exchanger', 'condenser', 'separator', 'drum', 'silo', 'sensor', 'transmitter', 'strainer', 'nozzle', 'pipe'
+    ];
+    const STOPWORDS = new Set([
+        'draw', 'generate', 'pnid', 'and', 'to', 'the', 'a', 'an', 'of', 'for', 'with', 'on', 'in', 'by', 'then', 'connect',
+        'connected', 'connecting', 'them', 'it', 'this', 'that', (fallbackCategory || '').toLowerCase()
+    ]);
+
+    // 1) Prefer the last domain keyword present
+    const kwRegex = new RegExp(`\\b(${TYPE_KEYWORDS.join('|')})s?\\b`, 'gi');
+    const matches = [...(description || '').matchAll(kwRegex)];
+    if (matches.length) {
+        const word = matches[matches.length - 1][1];
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }
+
+    // 2) Fallback: last non-stopword token
+    const words = (description || '').split(/\s+/).filter(Boolean);
+    for (let i = words.length - 1; i >= 0; i--) {
+        const w = words[i].replace(/[^a-z0-9]/gi, '');
+        if (!w) continue;
+        if (/^U\d{3,}$/i.test(w)) continue;
+        if (STOPWORDS.has(w.toLowerCase())) continue;
+        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    }
+    return 'Generic';
+}
+
 // ----------------------
 // API Handler
 // ----------------------
@@ -61,6 +92,8 @@ JSON keys required: Name, Code, Category, Type, Number, Unit, SubUnit.
 - Unit: the main system/unit this item belongs to (if mentioned).
 - SubUnit: the sub-unit or section (if mentioned).
 
+IMPORTANT: Do not output meaningless types like "them" / "it" / verbs. If unclear, use "Generic".
+
 Example format:
 Explanation: "Looks like you want 2 equipment tanks named U123 in Unit A, SubUnit 1."
 {
@@ -75,7 +108,6 @@ Explanation: "Looks like you want 2 equipment tanks named U123 in Unit A, SubUni
 
 Text: "${description}"
 `;
-
 
         try {
             const result = await model.generateContent(prompt);
@@ -93,7 +125,7 @@ Text: "${description}"
         }
 
         // ----------------------
-        // Fallback regex parsing (your existing code)
+        // Fallback regex parsing (your existing code, with smarter Type)
         // ----------------------
         if (!parsed) {
             const codeMatches = description.match(/\bU\d{3,}\b/g) || [];
@@ -111,9 +143,8 @@ Text: "${description}"
                     }
                 }
 
-                const Type = words.filter(
-                    w => !codeMatches.includes(w) && w.toLowerCase() !== Category.toLowerCase()
-                ).pop() || "Generic";
+                // UPDATED: choose meaningful Type
+                const Type = pickType(description, Category);
 
                 const Name = words.filter(w => w !== code && w !== Type && w !== Category).join(" ") || Type;
 
@@ -134,7 +165,6 @@ Text: "${description}"
                 const codeMatch = description.match(/\bU\d{3,}\b/);
                 const Code = codeMatch ? codeMatch[0] : "";
                 const words = description.trim().split(/\s+/).filter(Boolean);
-                const Name = Code || words[0] || "";
 
                 let Category = "";
                 for (const c of categoriesList) {
@@ -144,9 +174,10 @@ Text: "${description}"
                     }
                 }
 
-                const Type = words.filter(
-                    w => w.toLowerCase() !== Name.toLowerCase() && w.toLowerCase() !== Category.toLowerCase()
-                ).pop() || "";
+                // UPDATED: choose meaningful Type
+                const Type = pickType(description, Category);
+
+                const Name = Code || words[0] || Type || "";
 
                 // ← Add Unit/SubUnit extraction here as well
                 let Unit = "";
@@ -160,7 +191,6 @@ Text: "${description}"
                 explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code || Name} of type ${Type}.`;
             }
         }
-
 
         // ----------------------
         // Parse connection (your existing helper)
