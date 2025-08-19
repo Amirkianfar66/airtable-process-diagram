@@ -61,7 +61,7 @@ Return a short natural explanation paragraph and JSON.
 - Detect if multiple items are requested.
 - Detect if a connection between items is requested.
 - Explanation: give a single paragraph describing what should be drawn, including connections.
-
+ Examples:
 [
   { "text": "Draw 2 Equipment Tanks in Unit A Subunit 1 and connect them.", "explanation": "Two Equipment Tanks are placed in Unit A, Subunit 1, connected sequentially.", "parsed": [{ "Name": "Tank", "Code": "U101", "Category": "Equipment", "Type": "Tank", "Number": 2, "Unit": "Unit A", "SubUnit": "Subunit 1" }] },
   { "text": "Place a Filter in Unit 2 Subunit 3, then a Tank next to it.", "explanation": "Place one Equipment Filter in Unit 2, Subunit 3, and one Equipment Tank nearby.", "parsed": [{ "Name": "Filter", "Code": "U102", "Category": "Equipment", "Type": "Filter", "Number": 1, "Unit": "Unit 2", "SubUnit": "Subunit 3" }, { "Name": "Tank", "Code": "U103", "Category": "Equipment", "Type": "Tank", "Number": 1, "Unit": "Unit 2", "SubUnit": "Subunit 3" }] },
