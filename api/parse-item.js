@@ -51,20 +51,18 @@ export default async function handler(req, res) {
         // ----------------------
         const prompt = `
 You are a process engineer assistant.
-Extract structured data from the text.
-Return a short natural explanation paragraph and JSON.
+Extract structured data from the text. 
+Return a short natural explanation + JSON.
 
-- JSON keys required: Name, Code, Category, Type, Number, Unit, SubUnit
-- Code: always starts with 'U' + digits
-- Number: how many items
-- Category: one of [Equipment, Instrument, Inline Valve, Pipe, Electrical]
-- Detect if multiple items are requested.
-- Detect if a connection between items is requested.
-- Explanation: give a single paragraph describing what should be drawn, including connections.
+JSON keys required: Name, Code, Category, Type, Number, Unit, SubUnit.
+- Code: must always start with 'U' followed by digits if present.
+- Number: how many items to generate (default 1 if not given).
+- Category: one of [${categoriesList.join(", ")}].
+- Unit: the main system/unit this item belongs to (if mentioned).
+- SubUnit: the sub-unit or section (if mentioned).
 
-Example:
-Text: "Draw 2 Equipment Tanks Unit A Subunit 1 and connect them."
-Explanation: "The text requests two Equipment Tanks in Unit A, Subunit 1. They should be drawn and connected to indicate flow."
+Example format:
+Explanation: "Looks like you want 2 equipment tanks named U123 in Unit A, SubUnit 1."
 {
   "Name": "Tank",
   "Code": "U123",
@@ -74,7 +72,6 @@ Explanation: "The text requests two Equipment Tanks in Unit A, Subunit 1. They s
   "Unit": "Unit A",
   "SubUnit": "SubUnit 1"
 }
-
 
 Text: "${description}"
 `;
@@ -163,41 +160,15 @@ Text: "${description}"
                 explanation = `I guessed this looks like 1 ${Category || "process item"} named ${Code || Name} of type ${Type}.`;
             }
         }
+
+
         // ----------------------
-        // Parse connection first
-        const connection = parseConnection(description);// Auto-handle multiple items and sequential connections
+        // Parse connection (your existing helper)
         // ----------------------
-        if (parsed && parsed.Number && parsed.Number > 1) {
-            // Generate unique codes if _otherCodes not present
-            if (!Array.isArray(parsed._otherCodes) || !parsed._otherCodes.length) {
-                parsed._otherCodes = [];
-                const baseCode = parseInt(parsed.Code.replace(/^U/, "")) || 101;
-                for (let i = 1; i < parsed.Number; i++) {
-                    parsed._otherCodes.push(`U${baseCode + i}`);
-                }
-            }
-        }
+        const connection = parseConnection(description);
 
-        // Auto-generate sequential connections if description says "connect" or "sequentially"
-        let autoConnections = [];
-        if (/connect|sequentially/i.test(description) && parsed) {
-            const allCodes = [parsed.Code, ...(parsed._otherCodes || [])];
-            for (let i = 0; i < allCodes.length - 1; i++) {
-                autoConnections.push({
-                    sourceCode: allCodes[i],
-                    targetCode: allCodes[i + 1]
-                });
-            }
-        }
-
-        // Merge with your existing connection parsing
-        const finalConnection = connection || (autoConnections.length ? autoConnections : null);
-
-        // Replace the return line with:
-        return res.json({ explanation, parsed, connection: finalConnection });
-
-
-        
+        // ✅ FINAL RESPONSE
+        return res.json({ explanation, parsed, connection });
     } catch (err) {
         console.error("API handler failed:", err);
         return res.status(500).json({ error: "Server error", details: err.message });
