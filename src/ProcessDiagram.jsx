@@ -18,13 +18,9 @@ import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } fro
 
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 
-const nodeTypes = {
-    resizable: ResizableNode,
-    custom: CustomItemNode,
-    pipe: PipeItemNode,
-    scalableIcon: ScalableIconNode,
-    groupLabel: GroupLabelNode,
-};
+
+
+
 
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -60,6 +56,17 @@ export default function ProcessDiagram() {
     const [items, setItems] = useState([]);
     const [aiDescription, setAiDescription] = useState('');
     const [chatMessages, setChatMessages] = useState([]);
+
+    const updateNode = (id, newData) => {
+        setNodes(nds =>
+            nds.map(node => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node))
+        );
+    };
+
+    const deleteNode = (id) => {
+        setNodes(nds => nds.filter(node => node.id !== id));
+        setEdges(eds => eds.filter(edge => edge.source !== id && edge.target !== id));
+    };
 
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
@@ -119,6 +126,13 @@ export default function ProcessDiagram() {
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
+    };
+    const nodeTypes = {
+        resizable: ResizableNode,
+        custom: CustomItemNode,
+        pipe: PipeItemNode,
+        scalableIcon: ScalableIconNode,
+        groupLabel: (props) => <GroupLabelNode {...props} updateNode={updateNode} deleteNode={deleteNode} />,
     };
 
     useEffect(() => {
