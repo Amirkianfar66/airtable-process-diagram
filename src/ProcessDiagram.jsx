@@ -251,49 +251,51 @@ export default function ProcessDiagram() {
                             deleteNode={deleteNode}
                         />
                         <div style={{ flex: 1 }}>
-                        <ReactFlow
-                            nodes={nodes}
-                            edges={edges}
-                            onNodesChange={onNodesChange}
-                            onEdgesChange={onEdgesChange}
-                            onConnect={onConnect}
-                            onSelectionChange={onSelectionChange}
-                            fitView
-                            selectionOnDrag
-                            minZoom={0.02}
-                            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                            nodeTypes={nodeTypes}
-                            style={{ background: 'transparent' }}
-                        >
-                            <Controls />
-                        </ReactFlow>
+                            <ReactFlow
+                                nodes={nodes}
+                                edges={edges}
+                                onNodesChange={onNodesChange}
+                                onEdgesChange={onEdgesChange}
+                                onConnect={onConnect}
+                                onSelectionChange={onSelectionChange}
+                                fitView
+                                selectionOnDrag
+                                minZoom={0.02}
+                                defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                                nodeTypes={nodeTypes}
+                                style={{ background: 'transparent' }}
+                            >
+                                <Controls />
+                            </ReactFlow>
+                        </div>
                     </div>
-                </div>
 
-                {/* Right side (detail panel) */}
-                <div
-                    style={{
-                        width: 350,
-                        borderLeft: '1px solid #ccc',
-                        background: 'transparent',
-                        display: 'flex',
-                        flexDirection: 'column',
-                    }}
-                >
-                    <div style={{ flex: 1, overflowY: 'auto' }}>
-                        {selectedItem ? (
-                            <ItemDetailCard
-                                item={selectedItem}
-                                onChange={(updatedItem) =>
-                                    handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
-                                }
-                            />
-                        ) : (
-                            <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
-                        )}
+                    {/* Right side (detail panel) */}
+                    <div
+                        style={{
+                            width: 350,
+                            borderLeft: '1px solid #ccc',
+                            background: 'transparent',
+                            display: 'flex',
+                            flexDirection: 'column',
+                        }}
+                    >
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                            {selectedItem ? (
+                                <ItemDetailCard
+                                    item={selectedItem}
+                                    onChange={(updatedItem) =>
+                                        handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
+                                    }
+                                />
+                            ) : (
+                                <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            </div>
+                </div> {/* closes main content */}
+            </div> {/* closes input + main content wrapper */}
         </div>
     );
+
 }
