@@ -247,11 +247,21 @@ export default function ProcessDiagram() {
                     selectionOnDrag
                     minZoom={0.02}
                     defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                    nodeTypes={nodeTypes}
+                    nodeTypes={{
+                        ...nodeTypes, // keep all other nodes
+                        groupLabel: (props) => (
+                            <GroupLabelNode
+                                {...props}
+                                updateNode={updateNode}
+                                deleteNode={deleteNode}
+                            />
+                        ),
+                    }}
                     style={{ background: 'transparent' }}
                 >
                     <Controls />
                 </ReactFlow>
+
             </div>
 
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
