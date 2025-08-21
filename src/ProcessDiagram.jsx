@@ -21,12 +21,22 @@ import MainToolbar from './MainToolbar';
 
 // Keep top-level nodeTypes definition
 const nodeTypes = {
+    groupLabel: (props) => (
+        <GroupLabelNode
+            {...props}
+            updateNode={updateNode}
+            deleteNode={deleteNode}
+            childrenNodes={nodes.filter(n =>
+                props.data.children?.includes(n.id)
+            )}
+        />
+    ),
     resizable: ResizableNode,
     custom: CustomItemNode,
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
-    groupLabel: GroupLabelNode, // just the component, no inline function
 };
+
 
 
 const fetchData = async () => {
