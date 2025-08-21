@@ -1,32 +1,43 @@
 ﻿// GroupLabelNode.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import { useReactFlow } from "reactflow";
 
-export default function GroupLabelNode({ id, data }) {
+export default function GroupLabelNode({ id, data, selected }) {
     const rfInstance = useReactFlow();
     const [rect, setRect] = useState(data.rect || { width: 150, height: 100 });
+    const [position, setPosition] = useState(data.position || { x: 0, y: 0 });
     const groupName = data.groupName || data.label || "My Group";
-    const groupRef = useRef(null);
 
-    // Helpers
+    // Helper: update group node
     const updateNode = (newData) => {
         rfInstance.setNodes((nds) =>
             nds.map((node) =>
-                node.id === id ? { ...node, data: { ...node.data, ...newData } } : node
+                node.id === id ? { ...node, data: { ...node.data, ...newData }, position: newData.position || node.position } : node
             )
         );
-        setRect(newData.rect || rect);
+        if (newData.rect) setRect(newData.rect);
+        if (newData.position) setPosition(newData.position);
     };
 
+    // Delete group
     const deleteNode = () => {
         if (window.confirm("Delete this group?")) {
+            // delete group
+            rfInstance.setNodes((nds) => nds.filter((node) => node.id !== id));
+            // delete child nodes
             rfInstance.setNodes((nds) =>
-                nds.filter((node) => node.id !== id && node.data?.groupId !== id)
+                nds.filter((node) => node.data.groupId !== id)
             );
         }
     };
 
-    // Resize logic
+    // Rename
+    const handleRename = () => {
+        const newName = prompt("Enter new group name:", groupName);
+        if (newName) updateNode({ groupName: newName });
+    };
+
+    // Resize
     const handleSize = 12;
     const onScalePointerDown = (e) => {
         e.preventDefault();
@@ -39,6 +50,7 @@ export default function GroupLabelNode({ id, data }) {
         const handlePointerMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
             const deltaY = moveEvent.clientY - startY;
+
             updateNode({
                 rect: {
                     width: Math.max(50, initialWidth + deltaX),
@@ -56,40 +68,34 @@ export default function GroupLabelNode({ id, data }) {
         window.addEventListener("pointerup", handlePointerUp);
     };
 
-    const handleRename = () => {
-        const newName = prompt("Enter new group name:", groupName);
-        if (newName) updateNode({ groupName: newName });
-    };
-
-    // Dragging the group along with its children
-    const onDragPointerDown = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+    // Move group along with child nodes
+    const onGroupDrag = (e) => {
         const startX = e.clientX;
         const startY = e.clientY;
-        const groupPos = data.position || { x: 0, y: 0 };
+        const startPos = { ...position };
 
         const handlePointerMove = (moveEvent) => {
-            const deltaX = moveEvent.clientX - startX;
-            const deltaY = moveEvent.clientY - startY;
+            const dx = moveEvent.clientX - startX;
+            const dy = moveEvent.clientY - startY;
 
-            // Move the group
-            updateNode({ position: { x: groupPos.x + deltaX, y: groupPos.y + deltaY } });
+            const newPos = { x: startPos.x + dx, y: startPos.y + dy };
 
-            // Move child nodes
-            const children = rfInstance.getNodes().filter((n) => n.data?.groupId === id);
+            // update group position
+            updateNode({ position: newPos });
+
+            // update children positions
             rfInstance.setNodes((nds) =>
-                nds.map((n) => {
-                    if (n.data?.groupId === id) {
+                nds.map((node) => {
+                    if (node.data.groupId === id) {
                         return {
-                            ...n,
+                            ...node,
                             position: {
-                                x: n.position.x + deltaX,
-                                y: n.position.y + deltaY,
+                                x: node.position.x + dx,
+                                y: node.position.y + dy,
                             },
                         };
                     }
-                    return n;
+                    return node;
                 })
             );
         };
@@ -103,26 +109,8 @@ export default function GroupLabelNode({ id, data }) {
         window.addEventListener("pointerup", handlePointerUp);
     };
 
-    // Keep child nodes within group boundaries
-    useEffect(() => {
-        const nodes = rfInstance.getNodes().filter((n) => n.data?.groupId === id);
-        rfInstance.setNodes((nds) =>
-            nds.map((n) => {
-                if (n.data?.groupId === id) {
-                    let x = Math.min(Math.max(n.position.x, (data.position?.x || 0) + 0), (data.position?.x || 0) + rect.width - 20);
-                    let y = Math.min(Math.max(n.position.y, (data.position?.y || 0) + 30), (data.position?.y || 0) + rect.height - 20);
-                    return { ...n, position: { x, y } };
-                }
-                return n;
-            })
-        );
-    }, [rect, data.position, rfInstance, id]);
-
-    const childrenNodes = rfInstance.getNodes().filter((n) => n.data?.groupId === id);
-
     return (
         <div
-            ref={groupRef}
             style={{
                 width: rect.width,
                 height: rect.height,
@@ -131,13 +119,13 @@ export default function GroupLabelNode({ id, data }) {
                 position: "relative",
                 display: "flex",
                 flexDirection: "column",
-                overflow: "hidden",
+                overflow: "visible",
                 pointerEvents: "auto",
                 zIndex: 1000,
             }}
+            onPointerDown={onGroupDrag}
         >
             <div
-                onPointerDown={onDragPointerDown}
                 style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -149,7 +137,6 @@ export default function GroupLabelNode({ id, data }) {
                     fontWeight: "bold",
                     zIndex: 1001,
                     pointerEvents: "auto",
-                    cursor: "move",
                 }}
             >
                 <span>{groupName}</span>
@@ -177,20 +164,6 @@ export default function GroupLabelNode({ id, data }) {
                     zIndex: 1001,
                 }}
             />
-
-            {childrenNodes.map((child) => (
-                <div
-                    key={child.id}
-                    style={{
-                        position: "absolute",
-                        left: child.position.x - (data.position?.x || 0),
-                        top: child.position.y - (data.position?.y || 0),
-                        pointerEvents: "auto",
-                    }}
-                >
-                    {child.data?.label || "Item"}
-                </div>
-            ))}
         </div>
     );
 }
