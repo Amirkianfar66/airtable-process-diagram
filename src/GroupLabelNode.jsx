@@ -1,19 +1,12 @@
-﻿//GroupLabelNode
-import React, { useState } from "react";
+﻿// GroupLabelNode.jsx
+import React from "react";
 
-export default function ScalableRect() {
+export default function GroupLabelNode({ id, data, updateNode, deleteNode }) {
     const handleSize = 12;
 
-    const [rect, setRect] = useState({
-        x: 100,
-        y: 100,
-        width: 150,
-        height: 100,
-    });
-
-    const [groupName, setGroupName] = useState("My Group");
-    const [renameButtonLabel, setRenameButtonLabel] = useState("Rename");
-
+    // Use data from node or fallback defaults
+    const rect = data.rect || { x: 100, y: 100, width: 150, height: 100 };
+    const groupName = data.groupName || "My Group";
 
     const onScalePointerDown = (e) => {
         e.preventDefault();
@@ -23,20 +16,18 @@ export default function ScalableRect() {
         const startY = e.clientY;
         const initialWidth = rect.width;
         const initialHeight = rect.height;
-        const fixedX = rect.x; // Lock X
-        const fixedY = rect.y; // Lock Y
+        const fixedX = rect.x;
+        const fixedY = rect.y;
 
         const handlePointerMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
             const deltaY = moveEvent.clientY - startY;
 
-            setRect((prev) => ({
-                ...prev,
-                width: Math.max(10, initialWidth + deltaX),
-                height: Math.max(10, initialHeight + deltaY),
-                x: fixedX,
-                y: fixedY,
-            }));
+            const newWidth = Math.max(10, initialWidth + deltaX);
+            const newHeight = Math.max(10, initialHeight + deltaY);
+
+            // Update node data in parent state
+            updateNode(id, { rect: { ...rect, width: newWidth, height: newHeight, x: fixedX, y: fixedY } });
         };
 
         const handlePointerUp = () => {
@@ -51,22 +42,18 @@ export default function ScalableRect() {
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
         if (newName) {
-            setGroupName(newName);
-            setRenameButtonLabel(`Rename (${newName})`);
+            updateNode(id, { groupName: newName });
         }
     };
-
 
     const handleDelete = () => {
         if (window.confirm("Are you sure you want to delete this group?")) {
-            setRect(null); // Removes the rectangle
+            deleteNode(id);
         }
     };
 
-    if (!rect) return null;
-
     return (
-        <div style={{ position: "relative", width: "100%", height: "50h", background: "#f5f5f5" }}>
+        <div style={{ position: "relative", width: "100%", height: "100%", background: "transparent" }}>
             {/* Group Controls */}
             <div
                 style={{
@@ -77,7 +64,6 @@ export default function ScalableRect() {
                     gap: "3px",
                 }}
             >
-                
                 <button onClick={handleRename}>Rename</button>
                 <button onClick={handleDelete}>Delete</button>
             </div>
@@ -99,7 +85,7 @@ export default function ScalableRect() {
                 <div
                     style={{
                         position: "absolute",
-                        top: -50,
+                        top: -30,
                         left: 0,
                         fontSize: "12px",
                         fontWeight: "bold",
@@ -114,7 +100,7 @@ export default function ScalableRect() {
 
                 {/* Scale handle in bottom-right */}
                 <div
-                    onPointerDown={(e) => onScalePointerDown(e)}
+                    onPointerDown={onScalePointerDown}
                     style={{
                         position: "absolute",
                         width: handleSize,
