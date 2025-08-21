@@ -18,6 +18,20 @@ import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } fro
 
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 
+// Keep top-level nodeTypes definition
+const nodeTypes = {
+    resizable: ResizableNode,
+    custom: CustomItemNode,
+    pipe: PipeItemNode,
+    scalableIcon: ScalableIconNode,
+    groupLabel: (props) => (
+        <GroupLabelNode
+            {...props}
+            updateNode={updateNode}
+            deleteNode={deleteNode}
+        />
+    ),
+};
 
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -64,20 +78,7 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(node => node.id !== id));
         setEdges(eds => eds.filter(edge => edge.source !== id && edge.target !== id));
     };
-    // Keep top-level nodeTypes definition
-    const nodeTypes = {
-        resizable: ResizableNode,
-        custom: CustomItemNode,
-        pipe: PipeItemNode,
-        scalableIcon: ScalableIconNode,
-        groupLabel: (props) => (
-            <GroupLabelNode
-                {...props}
-                updateNode={updateNode}
-                deleteNode={deleteNode}
-            />
-        ),
-    };
+    
 
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
