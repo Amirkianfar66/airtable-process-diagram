@@ -140,29 +140,36 @@ export default function ProcessDiagram() {
         (changes) => {
             setNodes((nds) => {
                 let updatedNodes = nds.map((node) => {
-                    const change = changes.find((c) => c.id === node.id && c.type === "position");
+                    const change = changes.find(
+                        (c) => c.id === node.id && c.type === "position"
+                    );
 
                     if (change && node.data?.groupId) {
                         // find parent group
                         const groupNode = nds.find((n) => n.id === node.data.groupId);
-                        if (groupNode) {
-                            const { rect = {} } = groupNode.data || {};
-                            const { width = 200, height = 200 } = rect;
-                            const gPos = groupNode.position || { x: 0, y: 0 };
 
-                            // clamp inside parent
-                            let newX = Math.max(
-                                gPos.x + 10,
-                                Math.min(change.position.x, gPos.x + width - 40)
-                            );
-                            let newY = Math.max(
-                                gPos.y + 30,
-                                Math.min(change.position.y, gPos.y + height - 40)
-                            );
-
-                            return { ...node, position: { x: newX, y: newY } };
+                        if (!groupNode) {
+                            // parent not found → leave node unchanged
+                            return node;
                         }
+
+                        const { rect = {} } = groupNode.data || {};
+                        const { width = 200, height = 200 } = rect;
+                        const gPos = groupNode.position ?? { x: 0, y: 0 }; // ✅ safe access
+
+                        // clamp inside parent
+                        let newX = Math.max(
+                            gPos.x + 10,
+                            Math.min(change.position.x, gPos.x + width - 40)
+                        );
+                        let newY = Math.max(
+                            gPos.y + 30,
+                            Math.min(change.position.y, gPos.y + height - 40)
+                        );
+
+                        return { ...node, position: { x: newX, y: newY } };
                     }
+
                     return node;
                 });
 
@@ -170,26 +177,30 @@ export default function ProcessDiagram() {
                 changes.forEach((change) => {
                     if (change.type === "dimensions" || change.type === "style") {
                         const groupNode = updatedNodes.find((n) => n.id === change.id);
-                        if (groupNode) {
-                            const { rect = {} } = groupNode.data || {};
-                            const { width = 200, height = 200 } = rect;
-                            const gPos = groupNode.position || { x: 0, y: 0 };
 
-                            updatedNodes = updatedNodes.map((n) => {
-                                if (n.data?.groupId === groupNode.id) {
-                                    let clampedX = Math.max(
-                                        gPos.x + 10,
-                                        Math.min(n.position.x, gPos.x + width - 40)
-                                    );
-                                    let clampedY = Math.max(
-                                        gPos.y + 30,
-                                        Math.min(n.position.y, gPos.y + height - 40)
-                                    );
-                                    return { ...n, position: { x: clampedX, y: clampedY } };
-                                }
-                                return n;
-                            });
+                        if (!groupNode) {
+                            // group not found → skip
+                            return;
                         }
+
+                        const { rect = {} } = groupNode.data || {};
+                        const { width = 200, height = 200 } = rect;
+                        const gPos = groupNode.position ?? { x: 0, y: 0 };
+
+                        updatedNodes = updatedNodes.map((n) => {
+                            if (n.data?.groupId === groupNode.id) {
+                                let clampedX = Math.max(
+                                    gPos.x + 10,
+                                    Math.min(n.position.x, gPos.x + width - 40)
+                                );
+                                let clampedY = Math.max(
+                                    gPos.y + 30,
+                                    Math.min(n.position.y, gPos.y + height - 40)
+                                );
+                                return { ...n, position: { x: clampedX, y: clampedY } };
+                            }
+                            return n;
+                        });
                     }
                 });
 
@@ -200,6 +211,7 @@ export default function ProcessDiagram() {
         },
         [setNodes, _onNodesChange]
     );
+
 
 
     useEffect(() => {
