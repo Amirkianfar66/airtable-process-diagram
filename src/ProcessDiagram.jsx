@@ -144,7 +144,9 @@ export default function ProcessDiagram() {
                     ...item,
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
-                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
+                    Category: Array.isArray(item['Category Item Type'])
+                        ? item['Category Item Type'][0]
+                        : item['Category Item Type'] || '',
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Code: item['Item Code'] || item.Code || '',
                     Name: item.Name || '',
@@ -176,7 +178,13 @@ export default function ProcessDiagram() {
                         id: `unit-${unit}`,
                         position: { x: unitX, y: 0 },
                         data: { label: unit },
-                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444', background: 'transparent', boxShadow: 'none' },
+                        style: {
+                            width: unitWidth,
+                            height: unitHeight,
+                            border: '4px solid #444',
+                            background: 'transparent',
+                            boxShadow: 'none',
+                        },
                         draggable: false,
                         selectable: false,
                     });
@@ -187,8 +195,15 @@ export default function ProcessDiagram() {
                         newNodes.push({
                             id: `sub-${unit}-${subUnit}`,
                             position: { x: unitX + 10, y: yOffset + 10 },
-                            data: { label: subUnit },
-                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent', boxShadow: 'none' },
+                            data: { label: subUnit, rect: { width: unitWidth - 20, height: subUnitHeight - 20 }, position: { x: unitX + 10, y: yOffset + 10 } },
+                            type: 'groupLabel', // ✅ use your GroupLabelNode
+                            style: {
+                                width: unitWidth - 20,
+                                height: subUnitHeight - 20,
+                                border: '2px dashed #aaa',
+                                background: 'transparent',
+                                boxShadow: 'none',
+                            },
                             draggable: false,
                             selectable: false,
                         });
@@ -203,7 +218,7 @@ export default function ProcessDiagram() {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
                                     item,
                                     icon: getItemIcon(item),
-                                    groupId: `sub-${unit}-${subUnit}` // 🔹 link item to its group
+                                    groupId: `sub-${unit}-${subUnit}`, // 🔹 link item to its group
                                 },
                                 type: categoryTypeMap[item.Category] || 'scalableIcon',
                                 sourcePosition: 'right',
@@ -212,7 +227,10 @@ export default function ProcessDiagram() {
                             });
                             itemX += itemWidth + itemGap;
                         });
+                    });
 
+                    unitX += unitWidth + 100;
+                });
 
                 setNodes(newNodes);
                 setEdges(newEdges);
@@ -220,6 +238,7 @@ export default function ProcessDiagram() {
             })
             .catch(console.error);
     }, []);
+
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
