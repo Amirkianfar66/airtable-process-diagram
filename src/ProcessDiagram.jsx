@@ -19,26 +19,6 @@ import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } fro
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import MainToolbar from './MainToolbar';
 
-// Keep top-level nodeTypes definition
-const nodeTypes = {
-    resizable: ResizableNode,
-    custom: CustomItemNode,
-    pipe: PipeItemNode,
-    scalableIcon: ScalableIconNode,
-    groupLabel: (props) => (
-        <GroupLabelNode
-            {...props}
-            updateNode={updateNode}
-            deleteNode={deleteNode}
-            childrenNodes={nodes.filter(n =>
-                props.data.children?.includes(n.id)
-            )}
-        />
-    ),
-};
-
-
-
 
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -85,7 +65,23 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(node => node.id !== id));
         setEdges(eds => eds.filter(edge => edge.source !== id && edge.target !== id));
     };
-    
+    // ✅ nodeTypes must be defined *here*, after helpers & state exist
+    const nodeTypes = {
+        resizable: ResizableNode,
+        custom: CustomItemNode,
+        pipe: PipeItemNode,
+        scalableIcon: ScalableIconNode,
+        groupLabel: (props) => (
+            <GroupLabelNode
+                {...props}
+                updateNode={updateNode}
+                deleteNode={deleteNode}
+                childrenNodes={nodes.filter(n =>
+                    props.data.children?.includes(n.id)
+                )}
+            />
+        ),
+    };
 
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
