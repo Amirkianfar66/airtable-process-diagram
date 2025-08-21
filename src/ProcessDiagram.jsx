@@ -56,50 +56,13 @@ const fetchData = async () => {
 
 export default function ProcessDiagram() {
     const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
-    //const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
     const [items, setItems] = useState([]);
     const [aiDescription, setAiDescription] = useState('');
     const [chatMessages, setChatMessages] = useState([]);
-
-    const onNodesChange = (changes) => {
-    setNodes((nds) => {
-        const updatedNodes = nds.map((node) => {
-            const change = changes.find(c => c.id === node.id);
-            if (!change) return node;
-
-            // If this is a group node, move its children too
-            if (node.type === "groupLabel" && change.position) {
-                const deltaX = change.position.x - node.position.x;
-                const deltaY = change.position.y - node.position.y;
-
-                nds.forEach((child) => {
-                    if (child.data.groupId === node.id) {
-                        child.position = {
-                            x: child.position.x + deltaX,
-                            y: child.position.y + deltaY
-                        };
-
-                        // clamp inside group rect
-                        child.position.x = Math.min(
-                            Math.max(child.position.x, change.position.x + 10),
-                            change.position.x + (node.data.rect?.width || 150) - 30
-                        );
-                        child.position.y = Math.min(
-                            Math.max(child.position.y, change.position.y + 30),
-                            change.position.y + (node.data.rect?.height || 100) - 30
-                        );
-                    }
-                });
-            }
-
-            return { ...node, ...change };
-        });
-        return [...updatedNodes];
-    });
-};
 
     const updateNode = (id, newData) => {
         setNodes(nds =>
