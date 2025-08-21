@@ -78,7 +78,7 @@ export default function ProcessDiagram() {
                     ...params,
                     type: 'step',
                     animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2 },
+                    style: { stroke: 'red', strokeWidth: 2 },
                 },
                 edges
             );
