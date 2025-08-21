@@ -26,22 +26,42 @@ export default function GroupLabelNode({ id, data }) {
     };
 
     const addItemToGroup = () => {
-        const newItemId = `item-${Date.now()}`;
-        const newItem = {
-            id: newItemId,
-            type: "default", // change if you have custom node types
-            position: { x: position.x + 10, y: position.y + 30 },
-            data: { label: "New Item", groupId: id },
-        };
-        rfInstance.setNodes((nds) => [...nds, newItem]);
+        // Get all nodes not in a group
+        const availableNodes = rfInstance.getNodes().filter((n) => !n.data.groupId);
+        if (availableNodes.length === 0) {
+            alert("No available nodes to add to this group.");
+            return;
+        }
+
+        // Pick the first one (or you can later show a selection dialog)
+        const nodeToAdd = availableNodes[0];
+
+        // Update its groupId
+        rfInstance.setNodes((nds) =>
+            nds.map((n) =>
+                n.id === nodeToAdd.id
+                    ? { ...n, data: { ...n.data, groupId: id }, position: { x: position.x + 10, y: position.y + 30 } }
+                    : n
+            )
+        );
     };
 
     const removeLastItemFromGroup = () => {
+        // Get nodes currently in this group
         const children = rfInstance.getNodes().filter((n) => n.data.groupId === id);
         if (children.length === 0) return;
-        const lastChildId = children[children.length - 1].id;
-        rfInstance.setNodes((nds) => nds.filter((n) => n.id !== lastChildId));
+
+        // Remove groupId from last child
+        const lastChild = children[children.length - 1];
+        rfInstance.setNodes((nds) =>
+            nds.map((n) =>
+                n.id === lastChild.id
+                    ? { ...n, data: { ...n.data, groupId: null } }
+                    : n
+            )
+        );
     };
+
 
     // Clamp child nodes inside the group
     useEffect(() => {
