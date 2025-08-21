@@ -24,8 +24,15 @@ const nodeTypes = {
     custom: CustomItemNode,
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
-    groupLabel: GroupLabelNode, // just the component itself
+    groupLabel: (props) => (
+        <GroupLabelNode
+            {...props}
+            updateNode={updateNode}
+            deleteNode={deleteNode}
+        />
+    ),
 };
+
 
 
 
@@ -248,7 +255,7 @@ export default function ProcessDiagram() {
                     minZoom={0.02}
                     defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={{
-                        nodeTypes,
+                        ...nodeTypes, // keep all other nodes
                         groupLabel: (props) => (
                             <GroupLabelNode
                                 {...props}
