@@ -202,6 +202,46 @@ export default function ProcessDiagram() {
             })
             .catch(console.error);
     }, []);
+    const handleGroupSelected = () => {
+        if (selectedNodes.length < 2) {
+            alert("Select at least 2 items to group.");
+            return;
+        }
+
+        // Find bounding box of all selected nodes
+        const minX = Math.min(...selectedNodes.map(n => n.position.x));
+        const minY = Math.min(...selectedNodes.map(n => n.position.y));
+        const maxX = Math.max(...selectedNodes.map(n => n.position.x + (n.width || 160)));
+        const maxY = Math.max(...selectedNodes.map(n => n.position.y + (n.height || 80)));
+
+        const groupId = `group-${Date.now()}`;
+
+        // Create group container node
+        const groupNode = {
+            id: groupId,
+            type: 'groupLabel', // ✅ you already have this node type
+            position: { x: minX - 20, y: minY - 40 },
+            data: { label: `Group ${groupId}` },
+            style: {
+                width: maxX - minX + 40,
+                height: maxY - minY + 60,
+                border: '2px solid #007bff',
+                borderRadius: '8px',
+                background: 'rgba(0, 123, 255, 0.05)',
+            },
+            draggable: false,
+            selectable: false,
+        };
+
+        // Attach children to group
+        const updatedNodes = nodes.map(n =>
+            selectedNodes.some(sn => sn.id === n.id)
+                ? { ...n, parentNode: groupId, extent: 'parent' }
+                : n
+        );
+
+        setNodes([...updatedNodes, groupNode]);
+    };
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
@@ -219,6 +259,16 @@ export default function ProcessDiagram() {
                         <ChatBox messages={chatMessages} />
                     </div>
                 </div>
+                <div style={{ padding: 10, display: 'flex', gap: 6 }}>
+                    <AddItemButton setNodes={setNodes} setItems={setItems} setSelectedItem={setSelectedItem} />
+                    <button
+                        onClick={() => handleGroupSelected()}
+                        style={{ padding: '4px 8px' }}
+                    >
+                        Group Selected
+                    </button>
+                </div>
+
 
                 <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onSelectionChange={onSelectionChange} fitView selectionOnDrag minZoom={0.02} defaultViewport={{ x: 0, y: 0, zoom: 1 }} nodeTypes={nodeTypes} style={{ background: 'transparent' }}>
                     <Controls />
