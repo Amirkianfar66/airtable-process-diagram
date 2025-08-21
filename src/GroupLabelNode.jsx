@@ -1,11 +1,13 @@
 ﻿// GroupLabelNode.jsx
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useReactFlow } from "reactflow";
 
 export default function GroupLabelNode({ id, data, selected }) {
-    const rfInstance = useReactFlow(); // gives access to nodes and setNodes
+    const rfInstance = useReactFlow();
     const [rect, setRect] = useState(data.rect || { width: 150, height: 100 });
     const groupName = data.groupName || data.label || "My Group";
+
+    const groupRef = useRef(null);
 
     // Helpers
     const updateNode = (newData) => {
@@ -19,8 +21,9 @@ export default function GroupLabelNode({ id, data, selected }) {
 
     const deleteNode = () => {
         if (window.confirm("Delete this group?")) {
-            // remove group and any child nodes inside it
-            rfInstance.setNodes((nds) => nds.filter((node) => node.id !== id && node.data?.groupId !== id));
+            rfInstance.setNodes((nds) =>
+                nds.filter((node) => node.id !== id && node.data?.groupId !== id)
+            );
         }
     };
 
@@ -59,11 +62,54 @@ export default function GroupLabelNode({ id, data, selected }) {
         if (newName) updateNode({ groupName: newName });
     };
 
-    // Get all child nodes of this group
+    // Dragging logic
+    const onDragPointerDown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startY = e.clientY;
+
+        const groupPos = data.position || { x: 0, y: 0 };
+
+        const handlePointerMove = (moveEvent) => {
+            const deltaX = moveEvent.clientX - startX;
+            const deltaY = moveEvent.clientY - startY;
+
+            // Move the group
+            updateNode({ position: { x: groupPos.x + deltaX, y: groupPos.y + deltaY } });
+
+            // Move child nodes
+            const children = rfInstance.getNodes().filter((n) => n.data?.groupId === id);
+            rfInstance.setNodes((nds) =>
+                nds.map((n) => {
+                    if (n.data?.groupId === id) {
+                        return {
+                            ...n,
+                            position: {
+                                x: n.position.x + deltaX,
+                                y: n.position.y + deltaY,
+                            },
+                        };
+                    }
+                    return n;
+                })
+            );
+        };
+
+        const handlePointerUp = () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        };
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+    };
+
     const childrenNodes = rfInstance.getNodes().filter((n) => n.data?.groupId === id);
 
     return (
         <div
+            ref={groupRef}
             style={{
                 width: rect.width,
                 height: rect.height,
@@ -72,12 +118,13 @@ export default function GroupLabelNode({ id, data, selected }) {
                 position: "relative",
                 display: "flex",
                 flexDirection: "column",
-                overflow: "hidden", // important: clip child nodes inside
+                overflow: "hidden",
                 pointerEvents: "auto",
                 zIndex: 1000,
             }}
         >
             <div
+                onPointerDown={onDragPointerDown}
                 style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -89,6 +136,7 @@ export default function GroupLabelNode({ id, data, selected }) {
                     fontWeight: "bold",
                     zIndex: 1001,
                     pointerEvents: "auto",
+                    cursor: "move",
                 }}
             >
                 <span>{groupName}</span>
@@ -117,7 +165,6 @@ export default function GroupLabelNode({ id, data, selected }) {
                 }}
             />
 
-            {/* Render child nodes visually inside the group */}
             {childrenNodes.map((child) => (
                 <div
                     key={child.id}
