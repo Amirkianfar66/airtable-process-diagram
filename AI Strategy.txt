@@ -1,44 +1,34 @@
 /project-root
- ├── /frontend
- │    ├── index.html              # Main page with Gemini chat widget
- │    ├── app.js                  # Initializes Gemini widget, sends user msg to backend
- │    ├── pnidCanvas.jsx          # (React Flow canvas for PNID visualization)
- │    └── styles.css              # Optional styling
- │
- ├── /backend
- │    ├── server.js               # Express/Next server (routes, middleware, connects frontend & API AI)
- │    ├── /api
- │    │    ├── parse-item.js      # Extracts items/entities from natural language
- │    │    ├── pnid-actions.js    # Executes PNID actions (add item, connect, delete, etc.)
- │    │    └── AIPNIDGenerator.jsx # Your AI layer: processes parsed input → structured PNID commands
- │    └── utils.js                # Shared helpers (logging, validation, etc.)
- │
- ├── package.json
- └── README.md
-✅ Breakdown
 
-Frontend
+CURRENT REACT : 
 
-index.html → Gemini chat widget UI.
 
-app.js → Handles sending Gemini output to your backend API.
+airtable-process-diagram/
+├─ api/                         # Backend API endpoints (Node/Serverless)
+│   ├─ parse-item.js            # ✅ Natural language AI "wedge" (Gemini/AI parses text → structured data)
+│   ├─ pnid-actions.js          # AI actions executor (add item, connect, delete, etc. on PNID)
+│   └─ AIPNIDGenerator.jsx      # AI reasoning layer (few-shot prompts, complex PNID logic)
+│
+├─ src/                         # React frontend
+│   ├─ main.jsx                  # React frontend entry
+│   ├─ aiParser.js               # Helper to call /api/parse-item from frontend
+│   ├─ AIPNIDGenerator.jsx       # Frontend component to trigger AI generation (calls aiParser)
+│   ├─ ProcessDiagram.jsx        # React Flow canvas wrapper
+│   ├─ ScalableIconNode.jsx      # Node renderer with scalable icon
+│   ├─ IconManager.jsx           # Handles icon selection from item category/type
+│   └─ components/               # Other UI components
+│       ├─ EquipmentIcon.jsx     # Icon components (dynamic SVGs)
+│       └─ ...                   # Additional UI components
+│
+├─ index.html
+├─ package.json
+└─ vite.config.js
 
-pnidCanvas.jsx → React Flow (or similar) for PNID diagram rendering.
-
-Backend
-
-server.js → API server, routes requests to your AI logic.
-
-parse-item.js → NLU parsing layer (entities: tank, pump, etc.).
-
-pnid-actions.js → Action executor (adds/links items in PNID).
-
-AIPNIDGenerator.jsx → AI engine (few-shot prompts, complex reasoning later).
-
-This way:
-
-Gemini = chat/NLU front.
-
-Backend AI = PNID reasoning + action execution.
-
-Canvas = visualization.
+Item (from Airtable)
+      ↓
+ IconManager.getItemIcon()
+      ↓
+ ScalableIconNode
+      ↓
+ ProcessDiagram
+      
