@@ -1,16 +1,9 @@
 ﻿// GroupLabelNode.jsx
 import React from "react";
 
-export default function GroupLabelNode({
-    id,
-    data,
-    selected,
-    updateNode,
-    deleteNode,
-    childrenNodes,
-}) {
+export default function GroupLabelNode({ id, data, selected, updateNode, deleteNode, childrenNodes }) {
     const handleSize = 12;
-    const rect = data.rect || { width: 200, height: 120 }; // ensure enough height for buttons
+    const rect = data.rect || { width: 150, height: 100 };
     const groupName = data.groupName || data.label || "My Group";
 
     // Resize logic
@@ -28,8 +21,8 @@ export default function GroupLabelNode({
             updateNode(id, {
                 rect: {
                     ...rect,
-                    width: Math.max(100, initialWidth + deltaX),
-                    height: Math.max(60, initialHeight + deltaY),
+                    width: Math.max(50, initialWidth + deltaX),
+                    height: Math.max(50, initialHeight + deltaY),
                 },
             });
         };
@@ -43,22 +36,13 @@ export default function GroupLabelNode({
         window.addEventListener("pointerup", handlePointerUp);
     };
 
+    // Rename / Delete
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
         if (newName) updateNode(id, { groupName: newName });
     };
-
     const handleDelete = () => {
         if (window.confirm("Delete this group?")) deleteNode(id);
-    };
-
-    const handleUngroup = () => {
-        if (window.confirm("Ungroup all items inside this group?")) {
-            if (childrenNodes) {
-                childrenNodes.forEach((child) => updateNode(child.id, { group: null }));
-            }
-            deleteNode(id);
-        }
     };
 
     return (
@@ -72,9 +56,10 @@ export default function GroupLabelNode({
                 display: "flex",
                 flexDirection: "column",
                 overflow: "visible",
+                pointerEvents: "auto", // allow interaction
             }}
         >
-            {/* Top controls */}
+            {/* Top bar with buttons */}
             <div
                 style={{
                     display: "flex",
@@ -85,19 +70,18 @@ export default function GroupLabelNode({
                     padding: "2px 4px",
                     fontSize: 12,
                     fontWeight: "bold",
-                    zIndex: 10,
-                    pointerEvents: "auto",
+                    zIndex: 20,
+                    pointerEvents: "auto", // crucial
                 }}
             >
                 <span>{groupName}</span>
                 <div style={{ display: "flex", gap: 4 }}>
-                    <button onClick={handleRename} style={{ fontSize: 10 }}>Rename</button>
-                    <button onClick={handleDelete} style={{ fontSize: 10 }}>Delete</button>
-                    <button onClick={handleUngroup} style={{ fontSize: 10 }}>Ungroup</button>
+                    <button onClick={handleRename} style={{ fontSize: 10, cursor: "pointer" }}>Rename</button>
+                    <button onClick={handleDelete} style={{ fontSize: 10, cursor: "pointer" }}>Delete</button>
                 </div>
             </div>
 
-            {/* Resize handle */}
+            {/* Scale handle */}
             <div
                 onPointerDown={onScalePointerDown}
                 style={{
@@ -109,33 +93,31 @@ export default function GroupLabelNode({
                     background: "#00bcd4",
                     cursor: "nwse-resize",
                     borderRadius: 2,
-                    zIndex: 5,
+                    zIndex: 15,
+                    pointerEvents: "auto", // allow dragging
                 }}
             />
 
-            {/* Optional: render children nodes visually inside group */}
+            {/* Render children nodes visually inside group */}
             {childrenNodes && (
                 <div
                     style={{
                         position: "absolute",
-                        top: 28,
+                        top: 30,
                         left: 0,
                         width: "100%",
-                        height: `calc(100% - 28px)`,
-                        pointerEvents: "none", // children labels are not interactive
+                        height: `calc(100% - 30px)`,
+                        pointerEvents: "none", // so buttons still clickable
                     }}
                 >
-                    {childrenNodes.map((child) => (
+                    {childrenNodes.map(child => (
                         <div
                             key={child.id}
                             style={{
                                 position: "absolute",
-                                left: child.position.x - rect.x || 0,
-                                top: child.position.y - rect.y || 0,
-                                fontSize: 10,
-                                background: "rgba(0,0,0,0.05)",
-                                padding: "1px 2px",
-                                borderRadius: 2,
+                                left: child.position.x,
+                                top: child.position.y,
+                                pointerEvents: "auto", // optional if child has interactions
                             }}
                         >
                             {child.data?.label || "Item"}
