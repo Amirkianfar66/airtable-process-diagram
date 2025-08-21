@@ -1,16 +1,34 @@
-﻿// GroupLabelNode.jsx
-import React from "react";
+﻿
+// GroupLabelNode.jsx
+import React, { useState } from "react";
+import { useReactFlow } from "reactflow";
 
-export default function GroupLabelNode({ id, data, selected, updateNode, deleteNode, childrenNodes }) {
-    const handleSize = 12;
-    const rect = data.rect || { width: 150, height: 100 };
+export default function GroupLabelNode({ id, data, selected }) {
+    const rfInstance = useReactFlow(); // gives access to nodes and setNodes
+    const [rect, setRect] = useState(data.rect || { width: 150, height: 100 });
     const groupName = data.groupName || data.label || "My Group";
 
+    // Helpers
+    const updateNode = (newData) => {
+        rfInstance.setNodes((nds) =>
+            nds.map((node) =>
+                node.id === id ? { ...node, data: { ...node.data, ...newData } } : node
+            )
+        );
+        setRect(newData.rect || rect);
+    };
+
+    const deleteNode = () => {
+        if (window.confirm("Delete this group?")) {
+            rfInstance.setNodes((nds) => nds.filter((node) => node.id !== id));
+        }
+    };
+
     // Resize logic
+    const handleSize = 12;
     const onScalePointerDown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-
         const startX = e.clientX;
         const startY = e.clientY;
         const initialWidth = rect.width;
@@ -19,9 +37,8 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
         const handlePointerMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
             const deltaY = moveEvent.clientY - startY;
-            updateNode(id, {
+            updateNode({
                 rect: {
-                    ...rect,
                     width: Math.max(50, initialWidth + deltaX),
                     height: Math.max(50, initialHeight + deltaY),
                 },
@@ -37,13 +54,9 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
         window.addEventListener("pointerup", handlePointerUp);
     };
 
-    // Rename / Delete
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
-        if (newName) updateNode(id, { groupName: newName });
-    };
-    const handleDelete = () => {
-        if (window.confirm("Delete this group?")) deleteNode(id);
+        if (newName) updateNode({ groupName: newName });
     };
 
     return (
@@ -56,12 +69,11 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                 position: "relative",
                 display: "flex",
                 flexDirection: "column",
-                overflow: "visible",     // IMPORTANT: allows buttons to show
-                pointerEvents: "auto",   // allows interaction
+                overflow: "visible",
+                pointerEvents: "auto",
                 zIndex: 1000,
             }}
         >
-            {/* Top bar with buttons */}
             <div
                 style={{
                     display: "flex",
@@ -78,12 +90,15 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
             >
                 <span>{groupName}</span>
                 <div style={{ display: "flex", gap: 4 }}>
-                    <button onClick={handleRename} style={{ fontSize: 10, cursor: "pointer" }}>Rename</button>
-                    <button onClick={handleDelete} style={{ fontSize: 10, cursor: "pointer" }}>Delete</button>
+                    <button onClick={handleRename} style={{ fontSize: 10, cursor: "pointer" }}>
+                        Rename
+                    </button>
+                    <button onClick={deleteNode} style={{ fontSize: 10, cursor: "pointer" }}>
+                        Delete
+                    </button>
                 </div>
             </div>
 
-            {/* Scale handle */}
             <div
                 onPointerDown={onScalePointerDown}
                 style={{
@@ -98,34 +113,6 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                     zIndex: 1001,
                 }}
             />
-
-            {/* Render child nodes visually inside group */}
-            {childrenNodes && (
-                <div
-                    style={{
-                        position: "absolute",
-                        top: 30,
-                        left: 0,
-                        width: "100%",
-                        height: `calc(100% - 30px)`,
-                        pointerEvents: "none", // don’t block buttons
-                    }}
-                >
-                    {childrenNodes.map(child => (
-                        <div
-                            key={child.id}
-                            style={{
-                                position: "absolute",
-                                left: child.position.x,
-                                top: child.position.y,
-                                pointerEvents: "auto", // children can be interactive
-                            }}
-                        >
-                            {child.data?.label || "Item"}
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
     );
 }

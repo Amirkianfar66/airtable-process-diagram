@@ -24,15 +24,9 @@ const nodeTypes = {
     custom: CustomItemNode,
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
-    groupLabel: (props) => (
-        <GroupLabelNode
-            {...props}
-            updateNode={updateNode}
-            deleteNode={deleteNode}
-            childrenNodes={nodes.filter(n => props.data.children?.includes(n.id))}
-        />
-    ),
+    groupLabel: GroupLabelNode, // simple
 };
+
 
 
 const fetchData = async () => {
