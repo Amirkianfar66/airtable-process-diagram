@@ -16,15 +16,23 @@ airtable-process-diagram/
 │   ├─ ProcessDiagram.jsx        # React Flow canvas wrapper
 │   ├─ ScalableIconNode.jsx      # Node renderer with scalable icon
 │   ├─ IconManager.jsx           # Handles icon selection from item category/type
-│   └─ components/               # Other UI components
+│   ├─ GroupLabelNode.jsx        # Grouping visuals handled
+│   ├─ AddItemButton.jsx         # component is working as a floating form that allows you to add new items with category, code, unit, and subunit.
+│   ├─ ItemDetailCard.jsx        # Detail card tab
+│   └─ Icons/                    # Other UI components
 │       ├─ EquipmentIcon.jsx     # Icon components (dynamic SVGs)
-│       └─ ...                   # Additional UI components
+│       ├─ InstrumentIcon.jsx                  # Additional UI components
+│       ├─ InlineValveIcon.jsx    # Icon components (dynamic SVGs)
+│       ├─ ElectricalIcon.jsx                 # Additional UI components
+│       ├─ PipeIcon.jsx          # Icon components (dynamic SVGs)
 │
 ├─ index.html
 ├─ package.json
-└─ vite.config.js
+└─ vite.config.js   #  Vite configuration. Uses @vitejs/plugin-react and vite-plugin-svgr for SVG imports as React components.
 
 Item (from Airtable)
+      ↓
+Icons/ (EquipmentIcon.jsx ... ETC)
       ↓
  IconManager.getItemIcon()
       ↓
@@ -32,3 +40,76 @@ Item (from Airtable)
       ↓
  ProcessDiagram
       
+ProcessDiagram.jsx: Main React Flow canvas component that fetches items from Airtable, organizes them by Unit/SubUnit, renders nodes (with scalable icons) and edges, allows selection and editing of items, and integrates AI-driven PNID generation via AIPNIDGenerator.
+
+IconManager.jsx: Manages item icons and node types for React Flow. Provides functions to map categories to node types, render the correct icon per item, create new item nodes, add items via a button, and update items while keeping nodes and state in sync.
+
+ItemDetailCard.jsx: Displays detailed info of a selected PNID item. Provides editable fields for general info (Code, Name, Category, Type, Unit, Sub Unit) and procurement info (Model Number, Manufacturer, Supplier). Integrates with Airtable to fetch types for dropdowns and updates parent state via onChange for React Flow node updates.
+
+ScalableIconNode.jsx summary: React Flow node that renders a scalable icon for an item, using IconManager to fetch the correct category-based icon, and displays the item's label below the icon.
+
+Icons/EquipmentIcon.jsx: Renders Equipment item icon dynamically; imports all SVGs in folder; handles scaling, hover, and connection handles.
+
+### Project Summary: airtable-process-diagram
+
+**Framework & Deployment:**
+
+* React 18 + Vite + Vercel deployment.
+* Uses React Flow for process diagram rendering.
+* AI integration via Google Gemini/AI for natural language PNID generation.
+* Airtable serves as the backend database for items and types.
+
+**Folder Structure & File Responsibilities:**
+
+#### api/
+
+* `parse-item.js`: Serverless endpoint. Accepts natural language input, uses AI to parse and return structured item data.
+* `pnid-actions.js`: Executes AI-suggested actions (add item, connect, delete, etc.) on the PNID canvas.
+* `AIPNIDGenerator.jsx`: AI reasoning layer with few-shot prompts; coordinates AI-generated nodes and edges.
+
+#### src/
+
+* `main.jsx`: React app entry point; renders `ProcessDiagram`.
+* `ProcessDiagram.jsx`: Main canvas component.
+
+  * Fetches items from Airtable.
+  * Groups items into Units and SubUnits.
+  * Handles selection, edge connections, and AI-based PNID generation.
+* `ScalableIconNode.jsx`: Node renderer with scalable icon; shows item icon + label.
+* `IconManager.jsx`:
+
+  * Maps categories to node types.
+  * Returns appropriate React icon component for each item.
+  * Handles adding new items and updating existing nodes.
+* `ItemDetailCard.jsx`: Sidebar detail panel for a selected item.
+
+  * Editable fields: Code, Name, Category, Type, Unit, SubUnit, Model, Manufacturer, Supplier.
+  * Fetches available types from Airtable.
+* `GroupLabelNode.jsx`: Renders a resizable/red rectangle representing a group (Unit or SubUnit) with rename/delete functionality.
+* `EquipmentIcon.jsx`: Renders equipment icons dynamically from SVGs; supports scaling and hover interactions.
+* Other icons (InstrumentIcon, InlineValveIcon, PipeIcon, ElectricalIcon) follow similar structure.
+* `AIPNIDGenerator.jsx` (frontend): Triggers AI generation via `aiParser` and updates nodes/edges on the canvas.
+* `aiParser.js`: Frontend helper to call `/api/parse-item` endpoint.
+
+#### Vite Configuration
+
+* `vite.config.js`: Includes React plugin and SVGR for SVG imports as React components.
+
+#### Workflow Overview
+
+1. Fetch items from Airtable.
+2. Items are grouped into Units and SubUnits and mapped to React Flow nodes.
+3. Each node displays an icon and label (`ScalableIconNode` / category-specific icon).
+4. Users can select nodes to see/edit details in `ItemDetailCard`.
+5. AI can generate or update PNID layout via `AIPNIDGenerator`.
+6. Grouping visuals handled via `GroupLabelNode`.
+7. New items added via `AddItemButton` in `IconManager`.
+
+**Notes:**
+
+* All icons support dynamic scaling.
+* Nodes and edges persist layout in localStorage.
+* AI generation integrates with existing items and layout without duplication.
+* Fully reactive: changing category/type updates icon and node type immediately.
+
+

@@ -1,4 +1,5 @@
-﻿import React from "react";
+﻿//ScalableIconNode.jsx
+import React from "react";
 import { getItemIcon } from "./IconManager";
 
 export default function ScalableIconNode({ data }) {

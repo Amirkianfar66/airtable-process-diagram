@@ -1,4 +1,5 @@
-﻿import React, { useState } from "react";
+﻿//GroupLabelNode
+import React, { useState } from "react";
 
 export default function ScalableRect() {
     const handleSize = 12;

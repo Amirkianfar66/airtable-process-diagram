@@ -1,3 +1,4 @@
+//EquipmentIcon
 import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
