@@ -1,5 +1,4 @@
-﻿// GroupLabelNode.jsx
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { useReactFlow } from "reactflow";
 
 export default function GroupLabelNode({ id, data }) {
@@ -24,6 +23,24 @@ export default function GroupLabelNode({ id, data }) {
         if (window.confirm("Delete this group?")) {
             rfInstance.setNodes((nds) => nds.filter((node) => node.id !== id && node.data.groupId !== id));
         }
+    };
+
+    const addItemToGroup = () => {
+        const newItemId = `item-${Date.now()}`;
+        const newItem = {
+            id: newItemId,
+            type: "default", // change if you have custom node types
+            position: { x: position.x + 10, y: position.y + 30 },
+            data: { label: "New Item", groupId: id },
+        };
+        rfInstance.setNodes((nds) => [...nds, newItem]);
+    };
+
+    const removeLastItemFromGroup = () => {
+        const children = rfInstance.getNodes().filter((n) => n.data.groupId === id);
+        if (children.length === 0) return;
+        const lastChildId = children[children.length - 1].id;
+        rfInstance.setNodes((nds) => nds.filter((n) => n.id !== lastChildId));
     };
 
     // Clamp child nodes inside the group
@@ -110,6 +127,12 @@ export default function GroupLabelNode({ id, data }) {
                     </button>
                     <button onClick={deleteNode} style={{ fontSize: 10, cursor: "pointer" }}>
                         Delete
+                    </button>
+                    <button onClick={addItemToGroup} style={{ fontSize: 10, cursor: "pointer" }}>
+                        Add Item
+                    </button>
+                    <button onClick={removeLastItemFromGroup} style={{ fontSize: 10, cursor: "pointer" }}>
+                        Remove Item
                     </button>
                 </div>
             </div>
