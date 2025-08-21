@@ -71,12 +71,13 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(node => node.id !== id));
         setEdges(eds => eds.filter(edge => edge.source !== id && edge.target !== id));
     };
-    const nodeTypes = {
+    const nodeTypes = React.useMemo(() => ({
         ...staticNodeTypes,
         groupLabel: (props) => (
             <GroupLabelNode {...props} updateNode={updateNode} deleteNode={deleteNode} />
         ),
-    };
+    }), [updateNode, deleteNode]);
+
 
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
