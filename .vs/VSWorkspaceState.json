@@ -2,8 +2,10 @@
   "ExpandedNodes": [
     "",
     "\\api",
-    "\\src"
+    "\\src",
+    "\\src\\Components",
+    "\\src\\Icons"
   ],
-  "SelectedNode": "\\src\\ProcessDiagram.jsx",
+  "SelectedNode": "\\src\\AddItemButton.jsx",
   "PreviewInSolutionExplorer": false
 }
