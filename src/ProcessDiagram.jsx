@@ -24,14 +24,9 @@ const nodeTypes = {
     custom: CustomItemNode,
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
-    groupLabel: (props) => (
-        <GroupLabelNode
-            {...props}
-            updateNode={updateNode}
-            deleteNode={deleteNode}
-        />
-    ),
+    groupLabel: GroupLabelNode, // just the component, no inline function
 };
+
 
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;

@@ -1,9 +1,7 @@
-﻿// GroupLabelNode.jsx
-import React from "react";
+﻿import React from "react";
 
 export default function GroupLabelNode({ id, data, selected, updateNode, deleteNode }) {
     const handleSize = 12;
-
     const rect = data.rect || { width: 150, height: 100 };
     const groupName = data.groupName || "My Group";
 
@@ -11,7 +9,6 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
     const onScalePointerDown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-
         const startX = e.clientX;
         const startY = e.clientY;
         const initialWidth = rect.width;
@@ -53,14 +50,14 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
             style={{
                 width: rect.width,
                 height: rect.height,
-                background: "rgba(255,0,0,0.2)",
+                background: "rgba(255,0,0,0.1)",
                 border: "1px solid red",
                 position: "relative",
                 display: "flex",
                 flexDirection: "column",
             }}
         >
-            {/* Top controls always visible inside node */}
+            {/* Top controls */}
             <div
                 style={{
                     display: "flex",
@@ -79,6 +76,31 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                     <button onClick={handleRename} style={{ fontSize: 10 }}>Rename</button>
                     <button onClick={handleDelete} style={{ fontSize: 10 }}>Delete</button>
                 </div>
+            </div>
+
+            {/* Render child items visually */}
+            <div style={{ position: "relative", flex: 1, pointerEvents: "none" }}>
+                {data.items?.map((item) => (
+                    <div
+                        key={item.id}
+                        style={{
+                            position: "absolute",
+                            left: item.position?.x - (data.position?.x || 0),
+                            top: item.position?.y - (data.position?.y || 0),
+                            width: item.width || 100,
+                            height: item.height || 60,
+                            background: "rgba(0, 150, 136, 0.2)",
+                            border: "1px solid #009688",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 10,
+                            textAlign: "center",
+                        }}
+                    >
+                        {item.data?.label}
+                    </div>
+                ))}
             </div>
 
             {/* Scale handle */}
