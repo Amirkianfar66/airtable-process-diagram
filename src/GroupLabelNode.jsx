@@ -1,12 +1,11 @@
 ﻿// GroupLabelNode.jsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useReactFlow } from "reactflow";
 
-export default function GroupLabelNode({ id, data, selected }) {
+export default function GroupLabelNode({ id, data }) {
     const rfInstance = useReactFlow();
     const [rect, setRect] = useState(data.rect || { width: 150, height: 100 });
     const groupName = data.groupName || data.label || "My Group";
-
     const groupRef = useRef(null);
 
     // Helpers
@@ -62,13 +61,12 @@ export default function GroupLabelNode({ id, data, selected }) {
         if (newName) updateNode({ groupName: newName });
     };
 
-    // Dragging logic
+    // Dragging the group along with its children
     const onDragPointerDown = (e) => {
         e.preventDefault();
         e.stopPropagation();
         const startX = e.clientX;
         const startY = e.clientY;
-
         const groupPos = data.position || { x: 0, y: 0 };
 
         const handlePointerMove = (moveEvent) => {
@@ -104,6 +102,21 @@ export default function GroupLabelNode({ id, data, selected }) {
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
     };
+
+    // Keep child nodes within group boundaries
+    useEffect(() => {
+        const nodes = rfInstance.getNodes().filter((n) => n.data?.groupId === id);
+        rfInstance.setNodes((nds) =>
+            nds.map((n) => {
+                if (n.data?.groupId === id) {
+                    let x = Math.min(Math.max(n.position.x, (data.position?.x || 0) + 0), (data.position?.x || 0) + rect.width - 20);
+                    let y = Math.min(Math.max(n.position.y, (data.position?.y || 0) + 30), (data.position?.y || 0) + rect.height - 20);
+                    return { ...n, position: { x, y } };
+                }
+                return n;
+            })
+        );
+    }, [rect, data.position, rfInstance, id]);
 
     const childrenNodes = rfInstance.getNodes().filter((n) => n.data?.groupId === id);
 
