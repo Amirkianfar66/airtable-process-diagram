@@ -19,7 +19,6 @@ import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } fro
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import MainToolbar from './MainToolbar';
 
-// Keep top-level nodeTypes definition
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -28,14 +27,13 @@ const nodeTypes = {
     groupLabel: (props) => (
         <GroupLabelNode
             {...props}
-            updateNode={updateNode}
+            updateNode={updateNode}       // pass functions directly
             deleteNode={deleteNode}
-            childrenNodes={nodes.filter(n =>
-                props.data.children?.includes(n.id)
-            )}
+            childrenNodes={nodes.filter(n => props.data.children?.includes(n.id))}
         />
     ),
 };
+
 
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
