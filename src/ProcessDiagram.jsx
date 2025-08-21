@@ -199,7 +199,12 @@ export default function ProcessDiagram() {
                             newNodes.push({
                                 id: item.id,
                                 position: { x: itemX, y: yOffset + 20 },
-                                data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
+                                data: {
+                                    label: `${item.Code || ''} - ${item.Name || ''}`,
+                                    item,
+                                    icon: getItemIcon(item),
+                                    groupId: `sub-${unit}-${subUnit}` // 🔹 link item to its group
+                                },
                                 type: categoryTypeMap[item.Category] || 'scalableIcon',
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
@@ -207,10 +212,7 @@ export default function ProcessDiagram() {
                             });
                             itemX += itemWidth + itemGap;
                         });
-                    });
 
-                    unitX += unitWidth + 100;
-                });
 
                 setNodes(newNodes);
                 setEdges(newEdges);
