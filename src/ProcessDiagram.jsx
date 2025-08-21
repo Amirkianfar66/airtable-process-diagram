@@ -221,20 +221,35 @@ export default function ProcessDiagram() {
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
+            <div style={{ flex: 1, position: 'relative', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
+
+                {/* 🔹 Main Toolbar goes here */}
+                <MainToolbar
+                    selectedNodes={selectedNodes}
+                    setNodes={setNodes}
+                    updateNode={updateNode}
+                    deleteNode={deleteNode}
+                />
+
                 <div style={{ padding: 10 }}>
                     <AddItemButton setNodes={setNodes} setItems={setItems} setSelectedItem={setSelectedItem} />
                 </div>
 
                 <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                        <input type="text" placeholder="Describe PNID for AI..." value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
+                        <input
+                            type="text"
+                            placeholder="Describe PNID for AI..."
+                            value={aiDescription}
+                            onChange={(e) => setAiDescription(e.target.value)}
+                            style={{ flex: 1, padding: 4 }}
+                        />
                         <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
                     </div>
                     <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto' }}>
                         <ChatBox messages={chatMessages} />
                     </div>
-                </div>
+
 
                 <ReactFlow
                     nodes={nodes}
