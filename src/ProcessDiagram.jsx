@@ -69,6 +69,24 @@ export default function ProcessDiagram() {
             nds.map(node => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node))
         );
     };
+    // add near other state declarations
+    const [selectedGroup, setSelectedGroup] = useState(null);
+
+    /** helper to update group node's label/rect/position */
+    const updateGroupNode = (id, update) => {
+        setNodes((nds) =>
+            nds.map((n) => {
+                if (n.id !== id) return n;
+                const newPosition = update.position ?? n.position;
+                const newData = {
+                    ...n.data,
+                    rect: update.rect ?? n.data?.rect,
+                    label: update.label ?? n.data?.label,
+                };
+                return { ...n, position: newPosition, data: newData };
+            })
+        );
+    };
 
     const deleteNode = (id) => {
         setNodes(nds => nds.filter(node => node.id !== id));
@@ -76,15 +94,38 @@ export default function ProcessDiagram() {
     };
     
 
-    const onSelectionChange = useCallback(({ nodes }) => {
-        setSelectedNodes(nodes);
-        if (nodes.length === 1) {
-            const nodeData = items.find(item => item.id === nodes[0].id);
-            setSelectedItem(nodeData || null);
-        } else {
-            setSelectedItem(null);
-        }
-    }, [items]);
+    const onSelectionChange = useCallback(
+        ({ nodes: rfSelectedNodes }) => {
+            setSelectedNodes(rfSelectedNodes);
+
+            if (rfSelectedNodes.length === 1) {
+                const sel = rfSelectedNodes[0];
+                // lookup full node from nodes state
+                const fullNode = nodes.find((n) => n.id === sel.id);
+
+                if (!fullNode) {
+                    setSelectedItem(null);
+                    setSelectedGroup(null);
+                    return;
+                }
+
+                // detect group nodes by type or explicit flag
+                if (fullNode.type === 'groupLabel' || fullNode.data?.isGroup) {
+                    setSelectedGroup(fullNode);
+                    setSelectedItem(null);
+                } else {
+                    const nodeData = items.find((item) => item.id === fullNode.id);
+                    setSelectedItem(nodeData || null);
+                    setSelectedGroup(null);
+                }
+            } else {
+                setSelectedItem(null);
+                setSelectedGroup(null);
+            }
+        },
+        [nodes, items] // NOTE: depends on nodes & items
+    );
+
 
     const onConnect = useCallback(
         (params) => {
@@ -274,7 +315,12 @@ export default function ProcessDiagram() {
                         newNodes.push({
                             id: `sub-${unit}-${subUnit}`,
                             position: { x: unitX + 10, y: yOffset + 10 },
-                            data: { label: subUnit, rect: { width: unitWidth - 20, height: subUnitHeight - 20 }, position: { x: unitX + 10, y: yOffset + 10 } },
+                            data: {
+                                label: subUnit,
+                                rect: { width: unitWidth - 20, height: subUnitHeight - 20 },
+                                position: { x: unitX + 10, y: yOffset + 10 },
+                                isGroup: true
+                            },
                             type: 'groupLabel', // ✅ use your GroupLabelNode
                             style: {
                                 width: unitWidth - 20,
@@ -283,9 +329,10 @@ export default function ProcessDiagram() {
                                 background: 'transparent',
                                 boxShadow: 'none',
                             },
-                            draggable: false,
-                            selectable: false,
+                            draggable: false,  // keep if you don't want the group dragged
+                            selectable: true,  // <-- must be true so clicking it selects the group
                         });
+
 
                         let itemX = unitX + 40;
                         items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
