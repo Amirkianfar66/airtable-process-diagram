@@ -191,40 +191,9 @@ export default function ItemDetailCard({ item, onChange }) {
 
 /**
  * GroupDetailCard (named export)
+ * ✅ Only shows children inside the group
  */
-export function GroupDetailCard({ node, childrenNodes = [], onChange, onDelete }) {
-    const rect = node?.data?.rect || {};
-    const [label, setLabel] = useState(node?.data?.label || '');
-    const [posX, setPosX] = useState(node?.position?.x ?? 0);
-    const [posY, setPosY] = useState(node?.position?.y ?? 0);
-    const [width, setWidth] = useState(rect.width ?? 400);
-    const [height, setHeight] = useState(rect.height ?? 200);
-
-    useEffect(() => {
-        setLabel(node?.data?.label || '');
-        setPosX(node?.position?.x ?? 0);
-        setPosY(node?.position?.y ?? 0);
-        setWidth(node?.data?.rect?.width ?? 400);
-        setHeight(node?.data?.rect?.height ?? 200);
-    }, [node]);
-
-    const handleSave = () => {
-        if (onChange) {
-            onChange(node.id, {
-                label,
-                position: { x: Number(posX), y: Number(posY) },
-                rect: { width: Number(width), height: Number(height) },
-            });
-        }
-    };
-
-    const handleDelete = () => {
-        if (onDelete) onDelete(node.id);
-    };
-
-    const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
-    const labelStyle = { width: '120px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
-    const inputStyle = { flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', outline: 'none', background: '#fafafa' };
+export function GroupDetailCard({ node, childrenNodes = [] }) {
     const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
 
     return (
@@ -237,56 +206,25 @@ export function GroupDetailCard({ node, childrenNodes = [], onChange, onDelete }
             maxWidth: '350px',
             fontFamily: 'sans-serif'
         }}>
-            <section style={{ marginBottom: '18px' }}>
-                <h3 style={headerStyle}>Group</h3>
-
-                <div style={rowStyle}>
-                    <label style={labelStyle}>Label:</label>
-                    <input style={inputStyle} value={label} onChange={(e) => setLabel(e.target.value)} />
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>X</div>
-                        <input style={inputStyle} value={posX} onChange={(e) => setPosX(e.target.value)} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>Y</div>
-                        <input style={inputStyle} value={posY} onChange={(e) => setPosY(e.target.value)} />
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>Width</div>
-                        <input style={inputStyle} value={width} onChange={(e) => setWidth(e.target.value)} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>Height</div>
-                        <input style={inputStyle} value={height} onChange={(e) => setHeight(e.target.value)} />
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={handleSave} style={{ padding: '6px 10px' }}>Save</button>
-                    <button onClick={handleDelete} style={{ padding: '6px 10px', background: '#f66', color: '#fff' }}>Delete</button>
-                </div>
-            </section>
-
             <section>
-                <h4 style={{ margin: '0 0 8px 0', color: '#333' }}>Children</h4>
+                <h3 style={headerStyle}>Group: {node?.data?.label || node?.id}</h3>
+
                 <div style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
                     {childrenNodes.length} item(s) inside this group
                 </div>
 
-                <div style={{ maxHeight: 180, overflowY: 'auto', borderTop: '1px solid #eee', paddingTop: 8 }}>
+                <div style={{ maxHeight: 200, overflowY: 'auto', borderTop: '1px solid #eee', paddingTop: 8 }}>
                     {childrenNodes.length === 0 ? (
                         <div style={{ color: '#999' }}>No children</div>
                     ) : (
                         childrenNodes.map((ch) => (
                             <div key={ch.id} style={{ padding: '6px 0', borderBottom: '1px dashed #f0f0f0' }}>
-                                <div style={{ fontWeight: 600 }}>{ch.data?.label || ch.data?.item?.Name || ch.id}</div>
-                                <div style={{ fontSize: 12, color: '#777' }}>pos: {Math.round(ch.position?.x ?? 0)}, {Math.round(ch.position?.y ?? 0)}</div>
+                                <div style={{ fontWeight: 600 }}>
+                                    {ch.data?.label || ch.data?.item?.Name || ch.id}
+                                </div>
+                                <div style={{ fontSize: 12, color: '#777' }}>
+                                    {ch.data?.item?.['Category Item Type'] || 'Unknown category'}
+                                </div>
                             </div>
                         ))
                     )}
@@ -295,3 +233,4 @@ export function GroupDetailCard({ node, childrenNodes = [], onChange, onDelete }
         </div>
     );
 }
+
