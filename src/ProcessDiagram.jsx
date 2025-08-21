@@ -17,6 +17,7 @@ import ItemDetailCard from './ItemDetailCard';
 import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
 
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
+import MainToolbar from './MainToolbar';
 
 // Keep top-level nodeTypes definition
 const nodeTypes = {
@@ -219,52 +220,70 @@ export default function ProcessDiagram() {
     }, []);
 
     return (
-        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
-                <div style={{ padding: 10 }}>
+        <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+
+            {/* Main Toolbar at the top */}
+            <MainToolbar
+                selectedNodes={selectedNodes}
+                setNodes={setNodes}
+                updateNode={updateNode}
+                deleteNode={deleteNode}
+            />
+
+            {/* Main canvas and side panel */}
+            <div style={{ flex: 1, display: 'flex', position: 'relative', background: 'transparent' }}>
+
+                {/* Canvas Area */}
+                <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
                     <AddItemButton setNodes={setNodes} setItems={setItems} setSelectedItem={setSelectedItem} />
+
+                    {/* AI PNID Input + Chat */}
+                    <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                            <input
+                                type="text"
+                                placeholder="Describe PNID for AI..."
+                                value={aiDescription}
+                                onChange={(e) => setAiDescription(e.target.value)}
+                                style={{ flex: 1, padding: 4 }}
+                            />
+                            <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
+                        </div>
+                        <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto' }}>
+                            <ChatBox messages={chatMessages} />
+                        </div>
+                    </div>
+
+                    {/* React Flow Canvas */}
+                    <ReactFlow
+                        nodes={nodes}
+                        edges={edges}
+                        onNodesChange={onNodesChange}
+                        onEdgesChange={onEdgesChange}
+                        onConnect={onConnect}
+                        onSelectionChange={onSelectionChange}
+                        fitView
+                        selectionOnDrag
+                        minZoom={0.02}
+                        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                        nodeTypes={nodeTypes}
+                        style={{ background: 'transparent' }}
+                    >
+                        <Controls />
+                    </ReactFlow>
                 </div>
 
-                <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        <input type="text" placeholder="Describe PNID for AI..." value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
-                        <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
-                    </div>
-                    <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto' }}>
-                        <ChatBox messages={chatMessages} />
+                {/* Side Panel */}
+                <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                        {selectedItem ? (
+                            <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
+                        ) : (
+                            <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
+                        )}
                     </div>
                 </div>
-
-                <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
-                    fitView
-                    selectionOnDrag
-                    minZoom={0.02}
-                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                    nodeTypes={nodeTypes}
-                    style={{ background: 'transparent' }}
-                >
-                    <Controls />
-                </ReactFlow>
-
 
             </div>
-
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {selectedItem ? (
-                        <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
-                    ) : (
-                        <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
-                    )}
-                </div>
-            </div>
-
         </div>
     );
-}
