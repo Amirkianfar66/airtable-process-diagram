@@ -28,11 +28,11 @@ const nodeTypes = {
     groupLabel: (props) => (
         <GroupLabelNode
             {...props}
-            updateNode={updateNode}          // ✅ inject helper
-            deleteNode={deleteNode}          // ✅ inject helper
+            updateNode={updateNode}
+            deleteNode={deleteNode}
             childrenNodes={nodes.filter(n =>
                 props.data.children?.includes(n.id)
-            )}                               // ✅ pass grouped children
+            )}
         />
     ),
 };
