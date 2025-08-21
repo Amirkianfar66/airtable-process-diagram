@@ -8,11 +8,9 @@ export default function GroupLabelNode({
     updateNode,
     deleteNode,
     childrenNodes,
-    groupNodes,
-    ungroupNodes
 }) {
     const handleSize = 12;
-    const rect = data.rect || { width: 150, height: 100 };
+    const rect = data.rect || { width: 200, height: 120 }; // ensure enough height for buttons
     const groupName = data.groupName || data.label || "My Group";
 
     // Resize logic
@@ -30,8 +28,8 @@ export default function GroupLabelNode({
             updateNode(id, {
                 rect: {
                     ...rect,
-                    width: Math.max(50, initialWidth + deltaX),
-                    height: Math.max(50, initialHeight + deltaY),
+                    width: Math.max(100, initialWidth + deltaX),
+                    height: Math.max(60, initialHeight + deltaY),
                 },
             });
         };
@@ -45,25 +43,22 @@ export default function GroupLabelNode({
         window.addEventListener("pointerup", handlePointerUp);
     };
 
-    // Rename group
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
         if (newName) updateNode(id, { groupName: newName });
     };
 
-    // Delete group
     const handleDelete = () => {
         if (window.confirm("Delete this group?")) deleteNode(id);
     };
 
-    // Group all children nodes
-    const handleGroup = () => {
-        if (groupNodes) groupNodes(id);
-    };
-
-    // Ungroup all children nodes
     const handleUngroup = () => {
-        if (ungroupNodes) ungroupNodes(id);
+        if (window.confirm("Ungroup all items inside this group?")) {
+            if (childrenNodes) {
+                childrenNodes.forEach((child) => updateNode(child.id, { group: null }));
+            }
+            deleteNode(id);
+        }
     };
 
     return (
@@ -76,9 +71,10 @@ export default function GroupLabelNode({
                 position: "relative",
                 display: "flex",
                 flexDirection: "column",
+                overflow: "visible",
             }}
         >
-            {/* Top bar with buttons */}
+            {/* Top controls */}
             <div
                 style={{
                     display: "flex",
@@ -89,18 +85,19 @@ export default function GroupLabelNode({
                     padding: "2px 4px",
                     fontSize: 12,
                     fontWeight: "bold",
+                    zIndex: 10,
+                    pointerEvents: "auto",
                 }}
             >
                 <span>{groupName}</span>
                 <div style={{ display: "flex", gap: 4 }}>
                     <button onClick={handleRename} style={{ fontSize: 10 }}>Rename</button>
-                    <button onClick={handleGroup} style={{ fontSize: 10 }}>Group</button>
-                    <button onClick={handleUngroup} style={{ fontSize: 10 }}>Ungroup</button>
                     <button onClick={handleDelete} style={{ fontSize: 10 }}>Delete</button>
+                    <button onClick={handleUngroup} style={{ fontSize: 10 }}>Ungroup</button>
                 </div>
             </div>
 
-            {/* Scale handle */}
+            {/* Resize handle */}
             <div
                 onPointerDown={onScalePointerDown}
                 style={{
@@ -112,16 +109,34 @@ export default function GroupLabelNode({
                     background: "#00bcd4",
                     cursor: "nwse-resize",
                     borderRadius: 2,
+                    zIndex: 5,
                 }}
             />
 
-            {/* Render children nodes visually */}
+            {/* Optional: render children nodes visually inside group */}
             {childrenNodes && (
-                <div style={{ position: "absolute", top: 30, left: 0, width: "100%", height: "calc(100% - 30px)" }}>
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 28,
+                        left: 0,
+                        width: "100%",
+                        height: `calc(100% - 28px)`,
+                        pointerEvents: "none", // children labels are not interactive
+                    }}
+                >
                     {childrenNodes.map((child) => (
                         <div
                             key={child.id}
-                            style={{ position: "absolute", left: child.position.x, top: child.position.y }}
+                            style={{
+                                position: "absolute",
+                                left: child.position.x - rect.x || 0,
+                                top: child.position.y - rect.y || 0,
+                                fontSize: 10,
+                                background: "rgba(0,0,0,0.05)",
+                                padding: "1px 2px",
+                                borderRadius: 2,
+                            }}
                         >
                             {child.data?.label || "Item"}
                         </div>
