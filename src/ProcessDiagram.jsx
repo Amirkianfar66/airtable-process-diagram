@@ -138,18 +138,17 @@ export default function ProcessDiagram() {
     
     const onNodesChange = useCallback(
         (changes) => {
-            setNodes((nds) =>
-                nds.map((node) => {
-                    const change = changes.find(
-                        (c) => c.id === node.id && c.type === 'position'
-                    );
+            setNodes((nds) => {
+                let updatedNodes = nds.map((node) => {
+                    const change = changes.find((c) => c.id === node.id && c.type === "position");
 
                     if (change && node.data?.groupId) {
                         // find parent group
                         const groupNode = nds.find((n) => n.id === node.data.groupId);
                         if (groupNode) {
-                            const { rect = {}, position: gPos = { x: 0, y: 0 } } = groupNode.data || {};
+                            const { rect = {} } = groupNode.data || {};
                             const { width = 200, height = 200 } = rect;
+                            const gPos = groupNode.position || { x: 0, y: 0 };
 
                             // clamp inside parent
                             let newX = Math.max(
@@ -165,14 +164,43 @@ export default function ProcessDiagram() {
                         }
                     }
                     return node;
-                })
-            );
+                });
 
-            // forward to RF’s handler (selection/resizing etc.)
-            _onNodesChange(changes);
+                // ✅ Handle group resize → snap children back in
+                changes.forEach((change) => {
+                    if (change.type === "dimensions" || change.type === "style") {
+                        const groupNode = updatedNodes.find((n) => n.id === change.id);
+                        if (groupNode) {
+                            const { rect = {} } = groupNode.data || {};
+                            const { width = 200, height = 200 } = rect;
+                            const gPos = groupNode.position || { x: 0, y: 0 };
+
+                            updatedNodes = updatedNodes.map((n) => {
+                                if (n.data?.groupId === groupNode.id) {
+                                    let clampedX = Math.max(
+                                        gPos.x + 10,
+                                        Math.min(n.position.x, gPos.x + width - 40)
+                                    );
+                                    let clampedY = Math.max(
+                                        gPos.y + 30,
+                                        Math.min(n.position.y, gPos.y + height - 40)
+                                    );
+                                    return { ...n, position: { x: clampedX, y: clampedY } };
+                                }
+                                return n;
+                            });
+                        }
+                    }
+                });
+
+                return updatedNodes;
+            });
+
+            _onNodesChange(changes); // forward to ReactFlow's handler
         },
         [setNodes, _onNodesChange]
     );
+
 
     useEffect(() => {
         fetchData()
