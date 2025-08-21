@@ -20,11 +20,16 @@ export default function MainToolbar({ selectedNodes, setNodes, updateNode, delet
                 id: groupId,
                 type: "groupLabel",
                 position: { x: minX - 20, y: minY - 40 },
-                data: { label: "New Group", rect: { width: maxX - minX + 40, height: maxY - minY + 60 } },
+                data: {
+                    label: "New Group",
+                    groupName: "New Group",
+                    rect: { width: maxX - minX + 40, height: maxY - minY + 60 },
+                    children: selectedNodes.map(n => n.id)   // ✅ now groups children
+                },
                 style: { background: "transparent", border: "1px dashed red" }
             }
         ]);
-    };
+    }; // ✅ properly closed here
 
     const handleUngroup = () => {
         if (!selectedNodes || selectedNodes.length === 0) {
