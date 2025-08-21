@@ -1,5 +1,4 @@
-﻿
-// GroupLabelNode.jsx
+﻿// GroupLabelNode.jsx
 import React, { useState } from "react";
 import { useReactFlow } from "reactflow";
 
@@ -20,7 +19,8 @@ export default function GroupLabelNode({ id, data, selected }) {
 
     const deleteNode = () => {
         if (window.confirm("Delete this group?")) {
-            rfInstance.setNodes((nds) => nds.filter((node) => node.id !== id));
+            // remove group and any child nodes inside it
+            rfInstance.setNodes((nds) => nds.filter((node) => node.id !== id && node.data?.groupId !== id));
         }
     };
 
@@ -59,6 +59,9 @@ export default function GroupLabelNode({ id, data, selected }) {
         if (newName) updateNode({ groupName: newName });
     };
 
+    // Get all child nodes of this group
+    const childrenNodes = rfInstance.getNodes().filter((n) => n.data?.groupId === id);
+
     return (
         <div
             style={{
@@ -69,7 +72,7 @@ export default function GroupLabelNode({ id, data, selected }) {
                 position: "relative",
                 display: "flex",
                 flexDirection: "column",
-                overflow: "visible",
+                overflow: "hidden", // important: clip child nodes inside
                 pointerEvents: "auto",
                 zIndex: 1000,
             }}
@@ -113,6 +116,21 @@ export default function GroupLabelNode({ id, data, selected }) {
                     zIndex: 1001,
                 }}
             />
+
+            {/* Render child nodes visually inside the group */}
+            {childrenNodes.map((child) => (
+                <div
+                    key={child.id}
+                    style={{
+                        position: "absolute",
+                        left: child.position.x - (data.position?.x || 0),
+                        top: child.position.y - (data.position?.y || 0),
+                        pointerEvents: "auto",
+                    }}
+                >
+                    {child.data?.label || "Item"}
+                </div>
+            ))}
         </div>
     );
 }
