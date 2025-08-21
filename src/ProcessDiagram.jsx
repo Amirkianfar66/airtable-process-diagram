@@ -220,6 +220,7 @@ export default function ProcessDiagram() {
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
+            {/* Left: Canvas */}
             <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
                 <div style={{ padding: 10 }}>
                     <AddItemButton setNodes={setNodes} setItems={setItems} setSelectedItem={setSelectedItem} />
@@ -227,7 +228,13 @@ export default function ProcessDiagram() {
 
                 <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                        <input type="text" placeholder="Describe PNID for AI..." value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
+                        <input
+                            type="text"
+                            placeholder="Describe PNID for AI..."
+                            value={aiDescription}
+                            onChange={(e) => setAiDescription(e.target.value)}
+                            style={{ flex: 1, padding: 4 }}
+                        />
                         <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
                     </div>
                     <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto' }}>
@@ -235,6 +242,43 @@ export default function ProcessDiagram() {
                     </div>
                 </div>
 
+                {/* Buttons overlay — inside the same relative container */}
+                {selectedNodes.length === 1 && selectedNodes[0].type === 'groupLabel' && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            left: selectedNodes[0].position.x + 10,
+                            top: selectedNodes[0].position.y - 30,
+                            zIndex: 1000,
+                            display: 'flex',
+                            gap: 4,
+                        }}
+                    >
+                        <button
+                            onClick={() => {
+                                const newName = prompt("Enter new group name:", selectedNodes[0].data.groupName || selectedNodes[0].data.label);
+                                if (newName) updateNode(selectedNodes[0].id, { groupName: newName });
+                            }}
+                            style={{ fontSize: 12, padding: '2px 6px' }}
+                        >
+                            Rename
+                        </button>
+                        <button
+                            onClick={() => deleteNode(selectedNodes[0].id)}
+                            style={{ fontSize: 12, padding: '2px 6px' }}
+                        >
+                            Delete
+                        </button>
+                        <button onClick={() => console.log('Group clicked')} style={{ fontSize: 12, padding: '2px 6px' }}>
+                            Group
+                        </button>
+                        <button onClick={() => console.log('Ungroup clicked')} style={{ fontSize: 12, padding: '2px 6px' }}>
+                            Ungroup
+                        </button>
+                    </div>
+                )}
+
+                {/* ReactFlow canvas */}
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -251,10 +295,9 @@ export default function ProcessDiagram() {
                 >
                     <Controls />
                 </ReactFlow>
-
-
             </div>
 
+            {/* Right: Side panel */}
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {selectedItem ? (
@@ -265,5 +308,3 @@ export default function ProcessDiagram() {
                 </div>
             </div>
         </div>
-    );
-}
