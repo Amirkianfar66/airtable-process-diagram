@@ -19,18 +19,11 @@ import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } fro
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 
 // Keep top-level nodeTypes definition
-const nodeTypes = {
+const staticNodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
-    groupLabel: (props) => (
-        <GroupLabelNode
-            {...props}
-            updateNode={updateNode}
-            deleteNode={deleteNode}
-        />
-    ),
 };
 
 const fetchData = async () => {
@@ -78,7 +71,12 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(node => node.id !== id));
         setEdges(eds => eds.filter(edge => edge.source !== id && edge.target !== id));
     };
-    
+    const nodeTypes = {
+        ...staticNodeTypes,
+        groupLabel: (props) => (
+            <GroupLabelNode {...props} updateNode={updateNode} deleteNode={deleteNode} />
+        ),
+    };
 
     const onSelectionChange = useCallback(({ nodes }) => {
         setSelectedNodes(nodes);
