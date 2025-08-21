@@ -7,6 +7,8 @@ export default function GroupLabelNode({ id, data }) {
     const [position, setPosition] = useState(data.position || { x: 0, y: 0 });
     const groupName = data.groupName || data.label || "My Group";
 
+    const [selectingNode, setSelectingNode] = useState(false); // for interactive selection
+
     const updateNode = (newData) => {
         rfInstance.setNodes((nds) =>
             nds.map((node) =>
@@ -25,57 +27,52 @@ export default function GroupLabelNode({ id, data }) {
         }
     };
 
-    const addItemToGroup = () => {
-        // Get all nodes that are not in a group
-        const availableNodes = rfInstance.getNodes().filter(n => !n.data.groupId);
-
-        if (availableNodes.length === 0) {
-            alert("No available nodes to add to this group.");
-            return;
-        }
-
-        // Let user pick which node to add (simple prompt for demo)
-        const options = availableNodes.map((n, i) => `${i + 1}: ${n.data.label || n.id}`).join("\n");
-        const choice = prompt(`Select node to add:\n${options}`);
-        const index = parseInt(choice) - 1;
-
-        if (isNaN(index) || index < 0 || index >= availableNodes.length) return;
-
-        const nodeToAdd = availableNodes[index];
-
-        // Assign it to this group without creating new node
-        rfInstance.setNodes(nds =>
-            nds.map(n =>
-                n.id === nodeToAdd.id
-                    ? { ...n, data: { ...n.data, groupId: id }, position: { x: position.x + 10, y: position.y + 30 } }
-                    : n
-            )
-        );
+    // Interactive selection to add node to group
+    const startAddItem = () => {
+        alert("Click on a node on the canvas to add it to this group.");
+        setSelectingNode(true);
     };
 
+    useEffect(() => {
+        if (!selectingNode) return;
+
+        const handleClick = (event) => {
+            const clickedNodeId = event?.target?.dataset?.id;
+            if (!clickedNodeId) return;
+
+            // assign clicked node to this group
+            rfInstance.setNodes((nds) =>
+                nds.map((n) =>
+                    n.id === clickedNodeId
+                        ? { ...n, data: { ...n.data, groupId: id } }
+                        : n
+                )
+            );
+            setSelectingNode(false); // exit selection mode
+        };
+
+        window.addEventListener("click", handleClick);
+        return () => window.removeEventListener("click", handleClick);
+    }, [selectingNode, rfInstance, id]);
+
     const removeItemFromGroup = () => {
-        const children = rfInstance.getNodes().filter(n => n.data.groupId === id);
+        const children = rfInstance.getNodes().filter((n) => n.data.groupId === id);
         if (children.length === 0) return;
 
-        // Simple prompt to select which node to remove
         const options = children.map((n, i) => `${i + 1}: ${n.data.label || n.id}`).join("\n");
         const choice = prompt(`Select node to remove from group:\n${options}`);
         const index = parseInt(choice) - 1;
-
         if (isNaN(index) || index < 0 || index >= children.length) return;
 
         const nodeToRemove = children[index];
-
-        rfInstance.setNodes(nds =>
-            nds.map(n =>
+        rfInstance.setNodes((nds) =>
+            nds.map((n) =>
                 n.id === nodeToRemove.id
-                    ? { ...n, data: { ...n.data, groupId: null } } // just remove from group
+                    ? { ...n, data: { ...n.data, groupId: null } }
                     : n
             )
         );
     };
-
-
 
     // Clamp child nodes inside the group
     useEffect(() => {
@@ -162,20 +159,13 @@ export default function GroupLabelNode({ id, data }) {
                     <button onClick={deleteNode} style={{ fontSize: 10, cursor: "pointer" }}>
                         Delete
                     </button>
-                    <button
-                        onClick={addItemToGroup} // assigns an existing node to this group
-                        style={{ fontSize: 10, cursor: "pointer" }}
-                    >
+                    <button onClick={startAddItem} style={{ fontSize: 10, cursor: "pointer" }}>
                         Add Item
                     </button>
-                    <button
-                        onClick={removeItemFromGroup} // removes selected node from this group
-                        style={{ fontSize: 10, cursor: "pointer" }}
-                    >
+                    <button onClick={removeItemFromGroup} style={{ fontSize: 10, cursor: "pointer" }}>
                         Remove Item
                     </button>
                 </div>
-
             </div>
 
             <div
