@@ -18,13 +18,15 @@ import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } fro
 
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 
+// Keep top-level nodeTypes definition
 const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
-    groupLabel: (props) => <GroupLabelNode {...props} updateNode={updateNode} deleteNode={deleteNode} />,
+    groupLabel: GroupLabelNode, // just the component itself
 };
+
 
 
 
