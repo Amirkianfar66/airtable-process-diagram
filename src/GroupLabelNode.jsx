@@ -79,7 +79,7 @@ export default function GroupLabelNode({ id, data }) {
             style={{
                 width: rect.width,
                 height: rect.height,
-                background: "rgba(255,0,0,0.1)",
+                background: "rgba(255,255,255,200.1)",
                 border: "1px solid red",
                 position: "relative",
                 display: "flex",
