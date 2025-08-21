@@ -18,7 +18,13 @@ import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } fro
 
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 
-
+const nodeTypes = {
+    resizable: ResizableNode,
+    custom: CustomItemNode,
+    pipe: PipeItemNode,
+    scalableIcon: ScalableIconNode,
+    groupLabel: (props) => <GroupLabelNode {...props} updateNode={updateNode} deleteNode={deleteNode} />,
+};
 
 
 
@@ -127,13 +133,7 @@ export default function ProcessDiagram() {
             console.error('AI PNID generation failed:', err);
         }
     };
-    const nodeTypes = {
-        resizable: ResizableNode,
-        custom: CustomItemNode,
-        pipe: PipeItemNode,
-        scalableIcon: ScalableIconNode,
-        groupLabel: (props) => <GroupLabelNode {...props} updateNode={updateNode} deleteNode={deleteNode} />,
-    };
+    
 
     useEffect(() => {
         fetchData()
