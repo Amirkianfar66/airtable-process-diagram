@@ -219,7 +219,7 @@ export default function ProcessDiagram() {
         // Create group container node
         const groupNode = {
             id: groupId,
-            type: 'groupLabel', // ✅ you already have this node type
+            type: 'groupLabel',
             position: { x: minX - 20, y: minY - 40 },
             data: { label: `Group ${groupId}` },
             style: {
@@ -227,11 +227,12 @@ export default function ProcessDiagram() {
                 height: maxY - minY + 60,
                 border: '2px solid #007bff',
                 borderRadius: '8px',
-                background: 'rgba(0, 123, 255, 0.05)',
+                background: 'transparent',   // ✅ transparent background
             },
             draggable: false,
             selectable: false,
         };
+
 
         // Attach children to group
         const updatedNodes = nodes.map(n =>
