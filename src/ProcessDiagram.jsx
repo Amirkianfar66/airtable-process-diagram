@@ -264,48 +264,6 @@ export default function ProcessDiagram() {
                     )}
                 </div>
             </div>
-            // Add inside your main return, right above <ReactFlow> or inside the same relative container
-{selectedNodes.length === 1 && selectedNodes[0].type === 'groupLabel' && (
-  <div
-    style={{
-      position: 'absolute',
-      left: selectedNodes[0].position.x + 10, // small offset
-      top: selectedNodes[0].position.y - 30, // above the node
-      zIndex: 1000,
-      display: 'flex',
-      gap: 4,
-    }}
-  >
-    <button
-      onClick={() => {
-        const newName = prompt("Enter new group name:", selectedNodes[0].data.groupName || selectedNodes[0].data.label);
-        if (newName) updateNode(selectedNodes[0].id, { groupName: newName });
-      }}
-      style={{ fontSize: 12, padding: '2px 6px' }}
-    >
-      Rename
-    </button>
-    <button
-      onClick={() => deleteNode(selectedNodes[0].id)}
-      style={{ fontSize: 12, padding: '2px 6px' }}
-    >
-      Delete
-    </button>
-    {/* Optional Group/Ungroup buttons */}
-    <button
-      onClick={() => console.log('Group clicked')}
-      style={{ fontSize: 12, padding: '2px 6px' }}
-    >
-      Group
-    </button>
-    <button
-      onClick={() => console.log('Ungroup clicked')}
-      style={{ fontSize: 12, padding: '2px 6px' }}
-    >
-      Ungroup
-    </button>
-  </div>
-)}
 
         </div>
     );
