@@ -27,7 +27,7 @@ const nodeTypes = {
     groupLabel: (props) => (
         <GroupLabelNode
             {...props}
-            updateNode={updateNode}       // pass functions directly
+            updateNode={updateNode}
             deleteNode={deleteNode}
             childrenNodes={nodes.filter(n => props.data.children?.includes(n.id))}
         />
