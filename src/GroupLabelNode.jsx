@@ -10,6 +10,7 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
     const onScalePointerDown = (e) => {
         e.preventDefault();
         e.stopPropagation();
+
         const startX = e.clientX;
         const startY = e.clientY;
         const initialWidth = rect.width;
@@ -55,8 +56,9 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                 position: "relative",
                 display: "flex",
                 flexDirection: "column",
-                overflow: "visible",
-                pointerEvents: "auto", // allow interaction
+                overflow: "visible",     // IMPORTANT: allows buttons to show
+                pointerEvents: "auto",   // allows interaction
+                zIndex: 1000,
             }}
         >
             {/* Top bar with buttons */}
@@ -70,8 +72,8 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                     padding: "2px 4px",
                     fontSize: 12,
                     fontWeight: "bold",
-                    zIndex: 20,
-                    pointerEvents: "auto", // crucial
+                    zIndex: 1001,
+                    pointerEvents: "auto",
                 }}
             >
                 <span>{groupName}</span>
@@ -93,12 +95,11 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                     background: "#00bcd4",
                     cursor: "nwse-resize",
                     borderRadius: 2,
-                    zIndex: 15,
-                    pointerEvents: "auto", // allow dragging
+                    zIndex: 1001,
                 }}
             />
 
-            {/* Render children nodes visually inside group */}
+            {/* Render child nodes visually inside group */}
             {childrenNodes && (
                 <div
                     style={{
@@ -107,7 +108,7 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                         left: 0,
                         width: "100%",
                         height: `calc(100% - 30px)`,
-                        pointerEvents: "none", // so buttons still clickable
+                        pointerEvents: "none", // don’t block buttons
                     }}
                 >
                     {childrenNodes.map(child => (
@@ -117,7 +118,7 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                                 position: "absolute",
                                 left: child.position.x,
                                 top: child.position.y,
-                                pointerEvents: "auto", // optional if child has interactions
+                                pointerEvents: "auto", // children can be interactive
                             }}
                         >
                             {child.data?.label || "Item"}
