@@ -8,36 +8,33 @@ export default function GroupLabelNode({ id, data, selected }) {
     const [position, setPosition] = useState(data.position || { x: 0, y: 0 });
     const groupName = data.groupName || data.label || "My Group";
 
-    // Helper: update group node
     const updateNode = (newData) => {
         rfInstance.setNodes((nds) =>
             nds.map((node) =>
-                node.id === id ? { ...node, data: { ...node.data, ...newData }, position: newData.position || node.position } : node
+                node.id === id
+                    ? { ...node, data: { ...node.data, ...newData }, position: newData.position || node.position }
+                    : node
             )
         );
         if (newData.rect) setRect(newData.rect);
         if (newData.position) setPosition(newData.position);
     };
 
-    // Delete group
     const deleteNode = () => {
         if (window.confirm("Delete this group?")) {
             // delete group
             rfInstance.setNodes((nds) => nds.filter((node) => node.id !== id));
             // delete child nodes
-            rfInstance.setNodes((nds) =>
-                nds.filter((node) => node.data.groupId !== id)
-            );
+            rfInstance.setNodes((nds) => nds.filter((node) => node.data.groupId !== id));
         }
     };
 
-    // Rename
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
         if (newName) updateNode({ groupName: newName });
     };
 
-    // Resize
+    // Resize handle
     const handleSize = 12;
     const onScalePointerDown = (e) => {
         e.preventDefault();
@@ -68,7 +65,7 @@ export default function GroupLabelNode({ id, data, selected }) {
         window.addEventListener("pointerup", handlePointerUp);
     };
 
-    // Move group along with child nodes
+    // Drag group and clip children
     const onGroupDrag = (e) => {
         const startX = e.clientX;
         const startY = e.clientY;
@@ -79,20 +76,17 @@ export default function GroupLabelNode({ id, data, selected }) {
             const dy = moveEvent.clientY - startY;
 
             const newPos = { x: startPos.x + dx, y: startPos.y + dy };
-
-            // update group position
             updateNode({ position: newPos });
 
-            // update children positions
             rfInstance.setNodes((nds) =>
                 nds.map((node) => {
                     if (node.data.groupId === id) {
+                        // clamp inside group
+                        const childX = Math.min(Math.max(node.position.x + dx, newPos.x), newPos.x + rect.width - 20);
+                        const childY = Math.min(Math.max(node.position.y + dy, newPos.y + 30), newPos.y + rect.height - 20);
                         return {
                             ...node,
-                            position: {
-                                x: node.position.x + dx,
-                                y: node.position.y + dy,
-                            },
+                            position: { x: childX, y: childY },
                         };
                     }
                     return node;
