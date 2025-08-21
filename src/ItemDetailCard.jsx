@@ -1,8 +1,11 @@
-﻿//ItemDetailCard
+﻿// ItemDetailCard.jsx
 import React, { useState, useEffect } from 'react';
 
 const typeCache = new Map();
 
+/**
+ * ItemDetailCard (default export)
+ */
 export default function ItemDetailCard({ item, onChange }) {
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
@@ -133,10 +136,9 @@ export default function ItemDetailCard({ item, onChange }) {
                                 Type: '', // reset Type
                             };
                             setLocalItem(updated);
-                            if (onChange) onChange(updated); // propagate single, complete object
+                            if (onChange) onChange(updated);
                         }}
                     >
-
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                 </div>
@@ -180,6 +182,114 @@ export default function ItemDetailCard({ item, onChange }) {
                 <div style={rowStyle}>
                     <label style={labelStyle}>Supplier:</label>
                     <input style={inputStyle} type="text" value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])} onChange={e => handleFieldChange('Supplier (from Technical Spec)', e.target.value)} />
+                </div>
+            </section>
+        </div>
+    );
+}
+
+
+/**
+ * GroupDetailCard (named export)
+ */
+export function GroupDetailCard({ node, childrenNodes = [], onChange, onDelete }) {
+    const rect = node?.data?.rect || {};
+    const [label, setLabel] = useState(node?.data?.label || '');
+    const [posX, setPosX] = useState(node?.position?.x ?? 0);
+    const [posY, setPosY] = useState(node?.position?.y ?? 0);
+    const [width, setWidth] = useState(rect.width ?? 400);
+    const [height, setHeight] = useState(rect.height ?? 200);
+
+    useEffect(() => {
+        setLabel(node?.data?.label || '');
+        setPosX(node?.position?.x ?? 0);
+        setPosY(node?.position?.y ?? 0);
+        setWidth(node?.data?.rect?.width ?? 400);
+        setHeight(node?.data?.rect?.height ?? 200);
+    }, [node]);
+
+    const handleSave = () => {
+        if (onChange) {
+            onChange(node.id, {
+                label,
+                position: { x: Number(posX), y: Number(posY) },
+                rect: { width: Number(width), height: Number(height) },
+            });
+        }
+    };
+
+    const handleDelete = () => {
+        if (onDelete) onDelete(node.id);
+    };
+
+    const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
+    const labelStyle = { width: '120px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
+    const inputStyle = { flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', outline: 'none', background: '#fafafa' };
+    const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
+
+    return (
+        <div style={{
+            background: '#fff',
+            borderRadius: '10px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            padding: '20px',
+            margin: '16px',
+            maxWidth: '350px',
+            fontFamily: 'sans-serif'
+        }}>
+            <section style={{ marginBottom: '18px' }}>
+                <h3 style={headerStyle}>Group</h3>
+
+                <div style={rowStyle}>
+                    <label style={labelStyle}>Label:</label>
+                    <input style={inputStyle} value={label} onChange={(e) => setLabel(e.target.value)} />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>X</div>
+                        <input style={inputStyle} value={posX} onChange={(e) => setPosX(e.target.value)} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>Y</div>
+                        <input style={inputStyle} value={posY} onChange={(e) => setPosY(e.target.value)} />
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>Width</div>
+                        <input style={inputStyle} value={width} onChange={(e) => setWidth(e.target.value)} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>Height</div>
+                        <input style={inputStyle} value={height} onChange={(e) => setHeight(e.target.value)} />
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={handleSave} style={{ padding: '6px 10px' }}>Save</button>
+                    <button onClick={handleDelete} style={{ padding: '6px 10px', background: '#f66', color: '#fff' }}>Delete</button>
+                </div>
+            </section>
+
+            <section>
+                <h4 style={{ margin: '0 0 8px 0', color: '#333' }}>Children</h4>
+                <div style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
+                    {childrenNodes.length} item(s) inside this group
+                </div>
+
+                <div style={{ maxHeight: 180, overflowY: 'auto', borderTop: '1px solid #eee', paddingTop: 8 }}>
+                    {childrenNodes.length === 0 ? (
+                        <div style={{ color: '#999' }}>No children</div>
+                    ) : (
+                        childrenNodes.map((ch) => (
+                            <div key={ch.id} style={{ padding: '6px 0', borderBottom: '1px dashed #f0f0f0' }}>
+                                <div style={{ fontWeight: 600 }}>{ch.data?.label || ch.data?.item?.Name || ch.id}</div>
+                                <div style={{ fontSize: 12, color: '#777' }}>pos: {Math.round(ch.position?.x ?? 0)}, {Math.round(ch.position?.y ?? 0)}</div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </section>
         </div>

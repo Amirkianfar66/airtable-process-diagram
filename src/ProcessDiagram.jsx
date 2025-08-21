@@ -13,7 +13,7 @@ import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
-import ItemDetailCard from './ItemDetailCard';
+import ItemDetailCard, { GroupDetailCard } from './ItemDetailCard';
 import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
 
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
@@ -388,9 +388,26 @@ export default function ProcessDiagram() {
                                     handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
                                 }
                             />
+                        ) : selectedGroup ? (
+                            <GroupDetailCard
+                                node={selectedGroup}
+                                childrenNodes={nodes.filter(n => n.data?.groupId === selectedGroup.id)}
+                                onChange={(id, update) => {
+                                    updateGroupNode(id, update); // your helper in ProcessDiagram
+                                    setSelectedGroup(prev => ({ ...prev, position: update.position ?? prev.position, data: { ...prev.data, rect: update.rect ?? prev.data?.rect, label: update.label ?? prev.data?.label } }));
+                                }}
+                                onDelete={(id) => {
+                                    setNodes((nds) => nds
+                                        .filter(n => n.id !== id)
+                                        .map(n => n.data?.groupId === id ? { ...n, data: { ...n.data, groupId: undefined } } : n)
+                                    );
+                                    setSelectedGroup(null);
+                                }}
+                            />
                         ) : (
-                            <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
+                            <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                         )}
+
                     </div>
                 </div>
             </div>
