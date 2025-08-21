@@ -135,14 +135,12 @@ export default function ProcessDiagram() {
             console.error('AI PNID generation failed:', err);
         }
     };
-    
     const onNodesChange = useCallback(
         (changes) => {
             setNodes((nds) => {
                 let updatedNodes = nds.map((node) => {
-                    const change = changes.find(
-                        (c) => c.id === node.id && c.type === "position"
-                    );
+                    // only handle real position updates that include a position object
+                    const change = changes.find((c) => c.id === node.id && c.type === 'position' && c.position);
 
                     if (change && node.data?.groupId) {
                         // find parent group
@@ -155,14 +153,14 @@ export default function ProcessDiagram() {
 
                         const { rect = {} } = groupNode.data || {};
                         const { width = 200, height = 200 } = rect;
-                        const gPos = groupNode.position ?? { x: 0, y: 0 }; // ✅ safe access
+                        const gPos = groupNode.position ?? { x: 0, y: 0 }; // safe fallback
 
-                        // clamp inside parent
-                        let newX = Math.max(
+                        // clamp inside parent using the provided change.position
+                        const newX = Math.max(
                             gPos.x + 10,
                             Math.min(change.position.x, gPos.x + width - 40)
                         );
-                        let newY = Math.max(
+                        const newY = Math.max(
                             gPos.y + 30,
                             Math.min(change.position.y, gPos.y + height - 40)
                         );
@@ -173,15 +171,11 @@ export default function ProcessDiagram() {
                     return node;
                 });
 
-                // ✅ Handle group resize → snap children back in
+                // Handle group resize/style changes → snap children back in
                 changes.forEach((change) => {
-                    if (change.type === "dimensions" || change.type === "style") {
+                    if (change.type === 'dimensions' || change.type === 'style') {
                         const groupNode = updatedNodes.find((n) => n.id === change.id);
-
-                        if (!groupNode) {
-                            // group not found → skip
-                            return;
-                        }
+                        if (!groupNode) return; // nothing to do if group missing
 
                         const { rect = {} } = groupNode.data || {};
                         const { width = 200, height = 200 } = rect;
@@ -189,14 +183,19 @@ export default function ProcessDiagram() {
 
                         updatedNodes = updatedNodes.map((n) => {
                             if (n.data?.groupId === groupNode.id) {
-                                let clampedX = Math.max(
+                                // guard children positions (they might be undefined)
+                                const childX = n.position?.x ?? gPos.x + 10;
+                                const childY = n.position?.y ?? gPos.y + 30;
+
+                                const clampedX = Math.max(
                                     gPos.x + 10,
-                                    Math.min(n.position.x, gPos.x + width - 40)
+                                    Math.min(childX, gPos.x + width - 40)
                                 );
-                                let clampedY = Math.max(
+                                const clampedY = Math.max(
                                     gPos.y + 30,
-                                    Math.min(n.position.y, gPos.y + height - 40)
+                                    Math.min(childY, gPos.y + height - 40)
                                 );
+
                                 return { ...n, position: { x: clampedX, y: clampedY } };
                             }
                             return n;
@@ -207,10 +206,13 @@ export default function ProcessDiagram() {
                 return updatedNodes;
             });
 
-            _onNodesChange(changes); // forward to ReactFlow's handler
+            // forward to React Flow's internal handler
+            _onNodesChange(changes);
         },
         [setNodes, _onNodesChange]
     );
+ 
+    
 
 
 
