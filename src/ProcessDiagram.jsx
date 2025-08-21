@@ -219,83 +219,84 @@ export default function ProcessDiagram() {
             .catch(console.error);
     }, []);
 
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-        <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
-            {/* Input field + button */}
-            <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                    type="text"
-                    placeholder="Describe PNID for AI..."
-                    value={aiDescription}
-                    onChange={(e) => setAiDescription(e.target.value)}
-                    style={{ flex: 1, padding: 4 }}
-                />
-                <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>
-                    Generate PNID
-                </button>
-            </div>
-
-            {/* Chat messages below input */}
-            <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto', padding: 10 }}>
-                <ChatBox messages={chatMessages} />
-            </div>
-
-            {/* 🔹 Main content (toolbar + canvas + side panel) */}
-            <div style={{ flex: 1, display: 'flex', position: 'relative' }}>
-                {/* Left side (toolbar + canvas) */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                    <MainToolbar
-                        selectedNodes={selectedNodes}
-                        setNodes={setNodes}
-                        updateNode={updateNode}
-                        deleteNode={deleteNode}
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+            <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
+                {/* Input field + button */}
+                <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                        type="text"
+                        placeholder="Describe PNID for AI..."
+                        value={aiDescription}
+                        onChange={(e) => setAiDescription(e.target.value)}
+                        style={{ flex: 1, padding: 4 }}
                     />
-                    <div style={{ flex: 1 }}>
-                        <ReactFlow
-                            nodes={nodes}
-                            edges={edges}
-                            onNodesChange={onNodesChange}
-                            onEdgesChange={onEdgesChange}
-                            onConnect={onConnect}
-                            onSelectionChange={onSelectionChange}
-                            fitView
-                            selectionOnDrag
-                            minZoom={0.02}
-                            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                            nodeTypes={nodeTypes}
-                            style={{ background: 'transparent' }}
-                        >
-                            <Controls />
-                        </ReactFlow>
-                    </div>
+                    <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>
+                        Generate PNID
+                    </button>
                 </div>
 
-                {/* Right side (detail panel) */}
-                <div
-                    style={{
-                        width: 350,
-                        borderLeft: '1px solid #ccc',
-                        background: 'transparent',
-                        display: 'flex',
-                        flexDirection: 'column',
-                    }}
-                >
-                    <div style={{ flex: 1, overflowY: 'auto' }}>
-                        {selectedItem ? (
-                            <ItemDetailCard
-                                item={selectedItem}
-                                onChange={(updatedItem) =>
-                                    handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
-                                }
-                            />
-                        ) : (
-                            <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
-                        )}
+                {/* Chat messages below input */}
+                <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto', padding: 10 }}>
+                    <ChatBox messages={chatMessages} />
+                </div>
+
+                {/* 🔹 Main content (toolbar + canvas + side panel) */}
+                <div style={{ flex: 1, display: 'flex', position: 'relative' }}>
+                    {/* Left side (toolbar + canvas) */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                        <MainToolbar
+                            selectedNodes={selectedNodes}
+                            setNodes={setNodes}
+                            updateNode={updateNode}
+                            deleteNode={deleteNode}
+                        />
+                        <div style={{ flex: 1 }}>
+                            <ReactFlow
+                                nodes={nodes}
+                                edges={edges}
+                                onNodesChange={onNodesChange}
+                                onEdgesChange={onEdgesChange}
+                                onConnect={onConnect}
+                                onSelectionChange={onSelectionChange}
+                                fitView
+                                selectionOnDrag
+                                minZoom={0.02}
+                                defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                                nodeTypes={nodeTypes}
+                                style={{ background: 'transparent' }}
+                            >
+                                <Controls />
+                            </ReactFlow>
+                        </div>
+                    </div>
+
+                    {/* Right side (detail panel) */}
+                    <div
+                        style={{
+                            width: 350,
+                            borderLeft: '1px solid #ccc',
+                            background: 'transparent',
+                            display: 'flex',
+                            flexDirection: 'column',
+                        }}
+                    >
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                            {selectedItem ? (
+                                <ItemDetailCard
+                                    item={selectedItem}
+                                    onChange={(updatedItem) =>
+                                        handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
+                                    }
+                                />
+                            ) : (
+                                <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
     );
 
