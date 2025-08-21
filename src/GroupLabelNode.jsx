@@ -1,12 +1,13 @@
 ﻿// GroupLabelNode.jsx
 import React from "react";
 
-export default function GroupLabelNode({ id, data, updateNode, deleteNode }) {
+export default function GroupLabelNode({ id, data, selected, updateNode, deleteNode }) {
     const handleSize = 12;
 
-    const rect = data.rect || { x: 0, y: 0, width: 150, height: 100 };
+    const rect = data.rect || { width: 150, height: 100 };
     const groupName = data.groupName || "My Group";
 
+    // Resize logic
     const onScalePointerDown = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -23,8 +24,8 @@ export default function GroupLabelNode({ id, data, updateNode, deleteNode }) {
             updateNode(id, {
                 rect: {
                     ...rect,
-                    width: Math.max(10, initialWidth + deltaX),
-                    height: Math.max(10, initialHeight + deltaY),
+                    width: Math.max(50, initialWidth + deltaX),
+                    height: Math.max(50, initialHeight + deltaY),
                 },
             });
         };
@@ -38,11 +39,11 @@ export default function GroupLabelNode({ id, data, updateNode, deleteNode }) {
         window.addEventListener("pointerup", handlePointerUp);
     };
 
+    // Rename / Delete
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
         if (newName) updateNode(id, { groupName: newName });
     };
-
     const handleDelete = () => {
         if (window.confirm("Delete this group?")) deleteNode(id);
     };
@@ -52,30 +53,32 @@ export default function GroupLabelNode({ id, data, updateNode, deleteNode }) {
             style={{
                 width: rect.width,
                 height: rect.height,
-                position: "relative",
                 background: "rgba(255,0,0,0.2)",
                 border: "1px solid red",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
             }}
         >
-            {/* Group Name */}
+            {/* Top controls always visible inside node */}
             <div
                 style={{
-                    position: "absolute",
-                    top: -24,
-                    left: 0,
-                    fontSize: "12px",
-                    fontWeight: "bold",
-                    background: "#fff",
-                    padding: "2px 4px",
-                    borderRadius: "3px",
-                    border: "1px solid #ccc",
                     display: "flex",
-                    gap: "4px",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    background: "#fff",
+                    borderBottom: "1px solid #ccc",
+                    padding: "2px 4px",
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    zIndex: 10,
                 }}
             >
-                {groupName}
-                <button onClick={handleRename}>Rename</button>
-                <button onClick={handleDelete}>Delete</button>
+                <span>{groupName}</span>
+                <div style={{ display: "flex", gap: 4 }}>
+                    <button onClick={handleRename} style={{ fontSize: 10 }}>Rename</button>
+                    <button onClick={handleDelete} style={{ fontSize: 10 }}>Delete</button>
+                </div>
             </div>
 
             {/* Scale handle */}
@@ -85,8 +88,8 @@ export default function GroupLabelNode({ id, data, updateNode, deleteNode }) {
                     position: "absolute",
                     width: handleSize,
                     height: handleSize,
-                    bottom: -8,
-                    right: -8,
+                    bottom: 0,
+                    right: 0,
                     background: "#00bcd4",
                     cursor: "nwse-resize",
                     borderRadius: 2,
