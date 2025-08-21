@@ -56,7 +56,7 @@ export default function ProcessDiagram() {
     const [items, setItems] = useState([]);
     const [aiDescription, setAiDescription] = useState('');
     const [chatMessages, setChatMessages] = useState([]);
-    // ✅ Add these handlers here
+
     const updateNode = (id, newData) => {
         setNodes((nds) =>
             nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node))
@@ -127,6 +127,7 @@ export default function ProcessDiagram() {
             console.error('AI PNID generation failed:', err);
         }
     };
+
     const nodeTypes = {
         resizable: ResizableNode,
         custom: CustomItemNode,
@@ -140,6 +141,8 @@ export default function ProcessDiagram() {
             />
         ),
     };
+
+
     useEffect(() => {
         fetchData()
             .then((items) => {
