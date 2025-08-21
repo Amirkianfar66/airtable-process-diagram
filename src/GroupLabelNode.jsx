@@ -164,4 +164,6 @@ export default function GroupLabelNode({ id, data, selected }) {
                     zIndex: 1001,
                 }}
             />
- 
+        </div>
+    );
+}
