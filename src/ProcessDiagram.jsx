@@ -182,7 +182,10 @@ export default function ProcessDiagram() {
                         type: "groupLabel",
                         draggable: true,
                         selectable: true,
-                        style: { background: "rgba(255,255,255,1)", border: "1px solid #ccc" } // white background
+                        style: {
+                            background: "rgba(255,255,255,1)", // white
+                            border: "1px solid #ccc"           // optional border
+                        }
                     });
 
                     Object.entries(subUnits).forEach(([subUnit, items], index) => {
