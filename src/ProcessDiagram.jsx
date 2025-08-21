@@ -236,7 +236,20 @@ export default function ProcessDiagram() {
                     </div>
                 </div>
 
-                <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onSelectionChange={onSelectionChange} fitView selectionOnDrag minZoom={0.02} defaultViewport={{ x: 0, y: 0, zoom: 1 }} nodeTypes={nodeTypes} style={{ background: 'transparent' }}>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onSelectionChange={onSelectionChange}
+                    fitView
+                    selectionOnDrag
+                    minZoom={0.02}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                    nodeTypes={nodeTypes}
+                    style={{ background: 'transparent' }}
+                >
                     <Controls />
                 </ReactFlow>
             </div>
