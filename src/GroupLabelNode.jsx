@@ -1,12 +1,21 @@
 ﻿// GroupLabelNode.jsx
 import React from "react";
 
-export default function GroupLabelNode({ id, data, selected, updateNode, deleteNode, childrenNodes }) {
+export default function GroupLabelNode({
+    id,
+    data,
+    selected,
+    updateNode,
+    deleteNode,
+    childrenNodes,
+    groupNodes,
+    ungroupNodes
+}) {
     const handleSize = 12;
     const rect = data.rect || { width: 150, height: 100 };
     const groupName = data.groupName || data.label || "My Group";
 
-    // Resize logic (same as your original)
+    // Resize logic
     const onScalePointerDown = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -36,12 +45,25 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
         window.addEventListener("pointerup", handlePointerUp);
     };
 
+    // Rename group
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
         if (newName) updateNode(id, { groupName: newName });
     };
+
+    // Delete group
     const handleDelete = () => {
         if (window.confirm("Delete this group?")) deleteNode(id);
+    };
+
+    // Group all children nodes
+    const handleGroup = () => {
+        if (groupNodes) groupNodes(id);
+    };
+
+    // Ungroup all children nodes
+    const handleUngroup = () => {
+        if (ungroupNodes) ungroupNodes(id);
     };
 
     return (
@@ -56,11 +78,24 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                 flexDirection: "column",
             }}
         >
-            {/* Top bar */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", borderBottom: "1px solid #ccc", padding: "2px 4px", fontSize: 12, fontWeight: "bold" }}>
+            {/* Top bar with buttons */}
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    background: "#fff",
+                    borderBottom: "1px solid #ccc",
+                    padding: "2px 4px",
+                    fontSize: 12,
+                    fontWeight: "bold",
+                }}
+            >
                 <span>{groupName}</span>
                 <div style={{ display: "flex", gap: 4 }}>
                     <button onClick={handleRename} style={{ fontSize: 10 }}>Rename</button>
+                    <button onClick={handleGroup} style={{ fontSize: 10 }}>Group</button>
+                    <button onClick={handleUngroup} style={{ fontSize: 10 }}>Ungroup</button>
                     <button onClick={handleDelete} style={{ fontSize: 10 }}>Delete</button>
                 </div>
             </div>
@@ -80,11 +115,14 @@ export default function GroupLabelNode({ id, data, selected, updateNode, deleteN
                 }}
             />
 
-            {/* Optional: render children nodes visually inside group */}
+            {/* Render children nodes visually */}
             {childrenNodes && (
                 <div style={{ position: "absolute", top: 30, left: 0, width: "100%", height: "calc(100% - 30px)" }}>
-                    {childrenNodes.map(child => (
-                        <div key={child.id} style={{ position: "absolute", left: child.position.x, top: child.position.y }}>
+                    {childrenNodes.map((child) => (
+                        <div
+                            key={child.id}
+                            style={{ position: "absolute", left: child.position.x, top: child.position.y }}
+                        >
                             {child.data?.label || "Item"}
                         </div>
                     ))}
