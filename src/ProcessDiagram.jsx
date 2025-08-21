@@ -236,32 +236,9 @@ export default function ProcessDiagram() {
                     </div>
                 </div>
 
-                <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
-                    fitView
-                    selectionOnDrag
-                    minZoom={0.02}
-                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                    nodeTypes={{
-                        ...nodeTypes,
-                        groupLabel: (props) => (
-                            <GroupLabelNode
-                                {...props}
-                                updateNode={updateNode}
-                                deleteNode={deleteNode}
-                            />
-                        ),
-                    }}
-                    style={{ background: 'transparent' }}
-                >
+                <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onSelectionChange={onSelectionChange} fitView selectionOnDrag minZoom={0.02} defaultViewport={{ x: 0, y: 0, zoom: 1 }} nodeTypes={nodeTypes} style={{ background: 'transparent' }}>
                     <Controls />
                 </ReactFlow>
-
             </div>
 
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
