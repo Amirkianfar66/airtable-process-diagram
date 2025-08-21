@@ -171,47 +171,46 @@ export default function ProcessDiagram() {
                 const itemWidth = 160;
                 const itemGap = 30;
 
-                // Inside the part where you create nodes from grouped items
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
-                    const groupId = `unit-${unit}`;
-
                     newNodes.push({
-                        id: groupId,
+                        id: `unit-${unit}`,
                         position: { x: unitX, y: 0 },
-                        data: { label: unit, groupName: unit, rect: { width: unitWidth, height: unitHeight } },
-                        type: "groupLabel",
-                        draggable: true,
-                        selectable: true,
-                        style: {
-                            background: "rgba(255,255,255,1)", // white
-                            border: "1px solid #ccc"           // optional border
-                        }
+                        data: { label: unit },
+                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444', background: 'transparent', boxShadow: 'none' },
+                        draggable: false,
+                        selectable: false,
                     });
 
                     Object.entries(subUnits).forEach(([subUnit, items], index) => {
-                        const yOffset = index * (unitHeight / 9);
+                        const yOffset = index * subUnitHeight;
 
-                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent', boxShadow: 'none' },
+                            draggable: false,
+                            selectable: false,
+                        });
+
                         let itemX = unitX + 40;
-
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                         items.forEach((item) => {
                             newNodes.push({
                                 id: item.id,
                                 position: { x: itemX, y: yOffset + 20 },
-                                data: { label: `${item.Code || ""} - ${item.Name || ""}`, item, icon: getItemIcon(item) },
-                                type: categoryTypeMap[item.Category] || "scalableIcon",
-                                groupId, // <-- assign child to group
-                                sourcePosition: "right",
-                                targetPosition: "left",
-                                style: { background: "transparent", boxShadow: "none" },
+                                data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
+                                type: categoryTypeMap[item.Category] || 'scalableIcon',
+                                sourcePosition: 'right',
+                                targetPosition: 'left',
+                                style: { background: 'transparent', boxShadow: 'none' },
                             });
-                            itemX += 160 + 30;
+                            itemX += itemWidth + itemGap;
                         });
                     });
 
-                    unitX += 5000 + 100;
+                    unitX += unitWidth + 100;
                 });
-
 
                 setNodes(newNodes);
                 setEdges(newEdges);
