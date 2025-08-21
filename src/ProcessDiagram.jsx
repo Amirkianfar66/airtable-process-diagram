@@ -56,7 +56,7 @@ const fetchData = async () => {
 
 export default function ProcessDiagram() {
     const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [nodes, setNodes, _onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
@@ -136,6 +136,43 @@ export default function ProcessDiagram() {
         }
     };
     
+    const onNodesChange = useCallback(
+        (changes) => {
+            setNodes((nds) =>
+                nds.map((node) => {
+                    const change = changes.find(
+                        (c) => c.id === node.id && c.type === 'position'
+                    );
+
+                    if (change && node.data?.groupId) {
+                        // find parent group
+                        const groupNode = nds.find((n) => n.id === node.data.groupId);
+                        if (groupNode) {
+                            const { rect = {}, position: gPos = { x: 0, y: 0 } } = groupNode.data || {};
+                            const { width = 200, height = 200 } = rect;
+
+                            // clamp inside parent
+                            let newX = Math.max(
+                                gPos.x + 10,
+                                Math.min(change.position.x, gPos.x + width - 40)
+                            );
+                            let newY = Math.max(
+                                gPos.y + 30,
+                                Math.min(change.position.y, gPos.y + height - 40)
+                            );
+
+                            return { ...node, position: { x: newX, y: newY } };
+                        }
+                    }
+                    return node;
+                })
+            );
+
+            // forward to RF’s handler (selection/resizing etc.)
+            _onNodesChange(changes);
+        },
+        [setNodes, _onNodesChange]
+    );
 
     useEffect(() => {
         fetchData()
