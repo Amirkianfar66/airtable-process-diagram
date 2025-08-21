@@ -26,19 +26,26 @@ export default function GroupLabelNode({ id, data }) {
     };
 
     const addItemToGroup = () => {
-        // Get all nodes not in a group
-        const availableNodes = rfInstance.getNodes().filter((n) => !n.data.groupId);
+        // Get all nodes that are not in a group
+        const availableNodes = rfInstance.getNodes().filter(n => !n.data.groupId);
+
         if (availableNodes.length === 0) {
             alert("No available nodes to add to this group.");
             return;
         }
 
-        // Pick the first one (or you can later show a selection dialog)
-        const nodeToAdd = availableNodes[0];
+        // Let user pick which node to add (simple prompt for demo)
+        const options = availableNodes.map((n, i) => `${i + 1}: ${n.data.label || n.id}`).join("\n");
+        const choice = prompt(`Select node to add:\n${options}`);
+        const index = parseInt(choice) - 1;
 
-        // Update its groupId
-        rfInstance.setNodes((nds) =>
-            nds.map((n) =>
+        if (isNaN(index) || index < 0 || index >= availableNodes.length) return;
+
+        const nodeToAdd = availableNodes[index];
+
+        // Assign it to this group without creating new node
+        rfInstance.setNodes(nds =>
+            nds.map(n =>
                 n.id === nodeToAdd.id
                     ? { ...n, data: { ...n.data, groupId: id }, position: { x: position.x + 10, y: position.y + 30 } }
                     : n
@@ -46,21 +53,28 @@ export default function GroupLabelNode({ id, data }) {
         );
     };
 
-    const removeLastItemFromGroup = () => {
-        // Get nodes currently in this group
-        const children = rfInstance.getNodes().filter((n) => n.data.groupId === id);
+    const removeItemFromGroup = () => {
+        const children = rfInstance.getNodes().filter(n => n.data.groupId === id);
         if (children.length === 0) return;
 
-        // Remove groupId from last child
-        const lastChild = children[children.length - 1];
-        rfInstance.setNodes((nds) =>
-            nds.map((n) =>
-                n.id === lastChild.id
-                    ? { ...n, data: { ...n.data, groupId: null } }
+        // Simple prompt to select which node to remove
+        const options = children.map((n, i) => `${i + 1}: ${n.data.label || n.id}`).join("\n");
+        const choice = prompt(`Select node to remove from group:\n${options}`);
+        const index = parseInt(choice) - 1;
+
+        if (isNaN(index) || index < 0 || index >= children.length) return;
+
+        const nodeToRemove = children[index];
+
+        rfInstance.setNodes(nds =>
+            nds.map(n =>
+                n.id === nodeToRemove.id
+                    ? { ...n, data: { ...n.data, groupId: null } } // just remove from group
                     : n
             )
         );
     };
+
 
 
     // Clamp child nodes inside the group
