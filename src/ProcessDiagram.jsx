@@ -270,3 +270,5 @@ export default function ProcessDiagram() {
                 </ReactFlow>
             </div>
         </div>
+    );
+}
