@@ -1,9 +1,18 @@
-﻿import React, { useState } from "react";
+﻿import React, { useState, useEffect } from "react";
 
-export default function GroupLabelNode({ id, data, childrenNodes = [] }) {
+export default function GroupLabelNode({ id, data = {}, childrenNodes = [] }) {
+    // keep local rect/position state but update from data when it changes
     const [rect, setRect] = useState(data.rect || { width: 150, height: 100 });
     const [position, setPosition] = useState(data.position || { x: 0, y: 0 });
     const groupName = data.groupName || data.label || "My Group";
+
+    useEffect(() => {
+        if (data.rect) setRect(data.rect);
+    }, [data.rect]);
+
+    useEffect(() => {
+        if (data.position) setPosition(data.position);
+    }, [data.position]);
 
     const handleRename = () => {
         const newName = prompt("Enter new group name:", groupName);
@@ -33,16 +42,14 @@ export default function GroupLabelNode({ id, data, childrenNodes = [] }) {
         const handlePointerMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
             const deltaY = moveEvent.clientY - startY;
-            setRect({
+            const newRect = {
                 width: Math.max(50, initialWidth + deltaX),
                 height: Math.max(50, initialHeight + deltaY),
-            });
+            };
+            setRect(newRect);
             if (data.updateNode)
                 data.updateNode({
-                    rect: {
-                        width: Math.max(50, initialWidth + deltaX),
-                        height: Math.max(50, initialHeight + deltaY),
-                    },
+                    rect: newRect,
                 });
         };
 
@@ -54,6 +61,33 @@ export default function GroupLabelNode({ id, data, childrenNodes = [] }) {
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
     };
+
+    // ---------- derive display items (prefer childrenNodes, then data.children, then data.childIds) ----------
+    const deriveDisplayItems = () => {
+        // 1) childrenNodes prop (can be array of node objects or strings)
+        if (Array.isArray(childrenNodes) && childrenNodes.length > 0) {
+            return childrenNodes.map((n) =>
+                typeof n === "string" ? n : n?.data?.label ?? n?.label ?? n?.id ?? String(n)
+            );
+        }
+
+        // 2) explicit labels stored on data.children
+        if (Array.isArray(data?.children) && data.children.length > 0) {
+            // data.children likely an array of labels (strings)
+            return data.children.map((c) => (typeof c === "string" ? c : String(c)));
+        }
+
+        // 3) childIds array — fall back to ids; if user stored a mapping data.childLabels use it
+        if (Array.isArray(data?.childIds) && data.childIds.length > 0) {
+            const mapping = data.childLabels || {}; // optional { id: label }
+            return data.childIds.map((cid) => mapping[cid] ?? cid);
+        }
+
+        // nothing found
+        return [];
+    };
+
+    const displayItems = deriveDisplayItems();
 
     return (
         <div
@@ -117,9 +151,9 @@ export default function GroupLabelNode({ id, data, childrenNodes = [] }) {
                     paddingLeft: 2,
                 }}
             >
-                {childrenNodes.length === 0
+                {displayItems.length === 0
                     ? "No items inside"
-                    : `Items: ${childrenNodes.map((n) => n.data?.label || n.id).join(", ")}`}
+                    : `Items: ${displayItems.join(", ")}`}
             </div>
 
             {/* Resize handle */}

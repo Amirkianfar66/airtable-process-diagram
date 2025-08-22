@@ -72,6 +72,13 @@ export default function ProcessDiagram() {
             return;
         }
 
+        const selectedIds = selectedNodes.map(sn => sn.id);
+        // Build human-readable labels for display inside the group
+        const childLabels = selectedIds.map(id => {
+            const full = nodes.find(n => n.id === id);
+            return full?.data?.label ?? id;
+        });
+
         const groupId = `group-${Date.now()}`;
         const newGroupNode = {
             id: groupId,
@@ -80,25 +87,29 @@ export default function ProcessDiagram() {
             data: {
                 label: 'New Group',
                 isGroup: true,
-                children: selectedNodes.map(n => n.data?.label || n.id), // use label if available
+                // store both ids and labels so UI components can choose what they need
+                childIds: selectedIds,
+                children: childLabels,
             },
         };
 
+        // update nodes atomically using setNodes callback (safer)
+        setNodes((prevNodes) => {
+            const updated = prevNodes.map(n =>
+                selectedIds.includes(n.id)
+                    ? { ...n, data: { ...n.data, groupId } }
+                    : n
+            );
+            return [...updated, newGroupNode];
+        });
 
-        const updatedNodes = nodes.map(n =>
-            selectedNodes.find(sn => sn.id === n.id)
-                ? { ...n, data: { ...n.data, groupId } }
-                : n
-        );
-
-        setNodes([...updatedNodes, newGroupNode]);
-
-        // Also update selected nodes so the detail panel sees children immediately
+        // show group in right panel immediately
         setSelectedGroup({ ...newGroupNode, data: { ...newGroupNode.data } });
 
-        // Optionally deselect individual nodes
+        // clear selection
         setSelectedNodes([]);
     };
+
 
 
     const startAddItemToGroup = (groupId) => {
