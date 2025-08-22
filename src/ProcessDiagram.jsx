@@ -356,6 +356,36 @@ export default function ProcessDiagram() {
         },
         [setNodes, _onNodesChange]
     );
+    const updateGroupNode = (id, update) => {
+        setNodes((nds) => {
+            return nds.map((n) => {
+                if (n.id === id) {
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            ...update,
+                            // ensure group has childIds array always
+                            childIds: update.childIds ?? n.data?.childIds ?? [],
+                        },
+                    };
+                }
+
+                // ✅ if this node is listed in the group's childIds, mark its groupId
+                if (update.childIds && update.childIds.includes(n.id)) {
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            groupId: id,
+                        },
+                    };
+                }
+
+                return n;
+            });
+        });
+    };
 
 
     useEffect(() => {
