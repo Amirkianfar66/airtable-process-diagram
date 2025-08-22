@@ -1,7 +1,7 @@
 ﻿// ===================== MainToolbar.jsx
 // Place this file at: src/components/MainToolbar.jsx
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 export default function MainToolbar({
     selectedNodes = [],
@@ -15,7 +15,29 @@ export default function MainToolbar({
     onRedo,
 }) {
     const [activeTab, setActiveTab] = useState('File');
+    const [panelOpen, setPanelOpen] = useState(true);
     const clipboardRef = useRef(null);
+    const panelRef = useRef(null);
+
+    useEffect(() => {
+        const onDocClick = (e) => {
+            if (!panelRef.current) return;
+            if (!panelRef.current.contains(e.target)) {
+                setPanelOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onDocClick);
+        return () => document.removeEventListener('mousedown', onDocClick);
+    }, []);
+
+    const openTab = (tab) => {
+        if (tab === activeTab) {
+            setPanelOpen((v) => !v);
+        } else {
+            setActiveTab(tab);
+            setPanelOpen(true);
+        }
+    };
 
     // --- File actions ---
     const handleSave = () => {
@@ -90,7 +112,7 @@ export default function MainToolbar({
         alert(`Pasted ${copied.length} node(s)`);
     };
 
-    // --- Group actions (defaults to behavior if updateNode/deleteNode/setNodes available) ---
+    // --- Group actions ---
     const handleGroup = () => {
         if (!selectedNodes || selectedNodes.length < 2) {
             alert('Select at least 2 nodes to group.');
@@ -143,41 +165,68 @@ export default function MainToolbar({
         else if (setNodes) setNodes(nds => nds.map(n => n.id === node.id ? { ...n, data: { ...n.data, groupName: newName, label: newName } } : n));
     };
 
+    const panelStyle = {
+        position: 'absolute',
+        top: 44,
+        left: 8,
+        minWidth: 280,
+        background: '#fff',
+        border: '1px solid #ddd',
+        borderRadius: 6,
+        boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+        padding: 12,
+        zIndex: 3000
+    };
+
+    const sectionTitle = { fontSize: 12, color: '#666', marginBottom: 6 };
+    const actionBtn = { padding: '6px 8px', marginRight: 8, marginBottom: 8 };
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid #ccc', position: 'sticky', top: 0, zIndex: 2000 }}>
-            <div style={{ display: 'flex', gap: 8, padding: 8 }}>
-                <button onClick={() => setActiveTab('File')} style={{ fontWeight: activeTab === 'File' ? '700' : '400' }}>File</button>
-                <button onClick={() => setActiveTab('Edit')} style={{ fontWeight: activeTab === 'Edit' ? '700' : '400' }}>Edit</button>
-                <button onClick={() => setActiveTab('Group')} style={{ fontWeight: activeTab === 'Group' ? '700' : '400' }}>Group</button>
+        <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', gap: 8, padding: 8, background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid #ccc' }}>
+                <button onClick={() => openTab('File')} style={{ fontWeight: activeTab === 'File' ? '700' : '400' }}>File</button>
+                <button onClick={() => openTab('Edit')} style={{ fontWeight: activeTab === 'Edit' ? '700' : '400' }}>Edit</button>
+                <button onClick={() => openTab('Group')} style={{ fontWeight: activeTab === 'Group' ? '700' : '400' }}>Group</button>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, padding: 8 }}>
-                {activeTab === 'File' && (
-                    <>
-                        <button onClick={handleSave}>Save</button>
-                        <button onClick={handleLoad}>Load</button>
-                        <button onClick={handleReset}>Reset Canvas</button>
-                    </>
-                )}
+            {panelOpen && (
+                <div ref={panelRef} style={panelStyle} role="dialog" aria-label={`${activeTab} actions`}>
+                    {activeTab === 'File' && (
+                        <div>
+                            <div style={sectionTitle}>File</div>
+                            <div>
+                                <button style={actionBtn} onClick={handleSave}>Save</button>
+                                <button style={actionBtn} onClick={handleLoad}>Load</button>
+                                <button style={actionBtn} onClick={handleReset}>Reset Canvas</button>
+                            </div>
+                        </div>
+                    )}
 
-                {activeTab === 'Edit' && (
-                    <>
-                        <button onClick={handleUndo}>Back</button>
-                        <button onClick={handleRedo}>Forward</button>
-                        <button onClick={handleCut}>Cut</button>
-                        <button onClick={handleCopy}>Copy</button>
-                        <button onClick={handlePaste}>Paste</button>
-                    </>
-                )}
+                    {activeTab === 'Edit' && (
+                        <div>
+                            <div style={sectionTitle}>Edit</div>
+                            <div>
+                                <button style={actionBtn} onClick={handleUndo}>Back</button>
+                                <button style={actionBtn} onClick={handleRedo}>Forward</button>
+                                <button style={actionBtn} onClick={handleCut}>Cut</button>
+                                <button style={actionBtn} onClick={handleCopy}>Copy</button>
+                                <button style={actionBtn} onClick={handlePaste}>Paste</button>
+                            </div>
+                        </div>
+                    )}
 
-                {activeTab === 'Group' && (
-                    <>
-                        <button onClick={handleGroup}>Create Group</button>
-                        <button onClick={handleUngroup}>Delete Group</button>
-                        <button onClick={handleRename}>Rename Group</button>
-                    </>
-                )}
-            </div>
+                    {activeTab === 'Group' && (
+                        <div>
+                            <div style={sectionTitle}>Group</div>
+                            <div>
+                                <button style={actionBtn} onClick={handleGroup}>Create Group</button>
+                                <button style={actionBtn} onClick={handleUngroup}>Delete Group</button>
+                                <button style={actionBtn} onClick={handleRename}>Rename Group</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
