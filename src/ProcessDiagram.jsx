@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useCallback } from 'react';
+﻿import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactFlow, {
     Controls,
     useNodesState,
@@ -28,6 +28,21 @@ const nodeTypes = {
     groupLabel: GroupLabelNode, // simple
 };
 
+const allItems = useMemo(() => {
+    return Object.fromEntries(
+        (items || []).map(it => {
+            // normalise same shape GroupDetailCard expects
+            const normalized = {
+                Code: it.Code || it['Item Code'] || '',
+                Name: it.Name || '',
+                'Category Item Type': it['Category Item Type'] || it.Category || '',
+                // keep original fields if you want
+                ...it
+            };
+            return [it.id, normalized];
+        })
+    );
+}, [items]);
 
 
 const fetchData = async () => {
@@ -530,12 +545,17 @@ export default function ProcessDiagram() {
                                         .filter((n) => n.data?.groupId === groupId)
                                         .map((n) => {
                                             // prefer explicit node label, else use item payload (Code - Name), else fallback to id
-                                            const labelFromData = n.data?.label;
-                                            const item = n.data?.item;
+                                            const itemFromNode = n.data?.item;
+                                            const itemFromState = items.find(i => i.id === n.id);
+                                            const item = itemFromNode || itemFromState || undefined;
+
                                             const codeName = item ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim() : '';
-                                            const displayLabel = labelFromData || codeName || n.data?.item?.Name || n.id;
-                                            return { ...n, displayLabel };
+                                            const displayLabel = n.data?.label || codeName || n.id;
+
+                                            // return full node but ensure data.item exists when possible and include displayLabel
+                                            return { ...n, data: { ...n.data, item: item || n.data?.item, label: n.data?.label }, displayLabel };
                                         });
+
 
                                     // debug: inspect what we will render (remove in prod)
                                     console.log('childrenNodesForGroup', groupId, childrenNodesForGroup);
@@ -596,6 +616,7 @@ export default function ProcessDiagram() {
                                     <GroupDetailCard
                                         node={selectedGroup}
                                         childrenNodes={childrenNodesForGroup}
+                                        allItems={allItems}
                                         childrenLabels={childrenLabelsForGroup}
                                         startAddItemToGroup={startAddItemToGroup}
                                         onAddItem={addItemToGroup}
