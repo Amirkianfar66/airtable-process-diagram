@@ -80,9 +80,10 @@ export default function ProcessDiagram() {
             data: {
                 label: 'New Group',
                 isGroup: true,
-                children: selectedNodes.map(n => n.id),
+                children: selectedNodes.map(n => n.data?.label || n.id), // use label if available
             },
         };
+
 
         const updatedNodes = nodes.map(n =>
             selectedNodes.find(sn => sn.id === n.id)
