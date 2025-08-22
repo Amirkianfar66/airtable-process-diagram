@@ -543,18 +543,24 @@ export default function ProcessDiagram() {
                                     const childrenNodesForGroup = nodes
                                         .filter((n) => n.data?.groupId === groupId)
                                         .map((n) => {
-                                            // priority: node.data.item (explicit) -> allItems lookup -> items state -> fallback id
                                             const itemFromNode = n.data?.item;
                                             const itemFromAll = allItems?.[n.id];
                                             const itemFromState = items.find(i => i.id === n.id);
-                                            const item = itemFromNode || itemFromAll || itemFromState || undefined;
+                                            const item = itemFromNode || itemFromAll || itemFromState;
 
-                                            const codeName = item ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim() : '';
+                                            const codeName = item
+                                                ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim()
+                                                : '';
+
                                             const displayLabel = n.data?.label || codeName || n.id;
 
-                                            // ensure data.item is present when possible (helps GroupDetailCard reuse)
-                                            return { ...n, data: { ...n.data, item: item || n.data?.item, label: n.data?.label }, displayLabel };
+                                            return {
+                                                ...n,
+                                                data: { ...n.data, item: item || n.data?.item }, // inject normalized item for GroupDetailCard
+                                                displayLabel,
+                                            };
                                         });
+
 
 
 
