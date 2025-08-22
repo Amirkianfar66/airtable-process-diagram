@@ -1,5 +1,9 @@
-﻿import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNodesState, useEdgesState, addEdge } from 'reactflow';
+﻿// Updated: ProcessDiagram.jsx (adds onNodeDrag to move child nodes live while dragging)
+// ------------------------------
+// Place this content into src/components/ProcessDiagram.jsx (replace existing)
+
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
 
@@ -11,9 +15,10 @@ import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
+import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
+import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
-import AIChatPanel from './AIChatPanel';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -47,13 +52,15 @@ export const fetchData = async () => {
 };
 
 export default function ProcessDiagram() {
+    const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
     const [items, setItems] = useState([]);
+    const [aiDescription, setAiDescription] = useState('');
+    const [chatMessages, setChatMessages] = useState([]);
 
-    // ---------------- Selection & connection ----------------
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
@@ -79,15 +86,21 @@ export default function ProcessDiagram() {
     const onConnect = useCallback(
         (params) => {
             const updatedEdges = addEdge(
-                { ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } },
+                {
+                    ...params,
+                    type: 'step',
+                    animated: true,
+                    style: { stroke: 'blue', strokeWidth: 2 },
+                },
                 edges
             );
             setEdges(updatedEdges);
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
         },
-        [edges]
+        [edges, nodes]
     );
 
-    // ---------------- Dragging group nodes ----------------
+    // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
     const onNodeDrag = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
@@ -95,6 +108,7 @@ export default function ProcessDiagram() {
             nds.map((n) => {
                 if (!n?.data) return n;
 
+                // group membership check
                 const isChild =
                     (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
                     n.data.groupId === draggedNode.id ||
@@ -102,13 +116,21 @@ export default function ProcessDiagram() {
 
                 if (!isChild) return n;
 
+                // shift children by the same delta as the group’s drag
                 const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
                 const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
 
-                return { ...n, position: { x: n.position.x + deltaX, y: n.position.y + deltaY } };
+                return {
+                    ...n,
+                    position: {
+                        x: n.position.x + deltaX,
+                        y: n.position.y + deltaY,
+                    },
+                };
             })
         );
 
+        // update prev position for next drag tick
         setNodes((nds) =>
             nds.map((n) =>
                 n.id === draggedNode.id
@@ -118,16 +140,43 @@ export default function ProcessDiagram() {
         );
     }, []);
 
+    // --- Reset prevX/prevY once drag stops ---
     const onNodeDragStop = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
         setNodes((nds) =>
             nds.map((n) =>
-                n.id === draggedNode.id ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } } : n
+                n.id === draggedNode.id
+                    ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } }
+                    : n
             )
         );
     }, []);
 
-    // ---------------- Load from Airtable & layout Units/SubUnits/Items ----------------
+
+       
+
+    const handleGeneratePNID = async () => {
+        if (!aiDescription) return;
+
+        try {
+            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(aiDescription, items, nodes, edges, setSelectedItem, setChatMessages);
+            const newItems = aiNodes.map((n) => n.data?.item).filter(Boolean);
+
+            setItems((prev) => {
+                const existingIds = new Set(prev.map((i) => i.id));
+                const filteredNew = newItems.filter((i) => !existingIds.has(i.id));
+                const updatedItems = [...prev, ...filteredNew];
+                if (filteredNew.length > 0) setSelectedItem(filteredNew[0]);
+                return updatedItems;
+            });
+
+            setNodes(aiNodes);
+            setEdges(aiEdges);
+        } catch (err) {
+            console.error('AI PNID generation failed:', err);
+        }
+    };
+
     useEffect(() => {
         fetchData()
             .then((itemsRaw) => {
@@ -135,9 +184,7 @@ export default function ProcessDiagram() {
                     ...item,
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
-                    Category: Array.isArray(item['Category Item Type'])
-                        ? item['Category Item Type'][0]
-                        : item['Category Item Type'] || '',
+                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Code: item['Item Code'] || item.Code || '',
                     Name: item.Name || '',
@@ -165,23 +212,15 @@ export default function ProcessDiagram() {
                 const itemGap = 30;
 
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
-                    // Unit frame
                     newNodes.push({
                         id: `unit-${unit}`,
                         position: { x: unitX, y: 0 },
                         data: { label: unit },
-                        style: {
-                            width: unitWidth,
-                            height: unitHeight,
-                            border: '4px solid #444',
-                            background: 'transparent',
-                            boxShadow: 'none',
-                        },
+                        style: { width: unitWidth, height: unitHeight, border: '4px solid #444', background: 'transparent', boxShadow: 'none' },
                         draggable: false,
                         selectable: false,
                     });
 
-                    // SubUnits and items
                     Object.entries(subUnits).forEach(([subUnit, itemsArr], index) => {
                         const yOffset = index * subUnitHeight;
 
@@ -189,25 +228,19 @@ export default function ProcessDiagram() {
                             id: `sub-${unit}-${subUnit}`,
                             position: { x: unitX + 10, y: yOffset + 10 },
                             data: { label: subUnit },
-                            style: {
-                                width: unitWidth - 20,
-                                height: subUnitHeight - 20,
-                                border: '2px dashed #aaa',
-                                background: 'transparent',
-                                boxShadow: 'none',
-                            },
+                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent', boxShadow: 'none' },
                             draggable: false,
                             selectable: false,
                         });
 
                         let itemX = unitX + 40;
                         itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                        itemsArr.forEach((it) => {
+                        itemsArr.forEach((item) => {
                             newNodes.push({
-                                id: it.id,
+                                id: item.id,
                                 position: { x: itemX, y: yOffset + 20 },
-                                data: { label: `${it.Code || ''} - ${it.Name || ''}`, item: it, icon: getItemIcon(it) },
-                                type: categoryTypeMap[it.Category] || 'scalableIcon',
+                                data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
+                                type: categoryTypeMap[item.Category] || 'scalableIcon',
                                 sourcePosition: 'right',
                                 targetPosition: 'left',
                                 style: { background: 'transparent', boxShadow: 'none' },
@@ -221,29 +254,53 @@ export default function ProcessDiagram() {
 
                 setNodes(newNodes);
                 setEdges(newEdges);
+                setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
             .catch(console.error);
     }, []);
 
-    // ---------------- Group detail helpers ----------------
-    const itemsMap = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
-    const selectedGroupNode =
-        selectedNodes && selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel'
-            ? selectedNodes[0]
-            : null;
+    // --- Group detail wiring ---
+    const [addingToGroup, setAddingToGroup] = useState(null);
 
-    const childrenNodesForGroup = selectedGroupNode
-        ? nodes.filter((n) => {
-            if (!n) return false;
-            if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id))
-                return true;
-            if (n.data?.groupId === selectedGroupNode.id) return true;
-            if (n.data?.parentId === selectedGroupNode.id) return true;
-            return false;
-        })
-        : [];
+    const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
 
-    // ---------------- Add item button (manual add) ----------------
+    const selectedGroupNode = selectedNodes && selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
+
+    const childrenNodesForGroup = selectedGroupNode ? nodes.filter(n => {
+        if (!n) return false;
+        if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id)) return true;
+        if (n.data?.groupId === selectedGroupNode.id) return true;
+        if (n.data?.parentId === selectedGroupNode.id) return true;
+        return false;
+    }) : [];
+
+    const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
+
+    const onAddItem = (nodeIdToAdd) => {
+        if (!nodeIdToAdd) return;
+        setNodes(nds => {
+            const existing = nds.find(n => n.id === nodeIdToAdd);
+            if (existing) {
+                return nds.map(n => n.id === nodeIdToAdd ? { ...n, data: { ...n.data, groupId: selectedGroupNode?.id } } : n);
+            }
+            const newNode = {
+                id: nodeIdToAdd,
+                position: { x: 100, y: 100 },
+                data: { label: nodeIdToAdd, groupId: selectedGroupNode?.id }
+            };
+            return [...nds, newNode];
+        });
+    };
+
+    const onRemoveItem = (childId) => {
+        setNodes(nds => nds.map(n => n.id === childId ? { ...n, data: { ...n.data, groupId: undefined } } : n));
+    };
+
+    const onDeleteGroup = (groupId) => {
+        setNodes(nds => nds.filter(n => n.id !== groupId));
+    };
+
+    // --- ✅ FIX: Add Item wiring (normalize fields + auto-select) ---
     const handleAddItem = (rawItem) => {
         const normalizedItem = {
             id: rawItem.id || `item-${Date.now()}`,
@@ -252,38 +309,34 @@ export default function ProcessDiagram() {
             'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
             Unit: rawItem.Unit || '',
             SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? '',
-            Category: Array.isArray(rawItem['Category Item Type'])
-                ? rawItem['Category Item Type'][0]
-                : rawItem['Category Item Type'] ?? rawItem.Category ?? '',
-            Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : rawItem.Type || '',
+            Category: Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
+            'Category Item Type': Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
+            Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
             Sequence: rawItem.Sequence ?? 0,
         };
 
         const newNode = {
             id: normalizedItem.id,
             position: { x: 100, y: 100 },
-            data: {
-                label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`,
-                item: normalizedItem,
-                icon: getItemIcon(normalizedItem),
-            },
+            data: { label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`, item: normalizedItem, icon: getItemIcon(normalizedItem) },
             type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
             sourcePosition: 'right',
             targetPosition: 'left',
             style: { background: 'transparent', boxShadow: 'none' },
         };
 
-        setNodes((nds) => [...nds, newNode]);
-        setItems((prev) => [...prev, normalizedItem]);
+        setNodes(nds => [...nds, newNode]);
+        setItems(prev => [...prev, normalizedItem]);
+
+        // Auto-select new node so ItemDetailCard opens
         setSelectedNodes([newNode]);
         setSelectedItem(normalizedItem);
     };
 
-    // ---------------- Render ----------------
+
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            {/* Canvas */}
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
                 <DiagramCanvas
                     nodes={nodes}
                     edges={edges}
@@ -294,43 +347,47 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
+                    // Use the local AddItemButton, wired to our fixed handler
+                    AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
+                    aiDescription={aiDescription}
+                    setAiDescription={setAiDescription}
+                    handleGeneratePNID={handleGeneratePNID}
+                    chatMessages={chatMessages}
+                    setChatMessages={setChatMessages}
+                    selectedNodes={selectedNodes}
+                    updateNode={updateNode}
+                    deleteNode={deleteNode}
+                    ChatBox={ChatBox}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
-                    AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
                 />
             </div>
 
-            {/* Details sidebar */}
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent' }}>
-                <div style={{ height: '100%', overflowY: 'auto' }}>
+            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
                     {selectedGroupNode ? (
                         <GroupDetailCard
                             node={selectedGroupNode}
                             childrenNodes={childrenNodesForGroup}
                             childrenLabels={selectedGroupNode?.data?.children}
                             allItems={itemsMap}
+                            startAddItemToGroup={startAddItemToGroup}
+                            onAddItem={onAddItem}
+                            onRemoveItem={onRemoveItem}
+                            onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                        <ItemDetailCard
-                            item={selectedItem}
-                            onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)}
-                        />
+                        <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
                     ) : (
                         <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                     )}
                 </div>
-            </div>
 
-            {/* AI & chat panel (separate) */}
-            <AIChatPanel
-                nodes={nodes}
-                edges={edges}
-                items={items}
-                setNodes={setNodes}
-                setEdges={setEdges}
-                setItems={setItems}
-                setSelectedItem={setSelectedItem}
-            />
+            </div>
+            {/* Chat box display */}
+            <div style={{ padding: 10 }}>
+                <ChatBox messages={chatMessages} />
+            </div>
         </div>
     );
 }
