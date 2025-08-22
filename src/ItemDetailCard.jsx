@@ -1,5 +1,5 @@
 ﻿// ItemDetailCard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const typeCache = new Map();
 
@@ -189,52 +189,130 @@ export default function ItemDetailCard({ item, onChange }) {
 }
 
 
+import React, { useEffect, useRef, useState } from 'react';
+
 /**
- * GroupDetailCard (named export)
- * ✅ Only shows children inside the group
+ * GroupDetailCard
+ * - Shows members of a group
+ * - Tries to resolve human-friendly labels for Airtable-linked node ids
+ * - Preferred usage: parent passes `allItems` map (id -> normalized item)
+ * - Fallback: component will fetch missing item records from Airtable and cache them
  */
-// GroupDetailCard (named export) — replace your existing one
-export function GroupDetailCard({
+export default function GroupDetailCard({
     node,
     childrenNodes = [],
     childrenLabels = [],
-    allItems = {},   // <-- new prop: map of AirtableId -> { Code, Name, Category }
+    allItems = {},
     startAddItemToGroup,
-    onAddItem,     // (itemId) => {}
-    onRemoveItem,  // (itemId) => {}
+    onAddItem,
+    onRemoveItem,
     onChange,
     onDelete
 }) {
     const groupId = node?.id;
-    const [manualAddId, setManualAddId] = React.useState('');
+    const [manualAddId, setManualAddId] = useState('');
 
-    // Normalize display list
+    // Local cache (memory) for fetched items across renders
+    const itemsCacheRef = useRef(new Map());
+    // State for resolved items fetched by this component
+    const [resolvedItems, setResolvedItems] = useState({});
+
+    // Helper to normalize a raw Airtable record fields into the shape we want
+    const normalizeFields = (fields = {}) => ({
+        Code: fields['Item Code'] || fields['Code'] || '',
+        Name: fields['Name'] || '',
+        'Category Item Type': fields['Category Item Type'] || fields['Category'] || ''
+    });
+
+    // Effect: fetch any unknown children node ids that are likely Airtable record ids
+    useEffect(() => {
+        if (!Array.isArray(childrenNodes) || childrenNodes.length === 0) return;
+
+        const idsToFetch = childrenNodes
+            .map(n => n.id)
+            .filter(id => {
+                if (!id) return false;
+                // Skip synthetic labels (these are created inside this component)
+                if (String(id).startsWith(`${groupId}-lbl-`)) return false;
+                // If parent already provided the item, skip
+                if (allItems && allItems[id]) return false;
+                // If we've resolved it already in state, skip
+                if (resolvedItems && resolvedItems[id]) return false;
+                // If we have it in our in-memory cache, skip (we'll still copy it into resolvedItems for render consistency)
+                if (itemsCacheRef.current.has(id)) return false;
+                return true;
+            });
+
+        if (idsToFetch.length === 0) return;
+
+        (async () => {
+            try {
+                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+                const itemsTableId = import.meta.env.VITE_AIRTABLE_ITEMS_TABLE_ID;
+                if (!baseId || !token || !itemsTableId) {
+                    console.warn('GroupDetailCard: missing Airtable env vars (VITE_AIRTABLE_BASE_ID, VITE_AIRTABLE_TOKEN, VITE_AIRTABLE_ITEMS_TABLE_ID)');
+                    // create placeholders so we don't retry forever
+                    const placeholders = {};
+                    idsToFetch.forEach(id => placeholders[id] = { Code: '', Name: id, 'Category Item Type': '' });
+                    setResolvedItems(prev => ({ ...prev, ...placeholders }));
+                    return;
+                }
+
+                await Promise.all(idsToFetch.map(async (id) => {
+                    try {
+                        const url = `https://api.airtable.com/v0/${baseId}/${itemsTableId}/${id}`;
+                        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                        if (!res.ok) {
+                            // fallback: treat id as a label
+                            const fallback = { Code: '', Name: id, 'Category Item Type': '' };
+                            itemsCacheRef.current.set(id, fallback);
+                            setResolvedItems(prev => ({ ...prev, [id]: fallback }));
+                            return;
+                        }
+                        const rec = await res.json();
+                        const normalized = normalizeFields(rec.fields || {});
+                        itemsCacheRef.current.set(id, normalized);
+                        setResolvedItems(prev => ({ ...prev, [id]: normalized }));
+                    } catch (err) {
+                        console.error('GroupDetailCard: failed to fetch item', id, err);
+                        const fallback = { Code: '', Name: id, 'Category Item Type': '' };
+                        itemsCacheRef.current.set(id, fallback);
+                        setResolvedItems(prev => ({ ...prev, [id]: fallback }));
+                    }
+                }));
+            } catch (err) {
+                console.error('GroupDetailCard: error resolving children ids', err);
+            }
+        })();
+
+    }, [childrenNodes, allItems, resolvedItems, groupId]);
+
+    // Build the normalized `display` array used for rendering
     const display = (Array.isArray(childrenNodes) && childrenNodes.length > 0)
         ? childrenNodes.map(n => {
-            const item = n.data?.item || allItems[n.id];
-            const label =
-                n.displayLabel ??
-                n.data?.label ??
-                (item
+            const id = n.id;
+            const itemFromNode = n.data?.item;
+            const itemFromAll = allItems?.[id];
+            const itemFromResolved = resolvedItems?.[id] || itemsCacheRef.current.get(id);
+            const item = itemFromNode || itemFromAll || itemFromResolved;
+
+            const label = n.displayLabel ?? n.data?.label ?? (
+                item
                     ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim()
-                    : n.id);
+                    : id
+            );
 
             return {
-                id: n.id,
+                id,
                 label,
                 category: item?.['Category Item Type'] || item?.Category || ''
             };
         })
         : (Array.isArray(childrenLabels) && childrenLabels.length > 0)
-            ? childrenLabels.map((lbl, i) => ({
-                id: `${groupId}-lbl-${i}`,
-                label: lbl
-            }))
+            ? childrenLabels.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
             : (Array.isArray(node?.data?.children)
-                ? node.data.children.map((lbl, i) => ({
-                    id: `${groupId}-lbl-${i}`,
-                    label: lbl
-                }))
+                ? node.data.children.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
                 : []);
 
     return (
@@ -310,4 +388,3 @@ export function GroupDetailCard({
         </div>
     );
 }
-
