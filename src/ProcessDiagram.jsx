@@ -28,22 +28,6 @@ const nodeTypes = {
     groupLabel: GroupLabelNode, // simple
 };
 
-const allItems = useMemo(() => {
-    return Object.fromEntries(
-        (items || []).map(it => {
-            // normalise same shape GroupDetailCard expects
-            const normalized = {
-                Code: it.Code || it['Item Code'] || '',
-                Name: it.Name || '',
-                'Category Item Type': it['Category Item Type'] || it.Category || '',
-                // keep original fields if you want
-                ...it
-            };
-            return [it.id, normalized];
-        })
-    );
-}, [items]);
-
 
 const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -81,6 +65,20 @@ export default function ProcessDiagram() {
     const [chatMessages, setChatMessages] = useState([]);
     const [groupSelectionMode, setGroupSelectionMode] = useState(null);
 
+    // build a lookup map for GroupDetailCard; useMemo prevents rebuilding on every render
+    const allItems = useMemo(() => {
+        return Object.fromEntries(
+            (items || []).map(it => {
+                const normalized = {
+                    Code: it.Code || it['Item Code'] || '',
+                    Name: it.Name || '',
+                    'Category Item Type': it['Category Item Type'] || it.Category || '',
+                    ...it
+                };
+                return [it.id, normalized];
+            })
+        );
+    }, [items]);
 
     const createGroupFromSelectedNodes = () => {
         if (selectedNodes.length === 0) {
