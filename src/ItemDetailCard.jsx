@@ -1,16 +1,17 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 
 const typeCache = new Map();
 
+/**
+ * ItemDetailCard (default export)
+ */
 export default function ItemDetailCard({ item, onChange }) {
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
 
     // Update local state when item changes
-    useEffect(() => {
-        setLocalItem(item || {});
-    }, [item]);
+    useEffect(() => setLocalItem(item || {}), [item]);
 
     // Fetch all types from Airtable for dropdown
     useEffect(() => {
@@ -25,15 +26,14 @@ export default function ItemDetailCard({ item, onChange }) {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const data = await res.json();
-                // Normalize types: include Category field
-                const typesList = data.records.map(r => ({
+                const typesList = (data.records || []).map(r => ({
                     id: r.id,
                     name: r.fields['Still Pipe'],
                     category: r.fields['Category'] || 'Equipment'
                 }));
                 setAllTypes(typesList);
             } catch (err) {
-                console.error("Error fetching types:", err);
+                console.error('Error fetching types:', err);
             }
         };
         fetchTypes();
@@ -65,7 +65,7 @@ export default function ItemDetailCard({ item, onChange }) {
                     typeCache.set(typeId, typeName);
                 } catch (err) {
                     console.error(err);
-                    setResolvedType(typeId);
+                    setResolvedType(item.Type);
                 }
             };
             fetchTypeName();
@@ -77,7 +77,7 @@ export default function ItemDetailCard({ item, onChange }) {
     const handleFieldChange = (fieldName, value) => {
         const updated = { ...localItem, [fieldName]: value };
         setLocalItem(updated);
-        if (onChange) onChange(updated); // propagate to parent (updates icon)
+        if (onChange) onChange(updated);
     };
 
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
@@ -85,8 +85,6 @@ export default function ItemDetailCard({ item, onChange }) {
     if (!item) return null;
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
-
-    // Filter types based on selected category
     const filteredTypes = allTypes.filter(t => t.category === (localItem['Category Item Type'] || 'Equipment'));
 
     const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
@@ -128,14 +126,13 @@ export default function ItemDetailCard({ item, onChange }) {
                             const updated = {
                                 ...localItem,
                                 'Category Item Type': newCategory,
-                                Category: newCategory, // normalize for IconManager
-                                Type: '', // reset Type
+                                Category: newCategory,
+                                Type: ''
                             };
                             setLocalItem(updated);
-                            if (onChange) onChange(updated); // propagate single, complete object
+                            if (onChange) onChange(updated);
                         }}
                     >
-
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                 </div>
