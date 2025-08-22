@@ -382,6 +382,11 @@ export default function ProcessDiagram() {
                         <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                     )}
                 </div>
+
+            </div>
+            {/* Chat box display */}
+            <div style={{ padding: 10 }}>
+                <ChatBox messages={chatMessages} />
             </div>
         </div>
     );
