@@ -267,6 +267,7 @@ export default function ProcessDiagram() {
                     selectedNodes={selectedNodes}
                     updateNode={updateNode}
                     deleteNode={deleteNode}
+                    ChatBox={ChatBox}
                 />
             </div>
 

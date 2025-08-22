@@ -50,34 +50,6 @@ export default function GroupLabelNode({ id, data = {}, childrenNodes = [] }) {
         window.addEventListener("pointerup", handlePointerUp);
     };
 
-    // Derive items (prefer full node objects passed in, otherwise data.children / data.childIds)
-    const deriveDisplayItems = () => {
-        if (Array.isArray(childrenNodes) && childrenNodes.length > 0) {
-            return childrenNodes.map((n) =>
-                typeof n === "string" ? n : n?.data?.label ?? n?.label ?? n?.id ?? String(n)
-            );
-        }
-        if (Array.isArray(data?.children) && data.children.length > 0) {
-            return data.children.map((c) => (typeof c === "string" ? c : String(c)));
-        }
-        if (Array.isArray(data?.childIds) && data.childIds.length > 0) {
-            const mapping = data.childLabels || {};
-            return data.childIds.map((cid) => mapping[cid] ?? cid);
-        }
-        return [];
-    };
-
-    const displayItems = deriveDisplayItems();
-
-    // format for readability (you can change maxLen or set to null to disable truncation)
-    const maxLen = null; // set to e.g. 40 to truncate visually but keep tooltip
-    const pretty = (s) => {
-        if (!s) return "";
-        const str = String(s);
-        if (!maxLen) return str;
-        return str.length > maxLen ? str.slice(0, maxLen - 1) + "…" : str;
-    };
-
     return (
         <div
             style={{
@@ -117,40 +89,6 @@ export default function GroupLabelNode({ id, data = {}, childrenNodes = [] }) {
                     <button onClick={() => data.startAddItemToGroup?.(id)} style={{ fontSize: 11, cursor: "pointer" }}>Add</button>
                     <button onClick={removeItemFromGroup} style={{ fontSize: 11, cursor: "pointer" }}>Remove</button>
                 </div>
-            </div>
-
-            {/* Items list: render each on its own line, allow wrapping, show full text on hover */}
-            <div
-                style={{
-                    marginTop: 6,
-                    fontSize: 11,
-                    color: "#222",
-                    padding: "4px 6px",
-                    overflowY: "auto",
-                    flex: 1,
-                    lineHeight: "1.25",
-                }}
-            >
-                {displayItems.length === 0 ? (
-                    <div style={{ color: "#666", fontStyle: "italic" }}>No items inside</div>
-                ) : (
-                    <ul style={{ margin: 0, paddingLeft: 16 }}>
-                        {displayItems.map((it, i) => (
-                            <li
-                                key={`${id}-child-${i}`}
-                                title={String(it)}
-                                style={{
-                                    marginBottom: 4,
-                                    wordBreak: "break-word",       // allow long words / ids to wrap
-                                    overflowWrap: "anywhere",      // aggressive wrap for long tokens
-                                    whiteSpace: "normal",          // allow multi-line
-                                }}
-                            >
-                                {pretty(it)}
-                            </li>
-                        ))}
-                    </ul>
-                )}
             </div>
 
             {/* Resize handle */}
