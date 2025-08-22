@@ -319,9 +319,10 @@ export default function ProcessDiagram() {
                                 label: subUnit,
                                 rect: { width: unitWidth - 20, height: subUnitHeight - 20 },
                                 position: { x: unitX + 10, y: yOffset + 10 },
-                                isGroup: true
+                                isGroup: false,   // ❌ was true before
+                                isContainer: true // ✅ new flag if you want to identify unit/subunit boxes
                             },
-                            type: 'groupLabel', // ✅ use your GroupLabelNode
+                            type: 'subUnitLabel', // <-- use a distinct node type for clarity
                             style: {
                                 width: unitWidth - 20,
                                 height: subUnitHeight - 20,
@@ -329,9 +330,10 @@ export default function ProcessDiagram() {
                                 background: 'transparent',
                                 boxShadow: 'none',
                             },
-                            draggable: false,  // keep if you don't want the group dragged
-                            selectable: true,  // <-- must be true so clicking it selects the group
+                            draggable: false,
+                            selectable: false, // optional: so user can’t accidentally click-select a subunit
                         });
+
 
 
                         let itemX = unitX + 40;
@@ -344,7 +346,6 @@ export default function ProcessDiagram() {
                                     label: `${item.Code || ''} - ${item.Name || ''}`,
                                     item,
                                     icon: getItemIcon(item),
-                                    groupId: `sub-${unit}-${subUnit}`, // 🔹 link item to its group
                                 },
                                 type: categoryTypeMap[item.Category] || 'scalableIcon',
                                 sourcePosition: 'right',
