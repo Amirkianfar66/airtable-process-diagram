@@ -16,6 +16,7 @@ import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
+import MainToolbar from './MainToolbar';
 
 // Keep top-level nodeTypes definition
 export const nodeTypes = {
@@ -263,6 +264,9 @@ export default function ProcessDiagram() {
                     handleGeneratePNID={handleGeneratePNID}
                     chatMessages={chatMessages}
                     setChatMessages={setChatMessages}
+                    selectedNodes={selectedNodes}
+                    updateNode={updateNode}
+                    deleteNode={deleteNode}
                 />
             </div>
 

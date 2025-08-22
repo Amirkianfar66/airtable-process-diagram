@@ -3,6 +3,7 @@
 
 import React from 'react';
 import ReactFlow, { Controls } from 'reactflow';
+import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 
 // NOTE: keep this component presentational only — all state handlers are provided by the parent
@@ -22,9 +23,14 @@ export default function DiagramCanvas({
     handleGeneratePNID,
     chatMessages,
     setChatMessages,
+    selectedNodes,
+    updateNode,
+    deleteNode,
 }) {
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {/* Main toolbar */}
+            <MainToolbar selectedNodes={selectedNodes} setNodes={setNodes} updateNode={updateNode} deleteNode={deleteNode} />
             <div style={{ padding: 10 }}>
                 {/* Add item button is passed from parent so it has access to setNodes/setItems there if needed */}
                 {AddItemButton ? <AddItemButton setNodes={setNodes} setEdges={setEdges} /> : null}
@@ -64,4 +70,3 @@ export default function DiagramCanvas({
         </div>
     );
 }
-
