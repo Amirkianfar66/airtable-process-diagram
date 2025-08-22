@@ -272,10 +272,21 @@ export default function ProcessDiagram() {
 
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {selectedItem ? (
+                    {selectedGroupNode ? (
+                        <GroupDetailCard
+                            node={selectedGroupNode}
+                            childrenNodes={childrenNodesForGroup}
+                            childrenLabels={selectedGroupNode?.data?.children}
+                            allItems={itemsMap}
+                            startAddItemToGroup={startAddItemToGroup}
+                            onAddItem={onAddItem}
+                            onRemoveItem={onRemoveItem}
+                            onDelete={onDeleteGroup}
+                        />
+                    ) : selectedItem ? (
                         <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
                     ) : (
-                        <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
+                        <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                     )}
                 </div>
             </div>
