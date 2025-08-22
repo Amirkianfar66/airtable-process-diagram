@@ -1,96 +1,26 @@
-﻿import React, { useState, useEffect } from "react";
-import { useReactFlow } from "reactflow";
+﻿import React, { useState } from "react";
 
 export default function GroupLabelNode({ id, data }) {
-    const rfInstance = useReactFlow();
     const [rect, setRect] = useState(data.rect || { width: 150, height: 100 });
     const [position, setPosition] = useState(data.position || { x: 0, y: 0 });
     const groupName = data.groupName || data.label || "My Group";
 
-    const [selectingNode, setSelectingNode] = useState(false);
-
-    const updateNode = (newData) => {
-        rfInstance.setNodes((nds) =>
-            nds.map((node) =>
-                node.id === id
-                    ? { ...node, data: { ...node.data, ...newData }, position: newData.position || node.position }
-                    : node
-            )
-        );
-        if (newData.rect) setRect(newData.rect);
-        if (newData.position) setPosition(newData.position);
+    const handleRename = () => {
+        const newName = prompt("Enter new group name:", groupName);
+        if (newName && data.updateNode) data.updateNode({ groupName: newName });
     };
 
     const deleteNode = () => {
-        if (window.confirm("Delete this group?")) {
-            rfInstance.setNodes((nds) => nds.filter((node) => node.id !== id && node.data.groupId !== id));
+        if (window.confirm("Delete this group?") && data.deleteNode) {
+            data.deleteNode(id);
         }
     };
 
-    // -------------------
-    // Add Item to Group
-    // -------------------
-    const startAddItem = () => {
-        alert("Click on a node on the canvas to add it to this group.");
-        setSelectingNode(true);
-    };
-
-    useEffect(() => {
-        if (!selectingNode) return;
-
-        const handleClick = (event) => {
-            const clickedNodeId = event?.target?.dataset?.id;
-            if (!clickedNodeId || clickedNodeId === id) return;
-
-            // Add clicked node to this group's children
-            rfInstance.setNodes((nds) =>
-                nds.map((n) => {
-                    if (n.id === clickedNodeId) {
-                        return { ...n, data: { ...n.data, groupId: id } };
-                    }
-                    if (n.id === id) {
-                        return {
-                            ...n,
-                            data: {
-                                ...n.data,
-                                children: [...(n.data.children || []), clickedNodeId],
-                            },
-                        };
-                    }
-                    return n;
-                })
-            );
-            setSelectingNode(false);
-        };
-
-        window.addEventListener("click", handleClick);
-        return () => window.removeEventListener("click", handleClick);
-    }, [selectingNode, rfInstance, id]);
-
     const removeItemFromGroup = () => {
-        const children = data.children || [];
-        if (children.length === 0) return;
-
-        const options = children.map((nId, i) => `${i + 1}: ${rfInstance.getNodes().find(n => n.id === nId)?.data?.label || nId}`).join("\n");
-        const choice = prompt(`Select node to remove from group:\n${options}`);
-        const index = parseInt(choice) - 1;
-        if (isNaN(index) || index < 0 || index >= children.length) return;
-
-        const nodeToRemoveId = children[index];
-        rfInstance.setNodes((nds) =>
-            nds.map((n) => {
-                if (n.id === nodeToRemoveId) return { ...n, data: { ...n.data, groupId: null } };
-                if (n.id === id) {
-                    return { ...n, data: { ...n.data, children: n.data.children.filter(cid => cid !== nodeToRemoveId) } };
-                }
-                return n;
-            })
-        );
+        if (!data.removeItemFromGroup) return;
+        data.removeItemFromGroup(id);
     };
 
-    // -------------------
-    // Resize Handle
-    // -------------------
     const handleSize = 12;
     const onScalePointerDown = (e) => {
         e.preventDefault();
@@ -103,12 +33,11 @@ export default function GroupLabelNode({ id, data }) {
         const handlePointerMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
             const deltaY = moveEvent.clientY - startY;
-            updateNode({
-                rect: {
-                    width: Math.max(50, initialWidth + deltaX),
-                    height: Math.max(50, initialHeight + deltaY),
-                },
+            setRect({
+                width: Math.max(50, initialWidth + deltaX),
+                height: Math.max(50, initialHeight + deltaY),
             });
+            if (data.updateNode) data.updateNode({ rect: { width: Math.max(50, initialWidth + deltaX), height: Math.max(50, initialHeight + deltaY) } });
         };
 
         const handlePointerUp = () => {
@@ -118,11 +47,6 @@ export default function GroupLabelNode({ id, data }) {
 
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
-    };
-
-    const handleRename = () => {
-        const newName = prompt("Enter new group name:", groupName);
-        if (newName) updateNode({ groupName: newName });
     };
 
     return (
@@ -162,10 +86,12 @@ export default function GroupLabelNode({ id, data }) {
                     <button onClick={deleteNode} style={{ fontSize: 10, cursor: "pointer" }}>
                         Delete
                     </button>
-                    <button onClick={() => startAddItemToGroup(id)} style={{ fontSize: 10, cursor: "pointer" }}>
+                    <button
+                        onClick={() => data.startAddItemToGroup?.(id)}
+                        style={{ fontSize: 10, cursor: "pointer" }}
+                    >
                         Add Item
                     </button>
-
                     <button onClick={removeItemFromGroup} style={{ fontSize: 10, cursor: "pointer" }}>
                         Remove Item
                     </button>
