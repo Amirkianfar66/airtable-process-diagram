@@ -1,7 +1,7 @@
 ﻿// ===================== ProcessDiagram.jsx =====================
 // Place this file at: src/components/ProcessDiagram.jsx
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
@@ -12,6 +12,7 @@ import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
+import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
@@ -201,6 +202,47 @@ export default function ProcessDiagram() {
             })
             .catch(console.error);
     }, []);
+
+    // --- Group detail wiring: show GroupDetailCard when a groupLabel node is selected ---
+    const [addingToGroup, setAddingToGroup] = useState(null);
+
+    const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
+
+    const selectedGroupNode = selectedNodes && selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
+
+    const childrenNodesForGroup = selectedGroupNode ? nodes.filter(n => {
+        if (!n) return false;
+        if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id)) return true;
+        if (n.data?.groupId === selectedGroupNode.id) return true;
+        if (n.data?.parentId === selectedGroupNode.id) return true;
+        return false;
+    }) : [];
+
+    const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); /* click-to-add flow can be implemented later */ };
+
+    const onAddItem = (nodeIdToAdd) => {
+        if (!nodeIdToAdd) return;
+        setNodes(nds => {
+            const existing = nds.find(n => n.id === nodeIdToAdd);
+            if (existing) {
+                return nds.map(n => n.id === nodeIdToAdd ? { ...n, data: { ...n.data, groupId: selectedGroupNode?.id } } : n);
+            }
+            const newNode = {
+                id: nodeIdToAdd,
+                position: { x: 100, y: 100 },
+                data: { label: nodeIdToAdd, groupId: selectedGroupNode?.id }
+            };
+            return [...nds, newNode];
+        });
+    };
+
+    const onRemoveItem = (childId) => {
+        setNodes(nds => nds.map(n => n.id === childId ? { ...n, data: { ...n.data, groupId: undefined } } : n));
+    };
+
+    const onDeleteGroup = (groupId) => {
+        setNodes(nds => nds.filter(n => n.id !== groupId));
+    };
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
