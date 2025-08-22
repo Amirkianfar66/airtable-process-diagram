@@ -198,6 +198,7 @@ export function GroupDetailCard({
     node,
     childrenNodes = [],
     childrenLabels = [],
+    allItems = {},   // <-- new prop: map of AirtableId -> { Code, Name, Category }
     startAddItemToGroup,
     onAddItem,     // (itemId) => {}
     onRemoveItem,  // (itemId) => {}
@@ -205,12 +206,13 @@ export function GroupDetailCard({
     onDelete
 }) {
     const groupId = node?.id;
+    const [manualAddId, setManualAddId] = React.useState('');
 
-    // display list — prefer full node objects so remove has real ids
+    // Normalize display list
     const display = (Array.isArray(childrenNodes) && childrenNodes.length > 0)
         ? childrenNodes.map(n => {
-            const item = n.data?.item;
-            const niceLabel =
+            const item = n.data?.item || allItems[n.id];
+            const label =
                 n.displayLabel ??
                 n.data?.label ??
                 (item
@@ -219,17 +221,21 @@ export function GroupDetailCard({
 
             return {
                 id: n.id,
-                label: niceLabel,
+                label,
                 category: item?.['Category Item Type'] || item?.Category || ''
             };
         })
         : (Array.isArray(childrenLabels) && childrenLabels.length > 0)
-            ? childrenLabels.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
+            ? childrenLabels.map((lbl, i) => ({
+                id: `${groupId}-lbl-${i}`,
+                label: lbl
+            }))
             : (Array.isArray(node?.data?.children)
-                ? node.data.children.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
+                ? node.data.children.map((lbl, i) => ({
+                    id: `${groupId}-lbl-${i}`,
+                    label: lbl
+                }))
                 : []);
-
-    const [manualAddId, setManualAddId] = React.useState('');
 
     return (
         <div style={{
@@ -287,9 +293,7 @@ export function GroupDetailCard({
                             }}>
                                 <div>
                                     <div style={{ fontWeight: 600 }}>{ch.label}</div>
-                                    {ch.category && (
-                                        <div style={{ fontSize: 12, color: '#777' }}>{ch.category}</div>
-                                    )}
+                                    {ch.category && <div style={{ fontSize: 12, color: '#777' }}>{ch.category}</div>}
                                 </div>
 
                                 {/* Remove only works if we have a real node id */}
@@ -306,6 +310,4 @@ export function GroupDetailCard({
         </div>
     );
 }
-
-
 
