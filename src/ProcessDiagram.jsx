@@ -104,6 +104,10 @@ export default function ProcessDiagram() {
     const onNodeDrag = useCallback((event, node) => {
         if (!node || node.type !== 'groupLabel') return;
 
+        // If the group has liveFollow === false, don't move children
+        const groupConfig = node.data || {};
+        if (groupConfig.liveFollow === false) return;
+
         setNodes((nds) => {
             const prev = nds.find((n) => n.id === node.id);
             if (!prev) return nds;
@@ -134,6 +138,10 @@ export default function ProcessDiagram() {
     // keep onNodeDragStop for final adjustments (safe no-op if already updated during drag)
     const onNodeDragStop = useCallback((event, node) => {
         if (!node || node.type !== 'groupLabel') return;
+
+        // respect liveFollow flag on stop as well
+        const groupConfig = node.data || {};
+        if (groupConfig.liveFollow === false) return;
 
         setNodes((nds) => {
             const prev = nds.find((n) => n.id === node.id);
@@ -392,4 +400,3 @@ export default function ProcessDiagram() {
         </div>
     );
 }
-

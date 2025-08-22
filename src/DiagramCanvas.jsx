@@ -1,4 +1,5 @@
-﻿// Updated: DiagramCanvas.jsx (accepts onNodeDrag + onNodeDragStop and forwards to ReactFlow)
+﻿// ------------------------------
+// Updated: DiagramCanvas.jsx (accepts onNodeDrag + onNodeDragStop and forwards to ReactFlow)
 // Place this content into src/components/DiagramCanvas.jsx (replace existing)
 
 import React from 'react';

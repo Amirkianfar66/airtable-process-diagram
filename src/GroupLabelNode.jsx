@@ -1,8 +1,12 @@
-﻿import React, { useState, useEffect } from "react";
+﻿// New: GroupLabelNode.jsx (adds per-group "Live follow" toggle in header)
+// Place this into src/components/GroupLabelNode.jsx (replace existing)
+
+import React, { useState, useEffect } from "react";
 
 export default function GroupLabelNode({ id, data = {}, childrenNodes = [] }) {
     const [rect, setRect] = useState(data.rect || { width: 220, height: 120 });
     const groupName = data.groupName || data.label || "My Group";
+    const liveFollow = data.liveFollow !== undefined ? data.liveFollow : true; // default to true
 
     useEffect(() => {
         if (data.rect) setRect(data.rect);
@@ -20,6 +24,12 @@ export default function GroupLabelNode({ id, data = {}, childrenNodes = [] }) {
     const removeItemFromGroup = () => {
         if (!data.removeItemFromGroup) return;
         data.removeItemFromGroup(id);
+    };
+
+    const toggleLiveFollow = (e) => {
+        e.stopPropagation();
+        const newVal = !liveFollow;
+        if (data.updateNode) data.updateNode({ liveFollow: newVal });
     };
 
     const onScalePointerDown = (e) => {
@@ -80,14 +90,23 @@ export default function GroupLabelNode({ id, data = {}, childrenNodes = [] }) {
                     pointerEvents: "auto",
                 }}
             >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={groupName}>
-                    {groupName}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={groupName}>
+                        {groupName}
+                    </span>
+                    {/* small indicator showing liveFollow state */}
+                    <div style={{ fontSize: 11, color: liveFollow ? 'green' : '#888' }}>{liveFollow ? 'Live' : 'Static'}</div>
+                </div>
+
                 <div style={{ display: "flex", gap: 6 }}>
                     <button onClick={handleRename} style={{ fontSize: 11, cursor: "pointer" }}>Rename</button>
                     <button onClick={deleteNode} style={{ fontSize: 11, cursor: "pointer" }}>Delete</button>
                     <button onClick={() => data.startAddItemToGroup?.(id)} style={{ fontSize: 11, cursor: "pointer" }}>Add</button>
                     <button onClick={removeItemFromGroup} style={{ fontSize: 11, cursor: "pointer" }}>Remove</button>
+                    {/* toggle: clicking changes liveFollow stored in node data (uses updateNode) */}
+                    <button onClick={toggleLiveFollow} style={{ fontSize: 11, cursor: "pointer" }} title="Toggle live-follow for children">
+                        {liveFollow ? 'Live ON' : 'Live OFF'}
+                    </button>
                 </div>
             </div>
 
