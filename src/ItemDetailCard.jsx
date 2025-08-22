@@ -193,8 +193,27 @@ export default function ItemDetailCard({ item, onChange }) {
  * GroupDetailCard (named export)
  * ✅ Only shows children inside the group
  */
-export function GroupDetailCard({ node, childrenNodes = [] }) {
-    const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
+// GroupDetailCard (named export) — replace your existing one
+export function GroupDetailCard({
+    node,
+    childrenNodes = [],
+    childrenLabels = [],
+    startAddItemToGroup,
+    onAddItem,     // (itemId) => {}
+    onRemoveItem,  // (itemId) => {}
+    onChange,
+    onDelete
+}) {
+    const groupId = node?.id;
+
+    // display list — prefer full node objects so remove has real ids
+    const display = (Array.isArray(childrenNodes) && childrenNodes.length > 0)
+        ? childrenNodes.map(n => ({ id: n.id, label: n.data?.label ?? n.id, category: n.data?.item?.['Category Item Type'] }))
+        : (Array.isArray(childrenLabels) && childrenLabels.length > 0)
+            ? childrenLabels.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
+            : (Array.isArray(node?.data?.children) ? node.data.children.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl })) : []);
+
+    const [manualAddId, setManualAddId] = React.useState('');
 
     return (
         <div style={{
@@ -207,24 +226,55 @@ export function GroupDetailCard({ node, childrenNodes = [] }) {
             fontFamily: 'sans-serif'
         }}>
             <section>
-                <h3 style={headerStyle}>Group: {node?.data?.label || node?.id}</h3>
+                <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 6, marginBottom: 12 }}>
+                    Group: {node?.data?.label || node?.id}
+                </h3>
 
-                <div style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
-                    {childrenNodes.length} item(s) inside this group
+                <div style={{ marginBottom: 12 }}>
+                    <button onClick={() => startAddItemToGroup?.(groupId)} style={{ marginRight: 8 }}>
+                        Start: click a node to add
+                    </button>
+
+                    <input
+                        placeholder="node id to add"
+                        value={manualAddId}
+                        onChange={(e) => setManualAddId(e.target.value)}
+                        style={{ padding: '6px 8px', marginRight: 8, width: 160 }}
+                    />
+                    <button
+                        onClick={() => { if (manualAddId && onAddItem) { onAddItem(manualAddId); setManualAddId(''); } }}
+                        style={{ marginRight: 8 }}
+                    >
+                        Add by id
+                    </button>
+
+                    <button onClick={() => onDelete?.(groupId)} style={{ color: 'red' }}>
+                        Delete group
+                    </button>
                 </div>
 
-                <div style={{ maxHeight: 200, overflowY: 'auto', borderTop: '1px solid #eee', paddingTop: 8 }}>
-                    {childrenNodes.length === 0 ? (
+                <div style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
+                    Members ({display.length})
+                </div>
+
+                <div style={{ maxHeight: 300, overflowY: 'auto', borderTop: '1px solid #eee', paddingTop: 8 }}>
+                    {display.length === 0 ? (
                         <div style={{ color: '#999' }}>No children</div>
                     ) : (
-                        childrenNodes.map((ch) => (
-                            <div key={ch.id} style={{ padding: '6px 0', borderBottom: '1px dashed #f0f0f0' }}>
-                                <div style={{ fontWeight: 600 }}>
-                                    {ch.data?.label || ch.data?.item?.Name || ch.id}
+                        display.map(ch => (
+                            <div key={ch.id} style={{ padding: '8px 0', borderBottom: '1px dashed #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <div style={{ fontWeight: 600 }}>{ch.label}</div>
+                                    {ch.category && <div style={{ fontSize: 12, color: '#777' }}>{ch.category}</div>}
                                 </div>
-                                <div style={{ fontSize: 12, color: '#777' }}>
-                                    {ch.data?.item?.['Category Item Type'] || 'Unknown category'}
-                                </div>
+
+                                {/* Remove only works if we have a real node id */}
+                                {onRemoveItem && !(String(ch.id).startsWith(`${groupId}-lbl-`)) ? (
+                                    <button onClick={() => onRemoveItem(ch.id)} style={{ fontSize: 12 }}>Remove</button>
+                                ) : (
+                                    // if it's a synthetic label-only id, disable remove
+                                    <button style={{ fontSize: 12, opacity: 0.5 }} disabled>Remove</button>
+                                )}
                             </div>
                         ))
                     )}
@@ -233,4 +283,5 @@ export function GroupDetailCard({ node, childrenNodes = [] }) {
         </div>
     );
 }
+
 
