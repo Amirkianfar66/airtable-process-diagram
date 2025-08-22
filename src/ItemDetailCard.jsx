@@ -199,12 +199,36 @@ export function GroupDetailCard({
     childrenNodes = [],
     childrenLabels = [],
     startAddItemToGroup,
-    onAddItem,
-    onRemoveItem,
+    onAddItem,     // (itemId) => {}
+    onRemoveItem,  // (itemId) => {}
     onChange,
     onDelete
 }) {
     const groupId = node?.id;
+
+    // display list — prefer full node objects so remove has real ids
+    const display = (Array.isArray(childrenNodes) && childrenNodes.length > 0)
+        ? childrenNodes.map(n => {
+            const item = n.data?.item;
+            const niceLabel =
+                n.displayLabel ??
+                n.data?.label ??
+                (item
+                    ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim()
+                    : n.id);
+
+            return {
+                id: n.id,
+                label: niceLabel,
+                category: item?.['Category Item Type'] || item?.Category || ''
+            };
+        })
+        : (Array.isArray(childrenLabels) && childrenLabels.length > 0)
+            ? childrenLabels.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
+            : (Array.isArray(node?.data?.children)
+                ? node.data.children.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
+                : []);
+
     const [manualAddId, setManualAddId] = React.useState('');
 
     return (
@@ -246,59 +270,37 @@ export function GroupDetailCard({
                 </div>
 
                 <div style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
-                    Members ({childrenNodes.length || childrenLabels.length || node?.data?.children?.length || 0})
+                    Members ({display.length})
                 </div>
 
                 <div style={{ maxHeight: 300, overflowY: 'auto', borderTop: '1px solid #eee', paddingTop: 8 }}>
-                    {/* ✅ Prefer childrenNodes */}
-                    {childrenNodes.length > 0 ? (
-                        childrenNodes.map((ch) => (
-                            <div
-                                key={ch.id}
-                                style={{
-                                    padding: '6px 0',
-                                    borderBottom: '1px dashed #f0f0f0',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
-                                }}
-                            >
+                    {display.length === 0 ? (
+                        <div style={{ color: '#999' }}>No children</div>
+                    ) : (
+                        display.map(ch => (
+                            <div key={ch.id} style={{
+                                padding: '8px 0',
+                                borderBottom: '1px dashed #f0f0f0',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                            }}>
                                 <div>
-                                    <div style={{ fontWeight: 600 }}>
-                                        {ch.displayLabel ??
-                                            ch.data?.label ??
-                                            (ch.data?.item
-                                                ? `${ch.data.item.Code || ''}${ch.data.item.Code && ch.data.item.Name ? ' - ' : ''}${ch.data.item.Name || ''}`.trim()
-                                                : ch.id)}
-                                    </div>
-                                    <div style={{ fontSize: 12, color: '#777' }}>
-                                        {ch.data?.item?.['Category Item Type'] ||
-                                            ch.data?.item?.Category ||
-                                            'Unknown category'}
-                                    </div>
+                                    <div style={{ fontWeight: 600 }}>{ch.label}</div>
+                                    {ch.category && (
+                                        <div style={{ fontSize: 12, color: '#777' }}>{ch.category}</div>
+                                    )}
                                 </div>
-                                {onRemoveItem && !(String(ch.id).startsWith(`${node.id}-lbl-`)) ? (
+
+                                {/* Remove only works if we have a real node id */}
+                                {onRemoveItem && !(String(ch.id).startsWith(`${groupId}-lbl-`)) ? (
                                     <button onClick={() => onRemoveItem(ch.id)} style={{ fontSize: 12 }}>Remove</button>
                                 ) : (
                                     <button style={{ fontSize: 12, opacity: 0.5 }} disabled>Remove</button>
                                 )}
                             </div>
                         ))
-                    ) : (childrenLabels.length > 0 ? (
-                        childrenLabels.map((lbl, i) => (
-                            <div key={`${groupId}-lbl-${i}`} style={{ padding: '6px 0', borderBottom: '1px dashed #f0f0f0' }}>
-                                {lbl}
-                            </div>
-                        ))
-                    ) : (Array.isArray(node?.data?.children) && node.data.children.length > 0 ? (
-                        node.data.children.map((lbl, i) => (
-                            <div key={`${groupId}-lbl-${i}`} style={{ padding: '6px 0', borderBottom: '1px dashed #f0f0f0' }}>
-                                {lbl}
-                            </div>
-                        ))
-                    ) : (
-                        <div style={{ color: '#999' }}>No children</div>
-                    )))}
+                    )}
                 </div>
             </section>
         </div>
