@@ -64,28 +64,26 @@ export default function GroupLabelNode({ id, data = {}, childrenNodes = [] }) {
 
     // ---------- derive display items (prefer childrenNodes, then data.children, then data.childIds) ----------
     const deriveDisplayItems = () => {
-        // 1) childrenNodes prop (can be array of node objects or strings)
         if (Array.isArray(childrenNodes) && childrenNodes.length > 0) {
             return childrenNodes.map((n) =>
-                typeof n === "string" ? n : n?.data?.label ?? n?.label ?? n?.id ?? String(n)
+                typeof n === "string" ? n : n?.data?.item?.Code ?? n?.data?.label ?? n?.id ?? String(n)
             );
         }
 
-        // 2) explicit labels stored on data.children
         if (Array.isArray(data?.children) && data.children.length > 0) {
-            // data.children likely an array of labels (strings)
-            return data.children.map((c) => (typeof c === "string" ? c : String(c)));
+            return data.children.map((c) =>
+                typeof c === "string" ? c : c?.Code ?? String(c)
+            );
         }
 
-        // 3) childIds array — fall back to ids; if user stored a mapping data.childLabels use it
         if (Array.isArray(data?.childIds) && data.childIds.length > 0) {
-            const mapping = data.childLabels || {}; // optional { id: label }
+            const mapping = data.childLabels || {};
             return data.childIds.map((cid) => mapping[cid] ?? cid);
         }
 
-        // nothing found
         return [];
     };
+
 
     const displayItems = deriveDisplayItems();
 
