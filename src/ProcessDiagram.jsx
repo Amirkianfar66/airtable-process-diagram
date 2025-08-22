@@ -65,7 +65,7 @@ export default function ProcessDiagram() {
     const [chatMessages, setChatMessages] = useState([]);
     const [groupSelectionMode, setGroupSelectionMode] = useState(null);
 
-    // build a lookup map for GroupDetailCard; useMemo prevents rebuilding on every render
+    // build a lookup map for GroupDetailCard
     const allItems = useMemo(() => {
         return Object.fromEntries(
             (items || []).map(it => {
@@ -79,6 +79,7 @@ export default function ProcessDiagram() {
             })
         );
     }, [items]);
+
 
     const createGroupFromSelectedNodes = () => {
         if (selectedNodes.length === 0) {
@@ -542,17 +543,19 @@ export default function ProcessDiagram() {
                                     const childrenNodesForGroup = nodes
                                         .filter((n) => n.data?.groupId === groupId)
                                         .map((n) => {
-                                            // prefer explicit node label, else use item payload (Code - Name), else fallback to id
+                                            // priority: node.data.item (explicit) -> allItems lookup -> items state -> fallback id
                                             const itemFromNode = n.data?.item;
+                                            const itemFromAll = allItems?.[n.id];
                                             const itemFromState = items.find(i => i.id === n.id);
-                                            const item = itemFromNode || itemFromState || undefined;
+                                            const item = itemFromNode || itemFromAll || itemFromState || undefined;
 
                                             const codeName = item ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim() : '';
                                             const displayLabel = n.data?.label || codeName || n.id;
 
-                                            // return full node but ensure data.item exists when possible and include displayLabel
+                                            // ensure data.item is present when possible (helps GroupDetailCard reuse)
                                             return { ...n, data: { ...n.data, item: item || n.data?.item, label: n.data?.label }, displayLabel };
                                         });
+
 
 
                                     // debug: inspect what we will render (remove in prod)
