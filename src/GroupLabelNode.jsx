@@ -7,7 +7,7 @@ export default function GroupLabelNode({ id, data }) {
     const [position, setPosition] = useState(data.position || { x: 0, y: 0 });
     const groupName = data.groupName || data.label || "My Group";
 
-    const [selectingNode, setSelectingNode] = useState(false); // for interactive selection
+    const [selectingNode, setSelectingNode] = useState(false);
 
     const updateNode = (newData) => {
         rfInstance.setNodes((nds) =>
@@ -27,7 +27,9 @@ export default function GroupLabelNode({ id, data }) {
         }
     };
 
-    // Interactive selection to add node to group
+    // -------------------
+    // Add Item to Group
+    // -------------------
     const startAddItem = () => {
         alert("Click on a node on the canvas to add it to this group.");
         setSelectingNode(true);
@@ -38,17 +40,27 @@ export default function GroupLabelNode({ id, data }) {
 
         const handleClick = (event) => {
             const clickedNodeId = event?.target?.dataset?.id;
-            if (!clickedNodeId) return;
+            if (!clickedNodeId || clickedNodeId === id) return;
 
-            // assign clicked node to this group
+            // Add clicked node to this group's children
             rfInstance.setNodes((nds) =>
-                nds.map((n) =>
-                    n.id === clickedNodeId
-                        ? { ...n, data: { ...n.data, groupId: id } }
-                        : n
-                )
+                nds.map((n) => {
+                    if (n.id === clickedNodeId) {
+                        return { ...n, data: { ...n.data, groupId: id } };
+                    }
+                    if (n.id === id) {
+                        return {
+                            ...n,
+                            data: {
+                                ...n.data,
+                                children: [...(n.data.children || []), clickedNodeId],
+                            },
+                        };
+                    }
+                    return n;
+                })
             );
-            setSelectingNode(false); // exit selection mode
+            setSelectingNode(false);
         };
 
         window.addEventListener("click", handleClick);
@@ -56,43 +68,29 @@ export default function GroupLabelNode({ id, data }) {
     }, [selectingNode, rfInstance, id]);
 
     const removeItemFromGroup = () => {
-        const children = rfInstance.getNodes().filter((n) => n.data.groupId === id);
+        const children = data.children || [];
         if (children.length === 0) return;
 
-        const options = children.map((n, i) => `${i + 1}: ${n.data.label || n.id}`).join("\n");
+        const options = children.map((nId, i) => `${i + 1}: ${rfInstance.getNodes().find(n => n.id === nId)?.data?.label || nId}`).join("\n");
         const choice = prompt(`Select node to remove from group:\n${options}`);
         const index = parseInt(choice) - 1;
         if (isNaN(index) || index < 0 || index >= children.length) return;
 
-        const nodeToRemove = children[index];
+        const nodeToRemoveId = children[index];
         rfInstance.setNodes((nds) =>
-            nds.map((n) =>
-                n.id === nodeToRemove.id
-                    ? { ...n, data: { ...n.data, groupId: null } }
-                    : n
-            )
-        );
-    };
-
-    // Clamp child nodes inside the group
-    useEffect(() => {
-        rfInstance.setNodes((nds) =>
-            nds.map((node) => {
-                if (node.data.groupId === id) {
-                    let newX = Math.max(position.x + 10, Math.min(node.position.x, position.x + rect.width - 30));
-                    let newY = Math.max(position.y + 30, Math.min(node.position.y, position.y + rect.height - 30));
-                    return { ...node, position: { x: newX, y: newY } };
+            nds.map((n) => {
+                if (n.id === nodeToRemoveId) return { ...n, data: { ...n.data, groupId: null } };
+                if (n.id === id) {
+                    return { ...n, data: { ...n.data, children: n.data.children.filter(cid => cid !== nodeToRemoveId) } };
                 }
-                return node;
+                return n;
             })
         );
-    }, [position, rect, rfInstance, id]);
-
-    const handleRename = () => {
-        const newName = prompt("Enter new group name:", groupName);
-        if (newName) updateNode({ groupName: newName });
     };
 
+    // -------------------
+    // Resize Handle
+    // -------------------
     const handleSize = 12;
     const onScalePointerDown = (e) => {
         e.preventDefault();
@@ -120,6 +118,11 @@ export default function GroupLabelNode({ id, data }) {
 
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
+    };
+
+    const handleRename = () => {
+        const newName = prompt("Enter new group name:", groupName);
+        if (newName) updateNode({ groupName: newName });
     };
 
     return (
