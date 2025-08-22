@@ -1,8 +1,4 @@
-﻿// ItemDetailCard + GroupDetailCard (combined)
-// - Default export: ItemDetailCard
-// - Named export: GroupDetailCard
-
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 
 const typeCache = new Map();
 
@@ -15,9 +11,7 @@ export default function ItemDetailCard({ item, onChange }) {
     const [allTypes, setAllTypes] = useState([]);
 
     // Update local state when item changes
-    useEffect(() => {
-        setLocalItem(item || {});
-    }, [item]);
+    useEffect(() => setLocalItem(item || {}), [item]);
 
     // Fetch all types from Airtable for dropdown
     useEffect(() => {
@@ -32,7 +26,6 @@ export default function ItemDetailCard({ item, onChange }) {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const data = await res.json();
-                // Normalize types: include Category field
                 const typesList = (data.records || []).map(r => ({
                     id: r.id,
                     name: r.fields['Still Pipe'],
@@ -40,7 +33,7 @@ export default function ItemDetailCard({ item, onChange }) {
                 }));
                 setAllTypes(typesList);
             } catch (err) {
-                console.error("Error fetching types:", err);
+                console.error('Error fetching types:', err);
             }
         };
         fetchTypes();
@@ -72,7 +65,7 @@ export default function ItemDetailCard({ item, onChange }) {
                     typeCache.set(typeId, typeName);
                 } catch (err) {
                     console.error(err);
-                    setResolvedType(typeId);
+                    setResolvedType(item.Type);
                 }
             };
             fetchTypeName();
@@ -84,7 +77,7 @@ export default function ItemDetailCard({ item, onChange }) {
     const handleFieldChange = (fieldName, value) => {
         const updated = { ...localItem, [fieldName]: value };
         setLocalItem(updated);
-        if (onChange) onChange(updated); // propagate to parent (updates icon)
+        if (onChange) onChange(updated);
     };
 
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
@@ -92,8 +85,6 @@ export default function ItemDetailCard({ item, onChange }) {
     if (!item) return null;
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
-
-    // Filter types based on selected category
     const filteredTypes = allTypes.filter(t => t.category === (localItem['Category Item Type'] || 'Equipment'));
 
     const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
@@ -135,8 +126,8 @@ export default function ItemDetailCard({ item, onChange }) {
                             const updated = {
                                 ...localItem,
                                 'Category Item Type': newCategory,
-                                Category: newCategory, // normalize for IconManager
-                                Type: '', // reset Type
+                                Category: newCategory,
+                                Type: ''
                             };
                             setLocalItem(updated);
                             if (onChange) onChange(updated);
@@ -185,214 +176,6 @@ export default function ItemDetailCard({ item, onChange }) {
                 <div style={rowStyle}>
                     <label style={labelStyle}>Supplier:</label>
                     <input style={inputStyle} type="text" value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])} onChange={e => handleFieldChange('Supplier (from Technical Spec)', e.target.value)} />
-                </div>
-            </section>
-        </div>
-    );
-}
-
-/**
- * GroupDetailCard (named export)
- *
- * Usage: import { GroupDetailCard } from './ItemDetailCard';  // or better: move this to GroupDetailCard.jsx
- */
-export function GroupDetailCard({
-    node,
-    childrenNodes = [],
-    childrenLabels = [],
-    allItems = {},   // map: airtableId -> normalized item ({ Code, Name, 'Category Item Type' })
-    startAddItemToGroup,
-    onAddItem,     // (itemId) => {}
-    onRemoveItem,  // (itemId) => {}
-    onChange,
-    onDelete
-}) {
-    const groupId = node?.id;
-    const [manualAddId, setManualAddId] = useState('');
-
-    // in-memory cache for fetched items
-    const itemsCacheRef = useRef(new Map());
-    // resolved items state (for render)
-    const [resolvedItems, setResolvedItems] = useState({});
-
-    const normalizeFields = (fields = {}) => ({
-        Code: fields['Item Code'] || fields['Code'] || '',
-        Name: fields['Name'] || '',
-        'Category Item Type': fields['Category Item Type'] || fields['Category'] || ''
-    });
-
-    // Effect: batch fetch any unknown children node ids that look like Airtable record ids
-    // Note: avoid resolvedItems in deps to prevent re-fire loops. We rely on itemsCacheRef to remember fetched ids.
-    useEffect(() => {
-        if (!Array.isArray(childrenNodes) || childrenNodes.length === 0) {
-            // If there are no childrenNodes, clear resolvedItems (so display can fallback to labels)
-            setResolvedItems({});
-            return;
-        }
-
-        const ids = childrenNodes.map(n => n.id).filter(Boolean);
-
-        // Skip synthetic label ids
-        const candidateIds = ids.filter(id => !String(id).startsWith(`${groupId}-lbl-`));
-
-        // If parent already provided data for an id, skip it
-        const uncached = candidateIds.filter(id => !allItems?.[id] && !itemsCacheRef.current.has(id));
-
-        if (uncached.length === 0) {
-            // If we already have things cached, make sure resolvedItems includes them for render
-            const fromCache = {};
-            candidateIds.forEach(id => {
-                if (itemsCacheRef.current.has(id)) fromCache[id] = itemsCacheRef.current.get(id);
-            });
-            if (Object.keys(fromCache).length) setResolvedItems(prev => ({ ...prev, ...fromCache }));
-            return;
-        }
-
-        // fetch missing ids (batch)
-        (async () => {
-            try {
-                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                const itemsTableId = import.meta.env.VITE_AIRTABLE_ITEMS_TABLE_ID;
-                if (!baseId || !token || !itemsTableId) {
-                    console.warn('GroupDetailCard: missing Airtable env vars; creating label fallbacks');
-                    const placeholders = {};
-                    uncached.forEach(id => placeholders[id] = { Code: '', Name: id, 'Category Item Type': '' });
-                    // cache them and set state once
-                    uncached.forEach(id => itemsCacheRef.current.set(id, placeholders[id]));
-                    setResolvedItems(prev => ({ ...prev, ...placeholders }));
-                    return;
-                }
-
-                const fetched = {};
-                // fetch in parallel
-                await Promise.all(uncached.map(async (id) => {
-                    try {
-                        const url = `https://api.airtable.com/v0/${baseId}/${itemsTableId}/${id}`;
-                        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-                        if (!res.ok) {
-                            const fallback = { Code: '', Name: id, 'Category Item Type': '' };
-                            itemsCacheRef.current.set(id, fallback);
-                            fetched[id] = fallback;
-                            return;
-                        }
-                        const rec = await res.json();
-                        const normalized = normalizeFields(rec.fields || {});
-                        itemsCacheRef.current.set(id, normalized);
-                        fetched[id] = normalized;
-                    } catch (err) {
-                        console.error('GroupDetailCard: failed to fetch item', id, err);
-                        const fallback = { Code: '', Name: id, 'Category Item Type': '' };
-                        itemsCacheRef.current.set(id, fallback);
-                        fetched[id] = fallback;
-                    }
-                }));
-
-                // set all fetched items at once
-                setResolvedItems(prev => ({ ...prev, ...fetched }));
-            } catch (err) {
-                console.error('GroupDetailCard: error resolving children ids', err);
-            }
-        })();
-
-        // intentionally exclude resolvedItems from deps to avoid effect re-trigger loops
-    }, [childrenNodes, allItems, groupId]);
-
-    // Build the normalized `display` array used for rendering
-    const display = (Array.isArray(childrenNodes) && childrenNodes.length > 0)
-        ? childrenNodes.map(n => {
-            const id = n.id;
-            const itemFromNode = n.data?.item;
-            const itemFromAll = allItems?.[id];
-            const itemFromResolved = resolvedItems?.[id] || itemsCacheRef.current.get(id);
-            const item = itemFromNode || itemFromAll || itemFromResolved;
-
-            const label = n.displayLabel ?? n.data?.label ?? (
-                item
-                    ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim()
-                    : id
-            );
-
-            return {
-                id,
-                label,
-                category: item?.['Category Item Type'] || item?.Category || ''
-            };
-        })
-        : (Array.isArray(childrenLabels) && childrenLabels.length > 0)
-            ? childrenLabels.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
-            : (Array.isArray(node?.data?.children)
-                ? node.data.children.map((lbl, i) => ({ id: `${groupId}-lbl-${i}`, label: lbl }))
-                : []);
-
-    return (
-        <div style={{
-            background: '#fff',
-            borderRadius: '10px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            padding: '20px',
-            margin: '16px',
-            maxWidth: '350px',
-            fontFamily: 'sans-serif'
-        }}>
-            <section>
-                <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 6, marginBottom: 12 }}>
-                    Group: {node?.data?.label || node?.id}
-                </h3>
-
-                <div style={{ marginBottom: 12 }}>
-                    <button onClick={() => startAddItemToGroup?.(groupId)} style={{ marginRight: 8 }}>
-                        Start: click a node to add
-                    </button>
-
-                    <input
-                        placeholder="node id to add"
-                        value={manualAddId}
-                        onChange={(e) => setManualAddId(e.target.value)}
-                        style={{ padding: '6px 8px', marginRight: 8, width: 160 }}
-                    />
-                    <button
-                        onClick={() => { if (manualAddId && onAddItem) { onAddItem(manualAddId); setManualAddId(''); } }}
-                        style={{ marginRight: 8 }}
-                    >
-                        Add by id
-                    </button>
-
-                    <button onClick={() => onDelete?.(groupId)} style={{ color: 'red' }}>
-                        Delete group
-                    </button>
-                </div>
-
-                <div style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
-                    Members ({display.length})
-                </div>
-
-                <div style={{ maxHeight: 300, overflowY: 'auto', borderTop: '1px solid #eee', paddingTop: 8 }}>
-                    {display.length === 0 ? (
-                        <div style={{ color: '#999' }}>No children</div>
-                    ) : (
-                        display.map(ch => (
-                            <div key={ch.id} style={{
-                                padding: '8px 0',
-                                borderBottom: '1px dashed #f0f0f0',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                            }}>
-                                <div>
-                                    <div style={{ fontWeight: 600 }}>{ch.label}</div>
-                                    {ch.category && <div style={{ fontSize: 12, color: '#777' }}>{ch.category}</div>}
-                                </div>
-
-                                {/* Remove only works if we have a real node id */}
-                                {onRemoveItem && !(String(ch.id).startsWith(`${groupId}-lbl-`)) ? (
-                                    <button onClick={() => onRemoveItem(ch.id)} style={{ fontSize: 12 }}>Remove</button>
-                                ) : (
-                                    <button style={{ fontSize: 12, opacity: 0.5 }} disabled>Remove</button>
-                                )}
-                            </div>
-                        ))
-                    )}
                 </div>
             </section>
         </div>
