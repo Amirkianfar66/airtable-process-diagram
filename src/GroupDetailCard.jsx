@@ -31,10 +31,19 @@ export default function ProcessDiagram() {
 
     const onNodeClick = useCallback((event, node) => {
         setSelectedNode(node);
-        // Suppose children come from edges or node.data.children
-        const children = nodes.filter(n => node.data?.children?.includes(n.id));
-        setSelectedNodeChildren(children);
-    }, [nodes]);
+
+        if (node.type === 'group') {
+            const childIds = node.data?.children || [];
+            const children = childIds.map(id => ({
+                id,
+                data: { item: allItems[id] },
+            }));
+            console.log('childrenNodesForGroup', node.id, children);
+            setSelectedNodeChildren(children);
+        } else {
+            setSelectedNodeChildren([]);
+        }
+    }, [allItems]);
 
     return (
         <div style={{ display: 'flex', height: '100vh' }}>
