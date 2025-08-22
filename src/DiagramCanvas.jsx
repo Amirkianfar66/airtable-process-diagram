@@ -23,7 +23,6 @@ export default function DiagramCanvas({
     handleGeneratePNID,
     chatMessages,
     setChatMessages,
-    ChatBox,
     selectedNodes,
     updateNode,
     deleteNode,
@@ -52,33 +51,30 @@ export default function DiagramCanvas({
                 </div>
                 <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto' }}>
                     {/* ChatBox lives in AIPNIDGenerator; parent keeps chatMessages state */}
-                    {ChatBox ? (
-                        <div style={{ border: '2px solid #3b82f6', borderRadius: 8, padding: 8, background: '#f8fbff' }}>
-                            <ChatBox messages={chatMessages} />
-                        </div>
-                    ) : (
-                        <div style={{ color: '#999' }}>Chat not available</div>
-                    )}
-                </div>
-
-                <div style={{ flex: 1 }}>
-                    <ReactFlow
-                        nodes={nodes}
-                        edges={edges}
-                        onNodesChange={onNodesChange}
-                        onEdgesChange={onEdgesChange}
-                        onConnect={onConnect}
-                        onSelectionChange={onSelectionChange}
-                        fitView
-                        selectionOnDrag
-                        minZoom={0.02}
-                        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                        nodeTypes={nodeTypes}
-                        style={{ background: 'transparent' }}
-                    >
-                        <Controls />
-                    </ReactFlow>
+                    <div>
+                        {/* If ChatBox is exported as named export it can be used here by importing in parent and passing down. */}
+                    </div>
                 </div>
             </div>
-            );
+
+            <div style={{ flex: 1 }}>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onSelectionChange={onSelectionChange}
+                    fitView
+                    selectionOnDrag
+                    minZoom={0.02}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                    nodeTypes={nodeTypes}
+                    style={{ background: 'transparent' }}
+                >
+                    <Controls />
+                </ReactFlow>
+            </div>
+        </div>
+    );
 }
