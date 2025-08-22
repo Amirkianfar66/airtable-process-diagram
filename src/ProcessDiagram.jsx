@@ -1,6 +1,4 @@
-﻿// Updated: ProcessDiagram.jsx (adds onNodeDrag to move child nodes live while dragging)
-// ------------------------------
-// Place this content into src/components/ProcessDiagram.jsx (replace existing)
+﻿// ===================== File: src/components/ProcessDiagram.jsx (Updated with onNodeDrag) =====================
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
@@ -106,7 +104,6 @@ export default function ProcessDiagram() {
             nds.map((n) => {
                 if (!n?.data) return n;
 
-                // group membership check
                 const isChild =
                     (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
                     n.data.groupId === draggedNode.id ||
@@ -114,7 +111,6 @@ export default function ProcessDiagram() {
 
                 if (!isChild) return n;
 
-                // shift children by the same delta as the group’s drag
                 const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
                 const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
 
@@ -128,7 +124,6 @@ export default function ProcessDiagram() {
             })
         );
 
-        // update prev position for next drag tick
         setNodes((nds) =>
             nds.map((n) =>
                 n.id === draggedNode.id
@@ -138,7 +133,6 @@ export default function ProcessDiagram() {
         );
     }, []);
 
-    // --- Reset prevX/prevY once drag stops ---
     const onNodeDragStop = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
         setNodes((nds) =>
@@ -232,9 +226,7 @@ export default function ProcessDiagram() {
             .catch(console.error);
     }, []);
 
-    // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
-
     const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
 
     const selectedGroupNode = selectedNodes && selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
@@ -248,7 +240,6 @@ export default function ProcessDiagram() {
     }) : [];
 
     const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
-
     const onAddItem = (nodeIdToAdd) => {
         if (!nodeIdToAdd) return;
         setNodes(nds => {
@@ -273,7 +264,6 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
 
-    // --- ✅ FIX: Add Item wiring (normalize fields + auto-select) ---
     const handleAddItem = (rawItem) => {
         const normalizedItem = {
             id: rawItem.id || `item-${Date.now()}`,
@@ -301,11 +291,9 @@ export default function ProcessDiagram() {
         setNodes(nds => [...nds, newNode]);
         setItems(prev => [...prev, normalizedItem]);
 
-        // Auto-select new node so ItemDetailCard opens
         setSelectedNodes([newNode]);
         setSelectedItem(normalizedItem);
     };
-
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
@@ -320,17 +308,7 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    // Use the local AddItemButton, wired to our fixed handler
                     AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
-                    aiDescription={aiDescription}
-                    setAiDescription={setAiDescription}
-                    handleGeneratePNID={handleGeneratePNID}
-                    chatMessages={chatMessages}
-                    setChatMessages={setChatMessages}
-                    selectedNodes={selectedNodes}
-                    updateNode={updateNode}
-                    deleteNode={deleteNode}
-                    ChatBox={ChatBox}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
@@ -355,11 +333,6 @@ export default function ProcessDiagram() {
                         <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                     )}
                 </div>
-
-            </div>
-            {/* Chat box display */}
-            <div style={{ padding: 10 }}>
-                <ChatBox messages={chatMessages} />
             </div>
         </div>
     );
