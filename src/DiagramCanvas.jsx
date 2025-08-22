@@ -30,7 +30,15 @@ export default function DiagramCanvas({
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Main toolbar */}
-            <MainToolbar selectedNodes={selectedNodes} setNodes={setNodes} updateNode={updateNode} deleteNode={deleteNode} />
+            <MainToolbar
+                selectedNodes={selectedNodes}
+                nodes={nodes}
+                edges={edges}
+                setNodes={setNodes}
+                setEdges={setEdges}
+                updateNode={updateNode}
+                deleteNode={deleteNode}
+            />
             <div style={{ padding: 10 }}>
                 {/* Add item button is passed from parent so it has access to setNodes/setItems there if needed */}
                 {AddItemButton ? <AddItemButton setNodes={setNodes} setEdges={setEdges} /> : null}
