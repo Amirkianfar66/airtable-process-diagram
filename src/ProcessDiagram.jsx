@@ -245,6 +245,27 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
 
+    // --- FIX: Add Item wiring ---
+    const handleAddItem = (newItem) => {
+        // Create new node for diagram
+        const newNode = {
+            id: newItem.id,
+            position: { x: 100, y: 100 },
+            data: { label: `${newItem.Code || ''} - ${newItem.Name || ''}`, item: newItem, icon: getItemIcon(newItem) },
+            type: categoryTypeMap[newItem.Category] || 'scalableIcon',
+            sourcePosition: 'right',
+            targetPosition: 'left',
+            style: { background: 'transparent', boxShadow: 'none' },
+        };
+
+        setNodes(nds => [...nds, newNode]);
+        setItems(prev => [...prev, newItem]);
+
+        // Auto-select new node so ItemDetailCard opens
+        setSelectedNodes([newNode]);
+        setSelectedItem(newItem);
+    };
+
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
             <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
@@ -258,7 +279,7 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    AddItemButton={AddItemButton}
+                    AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
                     handleGeneratePNID={handleGeneratePNID}
