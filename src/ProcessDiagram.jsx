@@ -59,6 +59,7 @@ export default function ProcessDiagram() {
     const [selectedItem, setSelectedItem] = useState(null);
     const [items, setItems] = useState([]);
 
+
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
@@ -151,7 +152,29 @@ export default function ProcessDiagram() {
     }, []);
 
 
+       
 
+    const handleGeneratePNID = async () => {
+        if (!aiDescription) return;
+
+        try {
+            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(aiDescription, items, nodes, edges, setSelectedItem, setChatMessages);
+            const newItems = aiNodes.map((n) => n.data?.item).filter(Boolean);
+
+            setItems((prev) => {
+                const existingIds = new Set(prev.map((i) => i.id));
+                const filteredNew = newItems.filter((i) => !existingIds.has(i.id));
+                const updatedItems = [...prev, ...filteredNew];
+                if (filteredNew.length > 0) setSelectedItem(filteredNew[0]);
+                return updatedItems;
+            });
+
+            setNodes(aiNodes);
+            setEdges(aiEdges);
+        } catch (err) {
+            console.error('AI PNID generation failed:', err);
+        }
+    };
 
     useEffect(() => {
         fetchData()
