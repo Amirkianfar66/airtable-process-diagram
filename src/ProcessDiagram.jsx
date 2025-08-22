@@ -25,8 +25,10 @@ const nodeTypes = {
     custom: CustomItemNode,
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
-    groupLabel: GroupLabelNode, // simple
+    groupLabel: GroupLabelNode,
+    subUnitLabel: GroupLabelNode, // or a dedicated component if you have one
 };
+
 
 
 const fetchData = async () => {
@@ -540,23 +542,24 @@ export default function ProcessDiagram() {
                             (() => {
                                 const groupId = selectedGroup.id;
                                 // full node objects that belong to the group
-                                    const childrenNodesForGroup = nodes
-                                        .filter(n => n.data?.groupId === groupId)
-                                        .map(n => {
-                                            const item = n.data?.item || allItems?.[n.id];
-                                            const label = item
-                                                ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim()
-                                                : n.data?.label || n.id;
+                                    // build children list from group.data.childIds
+                                    const childIds = Array.isArray(selectedGroup.data?.childIds)
+                                        ? selectedGroup.data.childIds
+                                        : [];
 
-                                            return {
-                                                ...n,
-                                                data: {
-                                                    ...n.data,
-                                                    item, // inject item here so GroupDetailCard can use it
-                                                },
-                                                displayLabel: label,
-                                            };
-                                        });
+                                    const childrenNodesForGroup = childIds.map(id => {
+                                        const item = allItems[id];
+                                        const label = item
+                                            ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim()
+                                            : id;
+
+                                        return {
+                                            id,
+                                            data: { item },
+                                            displayLabel: label,
+                                        };
+                                    });
+
 
 
 
