@@ -247,7 +247,6 @@ export default function ProcessDiagram() {
 
     // --- ✅ FIX: Add Item wiring (normalize fields + auto-select) ---
     const handleAddItem = (rawItem) => {
-        // Normalize field names so they match what ItemDetailCard expects
         const normalizedItem = {
             id: rawItem.id || `item-${Date.now()}`,
             Name: rawItem.Name || '',
@@ -255,7 +254,6 @@ export default function ProcessDiagram() {
             'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
             Unit: rawItem.Unit || '',
             SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? '',
-            // Keep both Category and Category Item Type in sync
             Category: Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
             'Category Item Type': Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
             Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
@@ -279,6 +277,7 @@ export default function ProcessDiagram() {
         setSelectedNodes([newNode]);
         setSelectedItem(normalizedItem);
     };
+
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
