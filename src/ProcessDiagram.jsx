@@ -1,4 +1,4 @@
-﻿// Updated: ProcessDiagram.jsx (adds onNodeDragStop to move child nodes with a group)
+﻿// Updated: ProcessDiagram.jsx (adds onNodeDrag to move child nodes live while dragging)
 // ------------------------------
 // Place this content into src/components/ProcessDiagram.jsx (replace existing)
 
@@ -100,8 +100,8 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
 
-    // --- NEW: when a group node is moved, shift its children by the same delta ---
-    const onNodeDragStop = useCallback((event, node) => {
+    // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
+    const onNodeDrag = useCallback((event, node) => {
         if (!node || node.type !== 'groupLabel') return;
 
         setNodes((nds) => {
@@ -118,6 +118,36 @@ export default function ProcessDiagram() {
                 if (n.id === node.id) return { ...n, position: node.position };
 
                 // A node is a child of the group if it references the group's id
+                const isChild =
+                    n.data?.groupId === node.id ||
+                    n.data?.parentId === node.id ||
+                    (Array.isArray(prev.data?.children) && prev.data.children.includes(n.id));
+
+                if (!isChild) return n;
+
+                const oldPos = n.position || { x: 0, y: 0 };
+                return { ...n, position: { x: oldPos.x + deltaX, y: oldPos.y + deltaY } };
+            });
+        });
+    }, [setNodes]);
+
+    // keep onNodeDragStop for final adjustments (safe no-op if already updated during drag)
+    const onNodeDragStop = useCallback((event, node) => {
+        if (!node || node.type !== 'groupLabel') return;
+
+        setNodes((nds) => {
+            const prev = nds.find((n) => n.id === node.id);
+            if (!prev) return nds;
+
+            const prevPos = prev.position || { x: 0, y: 0 };
+            const deltaX = node.position.x - prevPos.x;
+            const deltaY = node.position.y - prevPos.y;
+
+            if (deltaX === 0 && deltaY === 0) return nds;
+
+            return nds.map((n) => {
+                if (n.id === node.id) return { ...n, position: node.position };
+
                 const isChild =
                     n.data?.groupId === node.id ||
                     n.data?.parentId === node.id ||
@@ -334,6 +364,7 @@ export default function ProcessDiagram() {
                     updateNode={updateNode}
                     deleteNode={deleteNode}
                     ChatBox={ChatBox}
+                    onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
             </div>
@@ -361,3 +392,4 @@ export default function ProcessDiagram() {
         </div>
     );
 }
+

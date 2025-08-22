@@ -1,4 +1,4 @@
-﻿// Updated: DiagramCanvas.jsx (accepts onNodeDragStop and forwards to ReactFlow)
+﻿// Updated: DiagramCanvas.jsx (accepts onNodeDrag + onNodeDragStop and forwards to ReactFlow)
 // Place this content into src/components/DiagramCanvas.jsx (replace existing)
 
 import React from 'react';
@@ -26,6 +26,7 @@ export default function DiagramCanvas({
     selectedNodes,
     updateNode,
     deleteNode,
+    onNodeDrag, // <- new prop
     onNodeDragStop, // <- new prop
 }) {
     return (
@@ -72,6 +73,7 @@ export default function DiagramCanvas({
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
+                    onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     fitView
                     selectionOnDrag
