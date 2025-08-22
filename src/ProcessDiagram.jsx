@@ -1,5 +1,4 @@
-﻿// src/components/ProcessDiagram.jsx
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNodesState, useEdgesState, addEdge } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
@@ -80,12 +79,7 @@ export default function ProcessDiagram() {
     const onConnect = useCallback(
         (params) => {
             const updatedEdges = addEdge(
-                {
-                    ...params,
-                    type: 'step',
-                    animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2 },
-                },
+                { ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } },
                 edges
             );
             setEdges(updatedEdges);
@@ -111,13 +105,7 @@ export default function ProcessDiagram() {
                 const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
                 const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
 
-                return {
-                    ...n,
-                    position: {
-                        x: n.position.x + deltaX,
-                        y: n.position.y + deltaY,
-                    },
-                };
+                return { ...n, position: { x: n.position.x + deltaX, y: n.position.y + deltaY } };
             })
         );
 
@@ -139,7 +127,123 @@ export default function ProcessDiagram() {
         );
     }, []);
 
-    // ---------------- Add item handler ----------------
+    // ---------------- Load from Airtable & layout Units/SubUnits/Items ----------------
+    useEffect(() => {
+        fetchData()
+            .then((itemsRaw) => {
+                const normalizedItems = itemsRaw.map((item) => ({
+                    ...item,
+                    Unit: item.Unit || 'Default Unit',
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    Category: Array.isArray(item['Category Item Type'])
+                        ? item['Category Item Type'][0]
+                        : item['Category Item Type'] || '',
+                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
+                    Code: item['Item Code'] || item.Code || '',
+                    Name: item.Name || '',
+                    Sequence: item.Sequence || 0,
+                }));
+
+                setItems(normalizedItems);
+
+                const grouped = {};
+                normalizedItems.forEach((item) => {
+                    const { Unit, SubUnit, Category, Sequence, Name, Code, id } = item;
+                    if (!Unit || !SubUnit) return;
+                    if (!grouped[Unit]) grouped[Unit] = {};
+                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
+                });
+
+                const newNodes = [];
+                const newEdges = [];
+                let unitX = 0;
+                const unitWidth = 5000;
+                const unitHeight = 3000;
+                const subUnitHeight = unitHeight / 9;
+                const itemWidth = 160;
+                const itemGap = 30;
+
+                Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    // Unit frame
+                    newNodes.push({
+                        id: `unit-${unit}`,
+                        position: { x: unitX, y: 0 },
+                        data: { label: unit },
+                        style: {
+                            width: unitWidth,
+                            height: unitHeight,
+                            border: '4px solid #444',
+                            background: 'transparent',
+                            boxShadow: 'none',
+                        },
+                        draggable: false,
+                        selectable: false,
+                    });
+
+                    // SubUnits and items
+                    Object.entries(subUnits).forEach(([subUnit, itemsArr], index) => {
+                        const yOffset = index * subUnitHeight;
+
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: {
+                                width: unitWidth - 20,
+                                height: subUnitHeight - 20,
+                                border: '2px dashed #aaa',
+                                background: 'transparent',
+                                boxShadow: 'none',
+                            },
+                            draggable: false,
+                            selectable: false,
+                        });
+
+                        let itemX = unitX + 40;
+                        itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        itemsArr.forEach((it) => {
+                            newNodes.push({
+                                id: it.id,
+                                position: { x: itemX, y: yOffset + 20 },
+                                data: { label: `${it.Code || ''} - ${it.Name || ''}`, item: it, icon: getItemIcon(it) },
+                                type: categoryTypeMap[it.Category] || 'scalableIcon',
+                                sourcePosition: 'right',
+                                targetPosition: 'left',
+                                style: { background: 'transparent', boxShadow: 'none' },
+                            });
+                            itemX += itemWidth + itemGap;
+                        });
+                    });
+
+                    unitX += unitWidth + 100;
+                });
+
+                setNodes(newNodes);
+                setEdges(newEdges);
+            })
+            .catch(console.error);
+    }, []);
+
+    // ---------------- Group detail helpers ----------------
+    const itemsMap = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
+    const selectedGroupNode =
+        selectedNodes && selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel'
+            ? selectedNodes[0]
+            : null;
+
+    const childrenNodesForGroup = selectedGroupNode
+        ? nodes.filter((n) => {
+            if (!n) return false;
+            if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id))
+                return true;
+            if (n.data?.groupId === selectedGroupNode.id) return true;
+            if (n.data?.parentId === selectedGroupNode.id) return true;
+            return false;
+        })
+        : [];
+
+    // ---------------- Add item button (manual add) ----------------
     const handleAddItem = (rawItem) => {
         const normalizedItem = {
             id: rawItem.id || `item-${Date.now()}`,
@@ -158,10 +262,15 @@ export default function ProcessDiagram() {
         const newNode = {
             id: normalizedItem.id,
             position: { x: 100, y: 100 },
-            data: { label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`, item: normalizedItem, icon: getItemIcon(normalizedItem) },
+            data: {
+                label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`,
+                item: normalizedItem,
+                icon: getItemIcon(normalizedItem),
+            },
             type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
             sourcePosition: 'right',
             targetPosition: 'left',
+            style: { background: 'transparent', boxShadow: 'none' },
         };
 
         setNodes((nds) => [...nds, newNode]);
@@ -171,25 +280,10 @@ export default function ProcessDiagram() {
     };
 
     // ---------------- Render ----------------
-    const itemsMap = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
-    const selectedGroupNode =
-        selectedNodes && selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel'
-            ? selectedNodes[0]
-            : null;
-    const childrenNodesForGroup = selectedGroupNode
-        ? nodes.filter((n) => {
-            if (!n) return false;
-            if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id))
-                return true;
-            if (n.data?.groupId === selectedGroupNode.id) return true;
-            if (n.data?.parentId === selectedGroupNode.id) return true;
-            return false;
-        })
-        : [];
-
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1 }}>
+            {/* Canvas */}
+            <div style={{ flex: 1, position: 'relative' }}>
                 <DiagramCanvas
                     nodes={nodes}
                     edges={edges}
@@ -200,35 +294,43 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
-                    updateNode={updateNode}
-                    deleteNode={deleteNode}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
+                    AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
                 />
             </div>
 
-            {/* Sidebar */}
+            {/* Details sidebar */}
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent' }}>
-                {selectedGroupNode ? (
-                    <GroupDetailCard
-                        node={selectedGroupNode}
-                        childrenNodes={childrenNodesForGroup}
-                        childrenLabels={selectedGroupNode?.data?.children}
-                        allItems={itemsMap}
-                    />
-                ) : selectedItem ? (
-                    <ItemDetailCard
-                        item={selectedItem}
-                        onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)}
-                    />
-                ) : (
-                    <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
-                )}
+                <div style={{ height: '100%', overflowY: 'auto' }}>
+                    {selectedGroupNode ? (
+                        <GroupDetailCard
+                            node={selectedGroupNode}
+                            childrenNodes={childrenNodesForGroup}
+                            childrenLabels={selectedGroupNode?.data?.children}
+                            allItems={itemsMap}
+                        />
+                    ) : selectedItem ? (
+                        <ItemDetailCard
+                            item={selectedItem}
+                            onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)}
+                        />
+                    ) : (
+                        <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
+                    )}
+                </div>
             </div>
 
-            {/* AI/Chat Panel (separate component) */}
-            <AIChatPanel nodes={nodes} edges={edges} items={items} setNodes={setNodes} setEdges={setEdges} setItems={setItems} setSelectedItem={setSelectedItem} />
+            {/* AI & chat panel (separate) */}
+            <AIChatPanel
+                nodes={nodes}
+                edges={edges}
+                items={items}
+                setNodes={setNodes}
+                setEdges={setEdges}
+                setItems={setItems}
+                setSelectedItem={setSelectedItem}
+            />
         </div>
     );
 }
