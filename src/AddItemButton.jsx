@@ -1,6 +1,6 @@
 ﻿import React, { useState } from 'react';
 
-export default function AddItemButton({ addItem }) {
+export default function AddItemButton({ addItem, setSelectedItem, setSelectedNodes }) {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
         Code: '',
@@ -20,7 +20,22 @@ export default function AddItemButton({ addItem }) {
             id: `item-${Date.now()}`,
             ...formData,
         };
-        addItem(newItem);
+
+        // Call parent's addItem
+        if (typeof addItem === 'function') {
+            addItem(newItem);
+        } else {
+            console.error('addItem is not a function');
+        }
+
+        // Update selection so ItemDetailCard shows
+        if (typeof setSelectedItem === 'function') {
+            setSelectedItem(newItem);
+        }
+        if (typeof setSelectedNodes === 'function') {
+            setSelectedNodes([newItem]);
+        }
+
         setFormData({ Code: '', Name: '', Category: 'Equipment', Unit: '', SubUnit: '' });
         setShowForm(false);
     };
