@@ -162,9 +162,10 @@ export default function GroupLabelNode({ id, data }) {
                     <button onClick={deleteNode} style={{ fontSize: 10, cursor: "pointer" }}>
                         Delete
                     </button>
-                    <button onClick={startAddItem} style={{ fontSize: 10, cursor: "pointer" }}>
+                    <button onClick={() => startAddItemToGroup(id)} style={{ fontSize: 10, cursor: "pointer" }}>
                         Add Item
                     </button>
+
                     <button onClick={removeItemFromGroup} style={{ fontSize: 10, cursor: "pointer" }}>
                         Remove Item
                     </button>

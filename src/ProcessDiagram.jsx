@@ -63,6 +63,13 @@ export default function ProcessDiagram() {
     const [items, setItems] = useState([]);
     const [aiDescription, setAiDescription] = useState('');
     const [chatMessages, setChatMessages] = useState([]);
+    const [groupSelectionMode, setGroupSelectionMode] = useState(null);
+
+    const startAddItemToGroup = (groupId) => {
+        alert("Click on a node to add it to this group");
+        setGroupSelectionMode(groupId);
+    };
+
 
     const updateNode = (id, newData) => {
         setNodes(nds =>
@@ -252,9 +259,6 @@ export default function ProcessDiagram() {
         },
         [setNodes, _onNodesChange]
     );
- 
-    
-
 
 
     useEffect(() => {
