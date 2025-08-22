@@ -1,6 +1,6 @@
 ﻿import React, { useState } from "react";
 
-export default function GroupLabelNode({ id, data }) {
+export default function GroupLabelNode({ id, data, childrenNodes = [] }) {
     const [rect, setRect] = useState(data.rect || { width: 150, height: 100 });
     const [position, setPosition] = useState(data.position || { x: 0, y: 0 });
     const groupName = data.groupName || data.label || "My Group";
@@ -37,7 +37,13 @@ export default function GroupLabelNode({ id, data }) {
                 width: Math.max(50, initialWidth + deltaX),
                 height: Math.max(50, initialHeight + deltaY),
             });
-            if (data.updateNode) data.updateNode({ rect: { width: Math.max(50, initialWidth + deltaX), height: Math.max(50, initialHeight + deltaY) } });
+            if (data.updateNode)
+                data.updateNode({
+                    rect: {
+                        width: Math.max(50, initialWidth + deltaX),
+                        height: Math.max(50, initialHeight + deltaY),
+                    },
+                });
         };
 
         const handlePointerUp = () => {
@@ -62,8 +68,10 @@ export default function GroupLabelNode({ id, data }) {
                 overflow: "visible",
                 pointerEvents: "auto",
                 zIndex: 1000,
+                padding: 4,
             }}
         >
+            {/* Header */}
             <div
                 style={{
                     display: "flex",
@@ -98,6 +106,23 @@ export default function GroupLabelNode({ id, data }) {
                 </div>
             </div>
 
+            {/* Items list */}
+            <div
+                style={{
+                    marginTop: 4,
+                    fontSize: 10,
+                    color: "#333",
+                    maxHeight: rect.height - 30,
+                    overflowY: "auto",
+                    paddingLeft: 2,
+                }}
+            >
+                {childrenNodes.length === 0
+                    ? "No items inside"
+                    : `Items: ${childrenNodes.map((n) => n.data?.label || n.id).join(", ")}`}
+            </div>
+
+            {/* Resize handle */}
             <div
                 onPointerDown={onScalePointerDown}
                 style={{
