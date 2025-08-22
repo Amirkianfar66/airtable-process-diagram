@@ -65,6 +65,45 @@ export default function ProcessDiagram() {
     const [chatMessages, setChatMessages] = useState([]);
     const [groupSelectionMode, setGroupSelectionMode] = useState(null);
 
+
+    const createGroupFromSelectedNodes = () => {
+        if (selectedNodes.length === 0) {
+            alert("Select some nodes first to create a group.");
+            return;
+        }
+
+        // Generate a unique group ID
+        const groupId = `group-${Date.now()}`;
+
+        // Create the new group node
+        const newGroupNode = {
+            id: groupId,
+            type: 'groupLabel',
+            position: { x: 100, y: 100 }, // you can customize this
+            data: {
+                label: 'New Group',
+                isGroup: true,
+                children: selectedNodes.map(n => n.id), // assign selected nodes as children
+            },
+        };
+
+        // Update nodes: assign groupId to selected nodes
+        const updatedNodes = nodes.map(n =>
+            selectedNodes.find(sn => sn.id === n.id)
+                ? { ...n, data: { ...n.data, groupId } }
+                : n
+        );
+
+        // Add the new group node
+        setNodes([...updatedNodes, newGroupNode]);
+
+        // Set this group as selected in the detail panel
+        setSelectedGroup(newGroupNode);
+
+        // Optionally deselect individual nodes
+        setSelectedNodes([]);
+    };
+
     const startAddItemToGroup = (groupId) => {
         alert("Click on a node to add it to this group");
         setGroupSelectionMode(groupId);
