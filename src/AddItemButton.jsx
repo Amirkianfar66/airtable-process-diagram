@@ -1,87 +1,88 @@
-﻿import React, { useState } from 'react';
+﻿// ===================== File: src/components/AddItemButton.jsx =====================
+// Purpose: create items using field names that match ItemDetailCard expectations
+
+import React, { useState } from 'react';
 
 export default function AddItemButton({ addItem }) {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
-        Code: '',
+        'Item Code': '', // ✅ use Item Code to match ItemDetailCard
         Name: '',
-        "Category Item Type": 'Equipment', // ✅ unified field name
+        'Category Item Type': 'Equipment', // ✅ unified category field
         Unit: '',
         SubUnit: '',
     });
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        addItem(formData); // ✅ pass with correct key
+    const handleAdd = (e) => {
+        e?.preventDefault?.();
+        const newItem = {
+            id: `item-${Date.now()}`,
+            ...formData,
+            // keep Code in sync for labels
+            Code: formData['Item Code'] || '',
+            Category: formData['Category Item Type'] || 'Equipment',
+        };
+        addItem(newItem);
+        setFormData({ 'Item Code': '', Name: '', 'Category Item Type': 'Equipment', Unit: '', SubUnit: '' });
         setShowForm(false);
-        setFormData({ Code: '', Name: '', "Category Item Type": 'Equipment', Unit: '', SubUnit: '' });
     };
 
     return (
         <div>
             <button
-                onClick={() => setShowForm(!showForm)}
-                className="bg-blue-500 text-white px-4 py-2 rounded"
+                onClick={() => setShowForm(true)}
+                style={{
+                    padding: '8px 16px',
+                    margin: '10px',
+                    background: '#4CAF50',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                }}
             >
-                + Add Item
+                Add Item
             </button>
 
             {showForm && (
-                <form onSubmit={handleSubmit} className="mt-2 p-2 border rounded bg-gray-50">
-                    <input
-                        type="text"
-                        name="Code"
-                        placeholder="Code"
-                        value={formData.Code}
-                        onChange={handleChange}
-                        className="border p-1 m-1"
-                        required
-                    />
-                    <input
-                        type="text"
-                        name="Name"
-                        placeholder="Name"
-                        value={formData.Name}
-                        onChange={handleChange}
-                        className="border p-1 m-1"
-                        required
-                    />
-                    <select
-                        name="Category Item Type"
-                        value={formData["Category Item Type"]}
-                        onChange={handleChange}
-                        className="border p-1 m-1"
-                    >
-                        <option value="Equipment">Equipment</option>
-                        <option value="Pipe">Pipe</option>
-                        <option value="Valve">Valve</option>
-                        <option value="Instrument">Instrument</option>
-                        <option value="Inline item">Inline item</option>
-                    </select>
-                    <input
-                        type="text"
-                        name="Unit"
-                        placeholder="Unit"
-                        value={formData.Unit}
-                        onChange={handleChange}
-                        className="border p-1 m-1"
-                    />
-                    <input
-                        type="text"
-                        name="SubUnit"
-                        placeholder="Sub Unit"
-                        value={formData.SubUnit}
-                        onChange={handleChange}
-                        className="border p-1 m-1"
-                    />
+                <form onSubmit={handleAdd} style={{ position: 'absolute', background: '#fff', padding: 20, border: '1px solid #ccc', borderRadius: 4 }}>
+                    <div>
+                        <label>Item Code:</label>
+                        <input name="Item Code" value={formData['Item Code']} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label>Name:</label>
+                        <input name="Name" value={formData.Name} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label>Category:</label>
+                        <select name="Category Item Type" value={formData['Category Item Type']} onChange={handleChange}>
+                            <option>Equipment</option>
+                            <option>Instrument</option>
+                            <option>Inline Valve</option>
+                            <option>Pipe</option>
+                            <option>Electrical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Unit:</label>
+                        <input name="Unit" value={formData.Unit} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label>SubUnit:</label>
+                        <input name="SubUnit" value={formData.SubUnit} onChange={handleChange} />
+                    </div>
 
-                    <button type="submit" className="bg-green-500 text-white px-3 py-1 rounded m-1">
-                        Save
+                    <button type="submit" style={{ marginTop: 10, padding: '5px 10px' }}>
+                        Add
+                    </button>
+                    <button type="button" onClick={() => setShowForm(false)} style={{ marginLeft: 10, padding: '5px 10px' }}>
+                        Cancel
                     </button>
                 </form>
             )}

@@ -1,5 +1,5 @@
-﻿// ===================== ProcessDiagram.jsx =====================
-// Place this file at: src/components/ProcessDiagram.jsx
+﻿// ===================== File: src/components/ProcessDiagram.jsx =====================
+// Purpose: ensure ItemDetailCard opens for brand-new items created via AddItemButton
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
@@ -13,12 +13,13 @@ import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
-import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
+import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
+// ✅ Use the local AddItemButton component (NOT the one from IconManager)
+import AddItemButton from './AddItemButton';
 
-// Keep top-level nodeTypes definition
 export const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -27,7 +28,6 @@ export const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
-// Fetch helper - unchanged from original
 export const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -204,7 +204,7 @@ export default function ProcessDiagram() {
             .catch(console.error);
     }, []);
 
-    // --- Group detail wiring: show GroupDetailCard when a groupLabel node is selected ---
+    // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
 
     const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
@@ -219,7 +219,7 @@ export default function ProcessDiagram() {
         return false;
     }) : [];
 
-    const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); /* click-to-add flow can be implemented later */ };
+    const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
 
     const onAddItem = (nodeIdToAdd) => {
         if (!nodeIdToAdd) return;
@@ -245,25 +245,39 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
 
-    // --- FIX: Add Item wiring ---
-    const handleAddItem = (newItem) => {
-        // Create new node for diagram
+    // --- ✅ FIX: Add Item wiring (normalize fields + auto-select) ---
+    const handleAddItem = (rawItem) => {
+        // Normalize field names so they match what ItemDetailCard expects
+        const normalizedItem = {
+            id: rawItem.id || `item-${Date.now()}`,
+            Name: rawItem.Name || '',
+            Code: rawItem.Code ?? rawItem['Item Code'] ?? '',
+            'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
+            Unit: rawItem.Unit || '',
+            SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? '',
+            // Keep both Category and Category Item Type in sync
+            Category: Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
+            'Category Item Type': Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
+            Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
+            Sequence: rawItem.Sequence ?? 0,
+        };
+
         const newNode = {
-            id: newItem.id,
+            id: normalizedItem.id,
             position: { x: 100, y: 100 },
-            data: { label: `${newItem.Code || ''} - ${newItem.Name || ''}`, item: newItem, icon: getItemIcon(newItem) },
-            type: categoryTypeMap[newItem.Category] || 'scalableIcon',
+            data: { label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`, item: normalizedItem, icon: getItemIcon(normalizedItem) },
+            type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
             sourcePosition: 'right',
             targetPosition: 'left',
             style: { background: 'transparent', boxShadow: 'none' },
         };
 
         setNodes(nds => [...nds, newNode]);
-        setItems(prev => [...prev, newItem]);
+        setItems(prev => [...prev, normalizedItem]);
 
         // Auto-select new node so ItemDetailCard opens
         setSelectedNodes([newNode]);
-        setSelectedItem(newItem);
+        setSelectedItem(normalizedItem);
     };
 
     return (
@@ -279,6 +293,7 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
+                    // Use the local AddItemButton, wired to our fixed handler
                     AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
@@ -315,3 +330,4 @@ export default function ProcessDiagram() {
         </div>
     );
 }
+
