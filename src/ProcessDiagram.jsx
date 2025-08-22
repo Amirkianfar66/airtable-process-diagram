@@ -101,73 +101,59 @@ export default function ProcessDiagram() {
     );
 
     // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
-    const onNodeDrag = useCallback((event, node) => {
-        if (!node || node.type !== 'groupLabel') return;
+    const onNodeDrag = useCallback((event, draggedNode) => {
+        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
-        // If the group has liveFollow === false, don't move children
-        const groupConfig = node.data || {};
-        if (groupConfig.liveFollow === false) return;
+        setNodes((nds) =>
+            nds.map((n) => {
+                if (!n?.data) return n;
 
-        setNodes((nds) => {
-            const prev = nds.find((n) => n.id === node.id);
-            if (!prev) return nds;
-
-            const prevPos = prev.position || { x: 0, y: 0 };
-            const deltaX = node.position.x - prevPos.x;
-            const deltaY = node.position.y - prevPos.y;
-
-            if (deltaX === 0 && deltaY === 0) return nds;
-
-            return nds.map((n) => {
-                if (n.id === node.id) return { ...n, position: node.position };
-
-                // A node is a child of the group if it references the group's id
+                // group membership check
                 const isChild =
-                    n.data?.groupId === node.id ||
-                    n.data?.parentId === node.id ||
-                    (Array.isArray(prev.data?.children) && prev.data.children.includes(n.id));
+                    (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
+                    n.data.groupId === draggedNode.id ||
+                    n.data.parentId === draggedNode.id;
 
                 if (!isChild) return n;
 
-                const oldPos = n.position || { x: 0, y: 0 };
-                return { ...n, position: { x: oldPos.x + deltaX, y: oldPos.y + deltaY } };
-            });
-        });
-    }, [setNodes]);
+                // shift children by the same delta as the group’s drag
+                const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
+                const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
 
-    // keep onNodeDragStop for final adjustments (safe no-op if already updated during drag)
-    const onNodeDragStop = useCallback((event, node) => {
-        if (!node || node.type !== 'groupLabel') return;
+                return {
+                    ...n,
+                    position: {
+                        x: n.position.x + deltaX,
+                        y: n.position.y + deltaY,
+                    },
+                };
+            })
+        );
 
-        // respect liveFollow flag on stop as well
-        const groupConfig = node.data || {};
-        if (groupConfig.liveFollow === false) return;
+        // update prev position for next drag tick
+        setNodes((nds) =>
+            nds.map((n) =>
+                n.id === draggedNode.id
+                    ? { ...n, data: { ...n.data, prevX: draggedNode.position.x, prevY: draggedNode.position.y } }
+                    : n
+            )
+        );
+    }, []);
 
-        setNodes((nds) => {
-            const prev = nds.find((n) => n.id === node.id);
-            if (!prev) return nds;
+    // --- Reset prevX/prevY once drag stops ---
+    const onNodeDragStop = useCallback((event, draggedNode) => {
+        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
+        setNodes((nds) =>
+            nds.map((n) =>
+                n.id === draggedNode.id
+                    ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } }
+                    : n
+            )
+        );
+    }, []);
 
-            const prevPos = prev.position || { x: 0, y: 0 };
-            const deltaX = node.position.x - prevPos.x;
-            const deltaY = node.position.y - prevPos.y;
 
-            if (deltaX === 0 && deltaY === 0) return nds;
-
-            return nds.map((n) => {
-                if (n.id === node.id) return { ...n, position: node.position };
-
-                const isChild =
-                    n.data?.groupId === node.id ||
-                    n.data?.parentId === node.id ||
-                    (Array.isArray(prev.data?.children) && prev.data.children.includes(n.id));
-
-                if (!isChild) return n;
-
-                const oldPos = n.position || { x: 0, y: 0 };
-                return { ...n, position: { x: oldPos.x + deltaX, y: oldPos.y + deltaY } };
-            });
-        });
-    }, [setNodes]);
+       
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
