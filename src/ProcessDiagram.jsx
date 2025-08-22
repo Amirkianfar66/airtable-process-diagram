@@ -541,25 +541,23 @@ export default function ProcessDiagram() {
                                 const groupId = selectedGroup.id;
                                 // full node objects that belong to the group
                                     const childrenNodesForGroup = nodes
-                                        .filter((n) => n.data?.groupId === groupId)
-                                        .map((n) => {
-                                            const itemFromNode = n.data?.item;
-                                            const itemFromAll = allItems?.[n.id];
-                                            const itemFromState = items.find(i => i.id === n.id);
-                                            const item = itemFromNode || itemFromAll || itemFromState;
-
-                                            const codeName = item
+                                        .filter(n => n.data?.groupId === groupId)
+                                        .map(n => {
+                                            const item = n.data?.item || allItems?.[n.id];
+                                            const label = item
                                                 ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim()
-                                                : '';
-
-                                            const displayLabel = n.data?.label || codeName || n.id;
+                                                : n.data?.label || n.id;
 
                                             return {
                                                 ...n,
-                                                data: { ...n.data, item: item || n.data?.item }, // inject normalized item for GroupDetailCard
-                                                displayLabel,
+                                                data: {
+                                                    ...n.data,
+                                                    item, // inject item here so GroupDetailCard can use it
+                                                },
+                                                displayLabel: label,
                                             };
                                         });
+
 
 
 
