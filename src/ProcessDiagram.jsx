@@ -72,37 +72,33 @@ export default function ProcessDiagram() {
             return;
         }
 
-        // Generate a unique group ID
         const groupId = `group-${Date.now()}`;
-
-        // Create the new group node
         const newGroupNode = {
             id: groupId,
             type: 'groupLabel',
-            position: { x: 100, y: 100 }, // you can customize this
+            position: { x: 100, y: 100 },
             data: {
                 label: 'New Group',
                 isGroup: true,
-                children: selectedNodes.map(n => n.id), // assign selected nodes as children
+                children: selectedNodes.map(n => n.id),
             },
         };
 
-        // Update nodes: assign groupId to selected nodes
         const updatedNodes = nodes.map(n =>
             selectedNodes.find(sn => sn.id === n.id)
                 ? { ...n, data: { ...n.data, groupId } }
                 : n
         );
 
-        // Add the new group node
         setNodes([...updatedNodes, newGroupNode]);
 
-        // Set this group as selected in the detail panel
-        setSelectedGroup(newGroupNode);
+        // Also update selected nodes so the detail panel sees children immediately
+        setSelectedGroup({ ...newGroupNode, data: { ...newGroupNode.data } });
 
         // Optionally deselect individual nodes
         setSelectedNodes([]);
     };
+
 
     const startAddItemToGroup = (groupId) => {
         alert("Click on a node to add it to this group");
