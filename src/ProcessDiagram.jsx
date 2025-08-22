@@ -1,5 +1,6 @@
-﻿// ===================== File: src/components/ProcessDiagram.jsx =====================
-// Purpose: ensure ItemDetailCard opens for brand-new items created via AddItemButton
+﻿// Updated: ProcessDiagram.jsx (adds onNodeDragStop to move child nodes with a group)
+// ------------------------------
+// Place this content into src/components/ProcessDiagram.jsx (replace existing)
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
@@ -17,7 +18,6 @@ import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManage
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
-// ✅ Use the local AddItemButton component (NOT the one from IconManager)
 import AddItemButton from './AddItemButton';
 
 export const nodeTypes = {
@@ -99,6 +99,37 @@ export default function ProcessDiagram() {
         },
         [edges, nodes]
     );
+
+    // --- NEW: when a group node is moved, shift its children by the same delta ---
+    const onNodeDragStop = useCallback((event, node) => {
+        if (!node || node.type !== 'groupLabel') return;
+
+        setNodes((nds) => {
+            const prev = nds.find((n) => n.id === node.id);
+            if (!prev) return nds;
+
+            const prevPos = prev.position || { x: 0, y: 0 };
+            const deltaX = node.position.x - prevPos.x;
+            const deltaY = node.position.y - prevPos.y;
+
+            if (deltaX === 0 && deltaY === 0) return nds;
+
+            return nds.map((n) => {
+                if (n.id === node.id) return { ...n, position: node.position };
+
+                // A node is a child of the group if it references the group's id
+                const isChild =
+                    n.data?.groupId === node.id ||
+                    n.data?.parentId === node.id ||
+                    (Array.isArray(prev.data?.children) && prev.data.children.includes(n.id));
+
+                if (!isChild) return n;
+
+                const oldPos = n.position || { x: 0, y: 0 };
+                return { ...n, position: { x: oldPos.x + deltaX, y: oldPos.y + deltaY } };
+            });
+        });
+    }, [setNodes]);
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
@@ -303,6 +334,7 @@ export default function ProcessDiagram() {
                     updateNode={updateNode}
                     deleteNode={deleteNode}
                     ChatBox={ChatBox}
+                    onNodeDragStop={onNodeDragStop}
                 />
             </div>
 
@@ -330,3 +362,94 @@ export default function ProcessDiagram() {
     );
 }
 
+
+
+// ------------------------------
+// Updated: DiagramCanvas.jsx (accepts onNodeDragStop and forwards to ReactFlow)
+// Place this content into src/components/DiagramCanvas.jsx (replace existing)
+
+import React from 'react';
+import ReactFlow, { Controls } from 'reactflow';
+import MainToolbar from './MainToolbar';
+import 'reactflow/dist/style.css';
+
+// NOTE: keep this component presentational only — all state handlers are provided by the parent
+export default function DiagramCanvas({
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    onSelectionChange,
+    nodeTypes,
+    AddItemButton,
+    aiDescription,
+    setAiDescription,
+    handleGeneratePNID,
+    chatMessages,
+    setChatMessages,
+    selectedNodes,
+    updateNode,
+    deleteNode,
+    onNodeDragStop, // <- new prop
+}) {
+    return (
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {/* Main toolbar */}
+            <MainToolbar
+                selectedNodes={selectedNodes}
+                nodes={nodes}
+                edges={edges}
+                setNodes={setNodes}
+                setEdges={setEdges}
+                updateNode={updateNode}
+                deleteNode={deleteNode}
+            />
+            <div style={{ padding: 10 }}>
+                {/* Add item button is passed from parent so it has access to setNodes/setItems there if needed */}
+                {AddItemButton ? <AddItemButton setNodes={setNodes} setEdges={setEdges} /> : null}
+            </div>
+
+            <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                    <input type="text" placeholder="Describe PNID for AI..." value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
+                    <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
+                </div>
+                <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid #007BFF', borderRadius: 4, padding: 6 }}>
+                    {/* Chat messages box with blue border */}
+                    {chatMessages && chatMessages.length > 0 ? (
+                        chatMessages.map((msg, idx) => (
+                            <div key={idx} style={{ marginBottom: 4 }}>
+                                <strong>{msg.role === 'user' ? 'You' : 'AI'}:</strong> {msg.content}
+                            </div>
+                        ))
+                    ) : (
+                        <div style={{ color: '#888' }}>No messages yet...</div>
+                    )}
+                </div>
+            </div>
+
+            <div style={{ flex: 1 }}>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onSelectionChange={onSelectionChange}
+                    onNodeDragStop={onNodeDragStop}
+                    fitView
+                    selectionOnDrag
+                    minZoom={0.02}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                    nodeTypes={nodeTypes}
+                    style={{ background: 'transparent' }}
+                >
+                    <Controls />
+                </ReactFlow>
+            </div>
+        </div>
+    );
+}
