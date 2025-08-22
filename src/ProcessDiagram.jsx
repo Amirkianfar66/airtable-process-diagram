@@ -525,7 +525,20 @@ export default function ProcessDiagram() {
                             (() => {
                                 const groupId = selectedGroup.id;
                                 // full node objects that belong to the group
-                                const childrenNodesForGroup = nodes.filter((n) => n.data?.groupId === groupId);
+                                    const childrenNodesForGroup = nodes
+                                        .filter((n) => n.data?.groupId === groupId)
+                                        .map((n) => {
+                                            // prefer explicit node label, else use item payload (Code - Name), else fallback to id
+                                            const labelFromData = n.data?.label;
+                                            const item = n.data?.item;
+                                            const codeName = item ? `${item.Code || ''}${item.Code && item.Name ? ' - ' : ''}${item.Name || ''}`.trim() : '';
+                                            const displayLabel = labelFromData || codeName || n.data?.item?.Name || n.id;
+                                            return { ...n, displayLabel };
+                                        });
+
+                                    // debug: inspect what we will render (remove in prod)
+                                    console.log('childrenNodesForGroup', groupId, childrenNodesForGroup);
+
                                 // friendly labels for display
                                 const childrenLabelsForGroup = childrenNodesForGroup.map((n) => n.data?.label ?? n.id);
 
