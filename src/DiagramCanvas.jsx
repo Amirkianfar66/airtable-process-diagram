@@ -42,12 +42,20 @@ export default function DiagramCanvas({
                 deleteNode={deleteNode}
             />
             <div style={{ padding: 10 }}>
-                {/* Add button wired to handleAddItem */}
+                {/* Pass selection setters so AddItemButton can auto-select new items */}
                 {AddItemButton ? (
-                    <AddItemButton addItem={handleAddItem} />
-                ) : null}
-            </div>
-
+                    <AddItemButton
+                        setNodes={setNodes}
+                        setEdges={setEdges}
+                        setSelectedItem={setSelectedItem}
+                        setSelectedNodes={setSelectedNodes}
+                    />
+                   <div style={{ padding: 10 }}>
+    {/* Add button wired to handleAddItem */}
+    {AddItemButton ? (
+        <AddItemButton addItem={handleAddItem} />
+    ) : null}
+</div>
 
 
             <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
