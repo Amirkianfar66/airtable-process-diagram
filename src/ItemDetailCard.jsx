@@ -1,4 +1,7 @@
-﻿// ItemDetailCard.jsx
+﻿// ItemDetailCard + GroupDetailCard (combined)
+// - Default export: ItemDetailCard
+// - Named export: GroupDetailCard
+
 import React, { useEffect, useRef, useState } from 'react';
 
 const typeCache = new Map();
@@ -30,7 +33,7 @@ export default function ItemDetailCard({ item, onChange }) {
                 });
                 const data = await res.json();
                 // Normalize types: include Category field
-                const typesList = data.records.map(r => ({
+                const typesList = (data.records || []).map(r => ({
                     id: r.id,
                     name: r.fields['Still Pipe'],
                     category: r.fields['Category'] || 'Equipment'
@@ -188,105 +191,112 @@ export default function ItemDetailCard({ item, onChange }) {
     );
 }
 
-
-import React, { useEffect, useRef, useState } from 'react';
-
 /**
- * GroupDetailCard
- * - Shows members of a group
- * - Tries to resolve human-friendly labels for Airtable-linked node ids
- * - Preferred usage: parent passes `allItems` map (id -> normalized item)
- * - Fallback: component will fetch missing item records from Airtable and cache them
+ * GroupDetailCard (named export)
+ *
+ * Usage: import { GroupDetailCard } from './ItemDetailCard';  // or better: move this to GroupDetailCard.jsx
  */
-export default function GroupDetailCard({
+export function GroupDetailCard({
     node,
     childrenNodes = [],
     childrenLabels = [],
-    allItems = {},
+    allItems = {},   // map: airtableId -> normalized item ({ Code, Name, 'Category Item Type' })
     startAddItemToGroup,
-    onAddItem,
-    onRemoveItem,
+    onAddItem,     // (itemId) => {}
+    onRemoveItem,  // (itemId) => {}
     onChange,
     onDelete
 }) {
     const groupId = node?.id;
     const [manualAddId, setManualAddId] = useState('');
 
-    // Local cache (memory) for fetched items across renders
+    // in-memory cache for fetched items
     const itemsCacheRef = useRef(new Map());
-    // State for resolved items fetched by this component
+    // resolved items state (for render)
     const [resolvedItems, setResolvedItems] = useState({});
 
-    // Helper to normalize a raw Airtable record fields into the shape we want
     const normalizeFields = (fields = {}) => ({
         Code: fields['Item Code'] || fields['Code'] || '',
         Name: fields['Name'] || '',
         'Category Item Type': fields['Category Item Type'] || fields['Category'] || ''
     });
 
-    // Effect: fetch any unknown children node ids that are likely Airtable record ids
+    // Effect: batch fetch any unknown children node ids that look like Airtable record ids
+    // Note: avoid resolvedItems in deps to prevent re-fire loops. We rely on itemsCacheRef to remember fetched ids.
     useEffect(() => {
-        if (!Array.isArray(childrenNodes) || childrenNodes.length === 0) return;
+        if (!Array.isArray(childrenNodes) || childrenNodes.length === 0) {
+            // If there are no childrenNodes, clear resolvedItems (so display can fallback to labels)
+            setResolvedItems({});
+            return;
+        }
 
-        const idsToFetch = childrenNodes
-            .map(n => n.id)
-            .filter(id => {
-                if (!id) return false;
-                // Skip synthetic labels (these are created inside this component)
-                if (String(id).startsWith(`${groupId}-lbl-`)) return false;
-                // If parent already provided the item, skip
-                if (allItems && allItems[id]) return false;
-                // If we've resolved it already in state, skip
-                if (resolvedItems && resolvedItems[id]) return false;
-                // If we have it in our in-memory cache, skip (we'll still copy it into resolvedItems for render consistency)
-                if (itemsCacheRef.current.has(id)) return false;
-                return true;
+        const ids = childrenNodes.map(n => n.id).filter(Boolean);
+
+        // Skip synthetic label ids
+        const candidateIds = ids.filter(id => !String(id).startsWith(`${groupId}-lbl-`));
+
+        // If parent already provided data for an id, skip it
+        const uncached = candidateIds.filter(id => !allItems?.[id] && !itemsCacheRef.current.has(id));
+
+        if (uncached.length === 0) {
+            // If we already have things cached, make sure resolvedItems includes them for render
+            const fromCache = {};
+            candidateIds.forEach(id => {
+                if (itemsCacheRef.current.has(id)) fromCache[id] = itemsCacheRef.current.get(id);
             });
+            if (Object.keys(fromCache).length) setResolvedItems(prev => ({ ...prev, ...fromCache }));
+            return;
+        }
 
-        if (idsToFetch.length === 0) return;
-
+        // fetch missing ids (batch)
         (async () => {
             try {
                 const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
                 const token = import.meta.env.VITE_AIRTABLE_TOKEN;
                 const itemsTableId = import.meta.env.VITE_AIRTABLE_ITEMS_TABLE_ID;
                 if (!baseId || !token || !itemsTableId) {
-                    console.warn('GroupDetailCard: missing Airtable env vars (VITE_AIRTABLE_BASE_ID, VITE_AIRTABLE_TOKEN, VITE_AIRTABLE_ITEMS_TABLE_ID)');
-                    // create placeholders so we don't retry forever
+                    console.warn('GroupDetailCard: missing Airtable env vars; creating label fallbacks');
                     const placeholders = {};
-                    idsToFetch.forEach(id => placeholders[id] = { Code: '', Name: id, 'Category Item Type': '' });
+                    uncached.forEach(id => placeholders[id] = { Code: '', Name: id, 'Category Item Type': '' });
+                    // cache them and set state once
+                    uncached.forEach(id => itemsCacheRef.current.set(id, placeholders[id]));
                     setResolvedItems(prev => ({ ...prev, ...placeholders }));
                     return;
                 }
 
-                await Promise.all(idsToFetch.map(async (id) => {
+                const fetched = {};
+                // fetch in parallel
+                await Promise.all(uncached.map(async (id) => {
                     try {
                         const url = `https://api.airtable.com/v0/${baseId}/${itemsTableId}/${id}`;
                         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
                         if (!res.ok) {
-                            // fallback: treat id as a label
                             const fallback = { Code: '', Name: id, 'Category Item Type': '' };
                             itemsCacheRef.current.set(id, fallback);
-                            setResolvedItems(prev => ({ ...prev, [id]: fallback }));
+                            fetched[id] = fallback;
                             return;
                         }
                         const rec = await res.json();
                         const normalized = normalizeFields(rec.fields || {});
                         itemsCacheRef.current.set(id, normalized);
-                        setResolvedItems(prev => ({ ...prev, [id]: normalized }));
+                        fetched[id] = normalized;
                     } catch (err) {
                         console.error('GroupDetailCard: failed to fetch item', id, err);
                         const fallback = { Code: '', Name: id, 'Category Item Type': '' };
                         itemsCacheRef.current.set(id, fallback);
-                        setResolvedItems(prev => ({ ...prev, [id]: fallback }));
+                        fetched[id] = fallback;
                     }
                 }));
+
+                // set all fetched items at once
+                setResolvedItems(prev => ({ ...prev, ...fetched }));
             } catch (err) {
                 console.error('GroupDetailCard: error resolving children ids', err);
             }
         })();
 
-    }, [childrenNodes, allItems, resolvedItems, groupId]);
+        // intentionally exclude resolvedItems from deps to avoid effect re-trigger loops
+    }, [childrenNodes, allItems, groupId]);
 
     // Build the normalized `display` array used for rendering
     const display = (Array.isArray(childrenNodes) && childrenNodes.length > 0)
