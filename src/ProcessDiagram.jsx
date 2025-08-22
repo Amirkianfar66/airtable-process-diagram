@@ -480,33 +480,83 @@ export default function ProcessDiagram() {
                     }}
                 >
                     <div style={{ flex: 1, overflowY: 'auto' }}>
+                        // --- inside ProcessDiagram return, right panel ---
                         {selectedItem ? (
                             <ItemDetailCard
                                 item={selectedItem}
-                                onChange={(updatedItem) =>
-                                    handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
-                                }
+                                onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)}
                             />
                         ) : selectedGroup ? (
-                            <GroupDetailCard
-                                node={selectedGroup}
-                                childrenNodes={nodes.filter(n => n.data?.groupId === selectedGroup.id)}
-                                onChange={(id, update) => {
-                                    updateGroupNode(id, update); // your helper in ProcessDiagram
-                                    setSelectedGroup(prev => ({ ...prev, position: update.position ?? prev.position, data: { ...prev.data, rect: update.rect ?? prev.data?.rect, label: update.label ?? prev.data?.label } }));
-                                }}
-                                onDelete={(id) => {
-                                    setNodes((nds) => nds
-                                        .filter(n => n.id !== id)
-                                        .map(n => n.data?.groupId === id ? { ...n, data: { ...n.data, groupId: undefined } } : n)
-                                    );
-                                    setSelectedGroup(null);
-                                }}
-                            />
+                            (() => {
+                                const groupId = selectedGroup.id;
+                                // full node objects that belong to the group
+                                const childrenNodesForGroup = nodes.filter(n => n.data?.groupId === groupId);
+                                // friendly labels for display
+                                const childrenLabelsForGroup = childrenNodesForGroup.map(n => n.data?.label ?? n.id);
+
+                                // helper: add item into group (called by GroupDetailCard)
+                                const addItemToGroup = (itemId) => {
+                                    setNodes(nds => {
+                                        // update the clicked item to reference groupId
+                                        const updated = nds.map(n => n.id === itemId ? { ...n, data: { ...n.data, groupId } } : n);
+                                        // update group node's metadata (childIds and children labels)
+                                        return updated.map(n => {
+                                            if (n.id !== groupId) return n;
+                                            const existingIds = Array.isArray(n.data?.childIds) ? n.data.childIds.slice() : [];
+                                            const newIds = Array.from(new Set([...existingIds, itemId]));
+                                            const newLabels = newIds.map(id => {
+                                                const full = updated.find(x => x.id === id);
+                                                return full?.data?.label ?? id;
+                                            });
+                                            return { ...n, data: { ...n.data, childIds: newIds, children: newLabels } };
+                                        });
+                                    });
+                                    // refresh selectedGroup so panel updates immediately
+                                    const freshGroup = nodes.find(n => n.id === groupId);
+                                    setSelectedGroup(freshGroup ? { ...freshGroup } : selectedGroup);
+                                };
+
+                                // helper: remove item from group
+                                const removeItemFromGroup = (itemId) => {
+                                    setNodes(nds => nds.map(n => {
+                                        if (n.id === itemId) return { ...n, data: { ...n.data, groupId: undefined } };
+                                        if (n.id === groupId) {
+                                            const childIds = (n.data?.childIds || []).filter(id => id !== itemId);
+                                            const children = (n.data?.children || []).filter(lbl => lbl !== (nodes.find(x => x.id === itemId)?.data?.label ?? itemId));
+                                            return { ...n, data: { ...n.data, childIds, children } };
+                                        }
+                                        return n;
+                                    }));
+                                    // refresh selectedGroup
+                                    const freshGroup = nodes.find(n => n.id === groupId);
+                                    setSelectedGroup(freshGroup ? { ...freshGroup } : null);
+                                };
+
+                                return (
+                                    <GroupDetailCard
+                                        node={selectedGroup}
+                                        childrenNodes={childrenNodesForGroup}
+                                        childrenLabels={childrenLabelsForGroup}
+                                        startAddItemToGroup={startAddItemToGroup} // your existing function if you use it
+                                        onAddItem={addItemToGroup}
+                                        onRemoveItem={removeItemFromGroup}
+                                        onChange={(id, update) => {
+                                            updateGroupNode(id, update);
+                                            setSelectedGroup(prev => ({ ...prev, position: update.position ?? prev.position, data: { ...prev.data, rect: update.rect ?? prev.data?.rect, label: update.label ?? prev.data?.label } }));
+                                        }}
+                                        onDelete={(id) => {
+                                            setNodes((nds) => nds
+                                                .filter(n => n.id !== id)
+                                                .map(n => n.data?.groupId === id ? { ...n, data: { ...n.data, groupId: undefined } } : n)
+                                            );
+                                            setSelectedGroup(null);
+                                        }}
+                                    />
+                                );
+                            })()
                         ) : (
                             <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                         )}
-
                     </div>
                 </div>
             </div>
