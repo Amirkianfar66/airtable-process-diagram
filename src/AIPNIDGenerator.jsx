@@ -52,7 +52,16 @@ export default async function AIPNIDGenerator(description, items, nodes, edges, 
 
 // Export ChatBox passthrough if needed
 // Updated ChatBox with Generate PNID button
-export function ChatBox({ messages, onSendMessage, onGeneratePNID, inputValue, setInputValue }) {
+export function ChatBox({ messages, onSendMessage, onGeneratePNID }) {
+    const [inputValue, setInputValue] = React.useState('');
+
+    const handleSend = () => {
+        if (!inputValue.trim()) return;
+        onSendMessage(inputValue);
+        if (onGeneratePNID) onGeneratePNID(inputValue);
+        setInputValue('');
+    };
+
     return (
         <div style={{
             position: 'absolute',
@@ -71,14 +80,9 @@ export function ChatBox({ messages, onSendMessage, onGeneratePNID, inputValue, s
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     style={{ flex: 1, padding: 5 }}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            onSendMessage(e.target.value);
-                            e.target.value = '';
-                        }
-                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 />
-                <button onClick={() => onGeneratePNID(inputValue)}>Generate PNID</button>
+                <button onClick={handleSend}>Generate PNID</button>
             </div>
             <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                 {messages.map((m, i) => (
