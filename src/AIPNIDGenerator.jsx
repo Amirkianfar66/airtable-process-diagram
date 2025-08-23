@@ -76,7 +76,7 @@ export function ChatBox({ messages, onSendMessage, onGeneratePNID }) {
             <div style={{ display: 'flex', gap: '5px', marginBottom: 10 }}>
                 <input
                     type="text"
-                    placeholder="Describe PNID..."
+                    placeholder="Describe .."
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     style={{ flex: 1, padding: 5 }}
