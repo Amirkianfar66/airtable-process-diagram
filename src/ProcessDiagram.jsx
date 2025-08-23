@@ -19,6 +19,7 @@ import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
+import { parseItemText } from './aiParser';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -177,6 +178,62 @@ export default function ProcessDiagram() {
             setEdges(aiEdges);
         } catch (err) {
             console.error('AI PNID generation failed:', err);
+        }
+    };
+
+    const handleParseItemText = async (rawText) => {
+        if (!rawText) return;
+
+        try {
+            const parsed = await parseItemText(rawText);
+
+            if (!parsed) {
+                console.warn("⚠️ No items parsed from text:", rawText);
+                return;
+            }
+
+            // Normalize item
+            const normalizedItem = {
+                id: parsed.id || `item-${Date.now()}`,
+                Name: parsed.Name || '',
+                Code: parsed.Code ?? parsed['Item Code'] ?? '',
+                'Item Code': parsed['Item Code'] ?? parsed.Code ?? '',
+                Unit: parsed.Unit || '',
+                SubUnit: parsed.SubUnit ?? parsed['Sub Unit'] ?? '',
+                Category: Array.isArray(parsed['Category Item Type'])
+                    ? parsed['Category Item Type'][0]
+                    : (parsed['Category Item Type'] ?? parsed.Category ?? ''),
+                'Category Item Type': Array.isArray(parsed['Category Item Type'])
+                    ? parsed['Category Item Type'][0]
+                    : (parsed['Category Item Type'] ?? parsed.Category ?? ''),
+                Type: Array.isArray(parsed.Type) ? parsed.Type[0] : (parsed.Type || ''),
+                Sequence: parsed.Sequence ?? 0,
+            };
+
+            // Create a new node for it
+            const newNode = {
+                id: normalizedItem.id,
+                position: { x: 200, y: 200 }, // drop it somewhere visible
+                data: {
+                    label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`,
+                    item: normalizedItem,
+                    icon: getItemIcon(normalizedItem),
+                },
+                type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
+                sourcePosition: 'right',
+                targetPosition: 'left',
+                style: { background: 'transparent', boxShadow: 'none' },
+            };
+
+            setNodes(nds => [...nds, newNode]);
+            setItems(prev => [...prev, normalizedItem]);
+
+            // Auto-select new node
+            setSelectedNodes([newNode]);
+            setSelectedItem(normalizedItem);
+
+        } catch (err) {
+            console.error("❌ Failed to parse item text:", err);
         }
     };
 
@@ -350,7 +407,7 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    // Use the local AddItemButton, wired to our fixed handler
+                    handleParseItemText={handleParseItemText}
                     AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
