@@ -46,7 +46,7 @@ export default async function AIPNIDGenerator(
     existingEdges = [],
     setChatMessages,
     action = 'add', // can be 'add', 'connect', 'delete'
-    options = {}    // extra params like { sourceCode, targetCode, code }
+    options = {} // extra params like { sourceCode, targetCode, code }
 ) {
     if (!description && action === 'add') {
         return { nodes: existingNodes, edges: existingEdges };
@@ -58,7 +58,7 @@ export default async function AIPNIDGenerator(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action,
-                description,
+                description,          // 👈 make sure description is always sent
                 existingNodes,
                 existingEdges,
                 ...options
@@ -66,8 +66,8 @@ export default async function AIPNIDGenerator(
         });
 
         if (!res.ok) throw new Error('PNID actions API error');
-
         const { nodes, edges, messages } = await res.json();
+
 
         // Update ChatBox
         if (typeof setChatMessages === 'function' && messages?.length) {
