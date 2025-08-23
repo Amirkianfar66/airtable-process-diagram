@@ -7,14 +7,15 @@ export default async function handler(req, res) {
         let newNodes = [...nodes];
         let newEdges = [...edges];
         let messages = [];
+        let mode = "idle";
 
         if (description) {
             const aiResult = await wedgeParse(description);
+            mode = aiResult.mode;
 
             if (aiResult.mode === "chat") {
                 // ✅ Friendly engineer-like response
                 messages.push({ sender: "AI", message: aiResult.explanation });
-                return res.status(200).json({ nodes, edges, messages });
             }
 
             if (aiResult.mode === "structured") {
@@ -32,7 +33,7 @@ export default async function handler(req, res) {
             }
         }
 
-        res.status(200).json({ nodes: newNodes, edges: newEdges, messages });
+        res.status(200).json({ mode, nodes: newNodes, edges: newEdges, messages });
     } catch (err) {
         console.error("/api/pnid-actions error:", err);
         res.status(500).json({ error: "PNID actions API failed" });
