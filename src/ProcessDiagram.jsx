@@ -156,19 +156,22 @@ export default function ProcessDiagram() {
        
 
     const handleGeneratePNID = async () => {
-        if (!aiDescription) return;
+        if (!aiDescription) {
+            console.warn("⚠️ No AI description provided");
+            return;
+        }
+
+        console.log("👉 Sending to AI:", aiDescription);
 
         try {
-            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(aiDescription, items, nodes, edges, setSelectedItem, setChatMessages);
-            const newItems = aiNodes.map((n) => n.data?.item).filter(Boolean);
-
-            setItems((prev) => {
-                const existingIds = new Set(prev.map((i) => i.id));
-                const filteredNew = newItems.filter((i) => !existingIds.has(i.id));
-                const updatedItems = [...prev, ...filteredNew];
-                if (filteredNew.length > 0) setSelectedItem(filteredNew[0]);
-                return updatedItems;
-            });
+            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
+                aiDescription,
+                items,
+                nodes,
+                edges,
+                setSelectedItem,
+                setChatMessages
+            );
 
             setNodes(aiNodes);
             setEdges(aiEdges);
@@ -386,7 +389,13 @@ export default function ProcessDiagram() {
             </div>
             {/* Chat box display */}
             <div style={{ padding: 10 }}>
-                <ChatBox messages={chatMessages} />
+                <ChatBox
+                    messages={chatMessages}
+                    onSendMessage={(msg) => {
+                        setAiDescription(msg);
+                        handleGeneratePNID();
+                    }}
+                />
             </div>
         </div>
     );

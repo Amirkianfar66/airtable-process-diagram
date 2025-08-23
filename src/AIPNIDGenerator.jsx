@@ -4,11 +4,6 @@
 // ChatBox component
 // --------------------------
 export function ChatBox({ messages }) {
-    const aiMessage = messages
-        .filter(msg => msg.sender === 'AI')
-        .map(msg => msg.message)
-        .join(' ');
-
     return (
         <div
             style={{
@@ -20,11 +15,24 @@ export function ChatBox({ messages }) {
                 backgroundColor: '#f9f9f9'
             }}
         >
-            {aiMessage && (
-                <div style={{ color: 'black', fontSize: '14px', lineHeight: '1.5' }}>
-                    <strong>AI:</strong> {aiMessage}
-                </div>
+            {messages.length === 0 && (
+                <div style={{ color: '#888' }}>No conversation yet...</div>
             )}
+
+            {messages.map((msg, idx) => (
+                <div
+                    key={idx}
+                    style={{
+                        textAlign: msg.sender === 'ai' ? 'left' : 'right',
+                        marginBottom: 6
+                    }}
+                >
+                    <strong style={{ color: msg.sender === 'ai' ? '#007bff' : '#333' }}>
+                        {msg.sender === 'ai' ? 'AI' : 'You'}:
+                    </strong>{' '}
+                    {msg.message}
+                </div>
+            ))}
         </div>
     );
 }
@@ -60,8 +68,11 @@ export default async function AIPNIDGenerator(
 
         // Update ChatBox
         if (typeof setChatMessages === 'function' && messages?.length) {
-            setChatMessages(prev => [...prev, ...messages.map(m => ({ sender: 'AI', message: m }))]);
-        }
+            setChatMessages(prev => [
+                ...prev,
+                ...messages.map(m => ({ sender: 'ai', message: m }))
+            ]);
+
 
         return { nodes, edges };
     } catch (err) {
