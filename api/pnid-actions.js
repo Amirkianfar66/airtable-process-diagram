@@ -10,17 +10,31 @@ export default function handler(req, res) {
         let messages = [];
 
         switch (action) {
-            case "add": {
-                let finalItem = item;
-
-                // 👇 Parse description if no explicit item is passed
-                if (!finalItem && description) {
-                    const match = description.match(/draw\s+(\d+)?\s*(equipment|pump|valve|tank)/i);
+            case "add":
+                if (item) {
+                    // your existing add-by-item logic
+                    const id = item.id || `node-${Date.now()}-${Math.random()}`;
+                    newNodes.push({
+                        id,
+                        data: { label: `${item.Code} - ${item.Name}`, item },
+                        type: item.Type || "scalableIcon",
+                        position: item.position || { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                    });
+                    messages.push({ sender: "AI", message: `Added item ${item.Code}` });
+                } else if (description) {
+                    // 🟢 NEW LOGIC: parse free-text description
+                    const match = description.match(/draw\s+(\d+)?\s*(equipment\s*tank|pump|valve|tank)/i);
                     if (match) {
                         const qty = parseInt(match[1] || "1", 10);
-                        const type = match[2].toLowerCase();
+                        let type = match[2].toLowerCase().trim();
 
-                        // Create N items if quantity > 1
+                        // normalize synonyms
+                        if (type.includes("equipment") && type.includes("tank")) {
+                            type = "equipment tank";
+                        } else if (type.includes("tank")) {
+                            type = "tank";
+                        }
+
                         for (let i = 0; i < qty; i++) {
                             const id = `node-${Date.now()}-${Math.random()}`;
                             newNodes.push({
@@ -35,18 +49,8 @@ export default function handler(req, res) {
                         messages.push({ sender: "AI", message: `Could not understand: "${description}"` });
                     }
                 }
-
-                if (finalItem) {
-                    const id = finalItem.id || `node-${Date.now()}-${Math.random()}`;
-                    newNodes.push({
-                        id,
-                        data: { label: `${finalItem.Code || finalItem.Name || "Item"}`, item: finalItem },
-                        type: finalItem.Type || "scalableIcon",
-                        position: finalItem.position || { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
-                    });
-                    messages.push({ sender: "AI", message: `Added item ${finalItem.Code || id}` });
-                }
                 break;
+
             }
 
             case "connect":
