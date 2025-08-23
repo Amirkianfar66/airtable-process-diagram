@@ -3,50 +3,51 @@
 
 export default function handler(req, res) {
     try {
-        let { action, nodes = [], edges = [], item, connection, description } = req.body;
+        const { action, nodes = [], edges = [], item, connection, description } = req.body;
 
         let newNodes = [...nodes];
         let newEdges = [...edges];
         let messages = [];
 
-        // 🔎 If description is provided (like "Draw 1 Equipment Tank") and no item yet, parse it
-        if (description && action === "add" && !item) {
-            const match = description.match(/(\d+)?\s*Equipment\s*Tank/i);
-            if (match) {
-                const count = parseInt(match[1] || "1", 10);
-                for (let i = 0; i < count; i++) {
-                    const id = `tank-${Date.now()}-${Math.random()}`;
-                    item = {
-                        id,
-                        Code: `T-${i + 1}`,
-                        Name: "Equipment Tank",
-                        Type: "scalableIcon",
-                        position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 }
-                    };
-                    newNodes.push({
-                        id: item.id,
-                        data: { label: `${item.Code} - ${item.Name}`, item },
-                        type: item.Type,
-                        position: item.position,
-                    });
-                    messages.push({ sender: "AI", message: `Added ${item.Name} (${item.Code})` });
-                }
-            }
-        }
-
         switch (action) {
-            case "add":
-                if (item) {
-                    const id = item.id || `node-${Date.now()}-${Math.random()}`;
+            case "add": {
+                let finalItem = item;
+
+                // 👇 Parse description if no explicit item is passed
+                if (!finalItem && description) {
+                    const match = description.match(/draw\s+(\d+)?\s*(equipment|pump|valve|tank)/i);
+                    if (match) {
+                        const qty = parseInt(match[1] || "1", 10);
+                        const type = match[2].toLowerCase();
+
+                        // Create N items if quantity > 1
+                        for (let i = 0; i < qty; i++) {
+                            const id = `node-${Date.now()}-${Math.random()}`;
+                            newNodes.push({
+                                id,
+                                data: { label: `${type} ${i + 1}` },
+                                type: "scalableIcon",
+                                position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                            });
+                            messages.push({ sender: "AI", message: `Added ${type} ${i + 1}` });
+                        }
+                    } else {
+                        messages.push({ sender: "AI", message: `Could not understand: "${description}"` });
+                    }
+                }
+
+                if (finalItem) {
+                    const id = finalItem.id || `node-${Date.now()}-${Math.random()}`;
                     newNodes.push({
                         id,
-                        data: { label: `${item.Code} - ${item.Name}`, item },
-                        type: item.Type || "scalableIcon",
-                        position: item.position || { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                        data: { label: `${finalItem.Code || finalItem.Name || "Item"}`, item: finalItem },
+                        type: finalItem.Type || "scalableIcon",
+                        position: finalItem.position || { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
                     });
-                    messages.push({ sender: "AI", message: `Added item ${item.Code}` });
+                    messages.push({ sender: "AI", message: `Added item ${finalItem.Code || id}` });
                 }
                 break;
+            }
 
             case "connect":
                 if (connection?.sourceId && connection?.targetId) {
@@ -60,7 +61,10 @@ export default function handler(req, res) {
                             target: connection.targetId,
                             animated: true,
                         });
-                        messages.push({ sender: "AI", message: `Connected ${connection.sourceId} → ${connection.targetId}` });
+                        messages.push({
+                            sender: "AI",
+                            message: `Connected ${connection.sourceId} → ${connection.targetId}`,
+                        });
                     }
                 }
                 break;
