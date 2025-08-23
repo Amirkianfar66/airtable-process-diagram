@@ -3,11 +3,36 @@
 
 export default function handler(req, res) {
     try {
-        const { action, nodes = [], edges = [], item, connection } = req.body;
+        let { action, nodes = [], edges = [], item, connection, description } = req.body;
 
         let newNodes = [...nodes];
         let newEdges = [...edges];
         let messages = [];
+
+        // 🔎 If description is provided (like "Draw 1 Equipment Tank") and no item yet, parse it
+        if (description && action === "add" && !item) {
+            const match = description.match(/(\d+)?\s*Equipment\s*Tank/i);
+            if (match) {
+                const count = parseInt(match[1] || "1", 10);
+                for (let i = 0; i < count; i++) {
+                    const id = `tank-${Date.now()}-${Math.random()}`;
+                    item = {
+                        id,
+                        Code: `T-${i + 1}`,
+                        Name: "Equipment Tank",
+                        Type: "scalableIcon",
+                        position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 }
+                    };
+                    newNodes.push({
+                        id: item.id,
+                        data: { label: `${item.Code} - ${item.Name}`, item },
+                        type: item.Type,
+                        position: item.position,
+                    });
+                    messages.push({ sender: "AI", message: `Added ${item.Name} (${item.Code})` });
+                }
+            }
+        }
 
         switch (action) {
             case "add":
