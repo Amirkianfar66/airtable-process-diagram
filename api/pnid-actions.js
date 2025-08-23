@@ -1,4 +1,6 @@
 ﻿// /api/pnid-actions.js
+// Handles PNID graph updates + human-like chat
+
 import { wedgeParse } from "../ai/wedgeParse.js";
 import { generateCode } from "../src/codeGenerator.js";
 
@@ -12,21 +14,18 @@ export default async function handler(req, res) {
 
         switch (action) {
             case "add":
-                if (item) {
-                    // Add from structured item
-                    const id = item.id || `node-${Date.now()}-${Math.random()}`;
-                    newNodes.push({
-                        id,
-                        data: { label: `${item.Code} - ${item.Name}`, item },
-                        type: item.Type || "scalableIcon",
-                        position: item.position || { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
-                    });
-                    messages.push({ sender: "AI", message: `Added item ${item.Code}` });
-                }
-                else if (description) {
-                    // 🟢 NEW: Use AI wedge for free-text parsing
-                    const parsed = await wedgeParse(description);
+                if (description) {
+                    // --- 1. Send description to AI ---
+                    const aiResult = await wedgeParse(description);
 
+                    // If AI returned chat only → just respond
+                    if (aiResult.mode === "chat") {
+                        messages.push({ sender: "AI", message: aiResult.reply });
+                        break;
+                    }
+
+                    // --- 2. AI returned structured object ---
+                    const parsed = aiResult.parsed || {};
                     const code = generateCode({
                         Category: parsed.Category || "Equipment",
                         Type: parsed.Type || "Generic",
@@ -39,18 +38,25 @@ export default async function handler(req, res) {
                     const id = `node-${Date.now()}-${Math.random()}`;
                     newNodes.push({
                         id,
-                        data: {
-                            label: `${code} - ${parsed.Name || parsed.Type || "Item"}`,
-                            item: { ...parsed, Code: code }
-                        },
+                        data: { label: `${code} - ${parsed.Name || parsed.Type}`, item: parsed },
                         type: parsed.Type || "scalableIcon",
                         position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
                     });
 
                     messages.push({
                         sender: "AI",
-                        message: parsed.Explanation || `Added ${parsed.Type || "item"}`
+                        message: `Added ${parsed.Type || "item"}: ${code}`
                     });
+                } else if (item) {
+                    // --- Existing item logic ---
+                    const id = item.id || `node-${Date.now()}-${Math.random()}`;
+                    newNodes.push({
+                        id,
+                        data: { label: `${item.Code} - ${item.Name}`, item },
+                        type: item.Type || "scalableIcon",
+                        position: item.position || { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                    });
+                    messages.push({ sender: "AI", message: `Added item ${item.Code}` });
                 }
                 break;
 
@@ -68,7 +74,7 @@ export default async function handler(req, res) {
                         });
                         messages.push({
                             sender: "AI",
-                            message: `Connected ${connection.sourceId} → ${connection.targetId}`,
+                            message: `Connected ${connection.sourceId} → ${connection.targetId}`
                         });
                     }
                 }
