@@ -46,9 +46,11 @@ export default async function AIPNIDGenerator(
     existingEdges = [],
     setChatMessages,
     action = 'add', // can be 'add', 'connect', 'delete'
-    options = {} // extra params like { sourceCode, targetCode, code }
+    options = {}    // extra params like { sourceCode, targetCode, code }
 ) {
-    if (!description && action === 'add') return { nodes: existingNodes, edges: existingEdges };
+    if (!description && action === 'add') {
+        return { nodes: existingNodes, edges: existingEdges };
+    }
 
     try {
         const res = await fetch('/api/pnid-actions', {
@@ -64,6 +66,7 @@ export default async function AIPNIDGenerator(
         });
 
         if (!res.ok) throw new Error('PNID actions API error');
+
         const { nodes, edges, messages } = await res.json();
 
         // Update ChatBox
@@ -72,11 +75,17 @@ export default async function AIPNIDGenerator(
                 ...prev,
                 ...messages.map(m => ({ sender: 'ai', message: m }))
             ]);
-
+        }
 
         return { nodes, edges };
     } catch (err) {
         console.error('AIPNIDGenerator error', err);
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: 'ai', message: '⚠️ Error generating PNID.' }
+            ]);
+        }
         return { nodes: existingNodes, edges: existingEdges };
     }
 }
