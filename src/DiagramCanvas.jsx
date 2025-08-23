@@ -49,7 +49,7 @@ export default function DiagramCanvas({
 
             <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
-                    <input type="text" placeholder="Describe PNID for AI..." value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
+                    <input type="text" placeholder="Describe PNID for AI" value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
                     <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
                 </div>
                 <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid #007BFF', borderRadius: 4, padding: 6 }}>
