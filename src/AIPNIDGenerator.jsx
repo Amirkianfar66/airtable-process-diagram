@@ -52,7 +52,16 @@ export default async function AIPNIDGenerator(description, items, nodes, edges, 
 // Export ChatBox passthrough if needed
 export function ChatBox({ messages, onSendMessage }) {
     return (
-        <div style={{ borderTop: '1px solid #ccc', padding: 10 }}>
+        <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            borderBottom: '1px solid #ccc',
+            padding: 10,
+            background: '#f0f4f8',
+            zIndex: 1000
+        }}>
             <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 10 }}>
                 {messages.map((m, i) => (
                     <div key={i}><b>{m.role}:</b> {m.content}</div>
@@ -60,7 +69,7 @@ export function ChatBox({ messages, onSendMessage }) {
             </div>
             <input
                 type="text"
-                placeholder="ssssssss..."
+                placeholder="Describe PNID..."
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                         onSendMessage(e.target.value);
@@ -72,3 +81,4 @@ export function ChatBox({ messages, onSendMessage }) {
         </div>
     );
 }
+
