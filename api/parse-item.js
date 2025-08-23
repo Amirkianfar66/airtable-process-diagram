@@ -8,6 +8,7 @@ export default async function handler(req, res) {
 
     const parsed = await wedgeParse(description);
 
+
     // Normalize + code generation
     const code = generateCode({
         Category: parsed.Category || "Equipment",
