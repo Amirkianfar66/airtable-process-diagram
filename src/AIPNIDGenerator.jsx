@@ -1,4 +1,5 @@
 ﻿// src/components/AIPNIDGenerator.js
+import React from 'react';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export default async function AIPNIDGenerator(description, items, nodes, edges, setSelectedItem, setChatMessages) {
@@ -51,20 +52,7 @@ export default async function AIPNIDGenerator(description, items, nodes, edges, 
 
 // Export ChatBox passthrough if needed
 // Updated ChatBox with Generate PNID button
-export function ChatBox({ messages, onSendMessage, onGeneratePNID }) {
-    const [inputValue, setInputValue] = React.useState('');
-
-    const handleSend = () => {
-        if (!inputValue) return;
-        if (onGeneratePNID) {
-            onGeneratePNID(inputValue);
-        }
-        if (onSendMessage) {
-            onSendMessage(inputValue);
-        }
-        setInputValue('');
-    };
-
+export function ChatBox({ messages, onSendMessage, onGeneratePNID, inputValue, setInputValue }) {
     return (
         <div style={{
             position: 'absolute',
@@ -76,21 +64,26 @@ export function ChatBox({ messages, onSendMessage, onGeneratePNID }) {
             background: '#f0f4f8',
             zIndex: 1000
         }}>
-            <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 10 }}>
-                {messages.map((m, i) => (
-                    <div key={i}><b>{m.role}:</b> {m.content}</div>
-                ))}
-            </div>
-            <div style={{ display: 'flex', gap: 5 }}>
+            <div style={{ display: 'flex', gap: '5px', marginBottom: 10 }}>
                 <input
                     type="text"
                     placeholder="Describe PNID..."
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
                     style={{ flex: 1, padding: 5 }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            onSendMessage(e.target.value);
+                            e.target.value = '';
+                        }
+                    }}
                 />
-                <button onClick={handleSend} style={{ padding: '5px 10px' }}>Generate PNID</button>
+                <button onClick={() => onGeneratePNID(inputValue)}>Generate PNID</button>
+            </div>
+            <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                {messages.map((m, i) => (
+                    <div key={i}><b>{m.role}:</b> {m.content}</div>
+                ))}
             </div>
         </div>
     );
