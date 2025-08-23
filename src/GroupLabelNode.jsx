@@ -63,8 +63,8 @@ export default function GroupLabelNode({ id, data = {}, childrenNodes = [] }) {
     return (
         <div
             style={{
-                width: 600,
-                height: 400,
+                width: rect.width,
+                height: rect.height,
                 background: "rgba(220,255,255,0.08)",
                 border: "1px solid rgba(200,40,40,0.9)",
                 position: "relative",

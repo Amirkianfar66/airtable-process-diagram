@@ -1,7 +1,8 @@
 ﻿// /api/pnid-actions.js
-// Backend API handler for PNID actions
+import { wedgeParse } from "../ai/wedgeParse.js";
+import { generateCode } from "../src/codeGenerator.js";
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
     try {
         const { action, nodes = [], edges = [], item, connection, description } = req.body;
 
@@ -12,48 +13,44 @@ export default function handler(req, res) {
         switch (action) {
             case "add":
                 if (item) {
-                    // Existing add-by-item logic
+                    // Add from structured item
                     const id = item.id || `node-${Date.now()}-${Math.random()}`;
                     newNodes.push({
                         id,
                         data: { label: `${item.Code} - ${item.Name}`, item },
                         type: item.Type || "scalableIcon",
-                        position: item.position || {
-                            x: Math.random() * 600 + 100,
-                            y: Math.random() * 400 + 100,
-                        },
+                        position: item.position || { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
                     });
                     messages.push({ sender: "AI", message: `Added item ${item.Code}` });
-                } else if (description) {
-                    // 🟢 NEW LOGIC: parse free-text description
-                    const match = description.match(/draw\s+(\d+)?\s*(equipment\s*tank|pump|valve|tank)/i);
-                    if (match) {
-                        const qty = parseInt(match[1] || "1", 10);
-                        let type = match[2].toLowerCase().trim();
+                }
+                else if (description) {
+                    // 🟢 NEW: Use AI wedge for free-text parsing
+                    const parsed = await wedgeParse(description);
 
-                        // normalize synonyms
-                        if (type.includes("equipment") && type.includes("tank")) {
-                            type = "equipment tank";
-                        } else if (type.includes("tank")) {
-                            type = "tank";
-                        }
+                    const code = generateCode({
+                        Category: parsed.Category || "Equipment",
+                        Type: parsed.Type || "Generic",
+                        Unit: parsed.Unit || 0,
+                        SubUnit: parsed.SubUnit || 0,
+                        Sequence: parsed.Sequence || 1,
+                        SensorType: parsed.SensorType || ""
+                    });
 
-                        for (let i = 0; i < qty; i++) {
-                            const id = `node-${Date.now()}-${Math.random()}`;
-                            newNodes.push({
-                                id,
-                                data: { label: `${type} ${i + 1}` },
-                                type: "scalableIcon",
-                                position: {
-                                    x: Math.random() * 600 + 100,
-                                    y: Math.random() * 400 + 100,
-                                },
-                            });
-                            messages.push({ sender: "AI", message: `Added ${type} ${i + 1}` });
-                        }
-                    } else {
-                        messages.push({ sender: "AI", message: `Could not understand: "${description}"` });
-                    }
+                    const id = `node-${Date.now()}-${Math.random()}`;
+                    newNodes.push({
+                        id,
+                        data: {
+                            label: `${code} - ${parsed.Name || parsed.Type || "Item"}`,
+                            item: { ...parsed, Code: code }
+                        },
+                        type: parsed.Type || "scalableIcon",
+                        position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                    });
+
+                    messages.push({
+                        sender: "AI",
+                        message: parsed.Explanation || `Added ${parsed.Type || "item"}`
+                    });
                 }
                 break;
 
@@ -90,12 +87,10 @@ export default function handler(req, res) {
                 break;
         }
 
-        // Ensure all nodes have id, type, data, and positions
-        newNodes = newNodes.map((n, i) => ({
-            id: n.id || `node-${Date.now()}-${i}`,
-            type: n.type || "scalableIcon",
-            data: n.data || { label: "Untitled" },
-            position: n.position || { x: 100 + i * 50, y: 100 + i * 50 },
+        // Ensure all nodes have positions
+        newNodes = newNodes.map((n) => ({
+            ...n,
+            position: n.position || { x: 100, y: 100 },
         }));
 
         res.status(200).json({ nodes: newNodes, edges: newEdges, messages });
