@@ -60,7 +60,7 @@ export function ChatBox({ messages, onSendMessage }) {
             </div>
             <input
                 type="text"
-                placeholder="Describe PNID..."
+                placeholder="ssssssss..."
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                         onSendMessage(e.target.value);
