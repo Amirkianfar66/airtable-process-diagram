@@ -12,13 +12,16 @@ export default function handler(req, res) {
         switch (action) {
             case "add":
                 if (item) {
-                    // your existing add-by-item logic
+                    // Existing add-by-item logic
                     const id = item.id || `node-${Date.now()}-${Math.random()}`;
                     newNodes.push({
                         id,
                         data: { label: `${item.Code} - ${item.Name}`, item },
                         type: item.Type || "scalableIcon",
-                        position: item.position || { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                        position: item.position || {
+                            x: Math.random() * 600 + 100,
+                            y: Math.random() * 400 + 100,
+                        },
                     });
                     messages.push({ sender: "AI", message: `Added item ${item.Code}` });
                 } else if (description) {
@@ -41,7 +44,10 @@ export default function handler(req, res) {
                                 id,
                                 data: { label: `${type} ${i + 1}` },
                                 type: "scalableIcon",
-                                position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                                position: {
+                                    x: Math.random() * 600 + 100,
+                                    y: Math.random() * 400 + 100,
+                                },
                             });
                             messages.push({ sender: "AI", message: `Added ${type} ${i + 1}` });
                         }
@@ -50,8 +56,6 @@ export default function handler(req, res) {
                     }
                 }
                 break;
-
-            }
 
             case "connect":
                 if (connection?.sourceId && connection?.targetId) {
@@ -86,10 +90,12 @@ export default function handler(req, res) {
                 break;
         }
 
-        // Ensure all nodes have positions
-        newNodes = newNodes.map((n) => ({
-            ...n,
-            position: n.position || { x: 100, y: 100 },
+        // Ensure all nodes have id, type, data, and positions
+        newNodes = newNodes.map((n, i) => ({
+            id: n.id || `node-${Date.now()}-${i}`,
+            type: n.type || "scalableIcon",
+            data: n.data || { label: "Untitled" },
+            position: n.position || { x: 100 + i * 50, y: 100 + i * 50 },
         }));
 
         res.status(200).json({ nodes: newNodes, edges: newEdges, messages });
