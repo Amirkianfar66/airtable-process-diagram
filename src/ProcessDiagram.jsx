@@ -385,8 +385,6 @@ export default function ProcessDiagram() {
                         <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                     )}
                 </div>
-
-           
-        </div>
-    );
-}
+            </div>
+        </div>  
+);
