@@ -39,7 +39,7 @@ export default function AIChatPanel({ nodes, edges, items, setNodes, setEdges, s
       <textarea
         value={aiDescription}
         onChange={(e) => setAiDescription(e.target.value)}
-        placeholder="Describe your PNID..."
+        placeholder="ddd.."
         style={{ width: '100%', height: 1000 }}
       />
       <button onClick={handleGeneratePNID} style={{ marginTop: 10 }}>
