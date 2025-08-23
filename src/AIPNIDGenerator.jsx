@@ -1,91 +1,74 @@
-﻿import { getItemIcon, categoryTypeMap } from './IconManager';
+﻿// src/components/AIPNIDGenerator.js
+import { getItemIcon, categoryTypeMap } from './IconManager';
 
-// --------------------------
-// ChatBox component
-// --------------------------
-export function ChatBox({ messages }) {
-    return (
-        <div
-            style={{
-                padding: 10,
-                border: '2px solid #007bff',
-                borderRadius: 8,
-                maxHeight: '300px',
-                overflowY: 'auto',
-                backgroundColor: '#f9f9f9'
-            }}
-        >
-            {messages.length === 0 && (
-                <div style={{ color: '#888' }}>No conversation yet...</div>
-            )}
+export default async function AIPNIDGenerator(description, items, nodes, edges, setSelectedItem, setChatMessages) {
+    // Simple parser: "Draw 1 Equipment Tank"
+    const match = description.match(/Draw\s+(\d+)\s+(.+)/i);
+    if (!match) {
+        throw new Error("❌ Could not understand description: " + description);
+    }
 
-            {messages.map((msg, idx) => (
-                <div
-                    key={idx}
-                    style={{
-                        textAlign: msg.sender === 'ai' ? 'left' : 'right',
-                        marginBottom: 6
-                    }}
-                >
-                    <strong style={{ color: msg.sender === 'ai' ? '#007bff' : '#333' }}>
-                        {msg.sender === 'ai' ? 'AI' : 'You'}:
-                    </strong>{' '}
-                    {msg.message}
-                </div>
-            ))}
-        </div>
-    );
+    const count = parseInt(match[1], 10);
+    const itemType = match[2].trim();
+
+    let newNodes = [...nodes];
+    let newEdges = [...edges];
+
+    for (let i = 0; i < count; i++) {
+        const newId = `ai-${Date.now()}-${i}`;
+        const newItem = {
+            id: newId,
+            Name: itemType,
+            Code: "",
+            Unit: "AI",
+            SubUnit: "Generated",
+            Category: itemType, // you can refine mapping
+            Type: itemType,
+            Sequence: nodes.length + i,
+        };
+
+        const newNode = {
+            id: newId,
+            position: { x: 200 + i * 200, y: 200 }, // simple auto placement
+            data: { label: newItem.Name, item: newItem, icon: getItemIcon(newItem) },
+            type: categoryTypeMap[newItem.Category] || 'scalableIcon',
+            sourcePosition: 'right',
+            targetPosition: 'left',
+            style: { background: 'transparent', boxShadow: 'none' },
+        };
+
+        newNodes.push(newNode);
+        items.push(newItem);
+    }
+
+    // Optionally add edges here if description specifies connections
+
+    // update chat
+    setChatMessages(prev => [...prev, { role: 'assistant', content: `✅ Added ${count} ${itemType}(s)` }]);
+
+    return { nodes: newNodes, edges: newEdges };
 }
 
-// --------------------------
-// AI PNID generator
-// --------------------------
-export default async function AIPNIDGenerator(
-    description,
-    existingNodes = [],
-    existingEdges = [],
-    setChatMessages,
-    action = 'add', // can be 'add', 'connect', 'delete'
-    options = {} // extra params like { sourceCode, targetCode, code }
-) {
-    if (!description && action === 'add') {
-        return { nodes: existingNodes, edges: existingEdges };
-    }
-
-    try {
-        const res = await fetch('/api/pnid-actions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action,
-                description,          // 👈 make sure description is always sent
-                existingNodes,
-                existingEdges,
-                ...options
-            })
-        });
-
-        if (!res.ok) throw new Error('PNID actions API error');
-        const { nodes, edges, messages } = await res.json();
-
-
-        // Update ChatBox
-        if (typeof setChatMessages === 'function' && messages?.length) {
-            setChatMessages(prev => [
-                ...prev,
-                ...messages.map(m => ({ sender: 'ai', message: m }))
-            ]);
-        }
-
-        return { nodes, edges };
-    } catch (err) {
-        console.error('AIPNIDGenerator error', err);
-        if (typeof setChatMessages === 'function') {
-            setChatMessages(prev => [
-                ...prev,
-                { sender: 'ai', message: '⚠️ Error generating PNID.' }
-            ]);
-        }
-        return { nodes: existingNodes, edges: existingEdges };
-    }
+// Export ChatBox passthrough if needed
+export function ChatBox({ messages, onSendMessage }) {
+    return (
+        <div style={{ borderTop: '1px solid #ccc', padding: 10 }}>
+            <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 10 }}>
+                {messages.map((m, i) => (
+                    <div key={i}><b>{m.role}:</b> {m.content}</div>
+                ))}
+            </div>
+            <input
+                type="text"
+                placeholder="Describe PNID..."
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                        onSendMessage(e.target.value);
+                        e.target.value = '';
+                    }
+                }}
+                style={{ width: '100%', padding: 5 }}
+            />
+        </div>
+    );
 }
