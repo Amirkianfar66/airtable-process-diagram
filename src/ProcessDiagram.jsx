@@ -386,17 +386,7 @@ export default function ProcessDiagram() {
                     )}
                 </div>
 
-            </div>
-            {/* Chat box display */}
-            <div style={{ padding: 10 }}>
-                <ChatBox
-                    messages={chatMessages}
-                    onSendMessage={(msg) => {
-                        setAiDescription(msg);
-                        handleGeneratePNID();
-                    }}
-                />
-            </div>
+           
         </div>
     );
 }
