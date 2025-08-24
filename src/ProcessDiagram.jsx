@@ -192,50 +192,63 @@ export default function ProcessDiagram() {
                 return;
             }
 
-            // Normalize item
-            const normalizedItem = {
-                id: parsed.id || `item-${Date.now()}`,
-                Name: parsed.Name || '',
-                Code: parsed.Code ?? parsed['Item Code'] ?? '',
-                'Item Code': parsed['Item Code'] ?? parsed.Code ?? '',
-                Unit: parsed.Unit || '',
-                SubUnit: parsed.SubUnit ?? parsed['Sub Unit'] ?? '',
-                Category: Array.isArray(parsed['Category Item Type'])
-                    ? parsed['Category Item Type'][0]
-                    : (parsed['Category Item Type'] ?? parsed.Category ?? ''),
-                'Category Item Type': Array.isArray(parsed['Category Item Type'])
-                    ? parsed['Category Item Type'][0]
-                    : (parsed['Category Item Type'] ?? parsed.Category ?? ''),
-                Type: Array.isArray(parsed.Type) ? parsed.Type[0] : (parsed.Type || ''),
-                Sequence: parsed.Sequence ?? 0,
-            };
+            // Case 1: AI is in chat mode
+            if (parsed.mode === "chat") {
+                setChatMessages(prev => [
+                    ...prev,
+                    { sender: "User", message: rawText },
+                    ...parsed.messages  // [{ sender: "AI", message: "..." }]
+                ]);
+                return; // stop here, don't try to make a node
+            }
 
-            // Create a new node for it
-            const newNode = {
-                id: normalizedItem.id,
-                position: { x: 200, y: 200 }, // drop it somewhere visible
-                data: {
-                    label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`,
-                    item: normalizedItem,
-                    icon: getItemIcon(normalizedItem),
-                },
-                type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
-                sourcePosition: 'right',
-                targetPosition: 'left',
-                style: { background: 'transparent', boxShadow: 'none' },
-            };
+            // Case 2: AI is structured (PNID command)
+            if (parsed.mode === "structured") {
+                const normalizedItem = {
+                    id: parsed.id || `item-${Date.now()}`,
+                    Name: parsed.Name || '',
+                    Code: parsed.Code ?? parsed['Item Code'] ?? '',
+                    'Item Code': parsed['Item Code'] ?? parsed.Code ?? '',
+                    Unit: parsed.Unit || '',
+                    SubUnit: parsed.SubUnit ?? parsed['Sub Unit'] ?? '',
+                    Category: Array.isArray(parsed['Category Item Type'])
+                        ? parsed['Category Item Type'][0]
+                        : (parsed['Category Item Type'] ?? parsed.Category ?? ''),
+                    'Category Item Type': Array.isArray(parsed['Category Item Type'])
+                        ? parsed['Category Item Type'][0]
+                        : (parsed['Category Item Type'] ?? parsed.Category ?? ''),
+                    Type: Array.isArray(parsed.Type) ? parsed.Type[0] : (parsed.Type || ''),
+                    Sequence: parsed.Sequence ?? 0,
+                };
 
-            setNodes(nds => [...nds, newNode]);
-            setItems(prev => [...prev, normalizedItem]);
+                // Create a new node for it
+                const newNode = {
+                    id: normalizedItem.id,
+                    position: { x: 200, y: 200 }, // drop it somewhere visible
+                    data: {
+                        label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`,
+                        item: normalizedItem,
+                        icon: getItemIcon(normalizedItem),
+                    },
+                    type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
+                    sourcePosition: 'right',
+                    targetPosition: 'left',
+                    style: { background: 'transparent', boxShadow: 'none' },
+                };
 
-            // Auto-select new node
-            setSelectedNodes([newNode]);
-            setSelectedItem(normalizedItem);
+                setNodes(nds => [...nds, newNode]);
+                setItems(prev => [...prev, normalizedItem]);
+
+                // Auto-select new node
+                setSelectedNodes([newNode]);
+                setSelectedItem(normalizedItem);
+            }
 
         } catch (err) {
             console.error("❌ Failed to parse item text:", err);
         }
     };
+
 
     useEffect(() => {
         fetchData()
