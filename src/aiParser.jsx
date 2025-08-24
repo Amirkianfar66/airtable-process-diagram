@@ -1,11 +1,10 @@
 ﻿// src/aiParser.js
-// Helper for calling /api/parse-item or /api/pnid-actions from React components
+// Helper for calling /api/parse-item from React components
 
-// src/aiParser.js
 export async function parseItemText(description) {
     console.log("👉 parseItemText called with:", description);  // Debug log
     try {
-        const res = await fetch("/api/pnid-actions", {
+        const res = await fetch("/api/parse-item", {   // <-- FIXED endpoint
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ description }),
@@ -14,10 +13,10 @@ export async function parseItemText(description) {
         if (!res.ok) throw new Error("API error");
 
         const data = await res.json();
+        console.log("✅ AI response:", data);  // Debug log
         return data;
     } catch (err) {
         console.error("parseItemText error", err);
-        return { messages: [{ sender: "System", message: "⚠️ Failed to talk to AI" }] };
+        return { mode: "chat", messages: [{ sender: "System", message: "⚠️ Failed to talk to AI" }] };
     }
 }
-

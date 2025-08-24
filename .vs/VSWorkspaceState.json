@@ -1,11 +1,12 @@
 {
   "ExpandedNodes": [
     "",
+    "\\ai",
     "\\api",
     "\\src",
     "\\src\\Components",
     "\\src\\Icons"
   ],
-  "SelectedNode": "\\src\\GroupLabelNode.jsx",
+  "SelectedNode": "\\ai\\wedgeParse.js",
   "PreviewInSolutionExplorer": false
 }
