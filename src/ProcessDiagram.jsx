@@ -436,45 +436,38 @@ export default function ProcessDiagram() {
                 />
             </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {selectedGroupNode ? (
-                        <GroupDetailCard
-                            node={selectedGroupNode}
-                            childrenNodes={childrenNodesForGroup}
-                            childrenLabels={selectedGroupNode?.data?.children}
-                            allItems={itemsMap}
-                            startAddItemToGroup={startAddItemToGroup}
-                            onAddItem={onAddItem}
-                            onRemoveItem={onRemoveItem}
-                            onDelete={onDeleteGroup}
-                        />
-                    ) : selectedItem ? (
-                        <ItemDetailCard
-                            item={selectedItem}
-                            onChange={(updatedItem) =>
-                                handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
-                            }
-                        />
-                    ) : (
-                        <div style={{ padding: 20, color: '#888' }}>
+            <div style={{ display: "flex", height: "100vh" }}>
+                {/* Left side diagram */}
+                <div style={{ flex: 1 }}>
+                    {/* ReactFlow etc */}
+                </div>
+
+                {/* Right sidebar */}
+                <div style={{ width: 350, borderLeft: "1px solid #ccc", display: "flex", flexDirection: "column" }}>
+                    <div style={{ flex: 1, overflowY: "auto" }}>
+                        {selectedGroupNode ? (
+                            <GroupDetailCard ... />
+                        ) : selectedItem ? (
+                        <ItemDetailCard ... />
+                        ) : (
+                        <div style={{ padding: 20, color: "#888" }}>
                             Select an item or group to see details
                         </div>
                     )}
-                </div>
+                    </div>
 
-                {/* 👇 Add chat panel at the bottom of right sidebar */}
-                <div className="chat-panel" style={{ borderTop: "1px solid #ccc", padding: 10, maxHeight: 200, overflowY: "auto" }}>
-                    <h3 style={{ margin: 0, fontSize: 16 }}>Chat</h3>
-                    <div className="chat-messages">
-                        {chatMessages.map((msg, i) => (
-                            <div key={i} className={`chat-message ${msg.sender.toLowerCase()}`}>
-                                <strong>{msg.sender}:</strong> {msg.message}
-                            </div>
-                        ))}
+                    {/* Chat panel */}
+                    <div className="chat-panel" style={{ borderTop: "1px solid #ccc", padding: 10, maxHeight: 200, overflowY: "auto" }}>
+                        <h3 style={{ margin: 0, fontSize: 16 }}>Chat</h3>
+                        <div className="chat-messages">
+                            {chatMessages.map((msg, i) => (
+                                <div key={i} className={`chat-message ${msg.sender.toLowerCase()}`}>
+                                    <strong>{msg.sender}:</strong> {msg.message}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
-            </div>
-
-    );
+            </div>  {/* ✅ closes the outermost div */}
+            );
 }
