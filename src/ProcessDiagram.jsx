@@ -15,7 +15,7 @@ import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
-import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
+import AIChatPanel from './AIChatPanel';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
@@ -409,6 +409,7 @@ export default function ProcessDiagram() {
 
     return (
         <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
+            {/* Left: main diagram */}
             <div style={{ flex: 1, position: "relative", background: "transparent" }}>
                 <DiagramCanvas
                     nodes={nodes}
@@ -424,15 +425,9 @@ export default function ProcessDiagram() {
                     AddItemButton={(props) => (
                         <AddItemButton {...props} addItem={handleAddItem} />
                     )}
-                    aiDescription={aiDescription}
-                    setAiDescription={setAiDescription}
-                    handleGeneratePNID={handleGeneratePNID}
-                    chatMessages={chatMessages}
-                    setChatMessages={setChatMessages}
                     selectedNodes={selectedNodes}
                     updateNode={updateNode}
                     deleteNode={deleteNode}
-                    ChatBox={ChatBox}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
@@ -447,6 +442,7 @@ export default function ProcessDiagram() {
                     flexDirection: "column",
                 }}
             >
+                {/* Details panel */}
                 <div style={{ flex: 1, overflowY: "auto" }}>
                     {selectedGroupNode ? (
                         <GroupDetailCard
@@ -478,29 +474,18 @@ export default function ProcessDiagram() {
                     )}
                 </div>
 
-                {/* Chat panel */}
-                <div
-                    className="chat-panel"
-                    style={{
-                        borderTop: "1px solid #ccc",
-                        padding: 10,
-                        maxHeight: 200,
-                        overflowY: "auto",
-                    }}
-                >
-                    <h3 style={{ margin: 0, fontSize: 16 }}>Chat</h3>
-                    <div className="chat-messages">
-                        {chatMessages.map((msg, i) => (
-                            <div
-                                key={i}
-                                className={`chat-message ${msg.sender.toLowerCase()}`}
-                            >
-                                <strong>{msg.sender}:</strong> {msg.message}
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                {/* AI Chat Panel */}
+                <AIChatPanel
+                    nodes={nodes}
+                    edges={edges}
+                    items={items}
+                    setNodes={setNodes}
+                    setEdges={setEdges}
+                    setItems={setItems}
+                    setSelectedItem={setSelectedItem}
+                />
             </div>
         </div> // ✅ closes the outermost div
     );
+
 }
