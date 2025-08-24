@@ -408,8 +408,8 @@ export default function ProcessDiagram() {
 
 
     return (
-        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
+        <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
+            <div style={{ flex: 1, position: "relative", background: "transparent" }}>
                 <DiagramCanvas
                     nodes={nodes}
                     edges={edges}
@@ -421,7 +421,9 @@ export default function ProcessDiagram() {
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
                     handleParseItemText={handleParseItemText}
-                    AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
+                    AddItemButton={(props) => (
+                        <AddItemButton {...props} addItem={handleAddItem} />
+                    )}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
                     handleGeneratePNID={handleGeneratePNID}
@@ -436,38 +438,69 @@ export default function ProcessDiagram() {
                 />
             </div>
 
-            <div style={{ display: "flex", height: "100vh" }}>
-                {/* Left side diagram */}
-                <div style={{ flex: 1 }}>
-                    {/* ReactFlow etc */}
-                </div>
-
-                {/* Right sidebar */}
-                <div style={{ width: 350, borderLeft: "1px solid #ccc", display: "flex", flexDirection: "column" }}>
-                    <div style={{ flex: 1, overflowY: "auto" }}>
-                        {selectedGroupNode ? (
-                            <GroupDetailCard ... />
-                        ) : selectedItem ? (
-                        <ItemDetailCard ... />
-                        ) : (
+            {/* Right sidebar */}
+            <div
+                style={{
+                    width: 350,
+                    borderLeft: "1px solid #ccc",
+                    display: "flex",
+                    flexDirection: "column",
+                }}
+            >
+                <div style={{ flex: 1, overflowY: "auto" }}>
+                    {selectedGroupNode ? (
+                        <GroupDetailCard
+                            node={selectedGroupNode}
+                            childrenNodes={childrenNodesForGroup}
+                            childrenLabels={selectedGroupNode?.data?.children}
+                            allItems={itemsMap}
+                            startAddItemToGroup={startAddItemToGroup}
+                            onAddItem={onAddItem}
+                            onRemoveItem={onRemoveItem}
+                            onDelete={onDeleteGroup}
+                        />
+                    ) : selectedItem ? (
+                        <ItemDetailCard
+                            item={selectedItem}
+                            onChange={(updatedItem) =>
+                                handleItemChangeNode(
+                                    updatedItem,
+                                    setItems,
+                                    setNodes,
+                                    setSelectedItem
+                                )
+                            }
+                        />
+                    ) : (
                         <div style={{ padding: 20, color: "#888" }}>
                             Select an item or group to see details
                         </div>
                     )}
-                    </div>
+                </div>
 
-                    {/* Chat panel */}
-                    <div className="chat-panel" style={{ borderTop: "1px solid #ccc", padding: 10, maxHeight: 200, overflowY: "auto" }}>
-                        <h3 style={{ margin: 0, fontSize: 16 }}>Chat</h3>
-                        <div className="chat-messages">
-                            {chatMessages.map((msg, i) => (
-                                <div key={i} className={`chat-message ${msg.sender.toLowerCase()}`}>
-                                    <strong>{msg.sender}:</strong> {msg.message}
-                                </div>
-                            ))}
-                        </div>
+                {/* Chat panel */}
+                <div
+                    className="chat-panel"
+                    style={{
+                        borderTop: "1px solid #ccc",
+                        padding: 10,
+                        maxHeight: 200,
+                        overflowY: "auto",
+                    }}
+                >
+                    <h3 style={{ margin: 0, fontSize: 16 }}>Chat</h3>
+                    <div className="chat-messages">
+                        {chatMessages.map((msg, i) => (
+                            <div
+                                key={i}
+                                className={`chat-message ${msg.sender.toLowerCase()}`}
+                            >
+                                <strong>{msg.sender}:</strong> {msg.message}
+                            </div>
+                        ))}
                     </div>
                 </div>
-            </div>  {/* ✅ closes the outermost div */}
-            );
+            </div>
+        </div> // ✅ closes the outermost div
+    );
 }
