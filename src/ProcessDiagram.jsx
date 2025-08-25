@@ -398,7 +398,24 @@ export default function ProcessDiagram() {
                             onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                        <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
+                        <ItemDetailCard
+  item={selectedNode?.data?.item}
+  onChange={(updatedItem) => {
+    setNodes(nds => nds.map(n =>
+      n.id === selectedNode.id
+        ? {
+            ...n,
+            // Only update position if x/y are numbers, otherwise keep old
+            position: {
+              x: typeof updatedItem.x === 'number' ? updatedItem.x : n.position.x,
+              y: typeof updatedItem.y === 'number' ? updatedItem.y : n.position.y
+            },
+            data: { ...n.data, item: updatedItem }
+          }
+        : n
+    ));
+  }}
+/>
                     ) : (
                         <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                     )}

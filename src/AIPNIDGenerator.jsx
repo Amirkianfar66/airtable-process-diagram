@@ -13,7 +13,7 @@ export function ChatBox({ messages }) {
                 padding: 10,
                 border: "2px solid #007bff",
                 borderRadius: 8,
-                maxHeight: "100px",
+                maxHeight: "150px",
                 overflowY: "auto",
                 backgroundColor: "#f9f9f9",
                 display: "flex",

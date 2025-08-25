@@ -163,6 +163,28 @@ export default function ItemDetailCard({ item, onChange }) {
                     <label style={labelStyle}>Sub Unit:</label>
                     <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={e => handleFieldChange('SubUnit', e.target.value)} />
                 </div>
+
+                {/* Add X Position */}
+                <div style={rowStyle}>
+                    <label style={labelStyle}>X Position:</label>
+                    <input
+                        style={inputStyle}
+                        type="number"
+                        value={localItem['x'] ?? ''}
+                        onChange={e => handleFieldChange('x', parseFloat(e.target.value))}
+                    />
+                </div>
+
+                {/* Add Y Position */}
+                <div style={rowStyle}>
+                    <label style={labelStyle}>Y Position:</label>
+                    <input
+                        style={inputStyle}
+                        type="number"
+                        value={localItem['y'] ?? ''}
+                        onChange={e => handleFieldChange('y', parseFloat(e.target.value))}
+                    />
+                </div>
             </section>
 
             <section style={sectionStyle}>
