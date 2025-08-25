@@ -2,12 +2,8 @@
 import { generateCode } from "../src/codeGenerator.js";
 
 export default async function handler(req, res) {
-    if (req.method !== "POST") {
-        return res.status(405).json({ error: "Method not allowed" });
-    }
-
     try {
-        const { description } = req.body || {};
+        const { description } = req.body;
         if (!description) {
             return res.status(400).json({ error: "Missing description" });
         }
@@ -17,12 +13,12 @@ export default async function handler(req, res) {
         if (aiResult.mode === "chat") {
             return res.json({
                 mode: "chat",
-                messages: [{ sender: "AI", message: aiResult.explanation || "..." }],
+                messages: [{ sender: "AI", message: aiResult.explanation }],
             });
         }
 
         if (aiResult.mode === "structured") {
-            const parsed = aiResult.parsed || {};
+            const parsed = aiResult.parsed;
 
             const code = generateCode({
                 Category: parsed.Category || "Equipment",
@@ -41,9 +37,9 @@ export default async function handler(req, res) {
             });
         }
 
-        return res.status(500).json({ error: "Unexpected AI result" });
+        res.status(500).json({ error: "Unexpected AI result" });
     } catch (err) {
-        console.error("API error:", err);
-        return res.status(500).json({ error: "Internal server error" });
+        console.error("❌ API /parse-item failed:", err);
+        res.status(500).json({ error: err.message || "Server error" });
     }
 }
