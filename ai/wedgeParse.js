@@ -10,9 +10,9 @@ export async function wedgeParse(description) {
 You are a PNID assistant.
 
 Task:
-1. If the input is conversational (like "hi", "hello", "how are you?", "what is a pump?"),
-   reply naturally as if you are a human process engineer talking to a colleague.
-   Do NOT output JSON in this case — just give a friendly, natural response.
+1. If the input is conversational (like "hi", "hello", "how are you?", "what is a pump?"), or if you are unsure if it is a PNID command,
+   ALWAYS reply naturally as if you are a human process engineer talking to a colleague.
+   NEVER output JSON in this case — just give a friendly, natural response as plain text.
 
 2. If the input is a PNID command (like "Draw 1 equipment tank", "Add 2 pumps", "Connect pump to tank"),
    output ONLY structured JSON with the following fields:
@@ -32,7 +32,7 @@ Task:
 Input: """${description}"""
 
 Now respond according to the rules above.
-    `;
+        `;
 
         const result = await model.generateContent(prompt);
 

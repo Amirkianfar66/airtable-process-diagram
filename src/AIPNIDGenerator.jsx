@@ -57,6 +57,14 @@ export default async function AIPNIDGenerator(
     const aiResult = await parseItemText(description);
     if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
+    // Defensive: if mode is "chat", just add the explanation as a chat message and return
+    if (aiResult.mode === "chat" && aiResult.explanation) {
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [...prev, { sender: 'AI', message: aiResult.explanation }]);
+        }
+        return { nodes: existingNodes, edges: existingEdges };
+    }
+
     const { explanation, connection } = aiResult;
     let parsed = aiResult.parsed;  // can reassign
 
