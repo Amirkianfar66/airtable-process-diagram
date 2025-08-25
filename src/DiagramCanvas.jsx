@@ -6,6 +6,7 @@ import React from 'react';
 import ReactFlow, { Controls } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
+import { ChatBox } from './AIPNIDGenerator';
 
 // NOTE: keep this component presentational only — all state handlers are provided by the parent
 export default function DiagramCanvas({
@@ -52,17 +53,8 @@ export default function DiagramCanvas({
                     <input type="text" placeholder="Describe PNID for AI" value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
                     <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
                 </div>
-                <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid #007BFF', borderRadius: 4, padding: 6 }}>
-                    {/* Chat messages box with blue border */}
-                    {chatMessages && chatMessages.length > 0 ? (
-                        chatMessages.map((msg, idx) => (
-                            <div key={idx} style={{ marginBottom: 4 }}>
-                                <strong>{msg.role === 'user' ? 'You' : 'AI'}:</strong> {msg.content}
-                            </div>
-                        ))
-                    ) : (
-                        <div style={{ color: '#888' }}>No messages yet...</div>
-                    )}
+                <div style={{ marginTop: 6 }}>
+                    <ChatBox messages={chatMessages} />
                 </div>
             </div>
 
