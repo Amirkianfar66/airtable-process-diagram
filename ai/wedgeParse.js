@@ -2,11 +2,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 export async function wedgeParse(description) {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-    const prompt = `
+    try {
+        const prompt = `
 You are a PNID assistant.
 
 Task:
@@ -34,15 +33,17 @@ Input: """${description}"""
 Now respond according to the rules above.
     `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
+        const result = await model.generateContent(prompt);
+        const text = result.response.text().trim();
 
-    // Try to parse JSON if possible
-    try {
-        const parsed = JSON.parse(text);
-        return { parsed, explanation: parsed.Explanation || "", mode: "structured" };
-    } catch {
-        // If not JSON → it's a natural chat response
-        return { parsed: {}, explanation: text, mode: "chat" };
+        try {
+            const parsed = JSON.parse(text);
+            return { parsed, explanation: parsed.Explanation || "", mode: "structured" };
+        } catch {
+            return { parsed: {}, explanation: text, mode: "chat" };
+        }
+    } catch (err) {
+        console.error("❌ wedgeParse error:", err);
+        return { parsed: {}, explanation: "⚠️ AI service failed", mode: "chat" };
     }
 }
