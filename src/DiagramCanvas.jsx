@@ -1,15 +1,14 @@
 ﻿// ------------------------------
-// Updated: DiagramCanvas.jsx (uses AIChatPanel instead of ChatBox)
-// Place this content into src/components/DiagramCanvas.jsx
-// ------------------------------
+// Updated: DiagramCanvas.jsx (uses AIChatPanel with handleAIChat)
+// Place this content into src/components/DiagramCanvas.jsx (replace existing)
 
 import React from "react";
-import PropTypes from "prop-types";
 import ReactFlow, { Controls } from "reactflow";
 import MainToolbar from "./MainToolbar";
-import AIChatPanel from "./AIChatPanel"; // ✅ now using your chat panel
 import "reactflow/dist/style.css";
+import AIChatPanel from "./AIChatPanel"; // ✅ now we import your new chat panel
 
+// NOTE: keep this component presentational only — all state handlers are provided by the parent
 export default function DiagramCanvas({
     nodes,
     edges,
@@ -21,7 +20,7 @@ export default function DiagramCanvas({
     onSelectionChange,
     nodeTypes,
     AddItemButton,
-    handleGeneratePNID, // <- will be passed into AIChatPanel as onGenerate
+    handleAIChat, // ✅ use this instead of handleGeneratePNID
     selectedNodes,
     updateNode,
     deleteNode,
@@ -30,7 +29,7 @@ export default function DiagramCanvas({
 }) {
     return (
         <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-            {/* 🔹 Toolbar */}
+            {/* Main toolbar */}
             <MainToolbar
                 selectedNodes={selectedNodes}
                 nodes={nodes}
@@ -41,19 +40,16 @@ export default function DiagramCanvas({
                 deleteNode={deleteNode}
             />
 
-            {/* 🔹 Add Item Button */}
             <div style={{ padding: 10 }}>
-                {AddItemButton ? (
-                    <AddItemButton setNodes={setNodes} setEdges={setEdges} />
-                ) : null}
+                {/* Add item button is passed from parent so it has access to setNodes/setItems there if needed */}
+                {AddItemButton ? <AddItemButton setNodes={setNodes} setEdges={setEdges} /> : null}
             </div>
 
-            {/* 🔹 AI Chat Panel */}
-            <div style={{ padding: 10 }}>
-                <AIChatPanel onGenerate={handleGeneratePNID} />
+            {/* ✅ Chat panel for AI */}
+            <div style={{ padding: 10, display: "flex", flexDirection: "column" }}>
+                <AIChatPanel onGenerate={handleAIChat} />
             </div>
 
-            {/* 🔹 Main Diagram */}
             <div style={{ flex: 1 }}>
                 <ReactFlow
                     nodes={nodes}
@@ -77,23 +73,3 @@ export default function DiagramCanvas({
         </div>
     );
 }
-
-// 🔹 Prop validation
-DiagramCanvas.propTypes = {
-    nodes: PropTypes.array.isRequired,
-    edges: PropTypes.array.isRequired,
-    setNodes: PropTypes.func.isRequired,
-    setEdges: PropTypes.func.isRequired,
-    onNodesChange: PropTypes.func.isRequired,
-    onEdgesChange: PropTypes.func.isRequired,
-    onConnect: PropTypes.func.isRequired,
-    onSelectionChange: PropTypes.func,
-    nodeTypes: PropTypes.object,
-    AddItemButton: PropTypes.elementType,
-    handleGeneratePNID: PropTypes.func.isRequired,
-    selectedNodes: PropTypes.array,
-    updateNode: PropTypes.func,
-    deleteNode: PropTypes.func,
-    onNodeDrag: PropTypes.func,
-    onNodeDragStop: PropTypes.func,
-};

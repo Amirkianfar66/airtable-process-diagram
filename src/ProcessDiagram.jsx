@@ -356,7 +356,7 @@ export default function ProcessDiagram() {
                     AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
-                    
+                    handleAIChat={handleAIChat}
                     chatMessages={chatMessages}
                     setChatMessages={setChatMessages}
                     selectedNodes={selectedNodes}
