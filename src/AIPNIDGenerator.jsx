@@ -223,6 +223,7 @@ export default async function AIPNIDGenerator(
     // ✅ Update ChatBox once
     if (typeof setChatMessages === 'function' && allMessages.length > 0) {
         setChatMessages(prev => [...prev, ...allMessages]);
+        console.log("AI response added to chatMessages:", allMessages);
     }
 
     return {
