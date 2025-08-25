@@ -1,7 +1,7 @@
 ﻿//AIPNIDGenerator
 import { getItemIcon, categoryTypeMap } from './IconManager';
-import { parseItemText } from './aiParser';
 import { generateCode } from './codeGenerator';
+import { parseItemLogic } from '../api/parse-item'; // <-- use your Gemini wrapper
 
 // --------------------------
 // ChatBox component
@@ -39,7 +39,7 @@ export function ChatBox({ messages }) {
 }
 
 // --------------------------
-// AI PNID generator
+// AI PNID generator (with human AI layer)
 // --------------------------
 export default async function AIPNIDGenerator(
     description,
@@ -51,48 +51,25 @@ export default async function AIPNIDGenerator(
 ) {
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
-    const text = description.trim();
+    // 1️⃣ Send input to Google AI via parseItemLogic
+    const aiResult = await parseItemLogic(description);
+    if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
-    // --------------------------
-    // 1️⃣ Handle greetings
-    // --------------------------
-    const greetingRegex = /^(hi|hello|hey|good morning|good afternoon|good evening)\b/i;
-    if (greetingRegex.test(text)) {
+    const { mode, explanation, parsed, connection } = aiResult;
+
+    // 2️⃣ If conversational/human mode → reply directly
+    if (mode === "chat") {
         if (typeof setChatMessages === 'function') {
             setChatMessages(prev => [
                 ...prev,
                 { sender: 'User', message: description },
-                { sender: 'AI', message: `Hello! How can I help you with your PNID items today?` }
+                { sender: 'AI', message: explanation }
             ]);
         }
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // --------------------------
-    // 2️⃣ Attempt structured PNID parsing
-    // --------------------------
-    const aiResult = await parseItemText(description);
-
-    // --------------------------
-    // 3️⃣ Handle general non-PNID questions
-    // --------------------------
-    if (!aiResult) {
-        if (typeof setChatMessages === 'function') {
-            setChatMessages(prev => [
-                ...prev,
-                { sender: 'User', message: description },
-                { sender: 'AI', message: `Sorry, I can't generate PNID info for this, but here's a human answer: "${description}"` }
-            ]);
-        }
-        return { nodes: existingNodes, edges: existingEdges };
-    }
-
-    // --------------------------
-    // 4️⃣ Structured PNID processing (existing logic)
-    // --------------------------
-    const { explanation, connection } = aiResult;
-    let parsed = aiResult.parsed;
-
+    // 3️⃣ Otherwise, structured PNID logic
     const Name = (parsed?.Name || description).trim();
     let Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     let Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
@@ -101,31 +78,16 @@ export default async function AIPNIDGenerator(
     let newNodes = [];
     let newEdges = [...existingEdges];
 
-    // Extract Unit/SubUnit
-    let Unit = 0;
-    let SubUnit = 0;
-    const unitMatch = description.match(/unit\s*[:\-]?\s*([0-9]+)/i);
-    if (unitMatch) Unit = parseInt(unitMatch[1], 10);
-    const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9]+)/i);
-    if (subUnitMatch) SubUnit = parseInt(subUnitMatch[1], 10);
+    let Unit = parsed?.Unit || 0;
+    let SubUnit = parsed?.SubUnit || 0;
 
-    if (parsed?.Sequence == null) {
-        const seqMatch = description.match(/sequence\s*[:\-]?\s*([0-9]+)/i);
-        if (seqMatch) parsed = { ...parsed, Sequence: parseInt(seqMatch[1], 10) };
-    }
-
-    parsed = { ...parsed, Unit, SubUnit };
-    Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
-    Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
-
-    // Generate code
     let updatedCode = generateCode({
         Category,
         Type,
         Unit,
         SubUnit,
-        Sequence: parsed.Sequence,
-        SensorType: parsed.SensorType || ""
+        Sequence: parsed?.Sequence || 1,
+        SensorType: parsed?.SensorType || ""
     });
 
     if (!updatedCode || updatedCode === 0) {
@@ -136,11 +98,10 @@ export default async function AIPNIDGenerator(
             Unit,
             SubUnit,
             Sequence: fallbackSeq,
-            SensorType: parsed.SensorType || ""
+            SensorType: parsed?.SensorType || ""
         });
     }
 
-    // Generate nodes
     let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
     if ((!parsed._otherCodes || parsed._otherCodes.length === 0) && NumberOfItems > 1) {
         const baseSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
@@ -151,7 +112,7 @@ export default async function AIPNIDGenerator(
                 Unit,
                 SubUnit,
                 Sequence: baseSeq + i,
-                SensorType: parsed.SensorType || ""
+                SensorType: parsed?.SensorType || ""
             });
             if (nextCode && nextCode !== 0) allCodes.push(nextCode);
         }
@@ -161,18 +122,15 @@ export default async function AIPNIDGenerator(
     const allMessages = [];
 
     allCodes.forEach(code => {
-        const nodeName = Name;
-        const nodeType = Type;
-
         const id = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
         const item = {
-            Name: nodeName,
+            Name,
             Code: code,
             'Item Code': code,
             Category,
-            Type: nodeType,
-            Unit: parsed.Unit,
-            SubUnit: parsed.SubUnit,
+            Type,
+            Unit,
+            SubUnit,
             id
         };
 
