@@ -158,30 +158,33 @@ export default function ProcessDiagram() {
 
 
     // 🔹 This is where parseItemText is used
+    // 🔹 Unified AI Chat + PNID updates
     const handleAIChat = async (userInput) => {
-        // Add user message to chat in the correct format
+        // Add user message
         setChatMessages(prev => [...prev, { role: "user", content: userInput }]);
 
-        // Call parser
-        const reply = await parseItemText(userInput);
+        try {
+            const reply = await parseItemText(userInput, nodes, edges);
 
-        // If it's a chat response, add the AI's explanation as a message
-        if (reply?.mode === "chat" && reply.explanation) {
-            setChatMessages(prev => [...prev, { sender: 'AI', message: reply.explanation }]);
-        }
-        // If it's a structured response, you can update the diagram here if you want
-        else if (reply?.mode === "structured" && reply.parsed) {
-            // Optionally, add an AI explanation to chat
-            if (reply.explanation) {
-                setChatMessages(prev => [...prev, { sender: 'AI', message: reply.explanation }]);
+            // If parser sent chat messages back
+            if (reply?.messages?.length) {
+                setChatMessages(prev => [...prev, ...reply.messages]);
             }
-            // Optionally, update nodes/edges/items here if you want to reflect PNID changes
-            // Example (pseudo-code, adapt as needed):
-            // const newNode = ... // build from reply.parsed
-            // setNodes(prev => [...prev, newNode]);
-            // setItems(prev => [...prev, reply.parsed]);
+
+            // If parser returned updated PNID
+            if (reply?.mode === "pnid") {
+                if (reply.nodes) setNodes(reply.nodes);
+                if (reply.edges) setEdges(reply.edges);
+            }
+        } catch (err) {
+            console.error("handleAIChat error:", err);
+            setChatMessages(prev => [
+                ...prev,
+                { role: "assistant", content: "⚠️ Something went wrong." }
+            ]);
         }
     };
+
     useEffect(() => {
         fetchData()
             .then((itemsRaw) => {
