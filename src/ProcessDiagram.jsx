@@ -364,7 +364,6 @@ export default function ProcessDiagram() {
                     selectedNodes={selectedNodes}
                     updateNode={updateNode}
                     deleteNode={deleteNode}
-                    ChatBox={ChatBox}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
