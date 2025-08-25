@@ -19,6 +19,9 @@ export async function parseItemLogic(description) {
     const prompt = `
 You are a PNID assistant with dual capabilities:
 
+Important rule:
+If the input starts with a command word with a capital first letter, such as "Draw", "PnID", "Connect", "Generate", "Add", treat it as a PNID command, even if it looks like normal English.
+
 1️⃣ PNID mode: If the input is related to piping, instrumentation, or diagrams, output ONLY structured JSON with fields:
 Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections.
 
@@ -26,9 +29,10 @@ Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, 
 
 Always include a top-level field "mode" with value "structured" or "chat".
 
-Input: """${trimmed}"""
+Input: """Draw a Equipment Tank"""
 
 Respond accordingly.
+
 `;
 
     try {
