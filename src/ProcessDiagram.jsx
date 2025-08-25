@@ -175,6 +175,24 @@ export default function ProcessDiagram() {
 
             setNodes(aiNodes);
             setEdges(aiEdges);
+
+            // --- Add new items to items array and auto-select the first new node ---
+            // Find new nodes that are not in the previous nodes list
+            const prevNodeIds = new Set(nodes.map(n => n.id));
+            const newNodes = aiNodes.filter(n => !prevNodeIds.has(n.id));
+
+            if (newNodes.length > 0) {
+                // Add their items to the items array
+                setItems(prev => [
+                    ...prev,
+                    ...newNodes
+                        .map(n => n.data?.item)
+                        .filter(item => item && !prev.some(i => i.id === item.id))
+                ]);
+                // Auto-select the first new node and its item
+                setSelectedNodes([newNodes[0]]);
+                setSelectedItem(newNodes[0].data?.item || null);
+            }
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
