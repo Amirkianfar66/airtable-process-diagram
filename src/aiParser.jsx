@@ -1,4 +1,6 @@
 ﻿// src/ai/aiParser.js
+
+// Calls the backend API (/api/pnid-actions) and returns a unified response
 export async function parseItemText(description, nodes = [], edges = []) {
     if (!description) return null;
 
@@ -12,21 +14,19 @@ export async function parseItemText(description, nodes = [], edges = []) {
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
 
-        // 🔹 Ensure we handle chat mode separately
-        if (data.mode === "chat") {
-            return {
-                mode: "chat",
-                messages: [{ role: "assistant", content: data.explanation || "Hi there!" }],
-            };
-        }
+        // ✅ Always return unified format from backend:
+        // { mode, nodes, edges, messages: [{ role, content }] }
+        return data;
 
-        // 🔹 Otherwise return structured PNID results
-        return data; // { mode, nodes, edges, messages }
     } catch (err) {
         console.error("parseItemText error:", err);
         return {
             mode: "chat",
-            messages: [{ role: "assistant", content: "⚠️ Something went wrong while parsing." }],
+            messages: [
+                { role: "assistant", content: "⚠️ Something went wrong while parsing your request." }
+            ],
+            nodes,
+            edges
         };
     }
 }

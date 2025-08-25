@@ -1,7 +1,8 @@
 ﻿// /api/pnid-actions.js
 // Handles both chat-mode and structured PNID commands
 
-import  parseItemText  from "./parse-item.js"; // updated import
+import { parseItemLogic } from "./parse-item.js";
+
 
 export default async function handler(req, res) {
     try {
@@ -15,12 +16,13 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Missing description" });
         }
 
-        const aiResult = await parseItemText(description);
+        const aiResult = await parseItemLogic(description);
         mode = aiResult.mode; // 'chat' or 'structured'
 
         if (mode === "chat") {
             // ✅ Only send the friendly AI response
-            messages.push({ sender: "AI", message: aiResult.explanation });
+            messages.push({ role: "assistant", content: aiResult.explanation });
+
         } else if (mode === "structured") {
             // Add nodes for PNID items
             const parsed = Array.isArray(aiResult.parsed) ? aiResult.parsed : [aiResult.parsed];
@@ -36,7 +38,8 @@ export default async function handler(req, res) {
             });
 
             // Add structured explanation
-            messages.push({ sender: "AI", message: aiResult.explanation || `Added ${parsed.length} item(s)` });
+            messages.push({ role: "assistant", content: aiResult.explanation || `Added ${parsed.length} item(s)` });
+
         }
 
         return res.status(200).json({ mode, nodes: newNodes, edges: newEdges, messages });
