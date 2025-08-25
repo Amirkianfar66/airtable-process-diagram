@@ -1,5 +1,5 @@
 ﻿// ai/wedgeParse.js
-// wedgeParse now handles conversational inputs naturally and structured PNID commands
+// Updated wedgeParse to handle casual chat and structured PNID commands
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -10,8 +10,8 @@ export async function wedgeParse(description) {
     try {
         const trimmed = description.trim();
 
-        // 1️⃣ Handle conversational input
-        const conversationalRegex = /^(hi|hello|how are you|what is|please explain)/i;
+        // Handle conversational input with broader detection
+        const conversationalRegex = /\b(hi|hello|hey|how are you|what is|please explain|thanks|thank you)\b/i;
         if (conversationalRegex.test(trimmed)) {
             return {
                 parsed: {},
@@ -20,7 +20,7 @@ export async function wedgeParse(description) {
             };
         }
 
-        // 2️⃣ Handle PNID commands
+        // Handle PNID commands
         const prompt = `
 You are a PNID assistant.
 
