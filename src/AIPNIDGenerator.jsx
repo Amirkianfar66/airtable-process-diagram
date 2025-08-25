@@ -7,30 +7,44 @@ import { parseItemLogic } from '../api/parse-item'; // Gemini wrapper
 // ChatBox component
 // --------------------------
 export function ChatBox({ messages }) {
-    const aiMessage = messages
-        .filter(msg => msg.sender === 'AI')
-        .map(msg => msg.message)
-        .join(' ');
-
     return (
         <div
             style={{
                 padding: 10,
-                border: '2px solid #007bff',
+                border: "2px solid #007bff",
                 borderRadius: 8,
-                maxHeight: '300px',
-                overflowY: 'auto',
-                backgroundColor: '#f9f9f9'
+                maxHeight: "300px",
+                overflowY: "auto",
+                backgroundColor: "#f9f9f9",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
             }}
         >
-            {aiMessage && (
-                <div style={{ color: 'black', fontSize: '14px', lineHeight: '1.5' }}>
-                    <strong>AI:</strong> {aiMessage}
-                </div>
-            )}
+            {messages.map((msg, index) => {
+                const isUser = msg.sender === "User";
+                return (
+                    <div
+                        key={index}
+                        style={{
+                            alignSelf: isUser ? "flex-start" : "flex-end",
+                            backgroundColor: isUser ? "#e0f0ff" : "#007bff",
+                            color: isUser ? "black" : "white",
+                            padding: "8px 12px",
+                            borderRadius: 16,
+                            maxWidth: "70%",
+                            wordWrap: "break-word",
+                            fontSize: 14,
+                        }}
+                    >
+                        {msg.message}
+                    </div>
+                );
+            })}
         </div>
     );
 }
+
 
 // --------------------------
 // AI PNID generator (with human AI layer)
