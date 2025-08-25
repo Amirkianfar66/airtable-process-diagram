@@ -474,18 +474,49 @@ export default function ProcessDiagram() {
                     )}
                 </div>
 
-                {/* AI Chat Panel */}
+                {/* Floating AI Chat Panel */}
                 <AIChatPanel
-                    nodes={nodes}
-                    edges={edges}
-                    items={items}
-                    setNodes={setNodes}
-                    setEdges={setEdges}
-                    setItems={setItems}
-                    setSelectedItem={setSelectedItem}
+                    onGenerate={async (description) => {
+                        try {
+                            const res = await aiParser(description);
+                            if (res.mode === 'chat') {
+                                setChatMessages(prev => [
+                                    ...prev,
+                                    ...res.messages.map(m => ({ role: 'assistant', content: m.message })),
+                                ]);
+                            }
+                            if (res.mode === 'structured') {
+                                handleAddItem(res.parsed);
+                                setChatMessages(prev => [
+                                    ...prev,
+                                    { role: 'assistant', content: res.explanation }
+                                ]);
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            setChatMessages(prev => [
+                                ...prev,
+                                { role: 'assistant', content: '❌ Error processing your request.' }
+                            ]);
+                        }
+                    }}
+                    style={{
+                        position: 'absolute',
+                        top: 20,
+                        right: 20,
+                        width: 300,
+                        zIndex: 1000,
+                        background: '#f8f9fa',
+                        border: '1px solid #ccc',
+                        borderRadius: 6,
+                        padding: 10
+                    }}
                 />
+
             </div>
-        </div> // ✅ closes the outermost div
+          }}
+        />
+      </div>
     );
 
 }
