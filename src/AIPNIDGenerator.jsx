@@ -1,5 +1,7 @@
-﻿import { getItemIcon, categoryTypeMap } from './IconManager';
+﻿// src/components/AIPNIDGenerator.jsx
+import { getItemIcon, categoryTypeMap } from './IconManager';
 import { generateCode } from './codeGenerator';
+import { parseItemLogic } from '../api/parse-item'; // AI wedge
 
 // --------------------------
 // ChatBox component
@@ -22,7 +24,13 @@ export function ChatBox({ messages }) {
             }}
         >
             {aiMessage && (
-                <div style={{ color: 'black', fontSize: '14px', lineHeight: '1.5' }}>
+                <div
+                    style={{
+                        color: 'black',
+                        fontSize: '14px',
+                        lineHeight: '1.5'
+                    }}
+                >
                     <strong>AI:</strong> {aiMessage}
                 </div>
             )}
@@ -31,7 +39,7 @@ export function ChatBox({ messages }) {
 }
 
 // --------------------------
-// AI PNID generator (client-side fetch to server)
+// AI PNID generator (with human AI layer / Gemini wedge)
 // --------------------------
 export default async function AIPNIDGenerator(
     description,
@@ -43,18 +51,13 @@ export default async function AIPNIDGenerator(
 ) {
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
-    // Call serverless API
-    const res = await fetch('/api/parse-item', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description }),
-    });
-    const aiResult = await res.json();
+    // 1️⃣ Send input to Gemini via AI wedge
+    const aiResult = await parseItemLogic(description);
     if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
     const { mode, explanation, parsed, connection } = aiResult;
 
-    // Conversational/human mode
+    // 2️⃣ If Gemini decides this is a general chat
     if (mode === 'chat') {
         if (typeof setChatMessages === 'function') {
             setChatMessages(prev => [
@@ -66,11 +69,11 @@ export default async function AIPNIDGenerator(
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // Structured PNID logic
+    // 3️⃣ Otherwise, structured PNID logic
     const Name = (parsed?.Name || description).trim();
-    let Category = (parsed?.Category || 'Equipment').trim();
-    let Type = (parsed?.Type || 'Generic').trim();
-    const NumberOfItems = parsed?.Number > 0 ? parsed.Number : 1;
+    const Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
+    const Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
+    const NumberOfItems = parsed?.Number && parsed.Number > 0 ? parsed.Number : 1;
 
     let newNodes = [];
     let newEdges = [...existingEdges];
@@ -78,52 +81,109 @@ export default async function AIPNIDGenerator(
     const Unit = parsed?.Unit || 0;
     const SubUnit = parsed?.SubUnit || 0;
 
+    // Generate the first code
     let updatedCode = generateCode({
-        Category, Type, Unit, SubUnit, Sequence: parsed?.Sequence || 1, SensorType: parsed?.SensorType || ""
+        Category,
+        Type,
+        Unit,
+        SubUnit,
+        Sequence: parsed?.Sequence || 1,
+        SensorType: parsed?.SensorType || ""
     });
 
+    // Fallback if code generation fails
+    if (!updatedCode || updatedCode === 0) {
+        const fallbackSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
+        updatedCode = generateCode({
+            Category,
+            Type,
+            Unit,
+            SubUnit,
+            Sequence: fallbackSeq,
+            SensorType: parsed?.SensorType || ""
+        });
+    }
+
+    // Generate codes array (handling multiple items)
     let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
     if ((!parsed._otherCodes || parsed._otherCodes.length === 0) && NumberOfItems > 1) {
-        const baseSeq = parsed?.Sequence || 1;
+        const baseSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
         for (let i = 1; i < NumberOfItems; i++) {
-            const nextCode = generateCode({ Category, Type, Unit, SubUnit, Sequence: baseSeq + i, SensorType: parsed?.SensorType || "" });
-            if (nextCode) allCodes.push(nextCode);
+            const nextCode = generateCode({
+                Category,
+                Type,
+                Unit,
+                SubUnit,
+                Sequence: baseSeq + i,
+                SensorType: parsed?.SensorType || ""
+            });
+            if (nextCode && nextCode !== 0) allCodes.push(nextCode);
         }
     }
 
-    const allMessages = [{ sender: 'User', message: description }];
     const generatedCodesMessages = [];
+    const allMessages = [];
 
+    // Generate nodes
     allCodes.forEach(code => {
         const id = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
         const item = { Name, Code: code, 'Item Code': code, Category, Type, Unit, SubUnit, id };
         const label = `${item.Code} - ${item.Name}`;
-        newNodes.push({ id, position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 }, data: { label, item, icon: getItemIcon(item) }, type: categoryTypeMap[Category] || 'scalableIcon' });
+
+        newNodes.push({
+            id: item.id,
+            position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+            data: { label, item, icon: getItemIcon(item) },
+            type: categoryTypeMap[Category] || 'scalableIcon',
+        });
+
         generatedCodesMessages.push({ sender: 'AI', message: `Generated code: ${code}` });
     });
 
-    allMessages.push({ sender: 'AI', message: explanation });
+    allMessages.push({ sender: 'User', message: description });
+    if (explanation) allMessages.push({ sender: 'AI', message: explanation });
     allMessages.push(...generatedCodesMessages);
 
     // Explicit connections
     if (connection) {
         const sourceNode = [...existingNodes, ...newNodes].find(n => n.data.item.Code === connection.sourceCode);
         const targetNode = [...existingNodes, ...newNodes].find(n => n.data.item.Code === connection.targetCode);
-        if (sourceNode && targetNode && !newEdges.some(e => e.source === sourceNode.id && e.target === targetNode.id)) {
-            newEdges.push({ id: `edge-${sourceNode.id}-${targetNode.id}`, source: sourceNode.id, target: targetNode.id, animated: true });
+
+        if (sourceNode && targetNode) {
+            const exists = newEdges.some(e => e.source === sourceNode.id && e.target === targetNode.id);
+            if (!exists) {
+                newEdges.push({
+                    id: `edge-${sourceNode.id}-${targetNode.id}`,
+                    source: sourceNode.id,
+                    target: targetNode.id,
+                    animated: true,
+                });
+            }
             allMessages.push({ sender: 'AI', message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` });
         }
     }
 
-    // Implicit sequential connections
-    if (/connect/i.test(description) && newNodes.length > 1) {
+    // Implicit connections
+    const implicitConnect = /connect/i.test(description);
+    if (implicitConnect && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
-            if (!newEdges.some(e => e.source === newNodes[i].id && e.target === newNodes[i + 1].id)) {
-                newEdges.push({ id: `edge-${newNodes[i].id}-${newNodes[i + 1].id}`, source: newNodes[i].id, target: newNodes[i + 1].id, animated: true });
+            const exists = newEdges.some(e => e.source === newNodes[i].id && e.target === newNodes[i + 1].id);
+            if (!exists) {
+                newEdges.push({
+                    id: `edge-${newNodes[i].id}-${newNodes[i + 1].id}`,
+                    source: newNodes[i].id,
+                    target: newNodes[i + 1].id,
+                    animated: true,
+                });
             }
         }
         allMessages.push({ sender: 'AI', message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
     }
+
+    allMessages.push(
+        { sender: 'AI', message: explanation || 'I parsed your item.' },
+        { sender: 'AI', message: `→ Generated ${newNodes.length} item(s): ${Category} - ${Type}` }
+    );
 
     if (typeof setChatMessages === 'function' && allMessages.length > 0) {
         setChatMessages(prev => [...prev, ...allMessages]);
