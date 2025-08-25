@@ -1,7 +1,4 @@
-﻿// /api/pnid-actions.js
-// Updated to use parseItemLogic from parse-item.js
-
-import { parseItemLogic } from "./parse-item.js";
+﻿import { parseItemLogic } from "./parse-item.js";
 
 export default async function handler(req, res) {
     try {
@@ -13,13 +10,14 @@ export default async function handler(req, res) {
 
         if (description) {
             const aiResult = await parseItemLogic(description);
-            mode = aiResult.mode || "idle";
+            mode = aiResult.mode; // 'chat' or 'structured'
 
-            if (aiResult.explanation) {
+            if (mode === "chat") {
+                // Chat mode → always send explanation as AI message
                 messages.push({ sender: "AI", message: aiResult.explanation });
             }
 
-            if (mode === "structured" && aiResult.parsed) {
+            if (mode === "structured") {
                 const parsed = aiResult.parsed;
                 const id = `node-${Date.now()}-${Math.random()}`;
 
@@ -29,9 +27,12 @@ export default async function handler(req, res) {
                     type: parsed.Type || "scalableIcon",
                     position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
                 });
+
+                messages.push({ sender: "AI", message: aiResult.explanation || "Added item" });
             }
         }
 
+        console.log("PNID actions API returning messages:", messages);
         res.status(200).json({ mode, nodes: newNodes, edges: newEdges, messages });
     } catch (err) {
         console.error("/api/pnid-actions error:", err);
