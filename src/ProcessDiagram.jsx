@@ -20,7 +20,7 @@ import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import AIChatPanel from './AIChatPanel';
-
+import { parseItemText } from './aiParser';
 export const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -210,6 +210,18 @@ export default function ProcessDiagram() {
             setSelectedItem,
             setChatMessages
         );
+    };
+    // 🔹 This is where parseItemText is used
+    const handleAIChat = async (userInput) => {
+        // add user message immediately
+        setChatMessages(prev => [...prev, { role: "user", content: userInput }]);
+
+        // call parser → returns {nodes, edges, messages}
+        const reply = await parseItemText(userInput);
+
+        if (reply?.messages?.length) {
+            setChatMessages(prev => [...prev, ...reply.messages]);
+        }
     };
     useEffect(() => {
         fetchData()
