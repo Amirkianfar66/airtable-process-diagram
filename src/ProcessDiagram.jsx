@@ -19,6 +19,7 @@ import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
+import AIChatPanel from './AIChatPanel';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -197,7 +198,19 @@ export default function ProcessDiagram() {
             console.error('AI PNID generation failed:', err);
         }
     };
-
+    const handleAIChat = async (userInput) => {
+        // Add user message to chat
+        setChatMessages(prev => [...prev, { sender: 'User', message: userInput }]);
+        // Call AI generator (which will add AI messages to chat)
+        await AIPNIDGenerator(
+            userInput,
+            items,
+            nodes,
+            edges,
+            setSelectedItem,
+            setChatMessages
+        );
+    };
     useEffect(() => {
         fetchData()
             .then((itemsRaw) => {
@@ -385,6 +398,10 @@ export default function ProcessDiagram() {
             </div>
 
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
+                {/* AI Chat input panel */}
+                <AIChatPanel onGenerate={handleAIChat} />
+
+                {/* Details panel */}
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {selectedGroupNode ? (
                         <GroupDetailCard
