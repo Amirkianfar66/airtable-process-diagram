@@ -159,27 +159,26 @@ export default function ProcessDiagram() {
     // 🔹 This is where parseItemText is used
     // 🔹 Unified AI Chat + PNID updates
     const handleAIChat = async (userInput) => {
-        // Add user message
-        setChatMessages(prev => [...prev, { role: "user", content: userInput }]);
+        // Add user message in the correct format
+        setChatMessages(prev => [...prev, { sender: 'User', message: userInput }]);
 
         try {
             const reply = await parseItemText(userInput, nodes, edges);
 
-            // If parser sent chat messages back
-            if (reply?.messages?.length) {
-                setChatMessages(prev => [...prev, ...reply.messages]);
+            // If it's a chat response, add the AI's explanation as a message
+            if (reply?.mode === "chat" && reply.explanation) {
+                setChatMessages(prev => [...prev, { sender: 'AI', message: reply.explanation }]);
             }
-
-            // If parser returned updated PNID
-            if (reply?.mode === "pnid") {
-                if (reply.nodes) setNodes(reply.nodes);
-                if (reply.edges) setEdges(reply.edges);
+            // If it's a structured response, you can update the diagram here if you want
+            else if (reply?.mode === "structured" && reply.explanation) {
+                setChatMessages(prev => [...prev, { sender: 'AI', message: reply.explanation }]);
+                // Optionally update nodes/edges/items here if you want to reflect PNID changes
             }
         } catch (err) {
             console.error("handleAIChat error:", err);
             setChatMessages(prev => [
                 ...prev,
-                { role: "assistant", content: "⚠️ Something went wrong." }
+                { sender: "AI", message: "⚠️ Something went wrong." }
             ]);
         }
     };
@@ -363,7 +362,7 @@ export default function ProcessDiagram() {
                     setChatMessages={setChatMessages}
                     selectedNodes={selectedNodes}
                     updateNode={updateNode}
-                    deleteNode={deleteNode}
+                    deleteNode={deleteNode} 
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
