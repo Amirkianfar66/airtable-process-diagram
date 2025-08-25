@@ -29,7 +29,7 @@ Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, 
 
 Always include a top-level field "mode" with value "structured" or "chat".
 
-Input: """Draw a Equipment Tank"""
+Input: """${trimmed}"""
 
 Respond accordingly.
 
