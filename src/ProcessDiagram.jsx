@@ -484,7 +484,7 @@ export default function ProcessDiagram() {
                                     ...prev,
                                     ...res.messages.map((m) => ({
                                         role: m.role || "assistant",
-                                        content: m.content || m.message, // support both formats
+                                        content: m.content || m.message,
                                     })),
                                 ]);
                             }
@@ -505,7 +505,7 @@ export default function ProcessDiagram() {
                         }
                     }}
                 />
-      </div>
-    );
-
+            </div>
+        </div>   {/* ✅ This was missing */ }
+);
 }
