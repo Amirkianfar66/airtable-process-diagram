@@ -202,14 +202,27 @@ export default function ProcessDiagram() {
     };
     // 🔹 This is where parseItemText is used
     const handleAIChat = async (userInput) => {
-        // add user message immediately
+        // Add user message to chat in the correct format
         setChatMessages(prev => [...prev, { role: "user", content: userInput }]);
 
-        // call parser → returns {nodes, edges, messages}
+        // Call parser
         const reply = await parseItemText(userInput);
 
-        if (reply?.messages?.length) {
-            setChatMessages(prev => [...prev, ...reply.messages]);
+        // If it's a chat response, add the AI's explanation as a message
+        if (reply?.mode === "chat" && reply.explanation) {
+            setChatMessages(prev => [...prev, { sender: 'AI', message: reply.explanation }]);
+        }
+        // If it's a structured response, you can update the diagram here if you want
+        else if (reply?.mode === "structured" && reply.parsed) {
+            // Optionally, add an AI explanation to chat
+            if (reply.explanation) {
+                setChatMessages(prev => [...prev, { sender: 'AI', message: reply.explanation }]);
+            }
+            // Optionally, update nodes/edges/items here if you want to reflect PNID changes
+            // Example (pseudo-code, adapt as needed):
+            // const newNode = ... // build from reply.parsed
+            // setNodes(prev => [...prev, newNode]);
+            // setItems(prev => [...prev, reply.parsed]);
         }
     };
     useEffect(() => {
