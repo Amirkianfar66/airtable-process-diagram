@@ -361,7 +361,7 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    handleParseItemText={handleParseItemText}
+          
                     AddItemButton={(props) => (
                         <AddItemButton {...props} addItem={handleAddItem} />
                     )}
