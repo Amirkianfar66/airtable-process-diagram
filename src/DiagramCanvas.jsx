@@ -1,14 +1,15 @@
 ﻿// ------------------------------
-// Updated: DiagramCanvas.jsx (accepts onNodeDrag + onNodeDragStop and forwards to ReactFlow)
-// Place this content into src/components/DiagramCanvas.jsx (replace existing)
+// Updated: DiagramCanvas.jsx (uses AIChatPanel instead of ChatBox)
+// Place this content into src/components/DiagramCanvas.jsx
+// ------------------------------
 
-import React from 'react';
-import ReactFlow, { Controls } from 'reactflow';
-import MainToolbar from './MainToolbar';
-import 'reactflow/dist/style.css';
-import { ChatBox } from './AIPNIDGenerator';
+import React from "react";
+import PropTypes from "prop-types";
+import ReactFlow, { Controls } from "reactflow";
+import MainToolbar from "./MainToolbar";
+import AIChatPanel from "./AIChatPanel"; // ✅ now using your chat panel
+import "reactflow/dist/style.css";
 
-// NOTE: keep this component presentational only — all state handlers are provided by the parent
 export default function DiagramCanvas({
     nodes,
     edges,
@@ -20,20 +21,16 @@ export default function DiagramCanvas({
     onSelectionChange,
     nodeTypes,
     AddItemButton,
-    aiDescription,
-    setAiDescription,
-    handleGeneratePNID,
-    chatMessages,
-    setChatMessages,
+    handleGeneratePNID, // <- will be passed into AIChatPanel as onGenerate
     selectedNodes,
     updateNode,
     deleteNode,
-    onNodeDrag, // <- new prop
-    onNodeDragStop, // <- new prop
+    onNodeDrag,
+    onNodeDragStop,
 }) {
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {/* Main toolbar */}
+        <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+            {/* 🔹 Toolbar */}
             <MainToolbar
                 selectedNodes={selectedNodes}
                 nodes={nodes}
@@ -43,21 +40,20 @@ export default function DiagramCanvas({
                 updateNode={updateNode}
                 deleteNode={deleteNode}
             />
+
+            {/* 🔹 Add Item Button */}
             <div style={{ padding: 10 }}>
-                {/* Add item button is passed from parent so it has access to setNodes/setItems there if needed */}
-                {AddItemButton ? <AddItemButton setNodes={setNodes} setEdges={setEdges} /> : null}
+                {AddItemButton ? (
+                    <AddItemButton setNodes={setNodes} setEdges={setEdges} />
+                ) : null}
             </div>
 
-            <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
-                <div style={{ display: 'flex', gap: 6 }}>
-                    <input type="text" placeholder="Describe PNID for AI" value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
-                    <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
-                </div>
-                <div style={{ marginTop: 6 }}>
-                    <ChatBox messages={chatMessages} />
-                </div>
+            {/* 🔹 AI Chat Panel */}
+            <div style={{ padding: 10 }}>
+                <AIChatPanel onGenerate={handleGeneratePNID} />
             </div>
 
+            {/* 🔹 Main Diagram */}
             <div style={{ flex: 1 }}>
                 <ReactFlow
                     nodes={nodes}
@@ -73,7 +69,7 @@ export default function DiagramCanvas({
                     minZoom={0.02}
                     defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={nodeTypes}
-                    style={{ background: 'transparent' }}
+                    style={{ background: "transparent" }}
                 >
                     <Controls />
                 </ReactFlow>
@@ -81,3 +77,23 @@ export default function DiagramCanvas({
         </div>
     );
 }
+
+// 🔹 Prop validation
+DiagramCanvas.propTypes = {
+    nodes: PropTypes.array.isRequired,
+    edges: PropTypes.array.isRequired,
+    setNodes: PropTypes.func.isRequired,
+    setEdges: PropTypes.func.isRequired,
+    onNodesChange: PropTypes.func.isRequired,
+    onEdgesChange: PropTypes.func.isRequired,
+    onConnect: PropTypes.func.isRequired,
+    onSelectionChange: PropTypes.func,
+    nodeTypes: PropTypes.object,
+    AddItemButton: PropTypes.elementType,
+    handleGeneratePNID: PropTypes.func.isRequired,
+    selectedNodes: PropTypes.array,
+    updateNode: PropTypes.func,
+    deleteNode: PropTypes.func,
+    onNodeDrag: PropTypes.func,
+    onNodeDragStop: PropTypes.func,
+};
