@@ -3,16 +3,14 @@ import { getItemIcon, categoryTypeMap } from './IconManager';
 import { parseItemText } from './aiParser';
 import { generateCode } from './codeGenerator';
 
-
 // --------------------------
 // ChatBox component
 // --------------------------
 export function ChatBox({ messages }) {
-    // Combine all AI messages into one paragraph
     const aiMessage = messages
         .filter(msg => msg.sender === 'AI')
         .map(msg => msg.message)
-        .join(' '); // join with space
+        .join(' ');
 
     return (
         <div
@@ -40,7 +38,7 @@ export function ChatBox({ messages }) {
     );
 }
 
-
+// --------------------------
 // AI PNID generator
 // --------------------------
 export default async function AIPNIDGenerator(
@@ -53,16 +51,27 @@ export default async function AIPNIDGenerator(
 ) {
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
-    // Parse AI output
+    const greetingRegex = /^(hi|hello|hey|good morning|good afternoon|good evening)\b/i;
+    if (greetingRegex.test(description.trim())) {
+        // Respond to greeting in plain language
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: 'User', message: description },
+                { sender: 'AI', message: `Hello! How can I help you with your PNID items today?` }
+            ]);
+        }
+        return { nodes: existingNodes, edges: existingEdges };
+    }
+
+    // Parse AI output for structured item generation
     const aiResult = await parseItemText(description);
     if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
     const { explanation, connection } = aiResult;
-    let parsed = aiResult.parsed;  // can reassign
+    let parsed = aiResult.parsed;
 
     const Name = (parsed?.Name || description).trim();
-
-    // Only declare once
     let Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     let Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
     const NumberOfItems = parsed?.Number && parsed.Number > 0 ? parsed.Number : 1;
@@ -70,7 +79,7 @@ export default async function AIPNIDGenerator(
     let newNodes = [];
     let newEdges = [...existingEdges];
 
-    // Extract Unit/SubUnit first
+    // Extract Unit/SubUnit
     let Unit = 0;
     let SubUnit = 0;
     const unitMatch = description.match(/unit\s*[:\-]?\s*([0-9]+)/i);
@@ -79,19 +88,16 @@ export default async function AIPNIDGenerator(
     const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9]+)/i);
     if (subUnitMatch) SubUnit = parseInt(subUnitMatch[1], 10);
 
-    // Ensure Sequence is captured even if parseItemText missed it
     if (parsed?.Sequence == null) {
         const seqMatch = description.match(/sequence\s*[:\-]?\s*([0-9]+)/i);
         if (seqMatch) parsed = { ...parsed, Sequence: parseInt(seqMatch[1], 10) };
     }
 
     parsed = { ...parsed, Unit, SubUnit };
-
-    // Update Category/Type
     Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
 
-    // Generate code after parsing all necessary info
+    // Generate code
     let updatedCode = generateCode({
         Category,
         Type,
@@ -101,7 +107,6 @@ export default async function AIPNIDGenerator(
         SensorType: parsed.SensorType || ""
     });
 
-    // Guard against bad returns like 0/null/undefined
     if (!updatedCode || updatedCode === 0) {
         const fallbackSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
         updatedCode = generateCode({
@@ -119,7 +124,6 @@ export default async function AIPNIDGenerator(
     // --------------------
     let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
 
-    // If no _otherCodes but we have multiple items, generate additional sequential codes
     if ((!parsed._otherCodes || parsed._otherCodes.length === 0) && NumberOfItems > 1) {
         const baseSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
         for (let i = 1; i < NumberOfItems; i++) {
@@ -138,7 +142,6 @@ export default async function AIPNIDGenerator(
     const generatedCodesMessages = [];
     const allMessages = [];
 
-    // Generate nodes
     allCodes.forEach(code => {
         const nodeName = Name;
         const nodeType = Type;
@@ -167,8 +170,7 @@ export default async function AIPNIDGenerator(
         generatedCodesMessages.push({ sender: 'AI', message: `Generated code: ${code}` });
     });
 
-    // Merge messages
-    allMessages.push({ sender: 'User', message: description }); // ✅ fixed "input" → "description"
+    allMessages.push({ sender: 'User', message: description });
     if (explanation) allMessages.push({ sender: 'AI', message: explanation });
     allMessages.push(...generatedCodesMessages);
 
@@ -193,9 +195,7 @@ export default async function AIPNIDGenerator(
         }
     }
 
-    // --------------------------
-    // Implicit connections for multi-item generation
-    // --------------------------
+    // Implicit connections
     const implicitConnect = /connect/i.test(description);
     if (implicitConnect && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
@@ -212,15 +212,11 @@ export default async function AIPNIDGenerator(
         allMessages.push({ sender: 'AI', message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
     }
 
-    // --------------------------
-    // Add AI explanation and generated info
-    // --------------------------
     allMessages.push(
         { sender: 'AI', message: explanation || 'I parsed your item.' },
         { sender: 'AI', message: `→ Generated ${newNodes.length} item(s): ${Category} - ${Type}` }
     );
 
-    // ✅ Update ChatBox once
     if (typeof setChatMessages === 'function' && allMessages.length > 0) {
         setChatMessages(prev => [...prev, ...allMessages]);
     }
