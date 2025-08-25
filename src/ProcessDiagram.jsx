@@ -165,9 +165,8 @@ export default function ProcessDiagram() {
         try {
             const reply = await parseItemText(userInput, nodes, edges);
 
-            // If it's a chat response, add the AI's explanation as a message
             if (reply?.mode === "chat" && reply.explanation) {
-                setChatMessages(prev => [...prev, { sender: 'AI', message: reply.explanation }]);
+                return { messages: [{ role: "assistant", content: reply.explanation }] };
             }
             // If it's a structured response, you can update the diagram here if you want
             else if (reply?.mode === "structured" && reply.explanation) {
