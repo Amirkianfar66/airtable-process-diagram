@@ -46,6 +46,7 @@ export default async function AIPNIDGenerator(
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
     // 1️⃣ Send input to Gemini for classification
+    // 1️⃣ Send input to Gemini for classification
     let aiResult;
     try {
         aiResult = await parseItemLogic(description);
@@ -61,7 +62,25 @@ export default async function AIPNIDGenerator(
         return { nodes: existingNodes, edges: existingEdges };
     }
 
+    // ✅ Extract mode, explanation, and parsed object
     const { mode, explanation, parsed = {}, connection } = aiResult;
+
+    // 2️⃣ Branch based on AI classification
+    if (mode === "chat") {
+        // AI says this is general conversation → just show chat
+        if (typeof setChatMessages === "function") {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: "User", message: description },
+                { sender: "AI", message: parsed.message || explanation }
+            ]);
+        }
+        return { nodes: existingNodes, edges: existingEdges };
+    } else if (mode === "structured" || mode === "pnid") {
+        // PNID logic → generate nodes and edges
+        // ... your existing PNID generation code here ...
+    }
+
 
     // 2️⃣ Chat/human mode → reply directly
     if (mode === 'chat') {
