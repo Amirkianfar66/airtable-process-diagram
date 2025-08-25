@@ -47,7 +47,7 @@ Rules:
 - If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
 - Connections: map "Connect X to Y" → {"from": X, "to": Y}.
 - Explanation: include a short human-readable note if relevant.
-- Wrap structured PNID JSON in a ```json ... ``` code block.
+- Wrap structured PNID JSON in a '```json ... ```' code block.
 - Do NOT wrap chat mode responses in any code block or JSON.
 
 2. Chat mode
