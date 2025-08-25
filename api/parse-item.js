@@ -12,36 +12,41 @@ function cleanAIJson(text) {
     return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
 }
 
+// Reserved action commands
+const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
+
 // Core logic for both chat and structured PNID commands
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
+    // 1️⃣ Check for exact action match (Hybrid)
+    const actionMatch = ACTION_COMMANDS.find(cmd => cmd.toLowerCase() === trimmed.toLowerCase());
+    if (actionMatch) {
+        return {
+            mode: "action",
+            action: actionMatch,
+            parsed: [],
+            explanation: `Triggered action: ${actionMatch}`,
+            connection: null,
+        };
+    }
+
+    // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
-You are a PNID assistant with two modes: **structured PNID mode** and **chat mode**.
+You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
 Rules:
 1. If the input starts with a command word with a capital first letter 
-   (e.g., "Draw", "PnID", "Connect", "Generate", "Add"), 
-   or if the input clearly describes equipment, piping, instruments, or diagrams → 
-   respond in **structured PNID mode**.
+   (e.g., "Draw", "PnID", "Connect", "Add"), or describes equipment → structured PNID mode.
+   - Output ONLY JSON with fields: 
+     { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
 
-   - Output ONLY valid JSON.
-   - If one item → a single object.
-   - If multiple items → wrap them in a JSON array of objects.
-
-   Object fields: { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
-   Always set "mode": "structured".
-
-2. If the input is general conversation (greetings like "Hi", "Hello", 
-   small talk, questions unrelated to PNID, weather, etc.) → 
-   respond in **chat mode**.
-
-   - Output ONLY plain text (not JSON).
-   - Always set "mode": "chat".
+2. If input is general conversation → chat mode.
+   - Output plain text (mode: "chat").
 
 Important:
 - Never mix modes.
-- If you are unsure, default to "chat" mode.
+- Default to chat mode if unsure.
 
 User Input: """${trimmed}"""
 `;
@@ -52,18 +57,23 @@ User Input: """${trimmed}"""
         console.log("👉 Gemini raw text:", text);
 
         if (!text) {
-            return { parsed: [], explanation: "⚠️ AI returned empty response", mode: "chat", connection: null };
+            return {
+                parsed: [],
+                explanation: "⚠️ AI returned empty response",
+                mode: "chat",
+                connection: null,
+            };
         }
 
         // Try JSON parse
         try {
-            const cleaned = cleanAIJson(text);
+            const cleaned = text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
 
             let parsed;
             try {
                 parsed = JSON.parse(cleaned);
             } catch (e) {
-                // If multiple JSON objects concatenated → split them
+                // Handle multiple JSON objects concatenated
                 const objects = cleaned
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
@@ -84,12 +94,23 @@ User Input: """${trimmed}"""
             };
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
-            return { parsed: [], explanation: text, mode: "chat", connection: null };
+            return {
+                parsed: [],
+                explanation: text,
+                mode: "chat",
+                connection: null,
+            };
         }
     } catch (err) {
         console.error("❌ parseItemLogic failed:", err);
-        return { parsed: [], explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"), mode: "chat", connection: null };
+        return {
+            parsed: [],
+            explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
+            mode: "chat",
+            connection: null,
+        };
     }
+
 }
 
 

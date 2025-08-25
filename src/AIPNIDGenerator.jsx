@@ -89,6 +89,27 @@ export default async function AIPNIDGenerator(
 
     const { mode, explanation, parsed = {}, connection } = aiResult;
 
+    // Handle Hybrid action mode
+    if (aiResult.mode === "action") {
+        const action = aiResult.action;
+        const actionMsg = `⚡ Action triggered: ${action}`;
+
+        if (typeof setChatMessages === "function") {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: "User", message: description },
+                { sender: "AI", message: actionMsg }
+            ]);
+        }
+
+        // TODO: call your export function if action === "Generate PNID"
+        if (action === "Generate PNID") {
+            // Example: generatePNID(existingNodes, existingEdges);
+        }
+
+        // Return existing nodes/edges since we don't add new items
+        return { nodes: existingNodes, edges: existingEdges };
+    }
 
     // 2️⃣ Branch based on AI classification
     if (mode === "chat") {
