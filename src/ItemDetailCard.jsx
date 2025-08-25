@@ -127,14 +127,19 @@ export default function ItemDetailCard({ item, onChange }) {
                                 ...localItem,
                                 'Category Item Type': newCategory,
                                 Category: newCategory,
-                                Type: ''
+                                Type: [] // reset Type to an empty array instead of a string
                             };
                             setLocalItem(updated);
                             if (onChange) onChange(updated);
                         }}
                     >
-                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        {categories.map(cat => (
+                            <option key={cat} value={cat}>
+                                {cat}
+                            </option>
+                        ))}
                     </select>
+
                 </div>
 
                 <div style={rowStyle}>
