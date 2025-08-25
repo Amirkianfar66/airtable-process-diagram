@@ -15,11 +15,11 @@ import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
+import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
-import AIChatPanel from './AIChatPanel';
-import { parseItemText } from './aiParser';
+
 export const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -155,30 +155,46 @@ export default function ProcessDiagram() {
 
        
 
+    const handleGeneratePNID = async () => {
+        if (!aiDescription) {
+            console.warn("⚠️ No AI description provided");
+            return;
+        }
 
-    // 🔹 This is where parseItemText is used
-    // 🔹 Unified AI Chat + PNID updates
-    const handleAIChat = async (userInput) => {
-        // Add user message in the correct format
-        setChatMessages(prev => [...prev, { sender: 'User', message: userInput }]);
+        console.log("👉 Sending to AI:", aiDescription);
 
         try {
-            const reply = await parseItemText(userInput, nodes, edges);
+            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
+                aiDescription,
+                items,
+                nodes,
+                edges,
+                setSelectedItem,
+                setChatMessages
+            );
 
-            if (reply?.mode === "chat" && reply.explanation) {
-                return { messages: [{ role: "assistant", content: reply.explanation }] };
-            }
-            // If it's a structured response, you can update the diagram here if you want
-            else if (reply?.mode === "structured" && reply.explanation) {
-                setChatMessages(prev => [...prev, { sender: 'AI', message: reply.explanation }]);
-                // Optionally update nodes/edges/items here if you want to reflect PNID changes
+            setNodes(aiNodes);
+            setEdges(aiEdges);
+
+            // --- Add new items to items array and auto-select the first new node ---
+            // Find new nodes that are not in the previous nodes list
+            const prevNodeIds = new Set(nodes.map(n => n.id));
+            const newNodes = aiNodes.filter(n => !prevNodeIds.has(n.id));
+
+            if (newNodes.length > 0) {
+                // Add their items to the items array
+                setItems(prev => [
+                    ...prev,
+                    ...newNodes
+                        .map(n => n.data?.item)
+                        .filter(item => item && !prev.some(i => i.id === item.id))
+                ]);
+                // Auto-select the first new node and its item
+                setSelectedNodes([newNodes[0]]);
+                setSelectedItem(newNodes[0].data?.item || null);
             }
         } catch (err) {
-            console.error("handleAIChat error:", err);
-            setChatMessages(prev => [
-                ...prev,
-                { sender: "AI", message: "⚠️ Something went wrong." }
-            ]);
+            console.error('AI PNID generation failed:', err);
         }
     };
 
@@ -356,22 +372,19 @@ export default function ProcessDiagram() {
                     AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
-                    handleAIChat={handleAIChat}
+                    handleGeneratePNID={handleGeneratePNID}
                     chatMessages={chatMessages}
                     setChatMessages={setChatMessages}
                     selectedNodes={selectedNodes}
                     updateNode={updateNode}
-                    deleteNode={deleteNode} 
+                    deleteNode={deleteNode}
+                    ChatBox={ChatBox}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
             </div>
 
             <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
-                {/* AI Chat input panel */}
-                <AIChatPanel onGenerate={handleAIChat} />
-
-                {/* Details panel */}
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {selectedGroupNode ? (
                         <GroupDetailCard
