@@ -1,26 +1,28 @@
-﻿// pages/api/parse-item.js  (Next.js style API route)
-
-import { wedgeParse } from "../../ai/wedgeParse.js";
-import { generateCode } from "../../src/codeGenerator.js";
+﻿import { wedgeParse } from "../ai/wedgeParse.js";
+import { generateCode } from "../src/codeGenerator.js";
 
 export default async function handler(req, res) {
+    if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const { description } = req.body;
+    if (!description) {
+        return res.status(400).json({ error: "Missing description" });
+    }
+
     try {
-        if (req.method !== "POST") {
-            return res.status(405).json({ error: "Method not allowed" });
-        }
-
-        const { description } = req.body;
-        if (!description) {
-            return res.status(400).json({ error: "Missing description" });
-        }
-
         const aiResult = await wedgeParse(description);
 
-        // If AI returned structured mode
-        if (aiResult.mode === "structured") {
-            const parsed = aiResult.parsed || {};
+        if (aiResult.mode === "chat") {
+            return res.json({
+                mode: "chat",
+                messages: [{ sender: "AI", message: aiResult.explanation }],
+            });
+        }
 
-            // Normalize + code generation
+        if (aiResult.mode === "structured") {
+            const parsed = aiResult.parsed;
             const code = generateCode({
                 Category: parsed.Category || "Equipment",
                 Type: parsed.Type || "Generic",
@@ -30,7 +32,7 @@ export default async function handler(req, res) {
                 SensorType: parsed.SensorType || "",
             });
 
-            return res.status(200).json({
+            return res.json({
                 mode: "structured",
                 parsed: { ...parsed, Code: code },
                 explanation: parsed.Explanation || "",
@@ -38,23 +40,9 @@ export default async function handler(req, res) {
             });
         }
 
-        // Otherwise → treat as chat
-        return res.status(200).json({
-            mode: "chat",
-            messages: [{ sender: "AI", message: aiResult.explanation }],
-        });
+        res.status(500).json({ error: "Unexpected AI result" });
     } catch (err) {
-        console.error("❌ API /parse-item failed:", err);
-
-        // Always return 200 with safe fallback
-        return res.status(200).json({
-            mode: "chat",
-            messages: [
-                {
-                    sender: "System",
-                    message: "⚠️ AI service unavailable: " + (err.message || "Unknown error"),
-                },
-            ],
-        });
+        console.error("❌ API error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 }
