@@ -156,38 +156,41 @@ export default async function AIPNIDGenerator(
         const SubUnit = p.SubUnit ?? 0;
         const Sequence = p.Sequence ?? 1;
 
-        let updatedCode = generateCode({ Category, Type, Unit, SubUnit, Sequence, SensorType: p.SensorType || '' });
-        if (!updatedCode) {
-            updatedCode = generateCode({ Category, Type, Unit, SubUnit, Sequence, SensorType: p.SensorType || '' });
+        // Generate base code
+        const baseCode = generateCode({ Category, Type, Unit, SubUnit, Sequence, SensorType: p.SensorType || '' });
+        const allCodes = [baseCode].filter(Boolean);
+
+        // Optionally generate additional codes if NumberOfItems > 1
+        for (let i = 1; i < NumberOfItems; i++) {
+            const nextCode = generateCode({
+                Category,
+                Type,
+                Unit,
+                SubUnit,
+                Sequence: Sequence + i,
+                SensorType: p.SensorType || ''
+            });
+            if (nextCode) allCodes.push(nextCode);
         }
 
-        let allCodes = [updatedCode, ...(p._otherCodes || [])].filter(Boolean);
-
-        // Generate multiple sequential codes if needed
-        if ((!p._otherCodes || p._otherCodes.length === 0) && NumberOfItems > 1) {
-            for (let i = 1; i < NumberOfItems; i++) {
-                const nextCode = generateCode({
-                    Category,
-                    Type,
-                    Unit,
-                    SubUnit,
-                    Sequence: Sequence + i,
-                    SensorType: p.SensorType || ''
-                });
-                if (nextCode) allCodes.push(nextCode);
-            }
-        }
-
-        // Create nodes
-        allCodes.forEach(code => {
-            const id = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
-            const item = { Name, Code: code, 'Item Code': code, Category, Type, Unit, SubUnit, id };
-            const label = `${item.Code} - ${item.Name}`;
+        // Create a node for each code
+        allCodes.forEach((code, codeIdx) => {
+            const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
+            const nodeItem = {
+                Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
+                Code: code,
+                'Item Code': code,
+                Category,
+                Type,
+                Unit,
+                SubUnit,
+                id: nodeId
+            };
 
             newNodes.push({
-                id,
+                id: nodeId,
                 position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
-                data: { label, item, icon: getItemIcon(item) },
+                data: { label: `${nodeItem.Code} - ${nodeItem.Name}`, item: nodeItem, icon: getItemIcon(nodeItem) },
                 type: categoryTypeMap[Category] || 'scalableIcon',
             });
 
