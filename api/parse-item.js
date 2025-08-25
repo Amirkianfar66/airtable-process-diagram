@@ -1,100 +1,94 @@
-﻿// parse-item.js
-// Ensures conversational inputs always return a proper AI explanation
-
+﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-function parseConnection(text) {
-    const regex = /connect\s+(\S+)\s+to\s+(\S+)/i;
-    const match = text.match(regex);
-    return match ? { sourceCode: match[1], targetCode: match[2] } : null;
-}
-
-function pickType(description, fallbackCategory) {
-    const TYPE_KEYWORDS = ['filter', 'tank', 'pump', 'valve', 'heater', 'cooler', 'compressor', 'column', 'vessel', 'reactor', 'mixer', 'blower', 'chiller', 'exchanger', 'condenser', 'separator', 'drum', 'silo', 'sensor', 'transmitter', 'strainer', 'nozzle', 'pipe'];
-    const STOPWORDS = new Set(['draw', 'generate', 'pnid', 'and', 'to', 'the', 'a', 'an', 'of', 'for', 'with', 'on', 'in', 'by', 'then', 'connect', 'connected', 'connecting', 'them', 'it', 'this', 'that', (fallbackCategory || '').toLowerCase()]);
-
-    const kwRegex = new RegExp(`\\b(${TYPE_KEYWORDS.join('|')})s?\\b`, 'gi');
-    const matches = [...(description || '').matchAll(kwRegex)];
-    if (matches.length) {
-        const word = matches[matches.length - 1][1];
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-    }
-    const words = (description || '').split(/\\s+/).filter(Boolean);
-    for (let i = words.length - 1; i >= 0; i--) {
-        const w = words[i].replace(/[^a-z0-9]/gi, '');
-        if (!w) continue;
-        if (/^U\\d{3,}$/i.test(w)) continue;
-        if (STOPWORDS.has(w.toLowerCase())) continue;
-        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-    }
-    return 'Generic';
-}
-
-export async function parseItemLogic(description, categories = []) {
-    const categoriesList = Array.isArray(categories) && categories.length ? categories : ["Equipment", "Instrument", "Inline Valve", "Pipe", "Electrical"];
+// Core logic for both chat and structured PNID commands
+export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // 1️⃣ Conversational check
+    // 1️⃣ Detect conversational input
     const conversationalRegex = /^(hi|hello|hey|how are you|what is|please explain)/i;
     if (conversationalRegex.test(trimmed)) {
-        console.log('Detected conversational input');
-        return { parsed: {}, explanation: "Hi there! I'm your AI assistant. How can I help with your process diagram?", mode: 'chat', connection: null };
+        console.log("Detected conversational input");
+        return {
+            parsed: {},
+            explanation: "Hi there! I'm your AI assistant. How can I help with your process diagram?",
+            mode: "chat",
+            connection: null,
+        };
     }
 
-    // 2️⃣ PNID structured prompt
-    const prompt = `You are a PNID assistant. Extract structured JSON data if it's a PNID command. Return fields: Name, Code, Category, Type, Number, Unit, SubUnit, Sequence, SensorType, Explanation, Connections. Input: """${trimmed}"""`;
+    // 2️⃣ Handle PNID commands via AI
+    const prompt = `
+You are a PNID assistant.
 
-    let parsed = null;
-    let explanation = "";
+Task:
+1. If the input is conversational, reply naturally in plain text.
+2. If the input is a PNID command, output ONLY structured JSON with fields: 
+   Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections.
+
+Input: """${trimmed}"""
+
+Respond according to the rules above.
+`;
+
     try {
         const result = await model.generateContent(prompt);
-        const text = result?.response?.text()?.trim() || "";
-        console.log('Gemini raw text:', text);
+        const text = result?.response?.text?.().trim() || "";
+        console.log("👉 Gemini raw text:", text);
+
+        if (!text) {
+            return {
+                parsed: {},
+                explanation: "⚠️ AI returned empty response",
+                mode: "chat",
+                connection: null,
+            };
+        }
+
+        // Attempt to parse JSON
         try {
-            parsed = JSON.parse(text);
-            explanation = parsed.Explanation || "Parsed structured item";
-        } catch {
-            const codeMatches = trimmed.match(/\bU\d{3,}\b/g) || [];
-            const parts = trimmed.split(/and/i).map(p => p.trim()).filter(Boolean);
-            const items = [];
-            parts.forEach((part, idx) => {
-                const Type = pickType(part);
-                const Category = categoriesList.find(c => part.toLowerCase().includes(c.toLowerCase())) || "Equipment";
-                const Name = Type;
-                const Code = codeMatches[idx] || `U${(idx + 1).toString().padStart(3, '0')}`;
-                let Unit = "", SubUnit = "";
-                const unitMatch = part.match(/unit\s+([^\s]+)/i);
-                if (unitMatch) Unit = unitMatch[1];
-                const subUnitMatch = part.match(/subunit\s+([^\s]+)/i);
-                if (subUnitMatch) SubUnit = subUnitMatch[1];
-                items.push({ Name, Code, Category, Type, Number: 1, Unit, SubUnit });
-            });
-            parsed = items.length === 1 ? items[0] : items;
-            explanation = `Detected ${items.length} item(s) from description.`;
+            const parsed = JSON.parse(text);
+            return {
+                parsed,
+                explanation: parsed.Explanation || "Added PNID item",
+                mode: "structured",
+                connection: parsed.Connections || null,
+            };
+        } catch (err) {
+            console.warn("⚠️ Not JSON, treating as chat:", err.message);
+            return {
+                parsed: {},
+                explanation: text,
+                mode: "chat",
+                connection: null,
+            };
         }
     } catch (err) {
-        console.error('AI parse error:', err);
-        parsed = {};
-        explanation = "⚠️ AI processing failed.";
+        console.error("❌ parseItemLogic failed:", err);
+        return {
+            parsed: {},
+            explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
+            mode: "chat",
+            connection: null,
+        };
     }
-
-    const connection = parseConnection(trimmed);
-    console.log('Returning from parseItemLogic:', { parsed, explanation, connection });
-    return { parsed, explanation, mode: 'structured', connection };
 }
 
+// Default API handler
 export default async function handler(req, res) {
     try {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
-        const { description, categories } = req.body;
-        const result = await parseItemLogic(description, categories);
-        console.log('API response:', result);
-        res.json(result);
+        if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+
+        const { description } = req.body;
+        if (!description) return res.status(400).json({ error: "Missing description" });
+
+        const aiResult = await parseItemLogic(description);
+        res.status(200).json(aiResult);
     } catch (err) {
-        console.error('parse-item API error:', err);
-        res.status(500).json({ error: 'Server error', details: err.message });
+        console.error("/api/parse-item error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
     }
 }

@@ -12,27 +12,25 @@ export default function AIChatPanel({ onGenerate }) {
     const handleGenerateClick = async () => {
         if (!aiDescription.trim()) return;
 
-
         // Add user message
-        const newMessages = [...messages, { role: "user", content: aiDescription }];
-        setMessages(newMessages);
+        setMessages((prev) => [...prev, { role: "user", content: aiDescription }]);
 
-
-        // Save input
         const input = aiDescription;
         setAiDescription("");
 
+        try {
+            // Call parent handler → returns {parsed, explanation, mode, connection}
+            const reply = await onGenerate(input);
 
-        // Call parent handler → returns {mode, nodes, edges, messages}
-        const reply = await onGenerate(input);
-
-
-        if (reply && reply.messages) {
-            reply.messages.forEach((m) => {
-                setMessages((prev) => [...prev, { role: m.sender === "AI" ? "assistant" : "user", content: m.message }]);
-            });
+            if (reply?.explanation) {
+                setMessages((prev) => [...prev, { role: "assistant", content: reply.explanation }]);
+            }
+        } catch (err) {
+            console.error("AIChatPanel error:", err);
+            setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Something went wrong" }]);
         }
     };
+
 
 
     const handleKeyDown = (e) => {
