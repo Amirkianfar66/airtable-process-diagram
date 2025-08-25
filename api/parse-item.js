@@ -1,26 +1,36 @@
 ﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-// Core logic for both chat and structured PNID commands
+// Core logic: classify input and return structured PNID or human chat
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // ✅ Send everything to Gemini; ask it to classify and respond
+    // Prompt for Gemini
     const prompt = `
 You are a PNID assistant with dual capabilities:
 
-1️⃣ PNID mode: If the input is related to piping, instrumentation, or diagrams, output ONLY structured JSON with fields:
+1️⃣ PNID mode: 
+- If the input is related to piping, instrumentation, or diagrams, 
+- OR contains "order words" with the first letter capitalized (examples: PNID, Draw, Connect, Generate, Add, Link, Insert, Pipe, Valve), 
+then output ONLY structured JSON with fields: 
 Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections.
 
-2️⃣ Chat mode: If the input is general conversation (e.g., greetings, weather, general questions), respond naturally in plain text.
+2️⃣ Chat mode:
+- If the input is general conversation (greetings, weather, questions), respond naturally in plain text.
 
 Always include a top-level field "mode" with value "structured" or "chat".
 
-Input: """${trimmed}"""
+Examples:
+Input: "Connect Pump1 to Valve3" → mode: structured
+Input: "Hi, how is the weather?" → mode: chat
+Input: "Draw a line between Tank1 and Pump2" → mode: structured
+Input: "Hello, what is the temperature today?" → mode: chat
 
+Input: """${trimmed}"""
 Respond accordingly.
 `;
 
@@ -38,7 +48,7 @@ Respond accordingly.
             };
         }
 
-        // Try to parse JSON
+        // Try to parse JSON (for structured PNID)
         try {
             const parsed = JSON.parse(text);
             return {
@@ -48,10 +58,11 @@ Respond accordingly.
                 connection: parsed.Connections || null,
             };
         } catch (err) {
+            // If not JSON → treat as human chat
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
             return {
                 parsed: {},
-                explanation: text, // reply as plain human text
+                explanation: text, // reply as natural human text
                 mode: "chat",
                 connection: null,
             };
