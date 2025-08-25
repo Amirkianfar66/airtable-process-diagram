@@ -1,4 +1,7 @@
-﻿import { wedgeParse } from "../ai/wedgeParse.js";
+﻿// /api/pnid-actions.js
+// Updated to always return AI messages, even for chat-mode responses
+
+import { wedgeParse } from "../ai/wedgeParse.js";
 
 export default async function handler(req, res) {
     try {
@@ -10,31 +13,32 @@ export default async function handler(req, res) {
 
         if (description) {
             const aiResult = await wedgeParse(description);
-            mode = aiResult.mode; // "chat" or "structured"
+            mode = aiResult.mode; // 'chat' or 'structured'
 
-            if (mode === "chat") {
-                // Always push a chat message even if no PNID item is generated
-                messages.push({ sender: "AI", message: aiResult.explanation });
+            if (mode === 'chat') {
+                // Ensure at least one chat message is returned
+                messages.push({ sender: 'AI', message: aiResult.explanation });
             }
 
-            if (mode === "structured") {
+            if (mode === 'structured') {
                 const parsed = aiResult.parsed;
                 const id = `node-${Date.now()}-${Math.random()}`;
 
                 newNodes.push({
                     id,
                     data: { label: `${parsed.Code || parsed.Name}`, item: parsed },
-                    type: parsed.Type || "scalableIcon",
+                    type: parsed.Type || 'scalableIcon',
                     position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
                 });
 
-                messages.push({ sender: "AI", message: aiResult.explanation || "Added item" });
+                messages.push({ sender: 'AI', message: aiResult.explanation || 'Added item' });
             }
         }
 
-        return res.status(200).json({ mode, nodes: newNodes, edges: newEdges, messages });
+        res.status(200).json({ mode, nodes: newNodes, edges: newEdges, messages });
+
     } catch (err) {
-        console.error("/api/pnid-actions error:", err);
-        return res.status(500).json({ error: "PNID actions API failed" });
+        console.error('/api/pnid-actions error:', err);
+        res.status(500).json({ error: 'PNID actions API failed' });
     }
 }
