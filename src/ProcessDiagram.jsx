@@ -198,18 +198,7 @@ export default function ProcessDiagram() {
             console.error('AI PNID generation failed:', err);
         }
     };
-    const handleAIChat = async (userInput) => {
-        // Add user message to chat
-        setChatMessages(prev => [...prev, { sender: 'User', message: userInput }]);
-        // Call AI generator (which will add AI messages to chat)
-        await AIPNIDGenerator(
-            userInput,
-            items,
-            nodes,
-            edges,
-            setSelectedItem,
-            setChatMessages
-        );
+    
     };
     // 🔹 This is where parseItemText is used
     const handleAIChat = async (userInput) => {
