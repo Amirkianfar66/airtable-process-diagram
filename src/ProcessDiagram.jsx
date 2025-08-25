@@ -156,50 +156,7 @@ export default function ProcessDiagram() {
 
        
 
-    const handleGeneratePNID = async () => {
-        if (!aiDescription) {
-            console.warn("⚠️ No AI description provided");
-            return;
-        }
 
-        console.log("👉 Sending to AI:", aiDescription);
-
-        try {
-            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
-                aiDescription,
-                items,
-                nodes,
-                edges,
-                setSelectedItem,
-                setChatMessages
-            );
-
-            setNodes(aiNodes);
-            setEdges(aiEdges);
-
-            // --- Add new items to items array and auto-select the first new node ---
-            // Find new nodes that are not in the previous nodes list
-            const prevNodeIds = new Set(nodes.map(n => n.id));
-            const newNodes = aiNodes.filter(n => !prevNodeIds.has(n.id));
-
-            if (newNodes.length > 0) {
-                // Add their items to the items array
-                setItems(prev => [
-                    ...prev,
-                    ...newNodes
-                        .map(n => n.data?.item)
-                        .filter(item => item && !prev.some(i => i.id === item.id))
-                ]);
-                // Auto-select the first new node and its item
-                setSelectedNodes([newNodes[0]]);
-                setSelectedItem(newNodes[0].data?.item || null);
-            }
-        } catch (err) {
-            console.error('AI PNID generation failed:', err);
-        }
-    };
-    
-    };
     // 🔹 This is where parseItemText is used
     const handleAIChat = async (userInput) => {
         // Add user message to chat in the correct format
@@ -399,7 +356,7 @@ export default function ProcessDiagram() {
                     AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
-                    handleGeneratePNID={handleGeneratePNID}
+                    
                     chatMessages={chatMessages}
                     setChatMessages={setChatMessages}
                     selectedNodes={selectedNodes}
