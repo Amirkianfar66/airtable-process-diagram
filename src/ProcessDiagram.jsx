@@ -361,7 +361,6 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-          
                     AddItemButton={(props) => (
                         <AddItemButton {...props} addItem={handleAddItem} />
                     )}
@@ -413,7 +412,7 @@ export default function ProcessDiagram() {
                         </div>
                     )}
                 </div>
-        </div>
-    );
+            </div>
+        </div>  {/* ← this was missing */ }
+);
 }
-
