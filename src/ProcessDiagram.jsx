@@ -474,48 +474,37 @@ export default function ProcessDiagram() {
                     )}
                 </div>
 
-                {/* Floating AI Chat Panel */}
                 <AIChatPanel
                     onGenerate={async (description) => {
                         try {
-                            const res = await aiParser(description);
-                            if (res.mode === 'chat') {
-                                setChatMessages(prev => [
+                            const res = await parseItemText(description);
+
+                            if (res.mode === "chat") {
+                                setChatMessages((prev) => [
                                     ...prev,
-                                    ...res.messages.map(m => ({ role: 'assistant', content: m.message })),
+                                    ...res.messages.map((m) => ({
+                                        role: m.role || "assistant",
+                                        content: m.content || m.message, // support both formats
+                                    })),
                                 ]);
                             }
-                            if (res.mode === 'structured') {
+
+                            if (res.mode === "structured" && res.parsed) {
                                 handleAddItem(res.parsed);
-                                setChatMessages(prev => [
+                                setChatMessages((prev) => [
                                     ...prev,
-                                    { role: 'assistant', content: res.explanation }
+                                    { role: "assistant", content: res.explanation || "✅ Added structured item" },
                                 ]);
                             }
                         } catch (err) {
                             console.error(err);
-                            setChatMessages(prev => [
+                            setChatMessages((prev) => [
                                 ...prev,
-                                { role: 'assistant', content: '❌ Error processing your request.' }
+                                { role: "assistant", content: "❌ Error processing your request." },
                             ]);
                         }
                     }}
-                    style={{
-                        position: 'absolute',
-                        top: 20,
-                        right: 20,
-                        width: 300,
-                        zIndex: 1000,
-                        background: '#f8f9fa',
-                        border: '1px solid #ccc',
-                        borderRadius: 6,
-                        padding: 10
-                    }}
                 />
-
-            </div>
-          }}
-        />
       </div>
     );
 
