@@ -1,17 +1,15 @@
 ﻿// parse-item.js
-// Combines wedgeParse logic into a reusable function and API handler
+// Ensures conversational inputs always return a proper AI explanation
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-// Helper functions
 function parseConnection(text) {
     const regex = /connect\s+(\S+)\s+to\s+(\S+)/i;
     const match = text.match(regex);
-    if (!match) return null;
-    return { sourceCode: match[1], targetCode: match[2] };
+    return match ? { sourceCode: match[1], targetCode: match[2] } : null;
 }
 
 function pickType(description, fallbackCategory) {
@@ -24,7 +22,6 @@ function pickType(description, fallbackCategory) {
         const word = matches[matches.length - 1][1];
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     }
-
     const words = (description || '').split(/\\s+/).filter(Boolean);
     for (let i = words.length - 1; i >= 0; i--) {
         const w = words[i].replace(/[^a-z0-9]/gi, '');
@@ -36,7 +33,6 @@ function pickType(description, fallbackCategory) {
     return 'Generic';
 }
 
-// Reusable logic function
 export async function parseItemLogic(description, categories = []) {
     const categoriesList = Array.isArray(categories) && categories.length ? categories : ["Equipment", "Instrument", "Inline Valve", "Pipe", "Electrical"];
     const trimmed = description.trim();
@@ -44,6 +40,7 @@ export async function parseItemLogic(description, categories = []) {
     // 1️⃣ Conversational check
     const conversationalRegex = /^(hi|hello|hey|how are you|what is|please explain)/i;
     if (conversationalRegex.test(trimmed)) {
+        console.log('Detected conversational input');
         return { parsed: {}, explanation: "Hi there! I'm your AI assistant. How can I help with your process diagram?", mode: 'chat', connection: null };
     }
 
@@ -55,11 +52,11 @@ export async function parseItemLogic(description, categories = []) {
     try {
         const result = await model.generateContent(prompt);
         const text = result?.response?.text()?.trim() || "";
+        console.log('Gemini raw text:', text);
         try {
             parsed = JSON.parse(text);
             explanation = parsed.Explanation || "Parsed structured item";
         } catch {
-            // fallback parsing
             const codeMatches = trimmed.match(/\bU\d{3,}\b/g) || [];
             const parts = trimmed.split(/and/i).map(p => p.trim()).filter(Boolean);
             const items = [];
@@ -79,23 +76,25 @@ export async function parseItemLogic(description, categories = []) {
             explanation = `Detected ${items.length} item(s) from description.`;
         }
     } catch (err) {
-        console.error("AI parse error:", err);
+        console.error('AI parse error:', err);
         parsed = {};
         explanation = "⚠️ AI processing failed.";
     }
+
     const connection = parseConnection(trimmed);
+    console.log('Returning from parseItemLogic:', { parsed, explanation, connection });
     return { parsed, explanation, mode: 'structured', connection };
 }
 
-// API handler
 export default async function handler(req, res) {
     try {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
         const { description, categories } = req.body;
         const result = await parseItemLogic(description, categories);
+        console.log('API response:', result);
         res.json(result);
     } catch (err) {
-        console.error("parse-item API error:", err);
+        console.error('parse-item API error:', err);
         res.status(500).json({ error: 'Server error', details: err.message });
     }
 }
