@@ -1,14 +1,18 @@
-﻿// src/aiParser.js
-export async function aiParser(description) {
-    const res = await fetch("/api/parse-item", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
-    });
+﻿export async function parseItemText(description) {
+    if (!description) return null;
 
-    if (!res.ok) {
-        throw new Error("Failed to call AI parser API");
+    try {
+        const res = await fetch("/api/parse-item", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ description }),
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        return data;
+    } catch (err) {
+        console.error("parseItemText error:", err);
+        return null;
     }
-
-    return res.json();
 }
