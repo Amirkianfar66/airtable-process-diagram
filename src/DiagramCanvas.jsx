@@ -45,10 +45,8 @@ export default function DiagramCanvas({
                 {AddItemButton ? <AddItemButton setNodes={setNodes} setEdges={setEdges} /> : null}
             </div>
 
-            {/* ✅ Chat panel for AI */}
-            <div style={{ padding: 10, display: "flex", flexDirection: "column" }}>
-                <AIChatPanel onGenerate={handleAIChat} />
-            </div>
+            
+            
 
             <div style={{ flex: 1 }}>
                 <ReactFlow
