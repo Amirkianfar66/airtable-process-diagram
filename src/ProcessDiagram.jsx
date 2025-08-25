@@ -413,39 +413,6 @@ export default function ProcessDiagram() {
                         </div>
                     )}
                 </div>
-
-                <AIChatPanel
-                    onGenerate={async (description) => {
-                        try {
-                            const res = await parseItemText(description);
-
-                            if (res.mode === "chat") {
-                                setChatMessages((prev) => [
-                                    ...prev,
-                                    ...res.messages.map((m) => ({
-                                        role: m.role || "assistant",
-                                        content: m.content || m.message,
-                                    })),
-                                ]);
-                            }
-
-                            if (res.mode === "structured" && res.parsed) {
-                                handleAddItem(res.parsed);
-                                setChatMessages((prev) => [
-                                    ...prev,
-                                    { role: "assistant", content: res.explanation || "✅ Added structured item" },
-                                ]);
-                            }
-                        } catch (err) {
-                            console.error(err);
-                            setChatMessages((prev) => [
-                                ...prev,
-                                { role: "assistant", content: "❌ Error processing your request." },
-                            ]);
-                        }
-                    }}
-                />
-            </div>
         </div>
     );
 }
