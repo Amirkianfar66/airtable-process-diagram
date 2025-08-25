@@ -227,7 +227,7 @@ export default function ProcessDiagram() {
                 const newEdges = [];
                 let unitX = 0;
                 const unitWidth = 5000;
-                const unitHeight = 3000;
+                const unitHeight = 6000;
                 const subUnitHeight = unitHeight / 9;
                 const itemWidth = 160;
                 const itemGap = 30;
