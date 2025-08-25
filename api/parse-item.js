@@ -48,7 +48,7 @@ function pickType(description, fallbackCategory) {
 }
 
 // ----------------------
-// API Handler
+// API Handler (Vercel serverless)
 // ----------------------
 export default async function handler(req, res) {
     try {
@@ -56,6 +56,16 @@ export default async function handler(req, res) {
 
         const { description, categories } = req.body;
         if (!description) return res.status(400).json({ error: "Missing description" });
+
+        const trimmed = description.trim();
+        const conversationalRegex = /\b(hi|hello|hey|how are you|what is|please explain|thanks|thank you)\b/i;
+        if (conversationalRegex.test(trimmed)) {
+            return res.json({
+                parsed: {},
+                explanation: `Hi there! I'm your AI assistant. How can I help with your process diagram?`,
+                mode: 'chat'
+            });
+        }
 
         const categoriesList = Array.isArray(categories) && categories.length
             ? categories
@@ -136,7 +146,7 @@ Text: "${description}"
         }
 
         const connection = parseConnection(description);
-        return res.json({ explanation, parsed, connection });
+        return res.json({ explanation, parsed, connection, mode: 'structured' });
     } catch (err) {
         console.error("API handler failed:", err);
         return res.status(500).json({ error: "Server error", details: err.message });
