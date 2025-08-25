@@ -51,9 +51,6 @@ Rules:
   - If the quantity is not specified, default Number = 1.
   - Do NOT split multiple items into separate objects unless the user explicitly mentions distinct names.
   - Keep other fields as accurate as possible.
-`;
-
-
 
 2. If the input is general conversation (greetings, small talk, questions unrelated to PNID) → 
    respond in **chat mode**.
@@ -67,6 +64,7 @@ Important:
 
 User Input: """${trimmed}"""
 `;
+
 
 
     try {
