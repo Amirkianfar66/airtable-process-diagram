@@ -33,23 +33,38 @@ export async function parseItemLogic(description) {
 
     // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
-You are a PNID assistant with two modes: structured PNID mode and chat mode.
+You are a PNID assistant with two modes: **structured PNID mode** and **chat mode**.
 
 Rules:
 1. If the input starts with a command word with a capital first letter 
-   (e.g., "Draw", "PnID", "Connect", "Add"), or describes equipment → structured PNID mode.
-   - Output ONLY JSON with fields: 
+   (e.g., "Draw", "PnID", "Connect", "Generate", "Add"), 
+   or if the input clearly describes equipment, piping, instruments, or diagrams → 
+   respond in **structured PNID mode**.
+
+   - Output ONLY valid JSON with fields: 
      { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
 
-2. If input is general conversation → chat mode.
-   - Output plain text (mode: "chat").
+   - Always set "mode": "structured".
+
+   - IMPORTANT: 
+     - If the user mentions "Draw N ..." or any quantity, set `"Number": N` exactly.
+     - If the quantity is not specified, default `"Number": 1`.
+     - Do NOT split multiple items into separate objects unless the user explicitly mentions distinct names.
+     - Keep other fields as accurate as possible.
+
+2. If the input is general conversation (greetings, small talk, questions unrelated to PNID) → 
+   respond in **chat mode**.
+
+   - Output ONLY plain text (not JSON).
+   - Always set "mode": "chat".
 
 Important:
 - Never mix modes.
-- Default to chat mode if unsure.
+- If you are unsure, default to "chat" mode.
 
 User Input: """${trimmed}"""
 `;
+
 
     try {
         const result = await model.generateContent(prompt);
