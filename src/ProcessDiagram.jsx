@@ -19,7 +19,7 @@ import AIChatPanel from './AIChatPanel';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
-import { parseItemText } from './aiParser';
+import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 
 export const nodeTypes = {
     resizable: ResizableNode,
