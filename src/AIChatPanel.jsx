@@ -1,13 +1,10 @@
-﻿// src/components/AIChatPanel.jsx
-import React, { useState } from "react";
-
+﻿import React, { useState } from "react";
 
 export default function AIChatPanel({ onGenerate }) {
     const [aiDescription, setAiDescription] = useState("");
     const [messages, setMessages] = useState([
         { role: "assistant", content: "Hi! I’m your AI assistant. Ask me anything..." }
     ]);
-
 
     const handleGenerateClick = async () => {
         if (!aiDescription.trim()) return;
@@ -18,20 +15,23 @@ export default function AIChatPanel({ onGenerate }) {
         const input = aiDescription;
         setAiDescription("");
 
-        try {
-            // Call parent handler → returns {parsed, explanation, mode, connection}
-            const reply = await onGenerate(input);
+        // Call parent handler → returns {mode, nodes, edges, messages}
+        const reply = await onGenerate(input);
 
-            if (reply?.explanation) {
-                setMessages((prev) => [...prev, { role: "assistant", content: reply.explanation }]);
-            }
-        } catch (err) {
-            console.error("AIChatPanel error:", err);
-            setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Something went wrong" }]);
+        if (!reply) return;
+
+        // If chat mode, just show explanation
+        if (reply.mode === "chat" && reply.messages?.length) {
+            setMessages((prev) => [...prev, { role: "assistant", content: reply.messages[0].message }]);
+        }
+
+        // If structured, show structured AI messages
+        if (reply.mode === "structured" && reply.messages?.length) {
+            reply.messages.forEach((m) => {
+                setMessages((prev) => [...prev, { role: "assistant", content: m.message }]);
+            });
         }
     };
-
-
 
     const handleKeyDown = (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -40,24 +40,38 @@ export default function AIChatPanel({ onGenerate }) {
         }
     };
 
-
     return (
         <div style={{ width: "100%", borderTop: "1px solid #ddd", padding: 10, background: "#f8f9fa", display: "flex", flexDirection: "column", height: 400 }}>
-            {/* Messages */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "5px", marginBottom: 10, background: "white", border: "1px solid #ccc", borderRadius: 4 }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: 5, marginBottom: 10, background: "white", border: "1px solid #ccc", borderRadius: 4 }}>
                 {messages.map((msg, idx) => (
                     <div key={idx} style={{ textAlign: msg.role === "user" ? "right" : "left", margin: "5px 0" }}>
-                        <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: 6, background: msg.role === "user" ? "#007bff" : "#e9ecef", color: msg.role === "user" ? "white" : "black", maxWidth: "80%" }}>
+                        <span style={{
+                            display: "inline-block",
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            background: msg.role === "user" ? "#007bff" : "#e9ecef",
+                            color: msg.role === "user" ? "white" : "black",
+                            maxWidth: "80%"
+                        }}>
                             {msg.content}
                         </span>
                     </div>
                 ))}
             </div>
 
-
-            {/* Input */}
-            <textarea value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} onKeyDown={handleKeyDown} placeholder="Type a message..." style={{ width: "100%", boxSizing: "border-box", height: 60, resize: "none", padding: 8, border: "1px solid #ccc", borderRadius: 4, marginBottom: 5 }} />
-            <button onClick={handleGenerateClick} style={{ width: "100%", padding: "10px", border: "none", borderRadius: "4px", background: "#007bff", color: "white", cursor: "pointer" }}>Send</button>
+            <textarea
+                value={aiDescription}
+                onChange={(e) => setAiDescription(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message..."
+                style={{ width: "100%", boxSizing: "border-box", height: 60, resize: "none", padding: 8, border: "1px solid #ccc", borderRadius: 4, marginBottom: 5 }}
+            />
+            <button
+                onClick={handleGenerateClick}
+                style={{ width: "100%", padding: "10px", border: "none", borderRadius: 4, background: "#007bff", color: "white", cursor: "pointer" }}
+            >
+                Send
+            </button>
         </div>
     );
 }
