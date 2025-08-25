@@ -1,5 +1,6 @@
-﻿import { wedgeParse } from "../ai/wedgeParse.js";
-import { generateCode } from "../src/codeGenerator.js";
+﻿// pages/api/parse-item.js
+import { wedgeParse } from "../../ai/wedgeParse.js";
+import { generateCode } from "../../src/codeGenerator.js";
 
 export default async function handler(req, res) {
     try {
@@ -19,7 +20,6 @@ export default async function handler(req, res) {
 
         if (aiResult.mode === "structured") {
             const parsed = aiResult.parsed;
-
             const code = generateCode({
                 Category: parsed.Category || "Equipment",
                 Type: parsed.Type || "Generic",
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
             });
         }
 
-        res.status(500).json({ error: "Unexpected AI result" });
+        return res.status(500).json({ error: "Unexpected AI result" });
     } catch (err) {
         console.error("❌ API /parse-item failed:", err);
         res.status(500).json({ error: err.message || "Server error" });
