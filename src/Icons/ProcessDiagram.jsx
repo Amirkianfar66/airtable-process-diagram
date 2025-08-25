@@ -15,10 +15,10 @@ import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
-import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
+import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -156,12 +156,7 @@ export default function ProcessDiagram() {
        
 
     const handleGeneratePNID = async () => {
-        if (!aiDescription) {
-            console.warn("⚠️ No AI description provided");
-            return;
-        }
-
-        console.log("👉 Sending to AI:", aiDescription);
+        if (!aiDescription) return;
 
         try {
             const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
@@ -173,12 +168,27 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
+            const newItems = aiNodes.map(n => n.data?.item).filter(Boolean);
+
+            setItems(prev => {
+                const existingIds = new Set(prev.map(i => i.id));
+                const filteredNew = newItems.filter(i => !existingIds.has(i.id));
+                const updatedItems = [...prev, ...filteredNew];
+
+                if (filteredNew.length > 0) setSelectedItem(filteredNew[0]);
+
+                return updatedItems;
+            });
+
             setNodes(aiNodes);
             setEdges(aiEdges);
+
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
     };
+
+
 
     useEffect(() => {
         fetchData()
@@ -338,8 +348,9 @@ export default function ProcessDiagram() {
 
 
     return (
-        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
+        <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
+            {/* Left: main diagram */}
+            <div style={{ flex: 1, position: "relative", background: "transparent" }}>
                 <DiagramCanvas
                     nodes={nodes}
                     edges={edges}
@@ -350,24 +361,28 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    // Use the local AddItemButton, wired to our fixed handler
-                    AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
-                    aiDescription={aiDescription}
-                    setAiDescription={setAiDescription}
-                    handleGeneratePNID={handleGeneratePNID}
-                    chatMessages={chatMessages}
-                    setChatMessages={setChatMessages}
+                    AddItemButton={(props) => (
+                        <AddItemButton {...props} addItem={handleAddItem} />
+                    )}
                     selectedNodes={selectedNodes}
                     updateNode={updateNode}
                     deleteNode={deleteNode}
-                    ChatBox={ChatBox}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
             </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
+            {/* Right sidebar */}
+            <div
+                style={{
+                    width: 350,
+                    borderLeft: "1px solid #ccc",
+                    display: "flex",
+                    flexDirection: "column",
+                }}
+            >
+                {/* Details panel */}
+                <div style={{ flex: 1, overflowY: "auto" }}>
                     {selectedGroupNode ? (
                         <GroupDetailCard
                             node={selectedGroupNode}
@@ -380,12 +395,24 @@ export default function ProcessDiagram() {
                             onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                        <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
+                        <ItemDetailCard
+                            item={selectedItem}
+                            onChange={(updatedItem) =>
+                                handleItemChangeNode(
+                                    updatedItem,
+                                    setItems,
+                                    setNodes,
+                                    setSelectedItem
+                                )
+                            }
+                        />
                     ) : (
-                        <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
+                        <div style={{ padding: 20, color: "#888" }}>
+                            Select an item or group to see details
+                        </div>
                     )}
                 </div>
             </div>
-        </div>  
-    );
+        </div> 
+);
 }
