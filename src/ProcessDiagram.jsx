@@ -413,6 +413,6 @@ export default function ProcessDiagram() {
                     )}
                 </div>
             </div>
-        </div>  {/* ← this was missing */ }
+        </div> 
 );
 }
