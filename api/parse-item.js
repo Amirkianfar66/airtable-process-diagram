@@ -33,37 +33,30 @@ export async function parseItemLogic(description) {
 
     // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
-You are a PNID assistant with two modes: **structured PNID mode** and **chat mode**.
+You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
 Rules:
-1. If the input starts with a command word with a capital first letter 
-   (e.g., "Draw", "PnID", "Connect", "Generate", "Add"), 
-   or if the input clearly describes equipment, piping, instruments, or diagrams → 
-   respond in **structured PNID mode**.
 
-   - Output ONLY valid JSON with fields: 
-     { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
+1. Structured PNID mode
+- Triggered if input starts with a command (Draw, Connect, Add, Generate, PnID) or describes equipment, piping, instruments, or diagrams.
+- Output ONLY valid JSON with these fields:
+  { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
+- Always set "mode": "structured".
+- Type must be a string. If multiple types are mentioned (e.g., "Tank and Pump"), generate **separate JSON objects** for each type.
+- If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
+- Connections: map "Connect X to Y" → {"from": X, "to": Y}.
+- Explanation: include a short human-readable note if relevant.
 
-   - Always set "mode": "structured".
+2. Chat mode
+- Triggered if input is small talk, greetings, or unrelated to PNID.
+- Output plain text only.
+- Always set "mode": "chat".
 
-- IMPORTANT:
-  - If the user mentions "Draw N ..." or any quantity, set Number = N exactly.
-  - If the quantity is not specified, default Number = 1.
-  - Do NOT split multiple items into separate objects unless the user explicitly mentions distinct names.
-  - Keep other fields as accurate as possible.
-
-2. If the input is general conversation (greetings, small talk, questions unrelated to PNID) → 
-   respond in **chat mode**.
-
-   - Output ONLY plain text (not JSON).
-   - Always set "mode": "chat".
-
-Important:
-- Never mix modes.
-- If you are unsure, default to "chat" mode.
+Never mix modes. Default to chat mode if unsure.
 
 User Input: """${trimmed}"""
 `;
+
 
 
 
