@@ -1,88 +1,59 @@
-﻿// src/AIChatPanel.jsx
-import React, { useState } from "react";
-import { aiParser } from "./aiParser";
+﻿// src/components/AIChatPanel.jsx
+import React, { useState } from 'react';
 
-export default function AIChatPanel() {
-    const [messages, setMessages] = useState([]);
-    const [input, setInput] = useState("");
+// Note: We no longer import AIPNIDGenerator or ChatBox from the old file.
+// The chat history will now be managed by the parent ProcessDiagram component.
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+export default function AIChatPanel({ onGenerate }) { // Accept the onGenerate prop
+    const [aiDescription, setAiDescription] = useState('');
 
-        // Add user message
-        setMessages((prev) => [...prev, { role: "user", content: input }]);
-        const userInput = input;
-        setInput("");
+    const handleGenerateClick = () => {
+        if (!aiDescription.trim()) return;
 
-        try {
-            const res = await aiParser(userInput);
+        // The component's only job is to call the function passed down from the parent.
+        // All complex logic (API calls, state updates, chat history) is handled there.
+        onGenerate(aiDescription);
 
-            if (res.mode === "chat") {
-                // Natural conversation
-                setMessages((prev) => [
-                    ...prev,
-                    { role: "assistant", content: res.explanation },
-                ]);
-            } else if (res.mode === "structured") {
-                // PNID structured command
-                setMessages((prev) => [
-                    ...prev,
-                    { role: "assistant", content: res.explanation },
-                ]);
-                // TODO: hook this into your PNID addItem flow
-                console.log("✅ Parsed PNID JSON:", res.parsed);
-            }
-        } catch (err) {
-            console.error(err);
-            setMessages((prev) => [
-                ...prev,
-                { role: "assistant", content: "❌ Error talking to AI." },
-            ]);
+        setAiDescription(''); // Clear the input after sending
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent new line on Enter
+            handleGenerateClick();
         }
     };
 
     return (
-        <div
-            style={{
-                position: "absolute",
-                top: 20,
-                right: 20,
-                width: 300,
-                zIndex: 1000,
-                background: "#fff",
-                border: "1px solid #ccc",
-                borderRadius: 8,
-                padding: 10,
-            }}
-        >
-            <div style={{ maxHeight: 200, overflowY: "auto", marginBottom: 10 }}>
-                {messages.map((m, i) => (
-                    <div key={i} style={{ textAlign: m.role === "user" ? "right" : "left" }}>
-                        <b>{m.role === "user" ? "You" : "AI"}:</b> {m.content}
-                    </div>
-                ))}
-            </div>
-
+        <div style={{ width: '100%', borderTop: '1px solid #ddd', padding: 10, background: '#f8f9fa' }}>
             <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                    }
-                }}
-                placeholder="Ask me anything or give PNID instructions..."
+                value={aiDescription}
+                onChange={(e) => setAiDescription(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Describe equipment, ask a question..."
                 style={{
-                    width: "100%",
-                    resize: "none",
-                    padding: 6,
+                    width: '100%',
+                    boxSizing: 'border-box', // Ensure padding is included in width
+                    height: 100,
+                    resize: 'vertical',
+                    padding: 8,
+                    border: '1px solid #ccc',
                     borderRadius: 4,
-                    border: "1px solid #ccc",
-                    marginBottom: 6,
+                    marginBottom: 10,
                 }}
             />
-            <button onClick={handleSend} style={{ width: "100%" }}>
+            <button
+                onClick={handleGenerateClick}
+                style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    background: '#007bff',
+                    color: 'white',
+                    cursor: 'pointer'
+                }}
+            >
                 Send
             </button>
         </div>
