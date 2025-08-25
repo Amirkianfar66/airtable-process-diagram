@@ -61,9 +61,20 @@ export default async function AIPNIDGenerator(
 
     // 1️⃣ Send input to Gemini for classification
     // 1️⃣ Send input to Gemini for classification
+    // 1️⃣ Send input to Gemini for classification
     let aiResult;
     try {
         aiResult = await parseItemLogic(description);
+
+        // Normalize if AI returned an array directly
+        if (Array.isArray(aiResult)) {
+            aiResult = {
+                mode: "structured",
+                parsed: aiResult,
+                explanation: null,
+                connection: null
+            };
+        }
     } catch (err) {
         console.error('❌ Chat AI failed:', err);
         if (typeof setChatMessages === 'function') {
@@ -76,8 +87,8 @@ export default async function AIPNIDGenerator(
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // ✅ Extract mode, explanation, and parsed object
     const { mode, explanation, parsed = {}, connection } = aiResult;
+
 
     // 2️⃣ Branch based on AI classification
     if (mode === "chat") {
