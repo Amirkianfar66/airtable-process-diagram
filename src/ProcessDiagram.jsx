@@ -15,7 +15,6 @@ import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
-import AIChatPanel from './AIChatPanel';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
@@ -157,12 +156,7 @@ export default function ProcessDiagram() {
        
 
     const handleGeneratePNID = async () => {
-        if (!aiDescription) {
-            console.warn("⚠️ No AI description provided");
-            return;
-        }
-
-        console.log("👉 Sending to AI:", aiDescription);
+        if (!aiDescription) return;
 
         try {
             const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
@@ -174,80 +168,26 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
+            const newItems = aiNodes.map(n => n.data?.item).filter(Boolean);
+
+            setItems(prev => {
+                const existingIds = new Set(prev.map(i => i.id));
+                const filteredNew = newItems.filter(i => !existingIds.has(i.id));
+                const updatedItems = [...prev, ...filteredNew];
+
+                if (filteredNew.length > 0) setSelectedItem(filteredNew[0]);
+
+                return updatedItems;
+            });
+
             setNodes(aiNodes);
             setEdges(aiEdges);
+
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
     };
 
-    const handleParseItemText = async (rawText) => {
-        if (!rawText) return;
-
-        try {
-            const parsed = await parseItemText(rawText);
-
-            if (!parsed) {
-                console.warn("⚠️ No items parsed from text:", rawText);
-                return;
-            }
-
-            // Case 1: AI is in chat mode
-            if (parsed.mode === "chat") {
-                setChatMessages(prev => [
-                    ...prev,
-                    { sender: "User", message: rawText },
-                    ...parsed.messages  // [{ sender: "AI", message: "..." }]
-                ]);
-                return; // stop here, don't try to make a node
-            }
-
-            // Case 2: AI is structured (PNID command)
-            if (parsed.mode === "structured") {
-                const normalizedItem = {
-                    id: parsed.id || `item-${Date.now()}`,
-                    Name: parsed.Name || '',
-                    Code: parsed.Code ?? parsed['Item Code'] ?? '',
-                    'Item Code': parsed['Item Code'] ?? parsed.Code ?? '',
-                    Unit: parsed.Unit || '',
-                    SubUnit: parsed.SubUnit ?? parsed['Sub Unit'] ?? '',
-                    Category: Array.isArray(parsed['Category Item Type'])
-                        ? parsed['Category Item Type'][0]
-                        : (parsed['Category Item Type'] ?? parsed.Category ?? ''),
-                    'Category Item Type': Array.isArray(parsed['Category Item Type'])
-                        ? parsed['Category Item Type'][0]
-                        : (parsed['Category Item Type'] ?? parsed.Category ?? ''),
-                    Type: Array.isArray(parsed.Type) ? parsed.Type[0] : (parsed.Type || ''),
-                    Sequence: parsed.Sequence ?? 0,
-                };
-
-                // Create a new node for it
-                const newNode = {
-                    id: normalizedItem.id,
-                    position: { x: 200, y: 200 }, // drop it somewhere visible
-                    data: {
-                        label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`,
-                        item: normalizedItem,
-                        icon: getItemIcon(normalizedItem),
-                    },
-                    type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
-                    sourcePosition: 'right',
-                    targetPosition: 'left',
-                    style: { background: 'transparent', boxShadow: 'none' },
-                };
-
-                setNodes(nds => [...nds, newNode]);
-                setItems(prev => [...prev, normalizedItem]);
-
-                // Auto-select new node
-                setSelectedNodes([newNode]);
-                setSelectedItem(normalizedItem);
-            }
-
-        } catch (err) {
-            console.error("❌ Failed to parse item text:", err);
-        }
-    };
 
 
     useEffect(() => {
