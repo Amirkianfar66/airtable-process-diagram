@@ -51,9 +51,13 @@ export default async function AIPNIDGenerator(
 ) {
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
+    const text = description.trim();
+
+    // --------------------------
+    // 1️⃣ Handle greetings
+    // --------------------------
     const greetingRegex = /^(hi|hello|hey|good morning|good afternoon|good evening)\b/i;
-    if (greetingRegex.test(description.trim())) {
-        // Respond to greeting in plain language
+    if (greetingRegex.test(text)) {
         if (typeof setChatMessages === 'function') {
             setChatMessages(prev => [
                 ...prev,
@@ -64,10 +68,28 @@ export default async function AIPNIDGenerator(
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // Parse AI output for structured item generation
+    // --------------------------
+    // 2️⃣ Attempt structured PNID parsing
+    // --------------------------
     const aiResult = await parseItemText(description);
-    if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
+    // --------------------------
+    // 3️⃣ Handle general non-PNID questions
+    // --------------------------
+    if (!aiResult) {
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: 'User', message: description },
+                { sender: 'AI', message: `Sorry, I can't generate PNID info for this, but here's a human answer: "${description}"` }
+            ]);
+        }
+        return { nodes: existingNodes, edges: existingEdges };
+    }
+
+    // --------------------------
+    // 4️⃣ Structured PNID processing (existing logic)
+    // --------------------------
     const { explanation, connection } = aiResult;
     let parsed = aiResult.parsed;
 
@@ -84,7 +106,6 @@ export default async function AIPNIDGenerator(
     let SubUnit = 0;
     const unitMatch = description.match(/unit\s*[:\-]?\s*([0-9]+)/i);
     if (unitMatch) Unit = parseInt(unitMatch[1], 10);
-
     const subUnitMatch = description.match(/sub\s*[- ]?unit\s*[:\-]?\s*([0-9]+)/i);
     if (subUnitMatch) SubUnit = parseInt(subUnitMatch[1], 10);
 
@@ -119,11 +140,8 @@ export default async function AIPNIDGenerator(
         });
     }
 
-    // --------------------
     // Generate nodes
-    // --------------------
     let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
-
     if ((!parsed._otherCodes || parsed._otherCodes.length === 0) && NumberOfItems > 1) {
         const baseSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
         for (let i = 1; i < NumberOfItems; i++) {
@@ -174,9 +192,7 @@ export default async function AIPNIDGenerator(
     if (explanation) allMessages.push({ sender: 'AI', message: explanation });
     allMessages.push(...generatedCodesMessages);
 
-    // --------------------------
     // Explicit connections
-    // --------------------------
     if (connection) {
         const sourceNode = [...existingNodes, ...newNodes].find(n => n.data.item.Code === connection.sourceCode);
         const targetNode = [...existingNodes, ...newNodes].find(n => n.data.item.Code === connection.targetCode);
