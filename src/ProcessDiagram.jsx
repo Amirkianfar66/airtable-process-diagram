@@ -1,9 +1,10 @@
-﻿// Updated: ProcessDiagram.jsx (adds onNodeDrag to move child nodes live while dragging)
-// ------------------------------
-// Place this content into src/components/ProcessDiagram.jsx (replace existing)
-
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
+﻿import React, { useEffect, useState, useCallback } from 'react';
+import ReactFlow, {
+    Controls,
+    useNodesState,
+    useEdgesState,
+    addEdge,
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
 
@@ -13,14 +14,11 @@ import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
-import GroupDetailCard from './GroupDetailCard';
-import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
-import DiagramCanvas from './DiagramCanvas';
-import MainToolbar from './MainToolbar';
-import AddItemButton from './AddItemButton';
+import { getItemIcon, AddItemButton, handleItemChangeNode, categoryTypeMap } from './IconManager';
+
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 
-export const nodeTypes = {
+const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
     pipe: PipeItemNode,
@@ -28,7 +26,7 @@ export const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
-export const fetchData = async () => {
+const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
     const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
@@ -38,7 +36,9 @@ export const fetchData = async () => {
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
@@ -61,27 +61,15 @@ export default function ProcessDiagram() {
     const [aiDescription, setAiDescription] = useState('');
     const [chatMessages, setChatMessages] = useState([]);
 
-    const updateNode = (id, newData) => {
-        setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
-    };
-
-    const deleteNode = (id) => {
-        setNodes((nds) => nds.filter((node) => node.id !== id));
-        setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
-    };
-
-    const onSelectionChange = useCallback(
-        ({ nodes: selNodes }) => {
-            setSelectedNodes(selNodes);
-            if (selNodes.length === 1) {
-                const nodeData = items.find((item) => item.id === selNodes[0].id);
-                setSelectedItem(nodeData || null);
-            } else {
-                setSelectedItem(null);
-            }
-        },
-        [items]
-    );
+    const onSelectionChange = useCallback(({ nodes }) => {
+        setSelectedNodes(nodes);
+        if (nodes.length === 1) {
+            const nodeData = items.find(item => item.id === nodes[0].id);
+            setSelectedItem(nodeData || null);
+        } else {
+            setSelectedItem(null);
+        }
+    }, [items]);
 
     const onConnect = useCallback(
         (params) => {
@@ -99,61 +87,6 @@ export default function ProcessDiagram() {
         },
         [edges, nodes]
     );
-
-    // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
-    const onNodeDrag = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
-
-        setNodes((nds) =>
-            nds.map((n) => {
-                if (!n?.data) return n;
-
-                // group membership check
-                const isChild =
-                    (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
-                    n.data.groupId === draggedNode.id ||
-                    n.data.parentId === draggedNode.id;
-
-                if (!isChild) return n;
-
-                // shift children by the same delta as the group’s drag
-                const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
-                const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
-
-                return {
-                    ...n,
-                    position: {
-                        x: n.position.x + deltaX,
-                        y: n.position.y + deltaY,
-                    },
-                };
-            })
-        );
-
-        // update prev position for next drag tick
-        setNodes((nds) =>
-            nds.map((n) =>
-                n.id === draggedNode.id
-                    ? { ...n, data: { ...n.data, prevX: draggedNode.position.x, prevY: draggedNode.position.y } }
-                    : n
-            )
-        );
-    }, []);
-
-    // --- Reset prevX/prevY once drag stops ---
-    const onNodeDragStop = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
-        setNodes((nds) =>
-            nds.map((n) =>
-                n.id === draggedNode.id
-                    ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } }
-                    : n
-            )
-        );
-    }, []);
-
-
-       
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
@@ -188,12 +121,10 @@ export default function ProcessDiagram() {
         }
     };
 
-
-
     useEffect(() => {
         fetchData()
-            .then((itemsRaw) => {
-                const normalizedItems = itemsRaw.map((item) => ({
+            .then((items) => {
+                const normalizedItems = items.map((item) => ({
                     ...item,
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
@@ -234,7 +165,7 @@ export default function ProcessDiagram() {
                         selectable: false,
                     });
 
-                    Object.entries(subUnits).forEach(([subUnit, itemsArr], index) => {
+                    Object.entries(subUnits).forEach(([subUnit, items], index) => {
                         const yOffset = index * subUnitHeight;
 
                         newNodes.push({
@@ -247,8 +178,8 @@ export default function ProcessDiagram() {
                         });
 
                         let itemX = unitX + 40;
-                        itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                        itemsArr.forEach((item) => {
+                        items.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        items.forEach((item) => {
                             newNodes.push({
                                 id: item.id,
                                 position: { x: itemX, y: yOffset + 20 },
@@ -272,147 +203,37 @@ export default function ProcessDiagram() {
             .catch(console.error);
     }, []);
 
-    // --- Group detail wiring ---
-    const [addingToGroup, setAddingToGroup] = useState(null);
-
-    const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
-
-    const selectedGroupNode = selectedNodes && selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
-
-    const childrenNodesForGroup = selectedGroupNode ? nodes.filter(n => {
-        if (!n) return false;
-        if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id)) return true;
-        if (n.data?.groupId === selectedGroupNode.id) return true;
-        if (n.data?.parentId === selectedGroupNode.id) return true;
-        return false;
-    }) : [];
-
-    const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
-
-    const onAddItem = (nodeIdToAdd) => {
-        if (!nodeIdToAdd) return;
-        setNodes(nds => {
-            const existing = nds.find(n => n.id === nodeIdToAdd);
-            if (existing) {
-                return nds.map(n => n.id === nodeIdToAdd ? { ...n, data: { ...n.data, groupId: selectedGroupNode?.id } } : n);
-            }
-            const newNode = {
-                id: nodeIdToAdd,
-                position: { x: 100, y: 100 },
-                data: { label: nodeIdToAdd, groupId: selectedGroupNode?.id }
-            };
-            return [...nds, newNode];
-        });
-    };
-
-    const onRemoveItem = (childId) => {
-        setNodes(nds => nds.map(n => n.id === childId ? { ...n, data: { ...n.data, groupId: undefined } } : n));
-    };
-
-    const onDeleteGroup = (groupId) => {
-        setNodes(nds => nds.filter(n => n.id !== groupId));
-    };
-
-    // --- ✅ FIX: Add Item wiring (normalize fields + auto-select) ---
-    const handleAddItem = (rawItem) => {
-        const normalizedItem = {
-            id: rawItem.id || `item-${Date.now()}`,
-            Name: rawItem.Name || '',
-            Code: rawItem.Code ?? rawItem['Item Code'] ?? '',
-            'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
-            Unit: rawItem.Unit || '',
-            SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? '',
-            Category: Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
-            'Category Item Type': Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
-            Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
-            Sequence: rawItem.Sequence ?? 0,
-        };
-
-        const newNode = {
-            id: normalizedItem.id,
-            position: { x: 100, y: 100 },
-            data: { label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`, item: normalizedItem, icon: getItemIcon(normalizedItem) },
-            type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
-            sourcePosition: 'right',
-            targetPosition: 'left',
-            style: { background: 'transparent', boxShadow: 'none' },
-        };
-
-        setNodes(nds => [...nds, newNode]);
-        setItems(prev => [...prev, normalizedItem]);
-
-        // Auto-select new node so ItemDetailCard opens
-        setSelectedNodes([newNode]);
-        setSelectedItem(normalizedItem);
-    };
-
-
     return (
-        <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
-            {/* Left: main diagram */}
-            <div style={{ flex: 1, position: "relative", background: "transparent" }}>
-                <DiagramCanvas
-                    nodes={nodes}
-                    edges={edges}
-                    setNodes={setNodes}
-                    setEdges={setEdges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
-                    nodeTypes={nodeTypes}
-                    AddItemButton={(props) => (
-                        <AddItemButton {...props} addItem={handleAddItem} />
-                    )}
-                    selectedNodes={selectedNodes}
-                    updateNode={updateNode}
-                    deleteNode={deleteNode}
-                    onNodeDrag={onNodeDrag}
-                    onNodeDragStop={onNodeDragStop}
-                />
+        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
+            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
+                <div style={{ padding: 10 }}>
+                    <AddItemButton setNodes={setNodes} setItems={setItems} setSelectedItem={setSelectedItem} />
+                </div>
+
+                <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        <input type="text" placeholder="Describe PNID for AI..." value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
+                        <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
+                    </div>
+                    <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto' }}>
+                        <ChatBox messages={chatMessages} />
+                    </div>
+                </div>
+
+                <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onSelectionChange={onSelectionChange} fitView selectionOnDrag minZoom={0.02} defaultViewport={{ x: 0, y: 0, zoom: 1 }} nodeTypes={nodeTypes} style={{ background: 'transparent' }}>
+                    <Controls />
+                </ReactFlow>
             </div>
 
-            {/* Right sidebar */}
-            <div
-                style={{
-                    width: 350,
-                    borderLeft: "1px solid #ccc",
-                    display: "flex",
-                    flexDirection: "column",
-                }}
-            >
-                {/* Details panel */}
-                <div style={{ flex: 1, overflowY: "auto" }}>
-                    {selectedGroupNode ? (
-                        <GroupDetailCard
-                            node={selectedGroupNode}
-                            childrenNodes={childrenNodesForGroup}
-                            childrenLabels={selectedGroupNode?.data?.children}
-                            allItems={itemsMap}
-                            startAddItemToGroup={startAddItemToGroup}
-                            onAddItem={onAddItem}
-                            onRemoveItem={onRemoveItem}
-                            onDelete={onDeleteGroup}
-                        />
-                    ) : selectedItem ? (
-                        <ItemDetailCard
-                            item={selectedItem}
-                            onChange={(updatedItem) =>
-                                handleItemChangeNode(
-                                    updatedItem,
-                                    setItems,
-                                    setNodes,
-                                    setSelectedItem
-                                )
-                            }
-                        />
+            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {selectedItem ? (
+                        <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
                     ) : (
-                        <div style={{ padding: 20, color: "#888" }}>
-                            Select an item or group to see details
-                        </div>
+                        <div style={{ padding: 20, color: '#888' }}>Select an item to see details</div>
                     )}
                 </div>
             </div>
-        </div> 
-);
+        </div>
+    );
 }
