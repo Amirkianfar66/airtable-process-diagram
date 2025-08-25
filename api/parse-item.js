@@ -1,92 +1,75 @@
 ﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { parsePNIDCommand } from "../../utils/pnidParser"; // optional helper for local PNID parsing
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+export default async function handler(req, res) {
+    if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
-// Core logic for both chat and structured PNID commands
-export async function parseItemLogic(description) {
-    const trimmed = description.trim();
+    const { description } = req.body;
+    if (!description) return res.status(400).json({ error: "Missing description" });
 
-    // 1️⃣ Detect conversational input (any non-PNID command)
-    const pnidKeywords = /unit|sub[- ]?unit|sequence|category|type/i;
-    const isPNID = pnidKeywords.test(trimmed);
+    try {
+        const trimmed = description.trim();
 
-    if (!isPNID) {
-        // Send to Gemini as natural chat
-        try {
-            const chatPrompt = `You are a helpful assistant. Reply in natural human language to: "${trimmed}"`;
+        // --------------------------
+        // 1️⃣ Detect if input is a PNID command
+        // Keywords indicating PNID intent
+        const pnidRegex = /unit|sub[- ]?unit|sequence|category|type/i;
+        const isPNID = pnidRegex.test(trimmed);
+
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        if (!isPNID) {
+            // --------------------------
+            // Human chat
+            const chatPrompt = `You are a helpful assistant. Reply naturally in human language to: "${trimmed}"`;
             const result = await model.generateContent(chatPrompt);
-            const text = result?.response?.text?.().trim() || "I couldn't get a response";
+            const text = result?.response?.text?.().trim() || "Sorry, I couldn't get a response.";
 
-            return {
+            return res.status(200).json({
                 parsed: {},
                 explanation: text,
                 mode: "chat",
                 connection: null,
-            };
-        } catch (err) {
-            console.error("❌ Chat AI failed:", err);
-            return {
-                parsed: {},
-                explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
-                mode: "chat",
-                connection: null,
-            };
+            });
         }
-    }
 
-    // 2️⃣ Otherwise treat as PNID structured command
-    const prompt = `
+        // --------------------------
+        // PNID command: structured output
+        const pnidPrompt = `
 You are a PNID assistant.
 
 Task:
-1. If the input is conversational, reply naturally in plain text.
-2. If the input is a PNID command, output ONLY structured JSON with fields: 
-   Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections.
+1. If input is conversational, reply naturally.
+2. If input is a PNID command, output ONLY structured JSON:
+   { "Name", "Category", "Type", "Unit", "SubUnit", "Sequence", "Number", "SensorType", "Explanation", "Connections" }
 
 Input: """${trimmed}"""
-
-Respond according to the rules above.
 `;
 
-    try {
-        const result = await model.generateContent(prompt);
+        const result = await model.generateContent(pnidPrompt);
         const text = result?.response?.text?.().trim() || "";
-
-        if (!text) {
-            return {
-                parsed: {},
-                explanation: "⚠️ AI returned empty response",
-                mode: "chat",
-                connection: null,
-            };
-        }
 
         try {
             const parsed = JSON.parse(text);
-            return {
+            return res.status(200).json({
                 parsed,
-                explanation: parsed.Explanation || "Added PNID item",
+                explanation: parsed.Explanation || "PNID item parsed",
                 mode: "structured",
                 connection: parsed.Connections || null,
-            };
+            });
         } catch (err) {
-            // Not JSON, treat as human chat
-            return {
+            // Fallback: treat as chat if JSON parsing fails
+            return res.status(200).json({
                 parsed: {},
                 explanation: text,
                 mode: "chat",
                 connection: null,
-            };
+            });
         }
     } catch (err) {
-        console.error("❌ parseItemLogic failed:", err);
-        return {
-            parsed: {},
-            explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
-            mode: "chat",
-            connection: null,
-        };
+        console.error("❌ parse-item error:", err);
+        return res.status(500).json({ error: err.message || "Server error" });
     }
 }

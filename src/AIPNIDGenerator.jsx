@@ -1,7 +1,7 @@
-﻿//AIPNIDGenerator
+﻿// AIPNIDGenerator.jsx
 import { getItemIcon, categoryTypeMap } from './IconManager';
 import { generateCode } from './codeGenerator';
-import { parseItemLogic } from '../api/parse-item'; // <-- use your Gemini wrapper
+import { parseItemLogic } from '../api/parse-item'; // <-- your Gemini wrapper
 
 // --------------------------
 // ChatBox component
@@ -52,12 +52,26 @@ export default async function AIPNIDGenerator(
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
     // 1️⃣ Send input to Google AI via parseItemLogic
-    const aiResult = await parseItemLogic(description);
+    let aiResult;
+    try {
+        aiResult = await parseItemLogic(description);
+    } catch (err) {
+        console.error("❌ AIPNIDGenerator AI call failed:", err);
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: 'User', message: description },
+                { sender: 'AI', message: "⚠️ AI processing failed: " + (err.message || "Unknown error") }
+            ]);
+        }
+        return { nodes: existingNodes, edges: existingEdges };
+    }
+
     if (!aiResult) return { nodes: existingNodes, edges: existingEdges };
 
     const { mode, explanation, parsed, connection } = aiResult;
 
-    // 2️⃣ If conversational/human mode → reply directly
+    // 2️⃣ Conversational/human mode → reply directly
     if (mode === "chat") {
         if (typeof setChatMessages === 'function') {
             setChatMessages(prev => [
@@ -69,7 +83,7 @@ export default async function AIPNIDGenerator(
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // 3️⃣ Otherwise, structured PNID logic
+    // 3️⃣ Structured PNID logic
     const Name = (parsed?.Name || description).trim();
     let Category = (parsed?.Category && parsed.Category !== '' ? parsed.Category : 'Equipment').trim();
     let Type = (parsed?.Type && parsed.Type !== '' ? parsed.Type : 'Generic').trim();
@@ -81,6 +95,7 @@ export default async function AIPNIDGenerator(
     let Unit = parsed?.Unit || 0;
     let SubUnit = parsed?.SubUnit || 0;
 
+    // Generate base code
     let updatedCode = generateCode({
         Category,
         Type,
@@ -102,6 +117,7 @@ export default async function AIPNIDGenerator(
         });
     }
 
+    // Generate codes list
     let allCodes = [updatedCode, ...(parsed._otherCodes || [])].filter(Boolean);
     if ((!parsed._otherCodes || parsed._otherCodes.length === 0) && NumberOfItems > 1) {
         const baseSeq = Number.isFinite(parsed?.Sequence) ? parsed.Sequence : 1;
@@ -121,19 +137,10 @@ export default async function AIPNIDGenerator(
     const generatedCodesMessages = [];
     const allMessages = [];
 
+    // Create nodes
     allCodes.forEach(code => {
         const id = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
-        const item = {
-            Name,
-            Code: code,
-            'Item Code': code,
-            Category,
-            Type,
-            Unit,
-            SubUnit,
-            id
-        };
-
+        const item = { Name, Code: code, 'Item Code': code, Category, Type, Unit, SubUnit, id };
         const label = `${item.Code} - ${item.Name}`;
 
         newNodes.push({
@@ -169,7 +176,7 @@ export default async function AIPNIDGenerator(
         }
     }
 
-    // Implicit connections
+    // Implicit connections for multi-item generation
     const implicitConnect = /connect/i.test(description);
     if (implicitConnect && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
@@ -186,6 +193,7 @@ export default async function AIPNIDGenerator(
         allMessages.push({ sender: 'AI', message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
     }
 
+    // Final messages
     allMessages.push(
         { sender: 'AI', message: explanation || 'I parsed your item.' },
         { sender: 'AI', message: `→ Generated ${newNodes.length} item(s): ${Category} - ${Type}` }
