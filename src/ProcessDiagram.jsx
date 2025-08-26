@@ -196,17 +196,16 @@ export default function ProcessDiagram() {
     };
 
     useEffect(() => {
-        const layoutOrder = [
-            ['Unit A', 'Unit B', 'Unit C'],
-            ['Unit D', 'Unit E']
-        ];
-
-        buildDiagram({ unitLayoutOrder: layoutOrder })
+        buildDiagram({ unitLayoutOrder: null })
             .then(({ nodes, edges, normalizedItems }) => {
-                setNodes(nodes);
-                setEdges(edges);
-                setItems(normalizedItems);
-                setDefaultLayout({ nodes, edges });
+                // Add these checks:
+                setNodes(Array.isArray(nodes) ? nodes : []);
+                setEdges(Array.isArray(edges) ? edges : []);
+                setItems(Array.isArray(normalizedItems) ? normalizedItems : []);
+                setDefaultLayout({
+                    nodes: Array.isArray(nodes) ? nodes : [],
+                    edges: Array.isArray(edges) ? edges : []
+                });
             })
             .catch(console.error);
     }, []);

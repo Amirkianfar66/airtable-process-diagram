@@ -60,8 +60,8 @@ export default function DiagramCanvas({
 
             <div style={{ flex: 1 }}>
                 <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
+                    nodes={Array.isArray(nodes) ? nodes : []}
+                    edges={Array.isArray(edges) ? edges : []}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
