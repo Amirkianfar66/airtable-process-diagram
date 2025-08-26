@@ -397,10 +397,10 @@ return (
         >
            // example: items = [{id: '1', name: 'UnitA'}, {id:'2', name:'UnitB'}]
 
-            <UnitLayoutConfig
-                availableUnits={items}  // <-- use your actual Airtable items state
-                onChange={handleUnitLayoutChange}
-            />
+            <div>
+                {/* example: items = [{id: '1', name: 'UnitA'}, {id:'2', name:'UnitB'}] */}
+                <UnitLayoutConfig availableUnits={items} onChange={setUnitLayoutOrder} />
+            </div>
 
 
 

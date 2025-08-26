@@ -13,42 +13,70 @@ export default function UnitLayoutConfig({ availableUnits = [], onChange }) {
         });
     }, [rows, availableUnits]);
 
-    const handleSelectChange = (rowIndex, unitId) => {
+    const handleSelectChange = (rowIndex, selectedIds) => {
         const newSelections = [...rowSelections];
-        if (unitId === "") {
-            // Remove selection
-            newSelections[rowIndex] = [];
-        } else {
-            newSelections[rowIndex] = [unitId];
-        }
+        newSelections[rowIndex] = selectedIds;
         setRowSelections(newSelections);
-        // Send selected units array back to parent
-        onChange(newSelections.map(sel => sel.map(id => availableUnits.find(u => u.id === id)?.Name).filter(Boolean)));
+
+        // Send back selected unit names
+        onChange(
+            newSelections.map(sel =>
+                sel.map(id => availableUnits.find(u => u.id === id)?.Name).filter(Boolean)
+            )
+        );
     };
 
     return (
         <div style={{ marginBottom: 20 }}>
-            <label>
-                Number of Rows:{" "}
-                <select value={rows} onChange={e => setRows(Number(e.target.value))}>
+            <label style={{ fontWeight: 600, marginBottom: 10, display: "block" }}>
+                Number of Rows:
+                <select
+                    value={rows}
+                    onChange={e => setRows(Number(e.target.value))}
+                    style={{ marginLeft: 10, padding: "4px 8px", borderRadius: 4, border: "1px solid #ccc" }}
+                >
                     {[1, 2, 3, 4, 5, 6].map(n => (
-                        <option key={n} value={n}>{n}</option>
+                        <option key={n} value={n}>
+                            {n}
+                        </option>
                     ))}
                 </select>
             </label>
 
             <div style={{ marginTop: 10 }}>
                 {Array.from({ length: rows }).map((_, rowIndex) => (
-                    <div key={rowIndex} style={{ marginBottom: 10, display: "flex", alignItems: "center" }}>
-                        <label style={{ marginRight: 10 }}>Row {rowIndex + 1}:</label>
+                    <div
+                        key={rowIndex}
+                        style={{
+                            marginBottom: 10,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                        }}
+                    >
+                        <span style={{ fontWeight: 500, width: 60 }}>Row {rowIndex + 1}:</span>
                         <select
-                            value={rowSelections[rowIndex]?.[0] || ""}
-                            onChange={e => handleSelectChange(rowIndex, e.target.value)}
-                            style={{ minWidth: 200, padding: "4px 8px", borderRadius: 4, border: "1px solid #ccc" }}
+                            multiple
+                            value={rowSelections[rowIndex] || []}
+                            onChange={e =>
+                                handleSelectChange(
+                                    rowIndex,
+                                    Array.from(e.target.selectedOptions).map(o => o.value)
+                                )
+                            }
+                            style={{
+                                minWidth: 200,
+                                padding: "6px 10px",
+                                borderRadius: 6,
+                                border: "1px solid #ccc",
+                                background: "#f9f9f9",
+                                cursor: "pointer",
+                            }}
                         >
-                            <option value="">-- Select a unit --</option>
                             {availableUnits.map(unit => (
-                                <option key={unit.id} value={unit.id}>{unit.Name}</option>
+                                <option key={unit.id} value={unit.id}>
+                                    {unit.Name}
+                                </option>
                             ))}
                         </select>
                     </div>
