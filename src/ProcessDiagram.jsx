@@ -59,6 +59,8 @@ export default function ProcessDiagram() {
     const [aiDescription, setAiDescription] = useState('');
     const [chatMessages, setChatMessages] = useState([]);
     const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
+    const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
+
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
