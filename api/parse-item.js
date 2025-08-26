@@ -16,6 +16,7 @@ function cleanAIJson(text) {
 const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
 
 // Core logic for both chat and structured PNID commands
+// Core logic for both chat and structured PNID commands
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
@@ -27,7 +28,7 @@ export async function parseItemLogic(description) {
             action: actionMatch,
             parsed: [],
             explanation: `Triggered action: ${actionMatch}`,
-            connection: null,
+            connection: [],
         };
     }
 
@@ -59,10 +60,6 @@ Never mix modes. Default to chat mode if unsure.
 User Input: """${trimmed}"""
 `;
 
-
-
-
-
     try {
         const result = await model.generateContent(prompt);
         const text = result?.response?.text?.().trim() || "";
@@ -73,18 +70,18 @@ User Input: """${trimmed}"""
                 parsed: [],
                 explanation: "⚠️ AI returned empty response",
                 mode: "chat",
-                connection: null,
+                connection: [],
             };
         }
 
         // Try JSON parse
         try {
             const cleaned = text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
-
             let parsed;
+
             try {
                 parsed = JSON.parse(cleaned);
-            } catch (e) {
+            } catch {
                 // Handle multiple JSON objects concatenated
                 const objects = cleaned
                     .split(/}\s*{/)
@@ -96,13 +93,24 @@ User Input: """${trimmed}"""
                 parsed = objects.map(obj => JSON.parse(obj));
             }
 
+            // Ensure itemsArray is always an array
             const itemsArray = Array.isArray(parsed) ? parsed : [parsed];
+
+            // Normalize each item
+            itemsArray.forEach(item => {
+                if (!item.Connections) item.Connections = [];
+                else if (!Array.isArray(item.Connections)) item.Connections = [item.Connections];
+
+                if (Array.isArray(item.Type)) item.Type = item.Type[0]; // Keep first type
+            });
 
             return {
                 parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
-                connection: itemsArray.some(i => i.Connections) ? itemsArray.map(i => i.Connections).flat() : null,
+                connection: itemsArray
+                    .map(i => (Array.isArray(i.Connections) ? i.Connections : []))
+                    .flat(),
             };
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
@@ -110,7 +118,7 @@ User Input: """${trimmed}"""
                 parsed: [],
                 explanation: text,
                 mode: "chat",
-                connection: null,
+                connection: [],
             };
         }
     } catch (err) {
@@ -119,11 +127,11 @@ User Input: """${trimmed}"""
             parsed: [],
             explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
             mode: "chat",
-            connection: null,
+            connection: [],
         };
     }
-
 }
+
 
 
 // Default API handler
