@@ -231,18 +231,27 @@ export default function ProcessDiagram() {
                 Object.entries(grouped).forEach(([unit, subUnits]) => {
                     newNodes.push({
                         id: `unit-${unit}`,
-                        type: 'custom', // or 'groupLabel' if you prefer
+                        type: 'custom', // use your rewritten CustomItemNode
                         position: { x: unitX, y: 0 },
                         data: {
                             label: unit,
-                            fontSize: 100,       // <-- change font size here
+                            fontSize: 200,       // text size
                             fontWeight: 'bold',
                             color: '#222',
+                            fontFamily: 'Arial, sans-serif',
+                            offsetX: 50,         // horizontal position of the text inside the node
+                            offsetY: 100,        // vertical position of the text inside the node
                         },
-                        style: { width: unitWidth, height: unitHeight, background: 'transparent' },
+                        style: {
+                            width: unitWidth,
+                            height: unitHeight,
+                            background: 'transparent',
+                        },
                         draggable: false,
                         selectable: false,
                     });
+                });
+
 
 
                     Object.entries(subUnits).forEach(([subUnit, itemsArr], index) => {
