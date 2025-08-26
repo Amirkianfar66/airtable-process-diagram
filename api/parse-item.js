@@ -96,13 +96,26 @@ User Input: """${trimmed}"""
                 parsed = objects.map(obj => JSON.parse(obj));
             }
 
-            const itemsArray = Array.isArray(parsed) ? parsed : [parsed];
+            // 🔹 Normalize items: remove nulls, fix types, set defaults
+            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
+                mode: "structured",
+                Name: (item.Name || "").toString().trim(),
+                Category: item.Category || "Equipment",
+                Type: item.Type || "Generic",
+                Unit: parseInt(item.Unit, 10) || 0,
+                SubUnit: parseInt(item.SubUnit, 10) || 0,
+                Sequence: parseInt(item.Sequence, 10) || 1,
+                Number: parseInt(item.Number, 10) || 1,
+                SensorType: item.SensorType || "",
+                Explanation: item.Explanation || "Added PNID item",
+                Connections: Array.isArray(item.Connections) ? item.Connections : [],
+            }));
 
             return {
                 parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
-                connection: itemsArray.some(i => i.Connections) ? itemsArray.map(i => i.Connections).flat() : null,
+                connection: itemsArray.flatMap(i => i.Connections),
             };
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
@@ -113,15 +126,7 @@ User Input: """${trimmed}"""
                 connection: null,
             };
         }
-    } catch (err) {
-        console.error("❌ parseItemLogic failed:", err);
-        return {
-            parsed: [],
-            explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
-            mode: "chat",
-            connection: null,
-        };
-    }
+
 
 }
 
