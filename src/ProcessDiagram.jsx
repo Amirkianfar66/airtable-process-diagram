@@ -196,16 +196,25 @@ export default function ProcessDiagram() {
     };
 
     useEffect(() => {
-        buildDiagram({ unitLayoutOrder: null })
-            .then(({ nodes, edges, normalizedItems }) => {
-                // Add these checks:
-                setNodes(Array.isArray(nodes) ? nodes : []);
-                setEdges(Array.isArray(edges) ? edges : []);
-                setItems(Array.isArray(normalizedItems) ? normalizedItems : []);
-                setDefaultLayout({
-                    nodes: Array.isArray(nodes) ? nodes : [],
-                    edges: Array.isArray(edges) ? edges : []
-                });
+        fetchData()
+            .then((itemsRaw) => {
+                // ...normalize items as before...
+                const normalizedItems = itemsRaw.map((item) => ({
+                    ...item,
+                    Unit: item.Unit || 'Default Unit',
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
+                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
+                    Code: item['Item Code'] || item.Code || '',
+                    Name: item.Name || '',
+                    Sequence: item.Sequence || 0,
+                }));
+
+                const { nodes, edges, normalizedItems: norm } = buildDiagram(normalizedItems);
+                setNodes(nodes);
+                setEdges(edges);
+                setItems(norm);
+                setDefaultLayout({ nodes, edges });
             })
             .catch(console.error);
     }, []);
