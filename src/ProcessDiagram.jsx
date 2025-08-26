@@ -398,9 +398,9 @@ return (
            // example: items = [{id: '1', name: 'UnitA'}, {id:'2', name:'UnitB'}]
 
             <div>
-                {/* example: items = [{id: '1', name: 'UnitA'}, {id:'2', name:'UnitB'}] */}
                 <UnitLayoutConfig availableUnits={items} onChange={setUnitLayoutOrder} />
             </div>
+
 
 
 
