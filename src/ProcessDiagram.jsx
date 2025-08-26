@@ -16,6 +16,15 @@ import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
+import UnitLayoutEditor from './UnitLayoutEditor';
+
+
+
+// When building nodes, use unitLayoutOrder instead of Object.entries(grouped)
+<UnitLayoutEditor
+    unitLayoutOrder={unitLayoutOrder}
+    setUnitLayoutOrder={setUnitLayoutOrder}
+/>
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -150,7 +159,10 @@ export default function ProcessDiagram() {
     }, []);
 
 
-       
+    const [unitLayoutOrder, setUnitLayoutOrder] = useState([
+        ['Unit A', 'Unit B'],
+        ['Unit C'],
+    ]);   
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) {
