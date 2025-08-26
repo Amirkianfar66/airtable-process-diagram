@@ -334,13 +334,15 @@ export default function ProcessDiagram() {
 
         const newNode = {
             id: normalizedItem.id,
-            position: { x: 100, y: 100 },
+- position: { x: 100, y: 100 },
+        +   position: getUnitSubunitPosition(normalizedItem.Unit, normalizedItem.SubUnit, nodes),
             data: { label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`, item: normalizedItem, icon: getItemIcon(normalizedItem) },
-            type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
+        type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
             sourcePosition: 'right',
-            targetPosition: 'left',
-            style: { background: 'transparent', boxShadow: 'none' },
-        };
+                targetPosition: 'left',
+                    style: { background: 'transparent', boxShadow: 'none' },
+    };
+
 
         setNodes(nds => [...nds, newNode]);
         setItems(prev => [...prev, normalizedItem]);
@@ -350,6 +352,28 @@ export default function ProcessDiagram() {
         setSelectedItem(normalizedItem);
     };
 
+    function getUnitSubunitPosition(unit, subUnit, nodes) {
+        const unitNode = nodes.find(n => n.id === `unit-${unit}`);
+        const subUnitNode = nodes.find(n => n.id === `sub-${unit}-${subUnit}`);
+
+        if (!subUnitNode) {
+            // fallback if SubUnit not found
+            return { x: 100, y: 100 };
+        }
+
+        // Get all items already in this subUnit
+        const siblings = nodes.filter(n =>
+            n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit
+        );
+
+        const itemWidth = 160;
+        const itemGap = 30;
+
+        let x = subUnitNode.position.x + 40 + siblings.length * (itemWidth + itemGap);
+        let y = subUnitNode.position.y + 40;
+
+        return { x, y };
+    }
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
