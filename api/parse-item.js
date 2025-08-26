@@ -6,7 +6,6 @@ const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Utility to clean Markdown code blocks from AI output
-// Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
     // Remove ```json ... ``` or ``` ... ``` blocks
     return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
@@ -20,7 +19,9 @@ export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
     // 1️⃣ Check for exact action match (Hybrid)
-    const actionMatch = ACTION_COMMANDS.find(cmd => cmd.toLowerCase() === trimmed.toLowerCase());
+    const actionMatch = ACTION_COMMANDS.find(
+        cmd => cmd.toLowerCase() === trimmed.toLowerCase()
+    );
     if (actionMatch) {
         return {
             mode: "action",
@@ -43,7 +44,11 @@ Rules:
   { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
 - Always set "mode": "structured".
 - Type must be a string. If multiple types are mentioned (e.g., "Tank and Pump"), generate **separate JSON objects** for each type.
-- All fields must be strings or numbers. Do NOT output arrays, nulls, or unexpected types.
+- All fields must be non-null strings or numbers. If a value is missing, use:
+    - "" (empty string) for text fields
+    - 0 for Unit and SubUnit
+    - 1 for Sequence and Number
+    - [] for Connections
 - If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
 - Connections: map "Connect X to Y" → {"from": X, "to": Y}.
 - Explanation: include a short human-readable note if relevant.
@@ -59,9 +64,6 @@ Never mix modes. Default to chat mode if unsure.
 
 User Input: """${trimmed}"""
 `;
-
-
-
 
     try {
         const result = await model.generateContent(prompt);
@@ -79,7 +81,7 @@ User Input: """${trimmed}"""
 
         // Try JSON parse
         try {
-            const cleaned = text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
+            const cleaned = cleanAIJson(text);
 
             let parsed;
             try {
@@ -126,10 +128,16 @@ User Input: """${trimmed}"""
                 connection: null,
             };
         }
-
-
+    } catch (err) {
+        console.error("❌ parseItemLogic failed:", err);
+        return {
+            parsed: [],
+            explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
+            mode: "chat",
+            connection: null,
+        };
+    }
 }
-
 
 // Default API handler
 export default async function handler(req, res) {
