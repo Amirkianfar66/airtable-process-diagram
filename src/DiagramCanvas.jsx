@@ -7,6 +7,16 @@ import ReactFlow, { Controls } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
+import ResizableNode from './ResizableNode';
+import CustomItemNode from './CustomItemNode';
+import PipeItemNode from './PipeItemNode';
+import ScalableIconNode from './ScalableIconNode';
+import GroupLabelNode from './GroupLabelNode';
+import ItemDetailCard from './ItemDetailCard';
+import GroupDetailCard from './GroupDetailCard';
+import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
+import DiagramCanvas from './DiagramCanvas';
+import AddItemButton from './AddItemButton';
 
 // NOTE: keep this component presentational only — all state handlers are provided by the parent
 export default function DiagramCanvas({
