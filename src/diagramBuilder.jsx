@@ -3,7 +3,7 @@ import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
-    // 🔹 Normalize items: keep numbers for Sequence/Number, but use strings for Unit/SubUnit
+    // 🔹 Normalize items: Units/SubUnits as strings
     const normalized = items.map(item => ({
         ...item,
         Unit: item.Unit != null ? String(item.Unit) : "No Unit",
@@ -13,9 +13,16 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     }));
 
     // Ensure unitLayoutOrder is always a 2D array
-    const safeLayout = Array.isArray(unitLayoutOrder)
-        ? unitLayoutOrder.map(row => (Array.isArray(row) ? row : []))
+    let safeLayout = Array.isArray(unitLayoutOrder)
+        ? unitLayoutOrder.map(row => (Array.isArray(row) ? row.map(String) : []))
         : [[]];
+
+    // Add missing units from normalized items to layout dynamically
+    const allUnits = [...new Set(normalized.map(i => i.Unit))];
+    allUnits.forEach(u => {
+        const found = safeLayout.some(row => row.includes(u));
+        if (!found) safeLayout[0].push(u); // add to first row if missing
+    });
 
     // Group items by Unit and SubUnit
     const grouped = {};
@@ -34,32 +41,19 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     const itemWidth = 160;
     const itemGap = 30;
 
+    // Build diagram nodes
     safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
-            const groupedUnitName = unitName || "No Unit";
-            if (!grouped[groupedUnitName]) return; // skip units with no items
+            const groupedUnitName = String(unitName || "No Unit");
+            if (!grouped[groupedUnitName]) return;
 
             // --- Unit Node ---
             newNodes.push({
                 id: `unit-${groupedUnitName}`,
                 type: 'custom',
                 position: { x: colIndex * (unitWidth + 100), y: rowIndex * (unitHeight + 100) },
-                data: {
-                    label: groupedUnitName,
-                    fontSize: 200,
-                    fontWeight: 'bold',
-                    color: '#222',
-                    fontFamily: 'Arial, sans-serif',
-                    offsetX: 200,
-                    offsetY: -300,
-                },
-                style: {
-                    width: unitWidth,
-                    height: unitHeight,
-                    background: 'transparent',
-                    border: '4px dashed #444',
-                    borderRadius: '10px',
-                },
+                data: { label: groupedUnitName, fontSize: 200, fontWeight: 'bold', color: '#222', fontFamily: 'Arial, sans-serif', offsetX: 200, offsetY: -300 },
+                style: { width: unitWidth, height: unitHeight, background: 'transparent', border: '4px dashed #444', borderRadius: '10px' },
                 draggable: false,
                 selectable: false,
             });
@@ -73,12 +67,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                     id: `sub-${groupedUnitName}-${subUnit}`,
                     position: { x: colIndex * (unitWidth + 100) + 10, y: subUnitY + 10 },
                     data: { label: subUnit },
-                    style: {
-                        width: unitWidth - 20,
-                        height: subUnitHeight - 20,
-                        border: '2px dashed #aaa',
-                        background: 'transparent',
-                    },
+                    style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent' },
                     labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' },
                     draggable: false,
                     selectable: false,
@@ -104,8 +93,8 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     });
 
     return {
-        nodes: Array.isArray(newNodes) ? newNodes : [],
-        edges: Array.isArray(newEdges) ? newEdges : [],
-        normalizedItems: Array.isArray(normalized) ? normalized : []
+        nodes: newNodes,
+        edges: newEdges,
+        normalizedItems: normalized
     };
 }
