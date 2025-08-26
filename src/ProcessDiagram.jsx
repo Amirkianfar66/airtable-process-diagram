@@ -199,36 +199,56 @@ export default function ProcessDiagram() {
         const loadItems = async () => {
             try {
                 const itemsRaw = await fetchData();
-        ...
-        const normalizedItems = itemsRaw.map(...);
+                const normalizedItems = itemsRaw.map(item => ({
+                    id: item.id || `${item.Name}-${Date.now()}`,
+                    Name: item.Name || '',
+                    Code: item['Item Code'] || item.Code || '',
+                    Unit: item.Unit || 'Default Unit',
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    Category: Array.isArray(item['Category Item Type'])
+                        ? item['Category Item Type'][0]
+                        : item['Category Item Type'] || '',
+                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
+                    Sequence: item.Sequence || 0
+                }));
 
-    // ✅ Default layout based on fetched units
-    const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
-    setUnitLayoutOrder(uniqueUnits);
+                const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
+                setUnitLayoutOrder(uniqueUnits);
 
-    const { nodes, edges, normalizedItems: norm } =
-        buildDiagram(normalizedItems, uniqueUnits);
+                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, uniqueUnits);
+                setNodes(builtNodes);
+                setEdges(builtEdges);
+                setItems(normalizedItems);
+                setDefaultLayout({ nodes: builtNodes, edges: builtEdges });
+            } catch (err) {
+                console.error('Error loading items:', err);
+            }
+        };
+        loadItems();
+    }, []);
 
-    setNodes(nodes);
-    setEdges(edges);
-    setItems(norm);
-    setDefaultLayout({ nodes, edges });
-} catch (err) {
-    console.error("Error loading items:", err);
-}
-    };
+    // rebuild diagram whenever user updates unitLayoutOrder
+    useEffect(() => {
+        if (items.length && unitLayoutOrder.length) {
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder);
+            setNodes(rebuiltNodes);
+            setEdges(rebuiltEdges);
+        }
+    }, [unitLayoutOrder, items]);
 
-loadItems();
-  }, []);
+    const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
+    const selectedGroupNode =
+        selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
+    const childrenNodesForGroup = selectedGroupNode
+        ? nodes.filter(n => {
+            if (!n) return false;
+            if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id)) return true;
+            if (n.data?.groupId === selectedGroupNode.id) return true;
+            if (n.data?.parentId === selectedGroupNode.id) return true;
+            return false;
+        })
+        : [];
 
-// --- 🔑 rebuild diagram whenever user updates unitLayoutOrder ---
-useEffect(() => {
-    if (items.length && unitLayoutOrder.length) {
-        const { nodes, edges } = buildDiagram(items, unitLayoutOrder);
-        setNodes(nodes);
-        setEdges(edges);
-    }
-}, [unitLayoutOrder, items]);
 
 
     // --- Group detail wiring ---
