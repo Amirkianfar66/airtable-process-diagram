@@ -194,32 +194,51 @@ export default function ProcessDiagram() {
             console.error('AI PNID generation failed:', err);
         }
     };
-
     useEffect(() => {
-        fetchData()
-            .then(itemsRaw => {
+        const loadItems = async () => {
+            try {
+                const itemsRaw = await fetchData();
+                console.log('Airtable raw items:', itemsRaw);
+
+                // --- Normalize items ---
                 const normalizedItems = itemsRaw.map(item => ({
-                    ...item,
+                    id: item.id,
+                    Name: item.Name || '',
+                    Code: item['Item Code'] || item.Code || '',
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
-                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
+                    Category: Array.isArray(item['Category Item Type'])
+                        ? item['Category Item Type'][0]
+                        : item['Category Item Type'] || '',
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
-                    Code: item['Item Code'] || item.Code || '',
-                    Name: item.Name || '',
                     Sequence: item.Sequence || 0,
                 }));
 
-                // Provide a safe layout or load from localStorage
-                const unitLayoutOrder = []; // TODO: define layout
+                console.log('Normalized items:', normalizedItems);
 
+                // --- Generate layout dynamically based on units ---
+                const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
+                const unitLayoutOrder = uniqueUnits.map(u => [u]); // each unit in a separate row
+
+                // --- Build nodes & edges ---
                 const { nodes, edges, normalizedItems: norm } = buildDiagram(normalizedItems, unitLayoutOrder);
+
+                console.log('Generated nodes:', nodes);
+
+                // --- Set state ---
                 setNodes(nodes);
                 setEdges(edges);
                 setItems(norm);
                 setDefaultLayout({ nodes, edges });
-            })
-            .catch(console.error);
+
+            } catch (err) {
+                console.error('Error loading items:', err);
+            }
+        };
+
+        loadItems();
     }, []);
+
 
 
     // --- Group detail wiring ---
