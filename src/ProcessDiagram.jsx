@@ -16,15 +16,6 @@ import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
-import UnitLayoutEditor from './UnitLayoutEditor';
-
-
-
-// When building nodes, use unitLayoutOrder instead of Object.entries(grouped)
-<UnitLayoutEditor
-    unitLayoutOrder={unitLayoutOrder}
-    setUnitLayoutOrder={setUnitLayoutOrder}
-/>
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -159,10 +150,7 @@ export default function ProcessDiagram() {
     }, []);
 
 
-    const [unitLayoutOrder, setUnitLayoutOrder] = useState([
-        ['Unit A', 'Unit B'],
-        ['Unit C'],
-    ]);   
+       
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) {
@@ -206,37 +194,22 @@ export default function ProcessDiagram() {
             console.error('AI PNID generation failed:', err);
         }
     };
+
     useEffect(() => {
-        fetchData()
-            .then((itemsRaw) => {
-                const normalizedItems = itemsRaw.map((item) => ({
-                    ...item,
-                    Unit: item.Unit || 'Default Unit',
-                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
-                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
-                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
-                    Code: item['Item Code'] || item.Code || '',
-                    Name: item.Name || '',
-                    Sequence: item.Sequence || 0,
-                }));
+        const layoutOrder = [
+            ['Unit A', 'Unit B', 'Unit C'],
+            ['Unit D', 'Unit E']
+        ];
 
-                setItems(normalizedItems);
-
-                // --- Define a default 2D unit layout ---
-                const unitNames = [...new Set(normalizedItems.map(item => item.Unit || 'Default Unit'))];
-                const unitLayoutOrder = unitNames.map(unit => [unit]); // each unit in its own row
-
-                // --- Build diagram ---
-                const { nodes, edges } = buildDiagram(normalizedItems, unitLayoutOrder);
-
+        buildDiagram({ unitLayoutOrder: layoutOrder })
+            .then(({ nodes, edges, normalizedItems }) => {
                 setNodes(nodes);
                 setEdges(edges);
+                setItems(normalizedItems);
                 setDefaultLayout({ nodes, edges });
             })
             .catch(console.error);
     }, []);
-
-
 
     // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
