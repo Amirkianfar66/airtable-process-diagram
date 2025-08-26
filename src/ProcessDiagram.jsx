@@ -234,6 +234,7 @@ export default function ProcessDiagram() {
                         position: { x: unitX, y: 0 },
                         data: { label: unit },
                         style: { width: unitWidth, height: unitHeight, border: '4px solid #444', background: 'transparent', boxShadow: 'none' },
+                        labelStyle: { fontSize: 28, fontWeight: 'bold', color: '#222', fontFamily: 'Arial, sans-serif' }, // <-- add this
                         draggable: false,
                         selectable: false,
                     });
@@ -246,6 +247,7 @@ export default function ProcessDiagram() {
                             position: { x: unitX + 10, y: yOffset + 10 },
                             data: { label: subUnit },
                             style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent', boxShadow: 'none' },
+                            labelStyle: { fontSize: 20, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' }, // <-- add this
                             draggable: false,
                             selectable: false,
                         });
