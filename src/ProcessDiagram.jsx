@@ -246,6 +246,10 @@ export default function ProcessDiagram() {
                             width: unitWidth,
                             height: unitHeight,
                             background: 'transparent',
+                            border: '4px solid #444',       // thickness and color
+                            borderRadius: '10px',           // rounded corners
+                            borderStyle: 'dashed',          // 'solid', 'dotted', 'dashed', etc.
+                            boxShadow: '2px 2px 8px rgba(0,0,0,0.2)', // optional shadow
                         },
                         draggable: false,
                         selectable: false,
