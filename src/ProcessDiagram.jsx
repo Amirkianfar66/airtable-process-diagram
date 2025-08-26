@@ -199,7 +199,6 @@ export default function ProcessDiagram() {
         const loadItems = async () => {
             try {
                 const itemsRaw = await fetchData();
-                console.log("Airtable fetched items:", itemsRaw);
 
                 // Normalize fields
                 const normalizedItems = itemsRaw.map(item => ({
@@ -215,20 +214,26 @@ export default function ProcessDiagram() {
                     Sequence: item.Sequence || 0
                 }));
 
-                // Build 2D layout for units (wrap in array for buildDiagram)
+                // Build unique units array
                 const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
+
+                // Convert to objects for UnitLayoutConfig
+                const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
+
+                // Wrap in array for buildDiagram
                 const unitLayout2D = [uniqueUnits];
                 setUnitLayoutOrder(unitLayout2D);
 
                 // Build diagram nodes and edges
                 const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
 
-                console.log('Built diagram nodes:', builtNodes);
-
                 setNodes(builtNodes);
                 setEdges(builtEdges);
                 setItems(normalizedItems);
-                setDefaultLayout({ nodes: builtNodes, edges: builtEdges });
+
+                // ✅ pass units to UnitLayoutConfig
+                setAvailableUnitsForConfig(uniqueUnitsObjects);
+
             } catch (err) {
                 console.error('Error loading items:', err);
             }
@@ -236,6 +241,7 @@ export default function ProcessDiagram() {
 
         loadItems();
     }, []);
+
 
 
     // rebuild diagram whenever user updates unitLayoutOrder
@@ -397,8 +403,12 @@ return (
         >
 
             <div>
-                <UnitLayoutConfig availableUnits={items} onChange={setUnitLayoutOrder} />
+                <UnitLayoutConfig
+                    availableUnits={availableUnitsForConfig}
+                    onChange={setUnitLayoutOrder}
+                />
             </div>
+
 
 
 
