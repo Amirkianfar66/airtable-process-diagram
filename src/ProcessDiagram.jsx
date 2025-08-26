@@ -224,66 +224,83 @@ export default function ProcessDiagram() {
                 let unitX = 0;
                 const unitWidth = 5000;
                 const unitHeight = 6000;
+                const unitGapX = 100; // horizontal gap between units
+                const unitGapY = 100; // vertical gap between rows
                 const subUnitHeight = unitHeight / 9;
                 const itemWidth = 160;
                 const itemGap = 30;
 
-                Object.entries(grouped).forEach(([unit, subUnits]) => {
-                    newNodes.push({
-                        id: `unit-${unit}`,
-                        type: 'custom', // use your rewritten CustomItemNode
-                        position: { x: unitX, y: 0 },
-                        data: {
-                            label: unit,
-                            fontSize: 200,       // text size
-                            fontWeight: 'bold',
-                            color: '#222',
-                            fontFamily: 'Arial, sans-serif',
-                            offsetX:  200,         // horizontal position of the text inside the node
-                            offsetY: -300,        // vertical position of the text inside the node
-                        },
-                        style: {
-                            width: unitWidth,
-                            height: unitHeight,
-                            background: 'transparent',
-                            border: '4px solid #444',       // thickness and color
-                            borderRadius: '10px',           // rounded corners
-                            borderStyle: 'dashed',          // 'solid', 'dotted', 'dashed', etc.
-                            boxShadow: '2px 2px 8px rgba(0,0,0,0.2)', // optional shadow
-                        },
-                        draggable: false,
-                        selectable: false,
-                    });
+                unitLayoutOrder.forEach((row, rowIndex) => {
+                    row.forEach((unitName, colIndex) => {
+                        const unitX = colIndex * (unitWidth + unitGapX);
+                        const unitY = rowIndex * (unitHeight + unitGapY);
 
+                        const subUnits = grouped[unitName] || {}; // get subunits of this unit
 
-                    Object.entries(subUnits).forEach(([subUnit, itemsArr], index) => {
-                        const yOffset = index * subUnitHeight;
-
+                        // --- Unit Node ---
                         newNodes.push({
-                            id: `sub-${unit}-${subUnit}`,
-                            position: { x: unitX + 10, y: yOffset + 10 },
-                            data: { label: subUnit },
-                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent', boxShadow: 'none' },
-                            labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' }, // <-- add this
+                            id: `unit-${unitName}`,
+                            type: 'custom',
+                            position: { x: unitX, y: unitY },
+                            data: {
+                                label: unitName,
+                                fontSize: 200,
+                                fontWeight: 'bold',
+                                color: '#222',
+                                fontFamily: 'Arial, sans-serif',
+                                offsetX: 200,
+                                offsetY: -300,
+                            },
+                            style: {
+                                width: unitWidth,
+                                height: unitHeight,
+                                background: 'transparent',
+                                border: '4px dashed #444',
+                                borderRadius: '10px',
+                            },
                             draggable: false,
                             selectable: false,
                         });
 
-                        let itemX = unitX + 40;
-                        itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                        itemsArr.forEach((item) => {
+                        // --- SubUnits & Items inside this unit ---
+                        Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
+                            const subUnitY = unitY + subIndex * subUnitHeight;
+
+                            // SubUnit Node
                             newNodes.push({
-                                id: item.id,
-                                position: { x: itemX, y: yOffset + 20 },
-                                data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
-                                type: categoryTypeMap[item.Category] || 'scalableIcon',
-                                sourcePosition: 'right',
-                                targetPosition: 'left',
-                                style: { background: 'transparent', boxShadow: 'none' },
+                                id: `sub-${unitName}-${subUnit}`,
+                                position: { x: unitX + 10, y: subUnitY + 10 },
+                                data: { label: subUnit },
+                                style: {
+                                    width: unitWidth - 20,
+                                    height: subUnitHeight - 20,
+                                    border: '2px dashed #aaa',
+                                    background: 'transparent'
+                                },
+                                labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' },
+                                draggable: false,
+                                selectable: false,
                             });
-                            itemX += itemWidth + itemGap;
+
+                            // Items inside SubUnit
+                            let itemX = unitX + 40;
+                            itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                            itemsArr.forEach((item) => {
+                                newNodes.push({
+                                    id: item.id,
+                                    position: { x: itemX, y: subUnitY + 20 },
+                                    data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
+                                    type: categoryTypeMap[item.Category] || 'scalableIcon',
+                                    sourcePosition: 'right',
+                                    targetPosition: 'left',
+                                    style: { background: 'transparent', boxShadow: 'none' },
+                                });
+                                itemX += itemWidth + itemGap;
+                            });
                         });
                     });
+                });
+
 
                     unitX += unitWidth + 100;
                 });
