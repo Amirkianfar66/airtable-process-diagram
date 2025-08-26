@@ -2,56 +2,40 @@
 import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
-/**
- * Build diagram nodes and edges from items and optional unitLayoutOrder.
- * @param {Array} items - Array of normalized items from Airtable
- * @param {Array} unitLayoutOrder - 2D array defining user layout of units
- * @returns {Object} { nodes, edges }
- */
-export function buildDiagram(items, unitLayoutOrder = []) {
-    const grouped = {};
+export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
+    // Ensure unitLayoutOrder is always a 2D array
+    const safeLayout = Array.isArray(unitLayoutOrder)
+        ? unitLayoutOrder.map(row => (Array.isArray(row) ? row : []))
+        : [[]];
 
-    // Group items by Unit -> SubUnit
+    // Group items by Unit and SubUnit
+    const grouped = {};
     items.forEach(item => {
-        const { Unit, SubUnit, Category, Sequence, Name, Code, id } = item;
-        if (!Unit || !SubUnit) return;
+        const { Unit = 'Default Unit', SubUnit = 'Default SubUnit', Category, Sequence, Name, Code, id } = item;
         if (!grouped[Unit]) grouped[Unit] = {};
         if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
         grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
     });
 
-    const allUnits = Object.keys(grouped);
-    const layoutUnits = new Set(unitLayoutOrder.flat());
-    const remainingUnits = allUnits.filter(u => !layoutUnits.has(u));
-
-    // Final layout: manual rows + extra units appended as new row
-    const finalLayout = unitLayoutOrder ? [...unitLayoutOrder] : [];
-    if (remainingUnits.length) finalLayout.push(remainingUnits);
-
     const newNodes = [];
     const newEdges = [];
-
-    // Constants for layout
     const unitWidth = 5000;
     const unitHeight = 6000;
     const subUnitHeight = unitHeight / 9;
     const itemWidth = 160;
     const itemGap = 30;
-    const unitGapX = 100;
-    const unitGapY = 50;
 
-    finalLayout.forEach((row, rowIndex) => {
-        row.forEach((unitName, colIndex) => {
-            const unitX = colIndex * (unitWidth + unitGapX);
-            const unitY = rowIndex * (unitHeight + unitGapY);
+    let unitX = 0;
 
-            const subUnits = grouped[unitName] || {};
+    safeLayout.forEach((row, rowIndex) => {
+        row.forEach(unitName => {
+            if (!grouped[unitName]) return; // skip units with no items
 
             // --- Unit Node ---
             newNodes.push({
                 id: `unit-${unitName}`,
                 type: 'custom',
-                position: { x: unitX, y: unitY },
+                position: { x: unitX, y: rowIndex * (unitHeight + 100) },
                 data: {
                     label: unitName,
                     fontSize: 200,
@@ -59,7 +43,7 @@ export function buildDiagram(items, unitLayoutOrder = []) {
                     color: '#222',
                     fontFamily: 'Arial, sans-serif',
                     offsetX: 200,
-                    offsetY: -300
+                    offsetY: -300,
                 },
                 style: {
                     width: unitWidth,
@@ -72,11 +56,11 @@ export function buildDiagram(items, unitLayoutOrder = []) {
                 selectable: false,
             });
 
-            // --- SubUnits & Items inside this unit ---
+            const subUnits = grouped[unitName];
             Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
-                const subUnitY = unitY + subIndex * subUnitHeight;
+                const subUnitY = rowIndex * (unitHeight + 100) + subIndex * subUnitHeight;
 
-                // SubUnit Node
+                // --- SubUnit Node ---
                 newNodes.push({
                     id: `sub-${unitName}-${subUnit}`,
                     position: { x: unitX + 10, y: subUnitY + 10 },
@@ -85,17 +69,17 @@ export function buildDiagram(items, unitLayoutOrder = []) {
                         width: unitWidth - 20,
                         height: subUnitHeight - 20,
                         border: '2px dashed #aaa',
-                        background: 'transparent'
+                        background: 'transparent',
                     },
                     labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' },
                     draggable: false,
                     selectable: false,
                 });
 
-                // Items inside SubUnit
+                // --- Items inside SubUnit ---
                 let itemX = unitX + 40;
                 itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                itemsArr.forEach((item) => {
+                itemsArr.forEach(item => {
                     newNodes.push({
                         id: item.id,
                         position: { x: itemX, y: subUnitY + 20 },
@@ -108,6 +92,8 @@ export function buildDiagram(items, unitLayoutOrder = []) {
                     itemX += itemWidth + itemGap;
                 });
             });
+
+            unitX += unitWidth + 100;
         });
     });
 

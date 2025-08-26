@@ -196,20 +196,29 @@ export default function ProcessDiagram() {
     };
 
     useEffect(() => {
-        const layoutOrder = [
-            ['Unit A', 'Unit B', 'Unit C'],
-            ['Unit D', 'Unit E']
-        ];
+        fetchData()
+            .then(itemsRaw => {
+                const normalizedItems = itemsRaw.map(item => ({
+                    ...item,
+                    Unit: item.Unit || 'Default Unit',
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
+                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
+                    Code: item['Item Code'] || item.Code || '',
+                    Name: item.Name || '',
+                    Sequence: item.Sequence || 0,
+                }));
 
-        buildDiagram({ unitLayoutOrder: layoutOrder })
-            .then(({ nodes, edges, normalizedItems }) => {
+                setItems(normalizedItems);
+
+                const { nodes, edges } = buildDiagram(normalizedItems, unitLayoutOrder);
                 setNodes(nodes);
                 setEdges(edges);
-                setItems(normalizedItems);
                 setDefaultLayout({ nodes, edges });
             })
             .catch(console.error);
     }, []);
+
 
     // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
