@@ -196,7 +196,12 @@ export default function ProcessDiagram() {
     };
 
     useEffect(() => {
-        buildDiagram({ unitLayoutOrder: null }) // or pass a custom layout
+        const layoutOrder = [
+            ['Unit A', 'Unit B', 'Unit C'],
+            ['Unit D', 'Unit E']
+        ];
+
+        buildDiagram({ unitLayoutOrder: layoutOrder })
             .then(({ nodes, edges, normalizedItems }) => {
                 setNodes(nodes);
                 setEdges(edges);
@@ -205,7 +210,6 @@ export default function ProcessDiagram() {
             })
             .catch(console.error);
     }, []);
-
 
     // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
