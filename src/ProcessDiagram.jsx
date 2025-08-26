@@ -395,7 +395,6 @@ return (
                 background: "transparent",
             }}
         >
-           // example: items = [{id: '1', name: 'UnitA'}, {id:'2', name:'UnitB'}]
 
             <div>
                 <UnitLayoutConfig availableUnits={items} onChange={setUnitLayoutOrder} />
