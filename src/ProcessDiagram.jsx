@@ -199,6 +199,9 @@ export default function ProcessDiagram() {
         const loadItems = async () => {
             try {
                 const itemsRaw = await fetchData();
+                console.log("Airtable fetched items:", itemsRaw);
+
+                // Normalize fields
                 const normalizedItems = itemsRaw.map(item => ({
                     id: item.id || `${item.Name}-${Date.now()}`,
                     Name: item.Name || '',
@@ -212,10 +215,16 @@ export default function ProcessDiagram() {
                     Sequence: item.Sequence || 0
                 }));
 
+                // Build 2D layout for units (wrap in array for buildDiagram)
                 const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
-                setUnitLayoutOrder(uniqueUnits);
+                const unitLayout2D = [uniqueUnits];
+                setUnitLayoutOrder(unitLayout2D);
 
-                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, uniqueUnits);
+                // Build diagram nodes and edges
+                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
+
+                console.log('Built diagram nodes:', builtNodes);
+
                 setNodes(builtNodes);
                 setEdges(builtEdges);
                 setItems(normalizedItems);
@@ -224,8 +233,10 @@ export default function ProcessDiagram() {
                 console.error('Error loading items:', err);
             }
         };
+
         loadItems();
     }, []);
+
 
     // rebuild diagram whenever user updates unitLayoutOrder
     useEffect(() => {
