@@ -395,10 +395,13 @@ return (
                 background: "transparent",
             }}
         >
+           // example: items = [{id: '1', name: 'UnitA'}, {id:'2', name:'UnitB'}]
+
             <UnitLayoutConfig
-                availableUnits={unitsFromAirtable} // your state with Airtable units
+                availableUnits={items}  // <-- use your actual Airtable items state
                 onChange={handleUnitLayoutChange}
             />
+
 
 
             {/* detail panel */}

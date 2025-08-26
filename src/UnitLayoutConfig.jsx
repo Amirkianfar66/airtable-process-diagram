@@ -1,81 +1,56 @@
+// UnitLayoutConfig.jsx
 import React, { useState, useEffect } from "react";
 
 export default function UnitLayoutConfig({ availableUnits = [], onChange }) {
-    const [rows, setRows] = useState(3); // default 3 rows
-    const [rowValues, setRowValues] = useState(Array(rows).fill([]));
+    const [rows, setRows] = useState(3); // default rows
+    const [rowSelections, setRowSelections] = useState([]);
 
-    // Update rowValues when rows change
+    // Initialize rowSelections whenever rows or availableUnits change
     useEffect(() => {
-        setRowValues(prev => {
-            const newVals = Array(rows).fill([]);
-            prev.forEach((val, idx) => {
-                if (idx < rows) newVals[idx] = val;
-            });
-            return newVals;
+        setRowSelections(prev => {
+            const newSelections = Array.from({ length: rows }, (_, idx) => prev[idx] || []);
+            return newSelections;
         });
-    }, [rows]);
+    }, [rows, availableUnits]);
 
-    const handleSelectChange = (rowIdx, unit) => {
-        setRowValues(prev => {
-            const newRows = [...prev];
-            if (newRows[rowIdx].includes(unit)) {
-                newRows[rowIdx] = newRows[rowIdx].filter(u => u !== unit);
-            } else {
-                newRows[rowIdx].push(unit);
-            }
-            onChange(newRows);
-            return newRows;
-        });
+    const handleSelectChange = (rowIndex, unitId) => {
+        const newSelections = [...rowSelections];
+        if (unitId === "") {
+            // Remove selection
+            newSelections[rowIndex] = [];
+        } else {
+            newSelections[rowIndex] = [unitId];
+        }
+        setRowSelections(newSelections);
+        // Send selected units array back to parent
+        onChange(newSelections.map(sel => sel.map(id => availableUnits.find(u => u.id === id)?.Name).filter(Boolean)));
     };
 
     return (
-        <div style={{ marginBottom: 20, fontFamily: "sans-serif" }}>
-            <label style={{ fontWeight: 600 }}>Number of Rows: </label>
-            <select
-                value={rows}
-                onChange={e => setRows(Number(e.target.value))}
-                style={{
-                    marginLeft: 10,
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #ccc"
-                }}
-            >
-                {[1, 2, 3, 4, 5, 6].map(n => (
-                    <option key={n} value={n}>{n}</option>
-                ))}
-            </select>
+        <div style={{ marginBottom: 20 }}>
+            <label>
+                Number of Rows:{" "}
+                <select value={rows} onChange={e => setRows(Number(e.target.value))}>
+                    {[1, 2, 3, 4, 5, 6].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                    ))}
+                </select>
+            </label>
 
-            <div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 12 }}>
-                {Array.from({ length: rows }).map((_, idx) => (
-                    <div
-                        key={idx}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            flexWrap: "wrap",
-                        }}
-                    >
-                        <div style={{ minWidth: 60, fontWeight: 500 }}>Row {idx + 1}:</div>
-                        {availableUnits.map(unit => (
-                            <button
-                                key={unit.id} // or unit.name if it's an object
-                                type="button"
-                                onClick={() => handleSelectChange(idx, unit.name)}
-                                style={{
-                                    padding: "4px 10px",
-                                    borderRadius: 20,
-                                    border: "1px solid #aaa",
-                                    background: rowValues[idx].includes(unit.name) ? "#4f46e5" : "#fff",
-                                    color: rowValues[idx].includes(unit.name) ? "#fff" : "#333",
-                                    cursor: "pointer",
-                                    transition: "0.2s",
-                                }}
-                            >
-                                {unit.name}
-                            </button>
-                        ))}
+            <div style={{ marginTop: 10 }}>
+                {Array.from({ length: rows }).map((_, rowIndex) => (
+                    <div key={rowIndex} style={{ marginBottom: 10, display: "flex", alignItems: "center" }}>
+                        <label style={{ marginRight: 10 }}>Row {rowIndex + 1}:</label>
+                        <select
+                            value={rowSelections[rowIndex]?.[0] || ""}
+                            onChange={e => handleSelectChange(rowIndex, e.target.value)}
+                            style={{ minWidth: 200, padding: "4px 8px", borderRadius: 4, border: "1px solid #ccc" }}
+                        >
+                            <option value="">-- Select a unit --</option>
+                            {availableUnits.map(unit => (
+                                <option key={unit.id} value={unit.id}>{unit.Name}</option>
+                            ))}
+                        </select>
                     </div>
                 ))}
             </div>
