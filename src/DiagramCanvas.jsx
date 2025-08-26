@@ -15,7 +15,6 @@ import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
-import DiagramCanvas from './DiagramCanvas';
 import AddItemButton from './AddItemButton';
 
 // NOTE: keep this component presentational only — all state handlers are provided by the parent
