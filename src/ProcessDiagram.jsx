@@ -235,7 +235,7 @@ export default function ProcessDiagram() {
                         position: { x: unitX, y: 0 },
                         data: {
                             label: unit,
-                            fontSize: 30,       // <-- change font size here
+                            fontSize: 100,       // <-- change font size here
                             fontWeight: 'bold',
                             color: '#222',
                         },
