@@ -2,12 +2,12 @@
   "name": "airtable-process-diagram",
   "version": "1.0.0",
   "scripts": {
-    "dev": "vite",
+    "dev": "npx vite",
+    "prebuild": "chmod +x ./node_modules/.bin/vite",
     "build": "npx vite build",
-    "preview": "vite preview"
+    "preview": "npx vite preview"
   },
   "dependencies": {
-    "vite": "^4.0.0",
     "@google/generative-ai": "^0.24.1",
     "dotenv": "^17.2.1",
     "openai": "^5.12.2",
@@ -18,7 +18,11 @@
     "reactflow": "^11.0.0"
   },
   "devDependencies": {
+    "vite": "^4.5.14",
     "@vitejs/plugin-react": "^4.0.0",
     "vite-plugin-svgr": "^4.3.0"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
