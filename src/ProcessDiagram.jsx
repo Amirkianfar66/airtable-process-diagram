@@ -1,8 +1,4 @@
-﻿// Updated: ProcessDiagram.jsx (adds onNodeDrag to move child nodes live while dragging)
-// ------------------------------
-// Place this content into src/components/ProcessDiagram.jsx (replace existing)
-
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
@@ -398,24 +394,7 @@ export default function ProcessDiagram() {
                             onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                        <ItemDetailCard
-  item={selectedNode?.data?.item}
-  onChange={(updatedItem) => {
-    setNodes(nds => nds.map(n =>
-      n.id === selectedNode.id
-        ? {
-            ...n,
-            // Only update position if x/y are numbers, otherwise keep old
-            position: {
-              x: typeof updatedItem.x === 'number' ? updatedItem.x : n.position.x,
-              y: typeof updatedItem.y === 'number' ? updatedItem.y : n.position.y
-            },
-            data: { ...n.data, item: updatedItem }
-          }
-        : n
-    ));
-  }}
-/>
+                        <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
                     ) : (
                         <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                     )}

@@ -108,6 +108,10 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                 ? {
                     ...node,
                     type: categoryTypeMap[next.Category] || "scalableIcon",
+                    position: {
+                        x: next.x ?? node.position.x,
+                        y: next.y ?? node.position.y,
+                    },
                     data: {
                         ...node.data,
                         label: `${next.Code || ""} - ${next.Name || ""}`,
@@ -118,6 +122,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                 : node
         )
     );
+
 
     setSelectedItem(next);
 }
