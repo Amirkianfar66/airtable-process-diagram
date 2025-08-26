@@ -334,14 +334,18 @@ export default function ProcessDiagram() {
 
         const newNode = {
             id: normalizedItem.id,
-- position: { x: 100, y: 100 },
-        +   position: getUnitSubunitPosition(normalizedItem.Unit, normalizedItem.SubUnit, nodes),
-            data: { label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`, item: normalizedItem, icon: getItemIcon(normalizedItem) },
-        type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
+            position: getUnitSubunitPosition(normalizedItem.Unit, normalizedItem.SubUnit, nodes),
+            data: {
+                label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`,
+                item: normalizedItem,
+                icon: getItemIcon(normalizedItem),
+            },
+            type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
             sourcePosition: 'right',
-                targetPosition: 'left',
-                    style: { background: 'transparent', boxShadow: 'none' },
-    };
+            targetPosition: 'left',
+            style: { background: 'transparent', boxShadow: 'none' },
+        };
+
 
 
         setNodes(nds => [...nds, newNode]);
