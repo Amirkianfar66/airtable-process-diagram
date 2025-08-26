@@ -108,23 +108,21 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                 ? {
                     ...node,
                     type: categoryTypeMap[next.Category] || "scalableIcon",
-- position : {
-- x: next.x ?? node.position.x,
-            -                   y: next.y ?? node.position.y,
-            -               },
-+               position: (next.Unit && next.SubUnit)
-    +                   ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds)
-+                   : { x: next.x ?? node.position.x, y: next.y ?? node.position.y },
-    data: {
-                    ...node.data,
-        label: `${next.Code || ""} - ${next.Name || ""}`,
-            item: next,
-                icon: getItemIcon(next, { width: 40, height: 40 }),
-                },
-            }
-            : node
-    )
-);
+                    position: {
+                        x: next.x ?? node.position.x,
+                        y: next.y ?? node.position.y,
+                    },
+                    data: {
+                        ...node.data,
+                        label: `${next.Code || ""} - ${next.Name || ""}`,
+                        item: next,
+                        icon: getItemIcon(next, { width: 40, height: 40 }),
+                    },
+                }
+                : node
+        )
+    );
+
 
 
     setSelectedItem(next);
