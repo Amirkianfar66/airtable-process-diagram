@@ -240,7 +240,7 @@ export default function ProcessDiagram() {
                             color: '#222',
                             fontFamily: 'Arial, sans-serif',
                             offsetX: -200,         // horizontal position of the text inside the node
-                            offsetY: 500,        // vertical position of the text inside the node
+                            offsetY: -300,        // vertical position of the text inside the node
                         },
                         style: {
                             width: unitWidth,
