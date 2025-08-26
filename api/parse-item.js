@@ -20,7 +20,9 @@ export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
     // 1️⃣ Check for exact action match (Hybrid)
-    const actionMatch = ACTION_COMMANDS.find(cmd => cmd.toLowerCase() === trimmed.toLowerCase());
+    const actionMatch = ACTION_COMMANDS.find(
+        cmd => cmd.toLowerCase() === trimmed.toLowerCase()
+    );
     if (actionMatch) {
         return {
             mode: "action",
@@ -59,10 +61,6 @@ Never mix modes. Default to chat mode if unsure.
 User Input: """${trimmed}"""
 `;
 
-
-
-
-
     try {
         const result = await model.generateContent(prompt);
         const text = result?.response?.text?.().trim() || "";
@@ -79,7 +77,7 @@ User Input: """${trimmed}"""
 
         // Try JSON parse
         try {
-            const cleaned = text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
+            const cleaned = text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, "$1").trim();
 
             let parsed;
             try {
@@ -98,6 +96,14 @@ User Input: """${trimmed}"""
 
             const itemsArray = Array.isArray(parsed) ? parsed : [parsed];
 
+            // Normalize items to prevent frontend errors
+            itemsArray.forEach(item => {
+                if (!item.Connections) item.Connections = [];
+                else if (!Array.isArray(item.Connections)) item.Connections = [item.Connections];
+
+                if (Array.isArray(item.Type)) item.Type = item.Type[0];
+            });
+
             return {
                 parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
@@ -108,7 +114,7 @@ User Input: """${trimmed}"""
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
             return {
                 parsed: [],
-                explanation: text,
+                explanation: text || "AI returned unparseable response",
                 mode: "chat",
                 connection: null,
             };
@@ -122,8 +128,8 @@ User Input: """${trimmed}"""
             connection: null,
         };
     }
-
 }
+
 
 
 // Default API handler
