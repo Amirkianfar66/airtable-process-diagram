@@ -250,8 +250,6 @@ export default function ProcessDiagram() {
                         draggable: false,
                         selectable: false,
                     });
-                });
-
 
 
                     Object.entries(subUnits).forEach(([subUnit, itemsArr], index) => {
