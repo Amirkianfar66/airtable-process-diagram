@@ -92,7 +92,8 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 }
 
 /** Update an item and its node (category/type changes reflected) */
-export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) {
+/** Update an item and its node (category/type changes reflected) */
+export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem, nodes = []) {
     // Keep normalized mirrors in sync
     const next = { ...updatedItem };
     if (!next.Category && next["Category Item Type"]) next.Category = next["Category Item Type"];
@@ -100,18 +101,39 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     if (!next.Code && next["Item Code"]) next.Code = next["Item Code"];
     if (!next["Item Code"] && next.Code) next["Item Code"] = next.Code;
 
+    // Update items array
     setItems((prev) => prev.map((it) => (it.id === next.id ? next : it)));
 
+    // Helper: calculate new position in Unit/SubUnit
+    function getUnitSubunitPosition(unit, subUnit, nodesArr) {
+        const unitNode = nodesArr.find(n => n.id === `unit-${unit}`);
+        const subUnitNode = nodesArr.find(n => n.id === `sub-${unit}-${subUnit}`);
+
+        if (!subUnitNode) {
+            return { x: 100, y: 100 }; // fallback
+        }
+
+        const siblings = nodesArr.filter(n =>
+            n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit && n.id !== next.id
+        );
+
+        const itemWidth = 160;
+        const itemGap = 30;
+
+        const x = subUnitNode.position.x + 40 + siblings.length * (itemWidth + itemGap);
+        const y = subUnitNode.position.y + 40;
+
+        return { x, y };
+    }
+
+    // Update nodes array
     setNodes((nds) =>
         nds.map((node) =>
             node.id === next.id
                 ? {
                     ...node,
                     type: categoryTypeMap[next.Category] || "scalableIcon",
-                    position: {
-                        x: next.x ?? node.position.x,
-                        y: next.y ?? node.position.y,
-                    },
+                    position: getUnitSubunitPosition(next.Unit, next.SubUnit, nds),
                     data: {
                         ...node.data,
                         label: `${next.Code || ""} - ${next.Name || ""}`,
@@ -123,7 +145,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         )
     );
 
-
-
+    // Update selected item
     setSelectedItem(next);
 }
+
