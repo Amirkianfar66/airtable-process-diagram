@@ -197,9 +197,8 @@ export default function ProcessDiagram() {
 
     useEffect(() => {
         fetchData()
-            .then((itemsRaw) => {
-                // ...normalize items as before...
-                const normalizedItems = itemsRaw.map((item) => ({
+            .then(itemsRaw => {
+                const normalizedItems = itemsRaw.map(item => ({
                     ...item,
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
@@ -210,7 +209,10 @@ export default function ProcessDiagram() {
                     Sequence: item.Sequence || 0,
                 }));
 
-                const { nodes, edges, normalizedItems: norm } = buildDiagram(normalizedItems);
+                // Provide a safe layout or load from localStorage
+                const unitLayoutOrder = []; // TODO: define layout
+
+                const { nodes, edges, normalizedItems: norm } = buildDiagram(normalizedItems, unitLayoutOrder);
                 setNodes(nodes);
                 setEdges(edges);
                 setItems(norm);
@@ -218,6 +220,7 @@ export default function ProcessDiagram() {
             })
             .catch(console.error);
     }, []);
+
 
     // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
