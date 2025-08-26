@@ -194,11 +194,10 @@ export default function ProcessDiagram() {
             console.error('AI PNID generation failed:', err);
         }
     };
-
     useEffect(() => {
         fetchData()
-            .then(itemsRaw => {
-                const normalizedItems = itemsRaw.map(item => ({
+            .then((itemsRaw) => {
+                const normalizedItems = itemsRaw.map((item) => ({
                     ...item,
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
@@ -211,13 +210,20 @@ export default function ProcessDiagram() {
 
                 setItems(normalizedItems);
 
+                // --- Define a default 2D unit layout ---
+                const unitNames = [...new Set(normalizedItems.map(item => item.Unit || 'Default Unit'))];
+                const unitLayoutOrder = unitNames.map(unit => [unit]); // each unit in its own row
+
+                // --- Build diagram ---
                 const { nodes, edges } = buildDiagram(normalizedItems, unitLayoutOrder);
+
                 setNodes(nodes);
                 setEdges(edges);
                 setDefaultLayout({ nodes, edges });
             })
             .catch(console.error);
     }, []);
+
 
 
     // --- Group detail wiring ---
