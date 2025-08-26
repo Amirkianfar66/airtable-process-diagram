@@ -97,9 +97,5 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    return {
-        nodes: Array.isArray(newNodes) ? newNodes : [],
-        edges: Array.isArray(newEdges) ? newEdges : [],
-        normalizedItems: Array.isArray(items) ? items : []
-};
+    return { nodes: newNodes, edges: newEdges };
 }
