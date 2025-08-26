@@ -230,14 +230,15 @@ export default function ProcessDiagram() {
                 const itemWidth = 160;
                 const itemGap = 30;
 
+                // --- Layout units based on user-defined 2D array ---
                 unitLayoutOrder.forEach((row, rowIndex) => {
                     row.forEach((unitName, colIndex) => {
                         const unitX = colIndex * (unitWidth + unitGapX);
                         const unitY = rowIndex * (unitHeight + unitGapY);
 
-                        const subUnits = grouped[unitName] || {}; // get subunits of this unit
+                        const subUnits = grouped[unitName] || {};
 
-                        // --- Unit Node ---
+                        // Unit Node
                         newNodes.push({
                             id: `unit-${unitName}`,
                             type: 'custom',
@@ -256,13 +257,13 @@ export default function ProcessDiagram() {
                                 height: unitHeight,
                                 background: 'transparent',
                                 border: '4px dashed #444',
-                                borderRadius: '10px',
+                                borderRadius: '10px'
                             },
                             draggable: false,
-                            selectable: false,
+                            selectable: false
                         });
 
-                        // --- SubUnits & Items inside this unit ---
+                        // SubUnits & Items
                         Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
                             const subUnitY = unitY + subIndex * subUnitHeight;
 
@@ -279,7 +280,7 @@ export default function ProcessDiagram() {
                                 },
                                 labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' },
                                 draggable: false,
-                                selectable: false,
+                                selectable: false
                             });
 
                             // Items inside SubUnit
@@ -293,7 +294,7 @@ export default function ProcessDiagram() {
                                     type: categoryTypeMap[item.Category] || 'scalableIcon',
                                     sourcePosition: 'right',
                                     targetPosition: 'left',
-                                    style: { background: 'transparent', boxShadow: 'none' },
+                                    style: { background: 'transparent', boxShadow: 'none' }
                                 });
                                 itemX += itemWidth + itemGap;
                             });
@@ -301,16 +302,12 @@ export default function ProcessDiagram() {
                     });
                 });
 
-
-                    unitX += unitWidth + 100;
-                });
-
                 setNodes(newNodes);
                 setEdges(newEdges);
                 setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
             .catch(console.error);
-    }, []);
+    }, []); 
 
     // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
