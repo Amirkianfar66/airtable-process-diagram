@@ -1,105 +1,55 @@
 ﻿// diagramBuilder.js
 import { fetchData } from './ProcessDiagram';
-import { getItemIcon, categoryTypeMap } from './IconManager';
+import React, { useState, useEffect } from "react";
 
-export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
-    // Ensure unitLayoutOrder is always a 2D array
-    const safeLayout = Array.isArray(unitLayoutOrder)
-        ? unitLayoutOrder.map(row => (Array.isArray(row) ? row : []))
-        : [[]];
+export default function UnitLayoutConfig({ onChange }) {
+    const [rows, setRows] = useState(3); // default 3 rows
+    const [rowValues, setRowValues] = useState(Array(rows).fill(""));
 
-    // Group items by Unit and SubUnit
-    const grouped = {};
-    items.forEach(item => {
-        const { Unit = 'Default Unit', SubUnit = 'Default SubUnit', Category, Sequence, Name, Code, id } = item;
-        if (!grouped[Unit]) grouped[Unit] = {};
-        if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-        grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
-    });
-
-    const newNodes = [];
-    const newEdges = [];
-    const unitWidth = 5000;
-    const unitHeight = 6000;
-    const subUnitHeight = unitHeight / 9;
-    const itemWidth = 160;
-    const itemGap = 30;
-
-    let unitX = 0;
-
-    safeLayout.forEach((row, rowIndex) => {
-        row.forEach(unitName => {
-            if (!grouped[unitName]) return; // skip units with no items
-
-            // --- Unit Node ---
-            newNodes.push({
-                id: `unit-${unitName}`,
-                type: 'custom',
-                position: { x: unitX, y: rowIndex * (unitHeight + 100) },
-                data: {
-                    label: unitName,
-                    fontSize: 200,
-                    fontWeight: 'bold',
-                    color: '#222',
-                    fontFamily: 'Arial, sans-serif',
-                    offsetX: 200,
-                    offsetY: -300,
-                },
-                style: {
-                    width: unitWidth,
-                    height: unitHeight,
-                    background: 'transparent',
-                    border: '4px dashed #444',
-                    borderRadius: '10px',
-                },
-                draggable: false,
-                selectable: false,
+    // update rowValues when number of rows changes
+    useEffect(() => {
+        setRowValues(prev => {
+            const newVals = Array(rows).fill("");
+            prev.forEach((val, idx) => {
+                if (idx < rows) newVals[idx] = val;
             });
-
-            const subUnits = grouped[unitName];
-            Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
-                const subUnitY = rowIndex * (unitHeight + 100) + subIndex * subUnitHeight;
-
-                // --- SubUnit Node ---
-                newNodes.push({
-                    id: `sub-${unitName}-${subUnit}`,
-                    position: { x: unitX + 10, y: subUnitY + 10 },
-                    data: { label: subUnit },
-                    style: {
-                        width: unitWidth - 20,
-                        height: subUnitHeight - 20,
-                        border: '2px dashed #aaa',
-                        background: 'transparent',
-                    },
-                    labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' },
-                    draggable: false,
-                    selectable: false,
-                });
-
-                // --- Items inside SubUnit ---
-                let itemX = unitX + 40;
-                itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
-                itemsArr.forEach(item => {
-                    newNodes.push({
-                        id: item.id,
-                        position: { x: itemX, y: subUnitY + 20 },
-                        data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
-                        type: categoryTypeMap[item.Category] || 'scalableIcon',
-                        sourcePosition: 'right',
-                        targetPosition: 'left',
-                        style: { background: 'transparent', boxShadow: 'none' },
-                    });
-                    itemX += itemWidth + itemGap;
-                });
-            });
-
-            unitX += unitWidth + 100;
+            return newVals;
         });
-    });
+    }, [rows]);
 
-    return {
-        nodes: Array.isArray(newNodes) ? newNodes : [],
-        edges: Array.isArray(newEdges) ? newEdges : [],
-        normalizedItems: Array.isArray(items) ? items : []
-};
+    const handleRowChange = (index, value) => {
+        const newRowValues = [...rowValues];
+        newRowValues[index] = value;
+        setRowValues(newRowValues);
+        // send back a 2D array: [["UnitA","UnitB"], ["UnitC","UnitD"], ...]
+        onChange(newRowValues.map(v => v.split(",").map(s => s.trim()).filter(Boolean)));
+    };
+
+    return (
+        <div style={{ marginBottom: 20 }}>
+            <label>
+                Number of Rows:{" "}
+                <select value={rows} onChange={e => setRows(Number(e.target.value))}>
+                    {[1, 2, 3, 4, 5, 6].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                    ))}
+                </select>
+            </label>
+
+            <div style={{ marginTop: 10 }}>
+                {Array.from({ length: rows }).map((_, idx) => (
+                    <div key={idx} style={{ marginBottom: 5 }}>
+                        <label>Row {idx + 1}:</label>
+                        <input
+                            type="text"
+                            value={rowValues[idx] || ""}
+                            onChange={e => handleRowChange(idx, e.target.value)}
+                            placeholder="Enter units separated by commas"
+                            style={{ width: 300, marginLeft: 10 }}
+                        />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 }
