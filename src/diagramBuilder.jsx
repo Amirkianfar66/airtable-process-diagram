@@ -15,7 +15,6 @@ import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
-import { buildDiagram } from './diagramBuilder';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -196,16 +195,105 @@ export default function ProcessDiagram() {
     };
 
     useEffect(() => {
-        buildDiagram({ unitLayoutOrder: null }) // or pass a custom layout
-            .then(({ nodes, edges, normalizedItems }) => {
-                setNodes(nodes);
-                setEdges(edges);
+        fetchData()
+            .then((itemsRaw) => {
+                const normalizedItems = itemsRaw.map((item) => ({
+                    ...item,
+                    Unit: item.Unit || 'Default Unit',
+                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    Category: Array.isArray(item['Category Item Type']) ? item['Category Item Type'][0] : item['Category Item Type'] || '',
+                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
+                    Code: item['Item Code'] || item.Code || '',
+                    Name: item.Name || '',
+                    Sequence: item.Sequence || 0,
+                }));
+
                 setItems(normalizedItems);
-                setDefaultLayout({ nodes, edges });
+
+                const grouped = {};
+                normalizedItems.forEach((item) => {
+                    const { Unit, SubUnit, Category, Sequence, Name, Code, id } = item;
+                    if (!Unit || !SubUnit) return;
+                    if (!grouped[Unit]) grouped[Unit] = {};
+                    if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+                    grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
+                });
+
+                const newNodes = [];
+                const newEdges = [];
+                let unitX = 0;
+                const unitWidth = 5000;
+                const unitHeight = 6000;
+                const subUnitHeight = unitHeight / 9;
+                const itemWidth = 160;
+                const itemGap = 30;
+
+                Object.entries(grouped).forEach(([unit, subUnits]) => {
+                    newNodes.push({
+                        id: `unit-${unit}`,
+                        type: 'custom', // use your rewritten CustomItemNode
+                        position: { x: unitX, y: 0 },
+                        data: {
+                            label: unit,
+                            fontSize: 200,       // text size
+                            fontWeight: 'bold',
+                            color: '#222',
+                            fontFamily: 'Arial, sans-serif',
+                            offsetX:  200,         // horizontal position of the text inside the node
+                            offsetY: -300,        // vertical position of the text inside the node
+                        },
+                        style: {
+                            width: unitWidth,
+                            height: unitHeight,
+                            background: 'transparent',
+                            border: '4px solid #444',       // thickness and color
+                            borderRadius: '10px',           // rounded corners
+                            borderStyle: 'dashed',          // 'solid', 'dotted', 'dashed', etc.
+                            boxShadow: '2px 2px 8px rgba(0,0,0,0.2)', // optional shadow
+                        },
+                        draggable: false,
+                        selectable: false,
+                    });
+
+
+                    Object.entries(subUnits).forEach(([subUnit, itemsArr], index) => {
+                        const yOffset = index * subUnitHeight;
+
+                        newNodes.push({
+                            id: `sub-${unit}-${subUnit}`,
+                            position: { x: unitX + 10, y: yOffset + 10 },
+                            data: { label: subUnit },
+                            style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent', boxShadow: 'none' },
+                            labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' }, // <-- add this
+                            draggable: false,
+                            selectable: false,
+                        });
+
+                        let itemX = unitX + 40;
+                        itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                        itemsArr.forEach((item) => {
+                            newNodes.push({
+                                id: item.id,
+                                position: { x: itemX, y: yOffset + 20 },
+                                data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
+                                type: categoryTypeMap[item.Category] || 'scalableIcon',
+                                sourcePosition: 'right',
+                                targetPosition: 'left',
+                                style: { background: 'transparent', boxShadow: 'none' },
+                            });
+                            itemX += itemWidth + itemGap;
+                        });
+                    });
+
+                    unitX += unitWidth + 100;
+                });
+
+                setNodes(newNodes);
+                setEdges(newEdges);
+                setDefaultLayout({ nodes: newNodes, edges: newEdges });
             })
             .catch(console.error);
     }, []);
-
 
     // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
