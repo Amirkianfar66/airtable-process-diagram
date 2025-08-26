@@ -1,55 +1,101 @@
 ﻿// diagramBuilder.js
 import { fetchData } from './ProcessDiagram';
-import React, { useState, useEffect } from "react";
+import { getItemIcon, categoryTypeMap } from './IconManager';
 
-export default function UnitLayoutConfig({ onChange }) {
-    const [rows, setRows] = useState(3); // default 3 rows
-    const [rowValues, setRowValues] = useState(Array(rows).fill(""));
+export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
+    // Ensure unitLayoutOrder is always a 2D array
+    const safeLayout = Array.isArray(unitLayoutOrder)
+        ? unitLayoutOrder.map(row => (Array.isArray(row) ? row : []))
+        : [[]];
 
-    // update rowValues when number of rows changes
-    useEffect(() => {
-        setRowValues(prev => {
-            const newVals = Array(rows).fill("");
-            prev.forEach((val, idx) => {
-                if (idx < rows) newVals[idx] = val;
+    // Group items by Unit and SubUnit
+    const grouped = {};
+    items.forEach(item => {
+        const { Unit = 'Default Unit', SubUnit = 'Default SubUnit', Category, Sequence, Name, Code, id } = item;
+        if (!grouped[Unit]) grouped[Unit] = {};
+        if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+        grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
+    });
+
+    const newNodes = [];
+    const newEdges = [];
+    const unitWidth = 5000;
+    const unitHeight = 6000;
+    const subUnitHeight = unitHeight / 9;
+    const itemWidth = 160;
+    const itemGap = 30;
+
+    safeLayout.forEach((row, rowIndex) => {
+        row.forEach((unitName, colIndex) => {
+            if (!grouped[unitName]) return; // skip units with no items
+
+            // --- Unit Node ---
+            newNodes.push({
+                id: `unit-${unitName}`,
+                type: 'custom',
+                position: { x: colIndex * (unitWidth + 100), y: rowIndex * (unitHeight + 100) },
+                data: {
+                    label: unitName,
+                    fontSize: 200,
+                    fontWeight: 'bold',
+                    color: '#222',
+                    fontFamily: 'Arial, sans-serif',
+                    offsetX: 200,
+                    offsetY: -300,
+                },
+                style: {
+                    width: unitWidth,
+                    height: unitHeight,
+                    background: 'transparent',
+                    border: '4px dashed #444',
+                    borderRadius: '10px',
+                },
+                draggable: false,
+                selectable: false,
             });
-            return newVals;
+
+            const subUnits = grouped[unitName];
+            Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
+                const subUnitY = rowIndex * (unitHeight + 100) + subIndex * subUnitHeight;
+
+                // --- SubUnit Node ---
+                newNodes.push({
+                    id: `sub-${unitName}-${subUnit}`,
+                    position: { x: colIndex * (unitWidth + 100) + 10, y: subUnitY + 10 },
+                    data: { label: subUnit },
+                    style: {
+                        width: unitWidth - 20,
+                        height: subUnitHeight - 20,
+                        border: '2px dashed #aaa',
+                        background: 'transparent',
+                    },
+                    labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' },
+                    draggable: false,
+                    selectable: false,
+                });
+
+                // --- Items inside SubUnit ---
+                let itemX = colIndex * (unitWidth + 100) + 40;
+                itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
+                itemsArr.forEach(item => {
+                    newNodes.push({
+                        id: item.id,
+                        position: { x: itemX, y: subUnitY + 20 },
+                        data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
+                        type: categoryTypeMap[item.Category] || 'scalableIcon',
+                        sourcePosition: 'right',
+                        targetPosition: 'left',
+                        style: { background: 'transparent', boxShadow: 'none' },
+                    });
+                    itemX += itemWidth + itemGap;
+                });
+            });
         });
-    }, [rows]);
+    });
 
-    const handleRowChange = (index, value) => {
-        const newRowValues = [...rowValues];
-        newRowValues[index] = value;
-        setRowValues(newRowValues);
-        // send back a 2D array: [["UnitA","UnitB"], ["UnitC","UnitD"], ...]
-        onChange(newRowValues.map(v => v.split(",").map(s => s.trim()).filter(Boolean)));
+    return {
+        nodes: Array.isArray(newNodes) ? newNodes : [],
+        edges: Array.isArray(newEdges) ? newEdges : [],
+        normalizedItems: Array.isArray(items) ? items : []
     };
-
-    return (
-        <div style={{ marginBottom: 20 }}>
-            <label>
-                Number of Rows:{" "}
-                <select value={rows} onChange={e => setRows(Number(e.target.value))}>
-                    {[1, 2, 3, 4, 5, 6].map(n => (
-                        <option key={n} value={n}>{n}</option>
-                    ))}
-                </select>
-            </label>
-
-            <div style={{ marginTop: 10 }}>
-                {Array.from({ length: rows }).map((_, idx) => (
-                    <div key={idx} style={{ marginBottom: 5 }}>
-                        <label>Row {idx + 1}:</label>
-                        <input
-                            type="text"
-                            value={rowValues[idx] || ""}
-                            onChange={e => handleRowChange(idx, e.target.value)}
-                            placeholder="Enter units separated by commas"
-                            style={{ width: 300, marginLeft: 10 }}
-                        />
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
 }
