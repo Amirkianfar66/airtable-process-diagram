@@ -254,17 +254,6 @@ export default function ProcessDiagram() {
     // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
 
-    const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
-
-    const selectedGroupNode = selectedNodes && selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
-
-    const childrenNodesForGroup = selectedGroupNode ? nodes.filter(n => {
-        if (!n) return false;
-        if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id)) return true;
-        if (n.data?.groupId === selectedGroupNode.id) return true;
-        if (n.data?.parentId === selectedGroupNode.id) return true;
-        return false;
-    }) : [];
 
     const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
 
