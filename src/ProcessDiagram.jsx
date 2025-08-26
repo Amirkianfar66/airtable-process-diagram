@@ -16,6 +16,7 @@ import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
+import UnitLayoutConfig from "./UnitLayoutConfig";
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -57,7 +58,7 @@ export default function ProcessDiagram() {
     const [items, setItems] = useState([]);
     const [aiDescription, setAiDescription] = useState('');
     const [chatMessages, setChatMessages] = useState([]);
-
+    const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
@@ -198,47 +199,36 @@ export default function ProcessDiagram() {
         const loadItems = async () => {
             try {
                 const itemsRaw = await fetchData();
-                console.log('Airtable raw items:', itemsRaw);
+        ...
+        const normalizedItems = itemsRaw.map(...);
 
-                // --- Normalize items ---
-                const normalizedItems = itemsRaw.map(item => ({
-                    id: item.id,
-                    Name: item.Name || '',
-                    Code: item['Item Code'] || item.Code || '',
-                    Unit: item.Unit || 'Default Unit',
-                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
-                    Category: Array.isArray(item['Category Item Type'])
-                        ? item['Category Item Type'][0]
-                        : item['Category Item Type'] || '',
-                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
-                    Sequence: item.Sequence || 0,
-                }));
+    // ✅ Default layout based on fetched units
+    const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
+    setUnitLayoutOrder(uniqueUnits);
 
-                console.log('Normalized items:', normalizedItems);
+    const { nodes, edges, normalizedItems: norm } =
+        buildDiagram(normalizedItems, uniqueUnits);
 
-                // --- Generate layout dynamically based on units ---
-                const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
-                const unitLayoutOrder = uniqueUnits.map(u => [u]); // each unit in a separate row
+    setNodes(nodes);
+    setEdges(edges);
+    setItems(norm);
+    setDefaultLayout({ nodes, edges });
+} catch (err) {
+    console.error("Error loading items:", err);
+}
+    };
 
-                // --- Build nodes & edges ---
-                const { nodes, edges, normalizedItems: norm } = buildDiagram(normalizedItems, unitLayoutOrder);
+loadItems();
+  }, []);
 
-                console.log('Generated nodes:', nodes);
-
-                // --- Set state ---
-                setNodes(nodes);
-                setEdges(edges);
-                setItems(norm);
-                setDefaultLayout({ nodes, edges });
-
-            } catch (err) {
-                console.error('Error loading items:', err);
-            }
-        };
-
-        loadItems();
-    }, []);
-
+// --- 🔑 rebuild diagram whenever user updates unitLayoutOrder ---
+useEffect(() => {
+    if (items.length && unitLayoutOrder.length) {
+        const { nodes, edges } = buildDiagram(items, unitLayoutOrder);
+        setNodes(nodes);
+        setEdges(edges);
+    }
+}, [unitLayoutOrder, items]);
 
 
     // --- Group detail wiring ---
@@ -344,55 +334,83 @@ export default function ProcessDiagram() {
         return { x, y };
     }
 
-    return (
-        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
-                <DiagramCanvas
-                    nodes={nodes}
-                    edges={edges}
-                    setNodes={setNodes}
-                    setEdges={setEdges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
-                    nodeTypes={nodeTypes}
-                    // Use the local AddItemButton, wired to our fixed handler
-                    AddItemButton={(props) => <AddItemButton {...props} addItem={handleAddItem} />}
-                    aiDescription={aiDescription}
-                    setAiDescription={setAiDescription}
-                    handleGeneratePNID={handleGeneratePNID}
-                    chatMessages={chatMessages}
-                    setChatMessages={setChatMessages}
-                    selectedNodes={selectedNodes}
-                    updateNode={updateNode}
-                    deleteNode={deleteNode}
-                    ChatBox={ChatBox}
-                    onNodeDrag={onNodeDrag}
-                    onNodeDragStop={onNodeDragStop}
-                />
-            </div>
+return (
+    <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
+        {/* LEFT: Diagram */}
+        <div style={{ flex: 3, position: "relative", background: "transparent" }}>
+            <DiagramCanvas
+                nodes={nodes}
+                edges={edges}
+                setNodes={setNodes}
+                setEdges={setEdges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onSelectionChange={onSelectionChange}
+                nodeTypes={nodeTypes}
+                AddItemButton={(props) => (
+                    <AddItemButton {...props} addItem={handleAddItem} />
+                )}
+                aiDescription={aiDescription}
+                setAiDescription={setAiDescription}
+                handleGeneratePNID={handleGeneratePNID}
+                chatMessages={chatMessages}
+                setChatMessages={setChatMessages}
+                selectedNodes={selectedNodes}
+                updateNode={updateNode}
+                deleteNode={deleteNode}
+                ChatBox={ChatBox}
+                onNodeDrag={onNodeDrag}
+                onNodeDragStop={onNodeDragStop}
+            />
+        </div>
 
-            <div style={{ width: 350, borderLeft: '1px solid #ccc', background: 'transparent', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {selectedGroupNode ? (
-                        <GroupDetailCard
-                            node={selectedGroupNode}
-                            childrenNodes={childrenNodesForGroup}
-                            childrenLabels={selectedGroupNode?.data?.children}
-                            allItems={itemsMap}
-                            startAddItemToGroup={startAddItemToGroup}
-                            onAddItem={onAddItem}
-                            onRemoveItem={onRemoveItem}
-                            onDelete={onDeleteGroup}
-                        />
-                    ) : selectedItem ? (
-                        <ItemDetailCard item={selectedItem} onChange={(updatedItem) => handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)} />
-                    ) : (
-                        <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
-                    )}
-                </div>
+        {/* RIGHT: Sidebar */}
+        <div
+            style={{
+                flex: 1,
+                borderLeft: "1px solid #ccc",
+                display: "flex",
+                flexDirection: "column",
+                background: "transparent",
+            }}
+        >
+            {/* user input for layout */}
+            <UnitLayoutConfig onChange={setUnitLayoutOrder} />
+
+            {/* detail panel */}
+            <div style={{ flex: 1, overflowY: "auto" }}>
+                {selectedGroupNode ? (
+                    <GroupDetailCard
+                        node={selectedGroupNode}
+                        childrenNodes={childrenNodesForGroup}
+                        childrenLabels={selectedGroupNode?.data?.children}
+                        allItems={itemsMap}
+                        startAddItemToGroup={startAddItemToGroup}
+                        onAddItem={onAddItem}
+                        onRemoveItem={onRemoveItem}
+                        onDelete={onDeleteGroup}
+                    />
+                ) : selectedItem ? (
+                    <ItemDetailCard
+                        item={selectedItem}
+                        onChange={(updatedItem) =>
+                            handleItemChangeNode(
+                                updatedItem,
+                                setItems,
+                                setNodes,
+                                setSelectedItem
+                            )
+                        }
+                    />
+                ) : (
+                    <div style={{ padding: 20, color: "#888" }}>
+                        Select an item or group to see details
+                    </div>
+                )}
             </div>
-        </div>  
-    );
+        </div>
+    </div>
+);
+
 }
