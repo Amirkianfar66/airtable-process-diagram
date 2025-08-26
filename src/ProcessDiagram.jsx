@@ -395,8 +395,11 @@ return (
                 background: "transparent",
             }}
         >
-            {/* user input for layout */}
-            <UnitLayoutConfig onChange={setUnitLayoutOrder} />
+            <UnitLayoutConfig
+                availableUnits={unitsFromAirtable} // your state with Airtable units
+                onChange={handleUnitLayoutChange}
+            />
+
 
             {/* detail panel */}
             <div style={{ flex: 1, overflowY: "auto" }}>

@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from "react";
 
-// Example list of available units
-const AVAILABLE_UNITS = ["UnitA", "UnitB", "UnitC", "UnitD", "UnitE", "UnitF"];
-
-export default function UnitLayoutConfig({ onChange }) {
+export default function UnitLayoutConfig({ availableUnits = [], onChange }) {
     const [rows, setRows] = useState(3); // default 3 rows
     const [rowValues, setRowValues] = useState(Array(rows).fill([]));
 
+    // Update rowValues when rows change
     useEffect(() => {
         setRowValues(prev => {
             const newVals = Array(rows).fill([]);
@@ -20,13 +18,11 @@ export default function UnitLayoutConfig({ onChange }) {
     const handleSelectChange = (rowIdx, unit) => {
         setRowValues(prev => {
             const newRows = [...prev];
-            // toggle unit selection
             if (newRows[rowIdx].includes(unit)) {
                 newRows[rowIdx] = newRows[rowIdx].filter(u => u !== unit);
             } else {
                 newRows[rowIdx].push(unit);
             }
-            // send back 2D array
             onChange(newRows);
             return newRows;
         });
@@ -62,22 +58,22 @@ export default function UnitLayoutConfig({ onChange }) {
                         }}
                     >
                         <div style={{ minWidth: 60, fontWeight: 500 }}>Row {idx + 1}:</div>
-                        {AVAILABLE_UNITS.map(unit => (
+                        {availableUnits.map(unit => (
                             <button
-                                key={unit}
+                                key={unit.id} // or unit.name if it's an object
                                 type="button"
-                                onClick={() => handleSelectChange(idx, unit)}
+                                onClick={() => handleSelectChange(idx, unit.name)}
                                 style={{
                                     padding: "4px 10px",
                                     borderRadius: 20,
                                     border: "1px solid #aaa",
-                                    background: rowValues[idx].includes(unit) ? "#4f46e5" : "#fff",
-                                    color: rowValues[idx].includes(unit) ? "#fff" : "#333",
+                                    background: rowValues[idx].includes(unit.name) ? "#4f46e5" : "#fff",
+                                    color: rowValues[idx].includes(unit.name) ? "#fff" : "#333",
                                     cursor: "pointer",
                                     transition: "0.2s",
                                 }}
                             >
-                                {unit}
+                                {unit.name}
                             </button>
                         ))}
                     </div>
