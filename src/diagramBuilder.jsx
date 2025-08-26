@@ -3,11 +3,11 @@ import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
-    // 🔹 Normalize items first
+    // 🔹 Normalize items: keep numbers for Sequence/Number, but use strings for Unit/SubUnit
     const normalized = items.map(item => ({
         ...item,
-        Unit: Number.isFinite(Number(item.Unit)) ? Number(item.Unit) : 0,
-        SubUnit: Number.isFinite(Number(item.SubUnit)) ? Number(item.SubUnit) : 0,
+        Unit: item.Unit != null ? String(item.Unit) : "No Unit",
+        SubUnit: item.SubUnit != null ? String(item.SubUnit) : "No SubUnit",
         Sequence: Number.isFinite(Number(item.Sequence)) ? Number(item.Sequence) : 1,
         Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
     }));
@@ -26,7 +26,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
     });
 
-
     const newNodes = [];
     const newEdges = [];
     const unitWidth = 5000;
@@ -37,15 +36,16 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
 
     safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
-            if (!grouped[unitName]) return; // skip units with no items
+            const groupedUnitName = unitName || "No Unit";
+            if (!grouped[groupedUnitName]) return; // skip units with no items
 
             // --- Unit Node ---
             newNodes.push({
-                id: `unit-${unitName}`,
+                id: `unit-${groupedUnitName}`,
                 type: 'custom',
                 position: { x: colIndex * (unitWidth + 100), y: rowIndex * (unitHeight + 100) },
                 data: {
-                    label: unitName,
+                    label: groupedUnitName,
                     fontSize: 200,
                     fontWeight: 'bold',
                     color: '#222',
@@ -64,13 +64,13 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                 selectable: false,
             });
 
-            const subUnits = grouped[unitName];
+            const subUnits = grouped[groupedUnitName];
             Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
                 const subUnitY = rowIndex * (unitHeight + 100) + subIndex * subUnitHeight;
 
                 // --- SubUnit Node ---
                 newNodes.push({
-                    id: `sub-${unitName}-${subUnit}`,
+                    id: `sub-${groupedUnitName}-${subUnit}`,
                     position: { x: colIndex * (unitWidth + 100) + 10, y: subUnitY + 10 },
                     data: { label: subUnit },
                     style: {
@@ -106,6 +106,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     return {
         nodes: Array.isArray(newNodes) ? newNodes : [],
         edges: Array.isArray(newEdges) ? newEdges : [],
-        normalizedItems: Array.isArray(items) ? items : []
+        normalizedItems: Array.isArray(normalized) ? normalized : []
     };
 }
