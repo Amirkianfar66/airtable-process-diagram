@@ -249,7 +249,7 @@ export default function ProcessDiagram() {
                                 color: '#222',
                                 fontFamily: 'Arial, sans-serif',
                                 offsetX: 200,
-                                offsetY: -300,
+                                offsetY: -300
                             },
                             style: {
                                 width: unitWidth,
