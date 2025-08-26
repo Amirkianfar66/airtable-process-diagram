@@ -3,6 +3,15 @@ import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
+    // 🔹 Normalize items first
+    const normalized = items.map(item => ({
+        ...item,
+        Unit: Number.isFinite(Number(item.Unit)) ? Number(item.Unit) : 0,
+        SubUnit: Number.isFinite(Number(item.SubUnit)) ? Number(item.SubUnit) : 0,
+        Sequence: Number.isFinite(Number(item.Sequence)) ? Number(item.Sequence) : 1,
+        Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
+    }));
+
     // Ensure unitLayoutOrder is always a 2D array
     const safeLayout = Array.isArray(unitLayoutOrder)
         ? unitLayoutOrder.map(row => (Array.isArray(row) ? row : []))
@@ -10,12 +19,13 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
 
     // Group items by Unit and SubUnit
     const grouped = {};
-    items.forEach(item => {
-        const { Unit = 'Default Unit', SubUnit = 'Default SubUnit', Category, Sequence, Name, Code, id } = item;
+    normalized.forEach(item => {
+        const { Unit, SubUnit, Category, Sequence, Name, Code, id } = item;
         if (!grouped[Unit]) grouped[Unit] = {};
         if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
         grouped[Unit][SubUnit].push({ Category, Sequence, Name, Code, id });
     });
+
 
     const newNodes = [];
     const newEdges = [];
