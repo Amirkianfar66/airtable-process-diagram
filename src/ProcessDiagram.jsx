@@ -202,7 +202,7 @@ export default function ProcessDiagram() {
             try {
                 const itemsRaw = await fetchData();
 
-                // Normalize fields
+                // Normalize fields including Connections
                 const normalizedItems = itemsRaw.map(item => ({
                     id: item.id || `${item.Name}-${Date.now()}`,
                     Name: item.Name || '',
@@ -213,14 +213,12 @@ export default function ProcessDiagram() {
                         ? item['Category Item Type'][0]
                         : item['Category Item Type'] || '',
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
-                    Sequence: item.Sequence || 0
+                    Sequence: item.Sequence || 0,
+                    Connections: Array.isArray(item.Connections) ? item.Connections : [], // ✅ include connections
                 }));
 
                 // Build unique units array
                 const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
-
-                // Convert to objects for UnitLayoutConfig
-                const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
 
                 // Wrap in array for buildDiagram
                 const unitLayout2D = [uniqueUnits];
@@ -233,7 +231,8 @@ export default function ProcessDiagram() {
                 setEdges(builtEdges);
                 setItems(normalizedItems);
 
-                // ✅ pass units to UnitLayoutConfig
+                // Pass units to UnitLayoutConfig
+                const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
                 setAvailableUnitsForConfig(uniqueUnitsObjects);
 
             } catch (err) {
@@ -243,8 +242,6 @@ export default function ProcessDiagram() {
 
         loadItems();
     }, []);
-
-
 
     // rebuild diagram whenever user updates unitLayoutOrder
     useEffect(() => {
@@ -410,11 +407,6 @@ return (
                     onChange={setUnitLayoutOrder}
                 />
             </div>
-
-
-
-
-
             {/* detail panel */}
             <div style={{ flex: 1, overflowY: "auto" }}>
                 {selectedGroupNode ? (
