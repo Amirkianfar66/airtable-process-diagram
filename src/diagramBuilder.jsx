@@ -4,7 +4,7 @@ import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     // 🔹 Normalize all items safely
-    const normalized = items.map((item, index) => ({
+    const normalized = items.map(item => ({
         ...item,
         Unit: item.Unit != null ? String(item.Unit) : "No Unit",
         SubUnit: item.SubUnit != null ? String(item.SubUnit) : "No SubUnit",
@@ -12,8 +12,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
         Category: item.Category != null ? String(item.Category) : "Equipment",
         Type: item.Type != null ? String(item.Type) : "Generic",
-        // 🔹 Ensure a unique string id
-        id: item.id || `${item.Name}-${index}-${item.Unit}-${item.SubUnit}`,
     }));
 
     // Ensure unitLayoutOrder is a 2D array of strings
@@ -25,7 +23,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     const allUnits = [...new Set(normalized.map(i => i.Unit))];
     allUnits.forEach(u => {
         const found = safeLayout.some(row => row.includes(u));
-        if (!found) safeLayout[0].push(u);
+        if (!found) safeLayout[0].push(u); // add to first row
     });
 
     // Group items by Unit/SubUnit
@@ -45,6 +43,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     const itemWidth = 160;
     const itemGap = 30;
 
+    // --- Build diagram nodes ---
     safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
             const groupedUnitName = String(unitName || "No Unit");
@@ -106,17 +105,22 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    // 🔹 Generate edges safely from Connections
-    const nameToId = {};
+    // --- Build edges from Connections ---
+    const nameUnitSubToId = {};
     normalized.forEach(item => {
-        nameToId[item.Name] = item.id;
+        const key = `${item.Name}__${item.Unit}__${item.SubUnit}`;
+        nameUnitSubToId[key] = item.id;
     });
 
     normalized.forEach(item => {
         if (Array.isArray(item.Connections)) {
             item.Connections.forEach(conn => {
-                const fromId = nameToId[conn.from];
-                const toId = nameToId[conn.to];
+                let fromKey = `${conn.from}__${item.Unit}__${item.SubUnit}`;
+                let toKey = `${conn.to}__${item.Unit}__${item.SubUnit}`;
+
+                let fromId = nameUnitSubToId[fromKey] || normalized.find(i => i.Name === conn.from)?.id;
+                let toId = nameUnitSubToId[toKey] || normalized.find(i => i.Name === conn.to)?.id;
+
                 if (fromId && toId) {
                     newEdges.push({
                         id: `edge-${fromId}-${toId}`,
