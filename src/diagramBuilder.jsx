@@ -1,4 +1,4 @@
-﻿// diagramBuilder.js
+﻿// diagramBuilder.jsx
 import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
@@ -86,7 +86,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                 let itemX = colIndex * (unitWidth + 100) + 40;
                 itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                 itemsArr.forEach(item => {
-                    // Safe category/type strings
                     const safeCategory = (item.Category || 'Equipment').toString();
                     const safeType = (item.Type || 'Generic').toString();
 
@@ -104,13 +103,13 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             });
         });
     });
-    // generate edges from connections
+
+    // --- Generate edges from Connections ---
     normalized.forEach(item => {
         if (Array.isArray(item.Connections)) {
             item.Connections.forEach(conn => {
                 const fromItem = normalized.find(i => i.Name === conn.from);
                 const toItem = normalized.find(i => i.Name === conn.to);
-                console.log('Connect:', conn.from, '→', conn.to, 'found:', !!fromItem, !!toItem);
                 if (fromItem && toItem) {
                     newEdges.push({
                         id: `edge-${fromItem.id}-${toItem.id}`,
@@ -125,9 +124,9 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         }
     });
 
-
     return {
         nodes: newNodes,
         edges: newEdges,
         normalizedItems: normalized
     };
+}
