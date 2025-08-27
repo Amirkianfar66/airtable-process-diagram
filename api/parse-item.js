@@ -8,7 +8,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
     // Remove ```json ... ``` or ``` ... ``` blocks
-    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
+    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, "$1").trim();
 }
 
 // Reserved action commands
@@ -20,7 +20,7 @@ export async function parseItemLogic(description) {
 
     // 1️⃣ Check for exact action match (Hybrid)
     const actionMatch = ACTION_COMMANDS.find(
-        cmd => cmd.toLowerCase() === trimmed.toLowerCase()
+        (cmd) => cmd.toLowerCase() === trimmed.toLowerCase()
     );
     if (actionMatch) {
         return {
@@ -97,69 +97,64 @@ User Input: """${trimmed}"""
                         if (idx === arr.length - 1 && arr.length > 1) return "{" + part;
                         return "{" + part + "}";
                     });
-                parsed = objects.map(obj => JSON.parse(obj));
+                parsed = objects.map((obj) => JSON.parse(obj));
             }
 
             // 🔹 Normalize items: remove nulls, fix types, set defaults
-            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
-                mode: "structured",
-                Name: (item.Name || "").toString().trim(),
-                Category: item.Category || "Equipment",
-                Type: item.Type || "Generic",
-                Unit: parseInt(item.Unit, 10) || 0,
-                SubUnit: parseInt(item.SubUnit, 10) || 0,
-                Sequence: parseInt(item.Sequence, 10) || 1,
-                Number: parseInt(item.Number, 10) || 1,
-                SensorType: item.SensorType || "",
-                Explanation: item.Explanation || "Added PNID item",
-                Connections: Array.isArray(item.Connections) ? item.Connections : [],
-            }));
+            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(
+                (item) => ({
+                    mode: "structured",
+                    Name: (item.Name || "").toString().trim(),
+                    Category: item.Category || "Equipment",
+                    Type: item.Type || "Generic",
+                    Unit: parseInt(item.Unit, 10) || 0,
+                    SubUnit: parseInt(item.SubUnit, 10) || 0,
+                    Sequence: parseInt(item.Sequence, 10) || 1,
+                    Number: parseInt(item.Number, 10) || 1,
+                    SensorType: item.SensorType || "",
+                    Explanation: item.Explanation || "Added PNID item",
+                    Connections: Array.isArray(item.Connections)
+                        ? item.Connections
+                        : [],
+                })
+            );
 
             // 🔹 Collect all connections
-            const allConnections = itemsArray.flatMap(i => i.Connections);
+            const allConnections = itemsArray.flatMap((i) => i.Connections);
 
-            // 🔹 Normalize to avoid mirrored duplicates
-            const normalizedConnections = allConnections.map(c => {
-                const from = (c.from || "").trim();
-                const to = (c.to || "").trim();
-                return from < to ? { from, to } : { from: to, to: from };
-            });
+            // 🔹 Preserve order (no lexicographic flipping)
+            const normalizedConnections = allConnections.map((c) => ({
+                from: (c.from || "").trim(),
+                to: (c.to || "").trim(),
+            }));
 
             // 🔹 Deduplicate
             const uniqueConnections = Array.from(
-                new Map(normalizedConnections.map(c => [c.from + "->" + c.to, c])).values()
+                new Map(
+                    normalizedConnections.map((c) => [c.from + "->" + c.to, c])
+                ).values()
             );
 
             // --- Code generator helper ---
             function generateCode({ Unit, SubUnit, Sequence, Number }) {
-                const u = String(Unit).padStart(1, "0");       // 1 digit (Unit)
-                const su = String(SubUnit).padStart(1, "0");   // 1 digit (SubUnit)
+                const u = String(Unit).padStart(1, "0"); // 1 digit (Unit)
+                const su = String(SubUnit).padStart(1, "0"); // 1 digit (SubUnit)
                 const seq = String(Sequence).padStart(2, "0"); // 2 digits (Sequence)
-                const num = String(Number).padStart(2, "0");   // 2 digits (Number)
+                const num = String(Number).padStart(2, "0"); // 2 digits (Number)
                 return `${u}${su}${seq}${num}`;
             }
 
-            // --- Auto-connect fallback logic ---
+            // --- Auto-connect fallback logic (per batch only) ---
             if (
-                itemsArray.length >= 2 &&
+                itemsArray.length === 2 &&
                 /connect/i.test(trimmed) &&
                 uniqueConnections.length === 0
             ) {
-                const prev = itemsArray[itemsArray.length - 2];
-                const curr = itemsArray[itemsArray.length - 1];
-
-                const prevCode = generateCode(prev);
-                const currCode = generateCode(curr);
+                const prevCode = generateCode(itemsArray[0]);
+                const currCode = generateCode(itemsArray[1]);
 
                 uniqueConnections.push({ from: prevCode, to: currCode });
             }
-
-            // keep your return here
-            return {
-                parsed: itemsArray,
-                connection: uniqueConnections,
-            };
-
 
             return {
                 parsed: itemsArray,
@@ -167,7 +162,6 @@ User Input: """${trimmed}"""
                 mode: "structured",
                 connection: uniqueConnections,
             };
-
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
             return {
@@ -181,7 +175,8 @@ User Input: """${trimmed}"""
         console.error("❌ parseItemLogic failed:", err);
         return {
             parsed: [],
-            explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
+            explanation:
+                "⚠️ AI processing failed: " + (err.message || "Unknown error"),
             mode: "chat",
             connection: null,
         };
@@ -191,10 +186,12 @@ User Input: """${trimmed}"""
 // Default API handler
 export default async function handler(req, res) {
     try {
-        if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+        if (req.method !== "POST")
+            return res.status(405).send("Method Not Allowed");
 
         const { description } = req.body;
-        if (!description) return res.status(400).json({ error: "Missing description" });
+        if (!description)
+            return res.status(400).json({ error: "Missing description" });
 
         const aiResult = await parseItemLogic(description);
         res.status(200).json(aiResult);
