@@ -83,9 +83,9 @@ User Input: """${trimmed}"""
         try {
             const cleaned = cleanAIJson(text);
 
-            let parsedRaw;
+            let parsed;
             try {
-                parsedRaw = JSON.parse(cleaned);
+                parsed = JSON.parse(cleaned);
             } catch (e) {
                 // Handle multiple JSON objects concatenated
                 const objects = cleaned
@@ -95,11 +95,11 @@ User Input: """${trimmed}"""
                         if (idx === arr.length - 1 && arr.length > 1) return "{" + part;
                         return "{" + part + "}";
                     });
-                parsedRaw = objects.map(obj => JSON.parse(obj));
+                parsed = objects.map(obj => JSON.parse(obj));
             }
 
             // 🔹 Normalize items: remove nulls, fix types, set defaults
-            const itemsArray = (Array.isArray(parsedRaw) ? parsedRaw : [parsedRaw]).map(item => ({
+            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
                 Category: item.Category || "Equipment",
@@ -113,64 +113,11 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // Generate PNID-style code (Unit + SubUnit + Sequence + Number)
-            function generateCode(item) {
-                return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
-            }
-
-            // Collect raw connections (array of {from, to} objects)
-            const allConnections = itemsArray.flatMap(i => (Array.isArray(i.Connections) ? i.Connections : []));
-
-            // Normalize to { from: 'NameOrCode', to: 'NameOrCode' }
-            const normalizedConnections = allConnections
-                .map(c => ({
-                    from: (c.from || c.fromName || "").toString().trim(),
-                    to: (c.to || c.toName || "").toString().trim(),
-                }))
-                .filter(c => c.from && c.to);
-
-            // Resolve connections into PNID codes using the generated itemsArray
-            const resolvedConnections = normalizedConnections.map(c => {
-                const fromItem =
-                    itemsArray.find(i => i.Name.toLowerCase() === String(c.from).toLowerCase()) ||
-                    itemsArray.find(i => generateCode(i) === String(c.from)) ||
-                    null;
-
-                const toItem =
-                    itemsArray.find(i => i.Name.toLowerCase() === String(c.to).toLowerCase()) ||
-                    itemsArray.find(i => generateCode(i) === String(c.to)) ||
-                    null;
-
-                return {
-                    from: fromItem ? generateCode(fromItem) : String(c.from),
-                    to: toItem ? generateCode(toItem) : String(c.to),
-                };
-            }).filter(Boolean);
-
-            // Fallback: if user asked to connect but AI didn't produce resolved connections,
-            // and there are exactly 2 parsed items, assume first -> second.
-            const userAskedToConnect = /connect/i.test(trimmed);
-            let finalConnection = null;
-            if (resolvedConnections.length > 0) {
-                finalConnection = {
-                    sourceCode: resolvedConnections[0].from,
-                    targetCode: resolvedConnections[0].to,
-                };
-            } else if (userAskedToConnect && itemsArray.length === 2) {
-                finalConnection = {
-                    sourceCode: generateCode(itemsArray[0]),
-                    targetCode: generateCode(itemsArray[1]),
-                };
-            }
-
-            // Wipe raw Connections in returned items (frontend will re-resolve using connection object)
-            const cleanedItems = itemsArray.map(it => ({ ...it, Connections: [] }));
-
             return {
-                parsed: cleanedItems,
+                parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
-                connection: finalConnection,
+                connection: itemsArray.flatMap(i => i.Connections),
             };
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
