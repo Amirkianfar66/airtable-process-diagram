@@ -1,10 +1,10 @@
-﻿// diagramBuilder.jsx
+﻿// diagramBuilder.js
 import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     // 🔹 Normalize all items safely
-    const normalized = items.map(item => ({
+    const normalized = items.map((item, index) => ({
         ...item,
         Unit: item.Unit != null ? String(item.Unit) : "No Unit",
         SubUnit: item.SubUnit != null ? String(item.SubUnit) : "No SubUnit",
@@ -12,6 +12,8 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
         Category: item.Category != null ? String(item.Category) : "Equipment",
         Type: item.Type != null ? String(item.Type) : "Generic",
+        // 🔹 Ensure a unique string id
+        id: item.id || `${item.Name}-${index}-${item.Unit}-${item.SubUnit}`,
     }));
 
     // Ensure unitLayoutOrder is a 2D array of strings
@@ -23,7 +25,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     const allUnits = [...new Set(normalized.map(i => i.Unit))];
     allUnits.forEach(u => {
         const found = safeLayout.some(row => row.includes(u));
-        if (!found) safeLayout[0].push(u); // add to first row
+        if (!found) safeLayout[0].push(u);
     });
 
     // Group items by Unit/SubUnit
@@ -104,17 +106,22 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    // --- Generate edges from Connections ---
+    // 🔹 Generate edges safely from Connections
+    const nameToId = {};
+    normalized.forEach(item => {
+        nameToId[item.Name] = item.id;
+    });
+
     normalized.forEach(item => {
         if (Array.isArray(item.Connections)) {
             item.Connections.forEach(conn => {
-                const fromItem = normalized.find(i => i.Name === conn.from);
-                const toItem = normalized.find(i => i.Name === conn.to);
-                if (fromItem && toItem) {
+                const fromId = nameToId[conn.from];
+                const toId = nameToId[conn.to];
+                if (fromId && toId) {
                     newEdges.push({
-                        id: `edge-${fromItem.id}-${toItem.id}`,
-                        source: fromItem.id,
-                        target: toItem.id,
+                        id: `edge-${fromId}-${toId}`,
+                        source: fromId,
+                        target: toId,
                         type: 'smoothstep',
                         animated: true,
                         style: { stroke: '#888', strokeWidth: 2 },
