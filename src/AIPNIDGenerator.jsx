@@ -247,57 +247,74 @@ export default async function AIPNIDGenerator(
 
     // --------------------------
     // Handle explicit connections (from parseItemLogic). Prefer these first.
-    // parseItemLogic may return:
-    // - connection: { sourceCode, targetCode }  (normalizedConnection)
-    // - connection: [{ from, to }, ...]         (array of from/to)
-    // - or connection may be an array of objects
+    // --------------------------
+    // Handle explicit connections (from parseItemLogic). Prefer these first.
+    // But ensure direction follows the parsed-items order (first-mentioned -> second-mentioned).
     // --------------------------
     const explicitConnectionsArr = Array.isArray(connection) ? connection : (connection ? [connection] : []);
     let explicitAddedCount = 0;
 
-    // Normalize possibility of different shapes: {sourceCode, targetCode} or {from,to}
+    // build a code -> index map based on normalizedItems order (this reflects parsed order)
+    const codeToIndex = new Map();
+    normalizedItems.forEach((item, idx) => {
+        if (item && item.Code !== undefined && item.Code !== null) {
+            codeToIndex.set(String(item.Code), idx);
+            if (item.Name) {
+                // also store by name lowercased so resolveCodeString can find order if needed
+                codeToIndex.set(String(item.Name).toLowerCase(), idx);
+            }
+        }
+    });
+
     explicitConnectionsArr.forEach(connObj => {
         if (!connObj) return;
 
-        // if already normalized by parseItemLogic: { sourceCode, targetCode }
-        if (connObj.sourceCode && connObj.targetCode) {
-            const srcCode = String(connObj.sourceCode);
-            const tgtCode = String(connObj.targetCode);
+        // Normalize shapes: either { sourceCode, targetCode } (our normalized shape)
+        // or { from, to } coming from Gemini.
+        let fromRef = connObj.sourceCode || connObj.from || connObj.fromCode || connObj.source || null;
+        let toRef = connObj.targetCode || connObj.to || connObj.toCode || connObj.target || null;
 
-            const srcNodeId = codeToNodeId.get(srcCode);
-            const tgtNodeId = codeToNodeId.get(tgtCode);
-
-            if (srcNodeId && tgtNodeId) {
-                const added = addEdgeByNodeIds(srcNodeId, tgtNodeId, { type: 'smoothstep' });
-                if (added) {
-                    allMessages.push({ sender: "AI", message: `→ Connected ${srcCode} → ${tgtCode}` });
-                    explicitAddedCount++;
-                }
-            }
-            return;
-        }
-
-        // otherwise treat as {from, to} (names or codes)
-        const fromRef = connObj.from || connObj.fromCode || connObj.source || null;
-        const toRef = connObj.to || connObj.toCode || connObj.target || null;
         if (!fromRef || !toRef) return;
 
+        // Resolve to canonical code strings (tries to find existing/new items by name/code)
         const resolvedFromCode = resolveCodeString(fromRef);
         const resolvedToCode = resolveCodeString(toRef);
 
-        const srcNodeId = codeToNodeId.get(String(resolvedFromCode));
-        const tgtNodeId = codeToNodeId.get(String(resolvedToCode));
+        // If both resolved codes are found, check their parsed order (if available) and swap if reversed.
+        let finalFromCode = resolvedFromCode;
+        let finalToCode = resolvedToCode;
+
+        const idxFrom = codeToIndex.has(String(resolvedFromCode)) ? codeToIndex.get(String(resolvedFromCode)) : Infinity;
+        const idxTo = codeToIndex.has(String(resolvedToCode)) ? codeToIndex.get(String(resolvedToCode)) : Infinity;
+
+        // If both indexes are finite and the "from" appears after the "to" in parsed order, swap them.
+        if (Number.isFinite(idxFrom) && Number.isFinite(idxTo) && idxFrom > idxTo) {
+            finalFromCode = resolvedToCode;
+            finalToCode = resolvedFromCode;
+        }
+
+        // If we couldn't resolve codes, fallback to parsedItems order (if there are at least 2 items)
+        if ((!finalFromCode || !finalToCode) && parsedItems.length >= 2) {
+            const firstCode = normalizedItems[0]?.Code;
+            const secondCode = normalizedItems[1]?.Code;
+            if (firstCode && secondCode) {
+                finalFromCode = String(firstCode);
+                finalToCode = String(secondCode);
+            }
+        }
+
+        const srcNodeId = codeToNodeId.get(String(finalFromCode));
+        const tgtNodeId = codeToNodeId.get(String(finalToCode));
 
         if (srcNodeId && tgtNodeId) {
             const added = addEdgeByNodeIds(srcNodeId, tgtNodeId, { type: 'smoothstep' });
             if (added) {
-                allMessages.push({ sender: "AI", message: `→ Connected ${resolvedFromCode} → ${resolvedToCode}` });
+                allMessages.push({ sender: "AI", message: `→ Connected ${finalFromCode} → ${finalToCode}` });
                 explicitAddedCount++;
             }
         }
     });
 
-    // --------------------------
     // Build edges from each item's Connections
     // If explicit connections were present, skip per-item connections to avoid duplicates/reversed edges.
     // --------------------------
