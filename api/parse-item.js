@@ -1,4 +1,5 @@
-﻿import { GoogleGenerativeAI } from "@google/generative-ai";
+﻿// /api/parse-item.js
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
@@ -6,21 +7,20 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
-    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, "$1").trim();
+    // Remove ```json ... ``` or ``` ... ``` blocks
+    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
 }
 
 // Reserved action commands
 const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
 
-// Regex for valid 4-digit codes
-const CODE_RE = /^[0-9]{4}$/;
-
+// Core logic for both chat and structured PNID commands
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // 1️⃣ Check for exact action match
+    // 1️⃣ Check for exact action match (Hybrid)
     const actionMatch = ACTION_COMMANDS.find(
-        (cmd) => cmd.toLowerCase() === trimmed.toLowerCase()
+        cmd => cmd.toLowerCase() === trimmed.toLowerCase()
     );
     if (actionMatch) {
         return {
@@ -51,8 +51,6 @@ Rules:
     - [] for Connections
 - If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
 - Connections: map "Connect X to Y" → {"from": X, "to": Y}.
-- If user says "Connect A and B", always output ONE connection only.
-- Do NOT mirror the direction.
 - Explanation: include a short human-readable note if relevant.
 - Wrap structured PNID JSON in a \`\`\`json ... \`\`\` code block.
 - Do NOT wrap chat mode responses in any code block or JSON.
@@ -97,105 +95,30 @@ User Input: """${trimmed}"""
                         if (idx === arr.length - 1 && arr.length > 1) return "{" + part;
                         return "{" + part + "}";
                     });
-                parsed = objects.map((obj) => JSON.parse(obj));
+                parsed = objects.map(obj => JSON.parse(obj));
             }
 
-            // 🔹 Normalize items
-            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map((item) => {
-                const Unit = parseInt(item.Unit, 10) || 0;
-                const SubUnit = parseInt(item.SubUnit, 10) || 0;
-                const Sequence = parseInt(item.Sequence, 10) || 1;
-                const NumberVal = parseInt(item.Number, 10) || 1;
-
-                // computed Code (Unit + SubUnit + Sequence + Number)
-                const Code = `${Unit}${SubUnit}${Sequence}${NumberVal}`;
-
-                return {
-                    mode: "structured",
-                    Name: (item.Name || "").toString().trim(),
-                    Category: item.Category || "Equipment",
-                    Type: item.Type || "Generic",
-                    Unit,
-                    SubUnit,
-                    Sequence,
-                    Number: NumberVal,
-                    SensorType: item.SensorType || "",
-                    Explanation: item.Explanation || "Added PNID item",
-                    Connections: Array.isArray(item.Connections) ? item.Connections : [],
-                    Code,
-                };
-            });
-
-            // --- Collect raw connections
-            const allConnections = itemsArray.flatMap((i) => i.Connections || []);
-
-            // --- Normalize connections (names or codes)
-            const normalizedConnections = allConnections
-                .map((c) => {
-                    if (!c) return null;
-                    return {
-                        from: (c.from || "").toString().trim(),
-                        to: (c.to || "").toString().trim(),
-                    };
-                })
-                .filter((c) => c && c.from && c.to);
-
-            // Resolve normalized connections to codes (try match by Name then by Code)
-            let resolvedConnections = normalizedConnections.map((c) => {
-                const fromItem =
-                    itemsArray.find(i => i.Name && i.Name.toLowerCase() === c.from.toLowerCase()) ||
-                    itemsArray.find(i => i.Code === c.from);
-
-                const toItem =
-                    itemsArray.find(i => i.Name && i.Name.toLowerCase() === c.to.toLowerCase()) ||
-                    itemsArray.find(i => i.Code === c.to);
-
-                return {
-                    fromCode: fromItem ? fromItem.Code : (CODE_RE.test(c.from) ? c.from : ""),
-                    toCode: toItem ? toItem.Code : (CODE_RE.test(c.to) ? c.to : ""),
-                    raw: c
-                };
-            }).filter(rc => rc.fromCode || rc.toCode);
-
-            // --- Fallback: if user said "connect" but AI didn’t resolve names
-            const userAskedToConnect = /connect/i.test(trimmed);
-            if (userAskedToConnect && resolvedConnections.length === 0 && itemsArray.length === 2) {
-                resolvedConnections = [
-                    {
-                        fromCode: itemsArray[0].Code,
-                        toCode: itemsArray[1].Code,
-                        raw: { from: itemsArray[0].Name, to: itemsArray[1].Name }
-                    }
-                ];
-            }
-
-            // dedupe by from->to
-            const uniqueConnections = Array.from(
-                new Map(resolvedConnections.map(rc => [`${rc.fromCode}->${rc.toCode}`, rc])).values()
-            ).filter(rc => rc.fromCode && rc.toCode);
-
-            const cleanedItems = itemsArray.map((item) => ({
-                ...item,
-                Connections: [] // always wipe Gemini's raw so client decides linking
+            // 🔹 Normalize items: remove nulls, fix types, set defaults
+            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
+                mode: "structured",
+                Name: (item.Name || "").toString().trim(),
+                Category: item.Category || "Equipment",
+                Type: item.Type || "Generic",
+                Unit: parseInt(item.Unit, 10) || 0,
+                SubUnit: parseInt(item.SubUnit, 10) || 0,
+                Sequence: parseInt(item.Sequence, 10) || 1,
+                Number: parseInt(item.Number, 10) || 1,
+                SensorType: item.SensorType || "",
+                Explanation: item.Explanation || "Added PNID item",
+                Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // first connection for backward compatibility
-            let normalizedConnection = null;
-            if (uniqueConnections.length > 0) {
-                normalizedConnection = {
-                    sourceCode: uniqueConnections[0].fromCode,
-                    targetCode: uniqueConnections[0].toCode,
-                };
-            }
-
             return {
-                parsed: cleanedItems,
+                parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
-                connection: normalizedConnection,
-                connections: uniqueConnections.map(rc => ({ fromCode: rc.fromCode, toCode: rc.toCode })),
+                connection: itemsArray.flatMap(i => i.Connections),
             };
-
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
             return {
@@ -213,5 +136,21 @@ User Input: """${trimmed}"""
             mode: "chat",
             connection: null,
         };
+    }
+}
+
+// Default API handler
+export default async function handler(req, res) {
+    try {
+        if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+
+        const { description } = req.body;
+        if (!description) return res.status(400).json({ error: "Missing description" });
+
+        const aiResult = await parseItemLogic(description);
+        res.status(200).json(aiResult);
+    } catch (err) {
+        console.error("/api/parse-item error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
     }
 }
