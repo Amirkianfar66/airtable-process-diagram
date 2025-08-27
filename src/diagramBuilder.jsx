@@ -107,18 +107,18 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     });
 
     // --- Build edges from Connections ---
-    // Map names (strip numbers) → node IDs
+    // Map names (strip trailing numbers/spaces) → node IDs
     const nameToId = {};
     newNodes.forEach(n => {
-        const nameOnly = n.data?.item?.Name?.replace(/\s\d+$/, ''); // Tank 1 → Tank
+        const nameOnly = n.data?.item?.Name?.replace(/\s*\d*$/, '').trim(); // Tank 1 → Tank
         if (nameOnly) nameToId[nameOnly] = n.id;
     });
 
     normalized.forEach(item => {
         if (!Array.isArray(item.Connections)) return;
         item.Connections.forEach(conn => {
-            const fromId = nameToId[conn.from];
-            const toId = nameToId[conn.to];
+            const fromId = nameToId[conn.from.replace(/\s*\d*$/, '').trim()];
+            const toId = nameToId[conn.to.replace(/\s*\d*$/, '').trim()];
             if (fromId && toId && !newEdges.some(e => e.source === fromId && e.target === toId)) {
                 newEdges.push({
                     id: `edge-${fromId}-${toId}`,
