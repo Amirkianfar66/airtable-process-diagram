@@ -1,5 +1,4 @@
-﻿// /api/parse-item.js
-import { GoogleGenerativeAI } from "@google/generative-ai";
+﻿import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
@@ -7,20 +6,19 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
-    // Remove ```json ... ``` or ``` ... ``` blocks
     return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, "$1").trim();
 }
 
 // Reserved action commands
 const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
 
-// ---- helpers ----
-const CODE_RE = /^\d{4}$/; // e.g., 1201, 2202
+// Regex for valid 4-digit codes
+const CODE_RE = /^[0-9]{4}$/;
 
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // 1) Action commands
+    // 1️⃣ Check for exact action match
     const actionMatch = ACTION_COMMANDS.find(
         (cmd) => cmd.toLowerCase() === trimmed.toLowerCase()
     );
@@ -34,10 +32,7 @@ export async function parseItemLogic(description) {
         };
     }
 
-    // Capture any explicit 4-digit codes the USER typed (these are allowed to cross-batch)
-    const explicitCodesInInput = Array.from(new Set(trimmed.match(/\b\d{4}\b/g) || []));
-
-    // 2) Structured prompt
+    // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
@@ -48,13 +43,26 @@ Rules:
 - Output ONLY valid JSON with these fields:
   { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
 - Always set "mode": "structured".
-- If multiple items are mentioned (e.g., "Tank and Pump"), return SEPARATE JSON objects for each item.
-- For missing values, use:
-    - "" for text fields, 0 for Unit/SubUnit, 1 for Sequence/Number, [] for Connections
-- "Connections": map "Connect X to Y" → {"from": X, "to": Y}. Use "Tank"/"Pump" if codes are unknown.
+- Type must be a string. If multiple types are mentioned (e.g., "Tank and Pump"), generate **separate JSON objects** for each type.
+- All fields must be non-null strings or numbers. If a value is missing, use:
+    - "" (empty string) for text fields
+    - 0 for Unit and SubUnit
+    - 1 for Sequence and Number
+    - [] for Connections
+- If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
+- Connections: map "Connect X to Y" → {"from": X, "to": Y}.
+- If user says "Connect A and B", always output ONE connection only.
+- Do NOT mirror the direction.
+- Explanation: include a short human-readable note if relevant.
+- Wrap structured PNID JSON in a \`\`\`json ... \`\`\` code block.
+- Do NOT wrap chat mode responses in any code block or JSON.
 
 2. Chat mode
-- If unrelated to PNID → plain text only (mode "chat").
+- Triggered if input is small talk, greetings, or unrelated to PNID.
+- Output plain text only.
+- Always set "mode": "chat".
+
+Never mix modes. Default to chat mode if unsure.
 
 User Input: """${trimmed}"""
 `;
@@ -73,6 +81,7 @@ User Input: """${trimmed}"""
             };
         }
 
+        // Try JSON parse
         try {
             const cleaned = cleanAIJson(text);
 
@@ -80,7 +89,7 @@ User Input: """${trimmed}"""
             try {
                 parsed = JSON.parse(cleaned);
             } catch (e) {
-                // handle concatenated JSON objects
+                // Handle multiple JSON objects concatenated
                 const objects = cleaned
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
@@ -91,7 +100,7 @@ User Input: """${trimmed}"""
                 parsed = objects.map((obj) => JSON.parse(obj));
             }
 
-            // Normalize items
+            // 🔹 Normalize items
             const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map((item) => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
@@ -106,13 +115,13 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // Collect raw connections proposed by the model
+            // --- Collect raw connections
             const allConnections = itemsArray.flatMap((i) => i.Connections || []);
 
-            // ---- STRICT resolution rules ----
-            // Accept ONLY:
-            //   A) connections where BOTH endpoints are 4-digit codes that the USER explicitly typed
-            // Everything else (placeholders like "Pump"/"Tank", or model-invented codes) is ignored.
+            // --- Extract explicit codes from user input
+            const explicitCodesInInput = (trimmed.match(/[0-9]{4}/g) || []).map((c) => c.trim());
+
+            // --- Keep ONLY valid explicit code connections
             const userExplicitCodeConnections = allConnections
                 .map((c) => ({
                     from: (c.from || "").trim(),
@@ -126,24 +135,21 @@ User Input: """${trimmed}"""
                         explicitCodesInInput.includes(c.to)
                 );
 
-            // Dedup (preserving order)
+            // Deduplicate
             const uniqueConnections = Array.from(
                 new Map(userExplicitCodeConnections.map((c) => [c.from + "->" + c.to, c])).values()
             );
 
             // --- Per-batch auto-connect fallback ---
-            // If the user said "connect" but we didn't accept any explicit code connections,
-            // and exactly 2 items are in this batch, let the CLIENT auto-connect
-            // (we return no connection so the frontend can wire the 2 freshly-created nodes in order).
             const userAskedToConnect = /connect/i.test(trimmed);
-            const shouldAutoConnect = userAskedToConnect && uniqueConnections.length === 0 && itemsArray.length === 2;
+            const shouldAutoConnect =
+                userAskedToConnect && uniqueConnections.length === 0 && itemsArray.length === 2;
 
             return {
                 parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
                 connection: shouldAutoConnect ? [] : uniqueConnections,
-                // Note: returning [] (not null) keeps schema stable; client should auto-connect per batch.
             };
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
