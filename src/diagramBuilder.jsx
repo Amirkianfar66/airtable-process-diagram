@@ -110,6 +110,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             item.Connections.forEach(conn => {
                 const fromItem = normalized.find(i => i.Name === conn.from);
                 const toItem = normalized.find(i => i.Name === conn.to);
+                console.log('Connect:', conn.from, '→', conn.to, 'found:', !!fromItem, !!toItem);
                 if (fromItem && toItem) {
                     newEdges.push({
                         id: `edge-${fromItem.id}-${toItem.id}`,
@@ -123,6 +124,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             });
         }
     });
+
 
     return {
         nodes: newNodes,
