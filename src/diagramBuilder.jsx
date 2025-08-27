@@ -3,6 +3,14 @@ import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
+    // Build Name→Code lookup first
+    const nameToCode = {};
+    items.forEach(i => {
+        if (i.Name && i.Code) {
+            nameToCode[i.Name] = i.Code;
+        }
+    });
+
     // Normalize items
     const normalized = items.map(item => ({
         ...item,
@@ -13,21 +21,18 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         Category: item.Category != null ? String(item.Category) : "Equipment",
         Type: item.Type != null ? String(item.Type) : "Generic",
 
-        // Ensure stable unique id
         id: item.id || `${item.Category}-${item.Type}-${item.Name || 'Unnamed'}-${item.Sequence}-${item.Number}`,
 
-        // Normalize connections into ids
-        // Normalize connections into Codes
         Connections: Array.isArray(item.Connections)
             ? item.Connections.map(conn => {
-                if (typeof conn === "string") return conn;   // already a Code
-                if (conn.to) return conn.to;                 // structured AI {from,to}
-                if (conn.toId) return conn.toId;             // fallback {fromId,toId}
+                if (typeof conn === "string") return conn; // already a Code
+                if (conn.to) return nameToCode[conn.to] || null; // map Name → Code
+                if (conn.toId) return conn.toId;
                 return null;
             }).filter(Boolean)
             : [],
-
     }));
+
 
     // Ensure unitLayoutOrder is a 2D array of strings
     let safeLayout = Array.isArray(unitLayoutOrder)
