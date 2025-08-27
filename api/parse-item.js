@@ -15,7 +15,7 @@ const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
 // Regex for valid 4-digit codes
 const CODE_RE = /^[0-9]{4}$/;
 
-export async function parseItemLogic(description) {
+export async function parseItemLogic(description, existingNodes = []) {
     const trimmed = description.trim();
 
     // 1️⃣ Check for exact action match
@@ -30,6 +30,17 @@ export async function parseItemLogic(description) {
             explanation: `Triggered action: ${actionMatch}`,
             connection: null,
         };
+    }
+
+    // Utility: generate PNID-style code (Unit + SubUnit + Sequence + Number)
+    function generateCode(item) {
+        return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
+    }
+
+    // Utility: find node in canvas by code
+    function findExistingByCode(code) {
+        if (!code) return null;
+        return existingNodes.find(n => n.id === code) || null;
     }
 
     // 2️⃣ Otherwise, normal Gemini call
@@ -81,7 +92,6 @@ User Input: """${trimmed}"""
             };
         }
 
-        // Try JSON parse
         try {
             const cleaned = cleanAIJson(text);
 
@@ -115,10 +125,19 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // Generate PNID-style code (Unit + SubUnit + Sequence + Number)
-            function generateCode(item) {
-                return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
-            }
+            // 🔹 Deduplicate: if code exists in canvas, reuse existing
+            const dedupedItems = itemsArray.map(item => {
+                const code = generateCode(item);
+                const existing = findExistingByCode(code);
+                if (existing) {
+                    return {
+                        ...item,
+                        Name: existing.data?.Name || item.Name,
+                        Connections: [] // wipe to avoid duplicate edges
+                    };
+                }
+                return item;
+            });
 
             // --- Collect raw connections
             const allConnections = itemsArray.flatMap((i) => i.Connections || []);
@@ -136,12 +155,12 @@ User Input: """${trimmed}"""
             if (normalizedConnections.length > 0) {
                 resolvedConnections = normalizedConnections.map((c) => {
                     const fromItem =
-                        itemsArray.find(i => i.Name.toLowerCase() === c.from.toLowerCase()) ||
+                        findExistingByCode(c.from) ||
                         itemsArray.find(i => generateCode(i) === c.from) ||
                         itemsArray[0];
 
                     const toItem =
-                        itemsArray.find(i => i.Name.toLowerCase() === c.to.toLowerCase()) ||
+                        findExistingByCode(c.to) ||
                         itemsArray.find(i => generateCode(i) === c.to) ||
                         itemsArray[1];
 
@@ -154,19 +173,19 @@ User Input: """${trimmed}"""
 
             // --- Fallback: if user said "connect" but AI didn’t resolve names
             const userAskedToConnect = /connect/i.test(trimmed);
-            if (userAskedToConnect && resolvedConnections.length === 0 && itemsArray.length === 2) {
-                // ✅ Always assume first → second
+            if (userAskedToConnect && resolvedConnections.length === 0 && dedupedItems.length === 2) {
                 resolvedConnections = [
                     {
-                        from: generateCode(itemsArray[0]),
-                        to: generateCode(itemsArray[1]),
+                        from: generateCode(dedupedItems[0]),
+                        to: generateCode(dedupedItems[1]),
                     },
                 ];
             }
 
-            const cleanedItems = itemsArray.map((item) => ({
+            // Final cleaned items (no raw AI connections inside them)
+            const cleanedItems = dedupedItems.map((item) => ({
                 ...item,
-                Connections: [] // always wipe Gemini's raw
+                Connections: [],
             }));
 
             let normalizedConnection = null;
@@ -202,21 +221,5 @@ User Input: """${trimmed}"""
             mode: "chat",
             connection: null,
         };
-    }
-}
-
-// Default API handler
-export default async function handler(req, res) {
-    try {
-        if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-
-        const { description } = req.body;
-        if (!description) return res.status(400).json({ error: "Missing description" });
-
-        const aiResult = await parseItemLogic(description);
-        res.status(200).json(aiResult);
-    } catch (err) {
-        console.error("/api/parse-item error:", err);
-        res.status(500).json({ error: "Server error", details: err.message });
     }
 }
