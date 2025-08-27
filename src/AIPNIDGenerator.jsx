@@ -102,10 +102,11 @@ export default async function AIPNIDGenerator(
             ]);
         }
 
+        // Return early (no nodes added for actions here)
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // Chat mode
+    // Chat mode -> show chat and return
     if (mode === "chat") {
         if (typeof setChatMessages === "function") {
             setChatMessages(prev => [
@@ -193,25 +194,21 @@ export default async function AIPNIDGenerator(
             // If the code already exists in canvas -> reuse it (do not create new node)
             if (codeToNodeId.has(code)) {
                 const existingItem = codeToItem.get(code);
-                if (!normalizedItems.find(it => it.Code === code)) normalizedItems.push(existingItem);
+                if (existingItem && !normalizedItems.find(it => it.Code === code)) normalizedItems.push(existingItem);
                 allMessages.push({ sender: "AI", message: `Reused existing code: ${code}` });
                 return;
             }
 
-            // Normalize connections declared on this parsed object (we don't use raw 'connection' here)
+            // Normalize connections declared on this parsed object (we will resolve targets later)
             const normalizedConnections = (p.Connections || []).map(conn => {
                 if (!conn) return null;
                 if (typeof conn === "string") {
-                    // string might be "A to B" or a name — but final resolution will happen later
                     return conn.trim();
                 } else if (typeof conn === "object") {
-                    // If AI gave object connections like { from: "Tank", to: "Pump" }, only keep outgoing where 'from' matches this parsed item
                     const fromVal = (conn.from || conn.fromName || "").toString().trim();
                     const toVal = (conn.to || conn.toName || conn.toId || "").toString().trim();
-                    // if fromVal matches this parsed item name or code, it's an outgoing
                     const thisIsSource = (fromVal && (fromVal.toLowerCase() === (p.Name || '').toLowerCase())) || fromVal === code || fromVal === makeCodeForParsed(p);
                     if (thisIsSource && toVal) {
-                        // prefer parsed name->code mapping if available
                         return nameToCode.get(toVal.toLowerCase()) || toVal;
                     }
                     return null;
@@ -236,7 +233,7 @@ export default async function AIPNIDGenerator(
             };
 
             // Create new node (only when not in canvas)
-            const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
+            const nodeId = crypto?.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
             nodeItem.id = nodeId;
 
             newNodes.push({
@@ -368,4 +365,18 @@ export default async function AIPNIDGenerator(
                     id: `edge-${newNodes[i].id}-${newNodes[i + 1].id}`,
                     source: newNodes[i].id,
                     target: newNodes[i + 1].id,
-                    ani
+                    animated: true
+                });
+            }
+        }
+        allMessages.push({ sender: "AI", message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
+    }
+
+    allMessages.push({ sender: "AI", message: `→ Generated ${newNodes.length} total item(s)` });
+
+    if (typeof setChatMessages === "function" && allMessages.length > 0) {
+        setChatMessages(prev => [...prev, ...allMessages]);
+    }
+
+    return { nodes: [...existingNodes, ...newNodes], edges: newEdges, normalizedItems };
+}
