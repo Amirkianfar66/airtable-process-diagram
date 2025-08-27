@@ -12,7 +12,17 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
         Category: item.Category != null ? String(item.Category) : "Equipment",
         Type: item.Type != null ? String(item.Type) : "Generic",
-        Connections: Array.isArray(item.Connections) ? item.Connections : [],
+
+        // Ensure stable unique id
+        id: item.id || `${item.Category}-${item.Type}-${item.Name || 'Unnamed'}-${item.Sequence}-${item.Number}`,
+
+        // Normalize connections into ids
+        Connections: Array.isArray(item.Connections)
+            ? item.Connections.map(conn => ({
+                fromId: conn.fromId || conn.from,
+                toId: conn.toId || conn.to,
+            }))
+            : [],
     }));
 
     // Ensure unitLayoutOrder is a 2D array of strings
@@ -64,7 +74,13 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                     offsetX: 200,
                     offsetY: -300,
                 },
-                style: { width: unitWidth, height: unitHeight, background: 'transparent', border: '4px dashed #444', borderRadius: '10px' },
+                style: {
+                    width: unitWidth,
+                    height: unitHeight,
+                    background: 'transparent',
+                    border: '4px dashed #444',
+                    borderRadius: '10px',
+                },
                 draggable: false,
                 selectable: false,
             });
@@ -78,8 +94,18 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                     id: `sub-${groupedUnitName}-${subUnit}`,
                     position: { x: colIndex * (unitWidth + 100) + 10, y: subUnitY + 10 },
                     data: { label: subUnit },
-                    style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent' },
-                    labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' },
+                    style: {
+                        width: unitWidth - 20,
+                        height: subUnitHeight - 20,
+                        border: '2px dashed #aaa',
+                        background: 'transparent',
+                    },
+                    labelStyle: {
+                        fontSize: 100,
+                        fontWeight: 600,
+                        color: '#555',
+                        fontFamily: 'Arial, sans-serif',
+                    },
                     draggable: false,
                     selectable: false,
                 });
@@ -94,7 +120,11 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                     newNodes.push({
                         id: item.id,
                         position: { x: itemX, y: subUnitY + 20 },
-                        data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
+                        data: {
+                            label: `${item.Code || ''} - ${item.Name || ''}`,
+                            item,
+                            icon: getItemIcon(item),
+                        },
                         type: categoryTypeMap[safeCategory] || 'scalableIcon',
                         sourcePosition: 'right',
                         targetPosition: 'left',
@@ -106,20 +136,19 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    // --- Build edges from Connections ---
-    // Map names (strip trailing numbers/spaces) → node IDs
-    const nameToId = {};
-    newNodes.forEach(n => {
-        const nameOnly = n.data?.item?.Name?.replace(/\s*\d*$/, '').trim(); // Tank 1 → Tank
-        if (nameOnly) nameToId[nameOnly] = n.id;
-    });
-
+    // --- Build edges using IDs directly ---
     normalized.forEach(item => {
         if (!Array.isArray(item.Connections)) return;
+
         item.Connections.forEach(conn => {
-            const fromId = nameToId[conn.from.replace(/\s*\d*$/, '').trim()];
-            const toId = nameToId[conn.to.replace(/\s*\d*$/, '').trim()];
-            if (fromId && toId && !newEdges.some(e => e.source === fromId && e.target === toId)) {
+            const fromId = conn.fromId;
+            const toId = conn.toId;
+
+            if (
+                fromId &&
+                toId &&
+                !newEdges.some(e => e.source === fromId && e.target === toId)
+            ) {
                 newEdges.push({
                     id: `edge-${fromId}-${toId}`,
                     source: fromId,
@@ -135,6 +164,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     return {
         nodes: newNodes,
         edges: newEdges,
-        normalizedItems: normalized
+        normalizedItems: normalized,
     };
 }
