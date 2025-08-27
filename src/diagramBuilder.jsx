@@ -113,10 +113,12 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         nameUnitSubToId[key] = item.id;
     });
 
-    // map item Name -> id
     const nameToId = Object.fromEntries(normalized.map(i => [i.Name, i.id]));
 
     normalized.forEach(item => {
+        console.log('Connections for item:', item.Name, item.Connections);
+        console.log('nameToId mapping:', nameToId);
+
         if (Array.isArray(item.Connections)) {
             item.Connections.forEach(conn => {
                 const fromId = nameToId[conn.from];
@@ -134,6 +136,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             });
         }
     });
+
 
 
     return {
