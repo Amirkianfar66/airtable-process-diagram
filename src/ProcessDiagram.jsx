@@ -168,24 +168,26 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
-            // Merge AI nodes/edges
-            setNodes(prev => [...prev, ...(aiNodes || [])]);
-            setEdges(prev => [...prev, ...(aiEdges || [])]);
-
-            // Extract the item objects from the AI nodes
+            // 1️⃣ Extract AI items
             const aiItems = (aiNodes || []).map(n => n.data?.item).filter(Boolean);
 
-            // Merge them into your items state
-            setItems(prev => {
-                const existingIds = new Set(prev.map(i => i.id));
-                const newItems = aiItems.filter(i => !existingIds.has(i.id));
-                return [...prev, ...newItems];
+            // 2️⃣ Merge into items
+            const updatedItems = [...items];
+            const existingIds = new Set(updatedItems.map(i => i.id));
+            aiItems.forEach(item => {
+                if (!existingIds.has(item.id)) updatedItems.push(item);
             });
+            setItems(updatedItems);
 
-            // Auto-select first new node
+            // 3️⃣ Rebuild diagram (nodes + edges) from updated items
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(updatedItems, unitLayoutOrder);
+
+            setNodes(rebuiltNodes);
+            setEdges(rebuiltEdges);
+
+            // 4️⃣ Auto-select first new node
             if (aiNodes?.length) {
-                const prevNodeIds = new Set(nodes.map(n => n.id));
-                const newNodesList = aiNodes.filter(n => !prevNodeIds.has(n.id));
+                const newNodesList = aiNodes.filter(n => !nodes.some(old => old.id === n.id));
                 if (newNodesList.length > 0) {
                     setSelectedNodes([newNodesList[0]]);
                     setSelectedItem(newNodesList[0].data?.item || null);
