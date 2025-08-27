@@ -101,7 +101,7 @@ User Input: """${trimmed}"""
             }
 
             // 🔹 Normalize items: remove nulls, fix types, set defaults
-            const newItems = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
+            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
                 Category: item.Category || "Equipment",
@@ -114,10 +114,6 @@ User Input: """${trimmed}"""
                 Explanation: item.Explanation || "Added PNID item",
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
-
-            // 🔹 Merge into global array
-            const itemsArray = [...existingItemsArray, ...newItems]; // if you track previous items
-
 
             // 🔹 Collect all connections
             const allConnections = itemsArray.flatMap(i => i.Connections);
@@ -133,7 +129,6 @@ User Input: """${trimmed}"""
             const uniqueConnections = Array.from(
                 new Map(normalizedConnections.map(c => [c.from + "->" + c.to, c])).values()
             );
-
 
             // --- Code generator helper ---
             function generateCode({ Unit, SubUnit, Sequence, Number }) {
