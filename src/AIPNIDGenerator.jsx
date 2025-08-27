@@ -180,21 +180,23 @@ export default async function AIPNIDGenerator(
 
             // 🔽 Normalize connections: map Name/Code → existing item.Code if found
             const normalizedConnections = (p.Connections || []).map(conn => {
-                let target = null;
+                let targetNameOrCode = null;
 
                 if (typeof conn === "string") {
-                    target = conn;
+                    targetNameOrCode = conn;
                 } else if (typeof conn === "object") {
-                    // Prefer "to"
-                    target = conn.to || conn.toId || conn.from || conn.fromId;
+                    targetNameOrCode = conn.to || conn.toId; // Gemini uses {from, to}
                 }
+
+                if (!targetNameOrCode) return null;
 
                 const foundItem =
                     [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
-                        .find(i => i?.Code === target || i?.Name === target);
+                        .find(i => i?.Code === targetNameOrCode || i?.Name === targetNameOrCode);
 
-                return foundItem?.Code || target;
+                return foundItem?.Code || targetNameOrCode;
             }).filter(Boolean);
+
 
 
             // ✅ Create fully normalized item for ItemDetailCard
