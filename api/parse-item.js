@@ -51,6 +51,8 @@ Rules:
     - [] for Connections
 - If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
 - Connections: map "Connect X to Y" → {"from": X, "to": Y}.
+- If user says "Connect A and B", always output ONE connection only.
+- Do NOT mirror the direction (e.g., no Pump→Tank if you already have Tank→Pump).
 - Explanation: include a short human-readable note if relevant.
 - Wrap structured PNID JSON in a \`\`\`json ... \`\`\` code block.
 - Do NOT wrap chat mode responses in any code block or JSON.
@@ -113,10 +115,19 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // 🔹 Deduplicate and normalize connections
+            // 🔹 Collect all connections
             const allConnections = itemsArray.flatMap(i => i.Connections);
+
+            // 🔹 Normalize to avoid mirrored duplicates
+            const normalizedConnections = allConnections.map(c => {
+                const from = (c.from || "").trim();
+                const to = (c.to || "").trim();
+                return from < to ? { from, to } : { from: to, to: from };
+            });
+
+            // 🔹 Deduplicate
             const uniqueConnections = Array.from(
-                new Map(allConnections.map(c => [c.from + "->" + c.to, c])).values()
+                new Map(normalizedConnections.map(c => [c.from + "->" + c.to, c])).values()
             );
 
             return {
