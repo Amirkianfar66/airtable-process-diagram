@@ -239,29 +239,10 @@ export default async function AIPNIDGenerator(
     });
 
     // --------------------------
-    // Explicit connections
+    // Connection handling (AI explicit OR fallback chaining + branching)
     // --------------------------
     if (connection && connection.sourceCode && connection.targetCode) {
-        const sourceNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.sourceCode);
-        const targetNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.targetCode);
-
-        if (sourceNode && targetNode) {
-            const exists = newEdges.some(e => e.source === sourceNode.id && e.target === targetNode.id);
-            if (!exists) {
-                newEdges.push({
-                    id: `edge-${sourceNode.id}-${targetNode.id}`,
-                    source: sourceNode.id,
-                    target: targetNode.id,
-                    animated: true
-                });
-            }
-            allMessages.push({ sender: "AI", message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` });
-        }
-    }
-    // --------------------------
-    // ONLY connect if AI gave explicit connection (first → second)
-    // --------------------------
-    if (connection && connection.sourceCode && connection.targetCode) {
+        // ✅ AI explicitly provided single connection
         const sourceNode = [...existingNodes, ...newNodes]
             .find(n => n.data?.item?.Code === connection.sourceCode);
         const targetNode = [...existingNodes, ...newNodes]
@@ -285,5 +266,65 @@ export default async function AIPNIDGenerator(
                 sender: "AI",
                 message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}`
             });
+        }
+    } else if (parsedItems.length >= 2) {
+        // ✅ Fallback: handle chaining + branching
+        const first = parsedItems[0];
+        const rest = parsedItems.slice(1);
+
+        if (rest.length === 1) {
+            // simple chain (first → second)
+            const sourceNode = [...existingNodes, ...newNodes]
+                .find(n => n.data?.item?.Code === first.Code);
+            const targetNode = [...existingNodes, ...newNodes]
+                .find(n => n.data?.item?.Code === rest[0].Code);
+
+            if (sourceNode && targetNode) {
+                const exists = newEdges.some(
+                    e => e.source === sourceNode.id && e.target === targetNode.id
+                );
+                if (!exists) {
+                    newEdges.push({
+                        id: `edge-${sourceNode.id}-${targetNode.id}`,
+                        source: sourceNode.id,
+                        target: targetNode.id,
+                        type: 'smoothstep',
+                        animated: true,
+                        style: { stroke: '#888', strokeWidth: 2 },
+                    });
+                }
+                allMessages.push({
+                    sender: "AI",
+                    message: `→ Connected ${first.Code} → ${rest[0].Code}`
+                });
+            }
+        } else {
+            // branching OR multi-step chaining
+            for (let i = 0; i < rest.length; i++) {
+                const sourceNode = [...existingNodes, ...newNodes]
+                    .find(n => n.data?.item?.Code === first.Code);
+                const targetNode = [...existingNodes, ...newNodes]
+                    .find(n => n.data?.item?.Code === rest[i].Code);
+
+                if (sourceNode && targetNode) {
+                    const exists = newEdges.some(
+                        e => e.source === sourceNode.id && e.target === targetNode.id
+                    );
+                    if (!exists) {
+                        newEdges.push({
+                            id: `edge-${sourceNode.id}-${targetNode.id}`,
+                            source: sourceNode.id,
+                            target: targetNode.id,
+                            type: 'smoothstep',
+                            animated: true,
+                            style: { stroke: '#888', strokeWidth: 2 },
+                        });
+                    }
+                    allMessages.push({
+                        sender: "AI",
+                        message: `→ Connected ${first.Code} → ${rest[i].Code}`
+                    });
+                }
+            }
         }
     }
