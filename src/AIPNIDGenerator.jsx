@@ -49,7 +49,7 @@ export function ChatBox({ messages }) {
 // --------------------------
 // AI PNID generator (with human AI layer)
 // --------------------------
-export default async function AIPNIDGenerator(
+async function AIPNIDGenerator(
     description,
     itemsLibrary = [],
     existingNodes = [],
@@ -59,15 +59,11 @@ export default async function AIPNIDGenerator(
 ) {
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
-    // 1️⃣ Send input to Gemini for classification
-    // 1️⃣ Send input to Gemini for classification
-    // 1️⃣ Send input to Gemini for classification
     let normalizedItems = [];
     let aiResult;
     try {
         aiResult = await parseItemLogic(description);
 
-        // Normalize if AI returned an array directly
         if (Array.isArray(aiResult)) {
             aiResult = {
                 mode: "structured",
@@ -90,8 +86,8 @@ export default async function AIPNIDGenerator(
 
     const { mode, explanation, parsed = {}, connection } = aiResult;
 
-    // Handle Hybrid action mode
-    if (aiResult.mode === "action") {
+    // 🔹 Action mode
+    if (mode === "action") {
         const action = aiResult.action;
         const actionMsg = `⚡ Action triggered: ${action}`;
 
@@ -103,18 +99,11 @@ export default async function AIPNIDGenerator(
             ]);
         }
 
-        // TODO: call your export function if action === "Generate PNID"
-        if (action === "Generate PNID") {
-            // Example: generatePNID(existingNodes, existingEdges);
-        }
-
-        // Return existing nodes/edges since we don't add new items
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // 2️⃣ Branch based on AI classification
+    // 🔹 Chat mode
     if (mode === "chat") {
-        // AI says this is general conversation → just show chat
         if (typeof setChatMessages === "function") {
             setChatMessages(prev => [
                 ...prev,
@@ -123,25 +112,9 @@ export default async function AIPNIDGenerator(
             ]);
         }
         return { nodes: existingNodes, edges: existingEdges };
-    } else if (mode === "structured" || mode === "pnid") {
-        // PNID logic → generate nodes and edges
-        // ... your existing PNID generation code here ...
     }
 
-
-    // 2️⃣ Chat/human mode → reply directly
-    if (mode === 'chat') {
-        if (typeof setChatMessages === 'function') {
-            setChatMessages(prev => [
-                ...prev,
-                { sender: 'User', message: description },
-                { sender: 'AI', message: explanation }
-            ]);
-        }
-        return { nodes: existingNodes, edges: existingEdges };
-    }
-
-    // 3️⃣ Structured PNID logic
+    // 🔹 Structured PNID logic
     const parsedItems = Array.isArray(parsed) ? parsed : [parsed];
     const newNodes = [];
     const newEdges = [...existingEdges];
@@ -149,19 +122,17 @@ export default async function AIPNIDGenerator(
 
     parsedItems.forEach((p, idx) => {
         const Name = (p.Name || description).trim();
-        const Category = p.Category && p.Category !== '' ? p.Category : 'Equipment';
-        const Type = p.Type && p.Type !== '' ? p.Type : 'Generic';
+        const Category = p.Category || 'Equipment';
+        const Type = p.Type || 'Generic';
         const NumberOfItems = p.Number && p.Number > 0 ? p.Number : 1;
 
         const Unit = p.Unit ?? 0;
         const SubUnit = p.SubUnit ?? 0;
         const Sequence = p.Sequence ?? 1;
 
-        // Generate base code
         const baseCode = generateCode({ Category, Type, Unit, SubUnit, Sequence, SensorType: p.SensorType || '' });
         const allCodes = [baseCode].filter(Boolean);
 
-        // Optionally generate additional codes if NumberOfItems > 1
         for (let i = 1; i < NumberOfItems; i++) {
             const nextCode = generateCode({
                 Category,
@@ -174,33 +145,25 @@ export default async function AIPNIDGenerator(
             if (nextCode) allCodes.push(nextCode);
         }
 
-        // Create a node for each code
         allCodes.forEach((code, codeIdx) => {
             const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
 
-            // 🔽 Normalize connections: map Gemini "from/to" → Codes
             const normalizedConnections = (p.Connections || []).map(conn => {
                 let target = null;
-
                 if (typeof conn === "string") {
                     target = conn;
                 } else if (typeof conn === "object") {
-                    // Gemini format: { from: "Tank", to: "Pump" }
                     target = conn.to || conn.toId;
                 }
-
                 if (!target) return null;
 
                 const foundItem =
                     [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
                         .find(i => i?.Code === target || i?.Name === target);
 
-                return foundItem?.Code || target; // ✅ Always return a Code
+                return foundItem?.Code || target;
             }).filter(Boolean);
 
-
-
-            // ✅ Create fully normalized item for ItemDetailCard
             const nodeItem = {
                 id: nodeId,
                 Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
@@ -208,13 +171,12 @@ export default async function AIPNIDGenerator(
                 'Item Code': code,
                 Category,
                 Type,
-                Unit: Unit ?? 'Default Unit',          // fallback if missing
-                SubUnit: SubUnit ?? 'Default SubUnit', // fallback if missing
+                Unit,
+                SubUnit,
                 Sequence: Sequence + codeIdx,
-                Connections: normalizedConnections     // ✅ use normalized list
+                Connections: normalizedConnections
             };
 
-            // push to nodes
             newNodes.push({
                 id: nodeId,
                 position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
@@ -226,12 +188,10 @@ export default async function AIPNIDGenerator(
                 type: categoryTypeMap[Category] || 'scalableIcon',
             });
 
-            // ✅ push to normalizedItems array (so ProcessDiagram can use it)
             normalizedItems.push(nodeItem);
 
             allMessages.push({ sender: "AI", message: `Generated code: ${code}` });
         });
-
 
         if (explanation && idx === 0) {
             allMessages.push({ sender: "AI", message: explanation });
@@ -239,19 +199,14 @@ export default async function AIPNIDGenerator(
     });
 
     // --------------------------
-    // Connection handling (AI explicit OR fallback chaining + branching)
+    // Connection handling
     // --------------------------
     if (connection && connection.sourceCode && connection.targetCode) {
-        // ✅ AI explicitly provided single connection
-        const sourceNode = [...existingNodes, ...newNodes]
-            .find(n => n.data?.item?.Code === connection.sourceCode);
-        const targetNode = [...existingNodes, ...newNodes]
-            .find(n => n.data?.item?.Code === connection.targetCode);
+        const sourceNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.sourceCode);
+        const targetNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.targetCode);
 
         if (sourceNode && targetNode) {
-            const exists = newEdges.some(
-                e => e.source === sourceNode.id && e.target === targetNode.id
-            );
+            const exists = newEdges.some(e => e.source === sourceNode.id && e.target === targetNode.id);
             if (!exists) {
                 newEdges.push({
                     id: `edge-${sourceNode.id}-${targetNode.id}`,
@@ -262,27 +217,18 @@ export default async function AIPNIDGenerator(
                     style: { stroke: '#888', strokeWidth: 2 },
                 });
             }
-            allMessages.push({
-                sender: "AI",
-                message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}`
-            });
+            allMessages.push({ sender: "AI", message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` });
         }
     } else if (parsedItems.length >= 2) {
-        // ✅ Fallback: handle chaining + branching
         const first = parsedItems[0];
         const rest = parsedItems.slice(1);
 
-        if (rest.length === 1) {
-            // simple chain (first → second)
-            const sourceNode = [...existingNodes, ...newNodes]
-                .find(n => n.data?.item?.Code === first.Code);
-            const targetNode = [...existingNodes, ...newNodes]
-                .find(n => n.data?.item?.Code === rest[0].Code);
+        for (let i = 0; i < rest.length; i++) {
+            const sourceNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === first.Code);
+            const targetNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === rest[i].Code);
 
             if (sourceNode && targetNode) {
-                const exists = newEdges.some(
-                    e => e.source === sourceNode.id && e.target === targetNode.id
-                );
+                const exists = newEdges.some(e => e.source === sourceNode.id && e.target === targetNode.id);
                 if (!exists) {
                     newEdges.push({
                         id: `edge-${sourceNode.id}-${targetNode.id}`,
@@ -293,38 +239,18 @@ export default async function AIPNIDGenerator(
                         style: { stroke: '#888', strokeWidth: 2 },
                     });
                 }
-                allMessages.push({
-                    sender: "AI",
-                    message: `→ Connected ${first.Code} → ${rest[0].Code}`
-                });
-            }
-        } else {
-            // branching OR multi-step chaining
-            for (let i = 0; i < rest.length; i++) {
-                const sourceNode = [...existingNodes, ...newNodes]
-                    .find(n => n.data?.item?.Code === first.Code);
-                const targetNode = [...existingNodes, ...newNodes]
-                    .find(n => n.data?.item?.Code === rest[i].Code);
-
-                if (sourceNode && targetNode) {
-                    const exists = newEdges.some(
-                        e => e.source === sourceNode.id && e.target === targetNode.id
-                    );
-                    if (!exists) {
-                        newEdges.push({
-                            id: `edge-${sourceNode.id}-${targetNode.id}`,
-                            source: sourceNode.id,
-                            target: targetNode.id,
-                            type: 'smoothstep',
-                            animated: true,
-                            style: { stroke: '#888', strokeWidth: 2 },
-                        });
-                    }
-                    allMessages.push({
-                        sender: "AI",
-                        message: `→ Connected ${first.Code} → ${rest[i].Code}`
-                    });
-                }
+                allMessages.push({ sender: "AI", message: `→ Connected ${first.Code} → ${rest[i].Code}` });
             }
         }
     }
+
+    // ✅ Final return (inside function)
+    return {
+        nodes: [...existingNodes, ...newNodes],
+        edges: [...existingEdges, ...newEdges],
+        normalizedItems: parsedItems,
+        messages: allMessages,
+    };
+}
+
+export default AIPNIDGenerator;
