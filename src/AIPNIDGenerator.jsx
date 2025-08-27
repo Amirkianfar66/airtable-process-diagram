@@ -62,6 +62,7 @@ export default async function AIPNIDGenerator(
     // 1️⃣ Send input to Gemini for classification
     // 1️⃣ Send input to Gemini for classification
     // 1️⃣ Send input to Gemini for classification
+    let normalizedItems = [];
     let aiResult;
     try {
         aiResult = await parseItemLogic(description);
