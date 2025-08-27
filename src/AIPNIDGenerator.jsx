@@ -178,23 +178,24 @@ export default async function AIPNIDGenerator(
         allCodes.forEach((code, codeIdx) => {
             const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
 
-            // 🔽 Normalize connections: map Name/Code → existing item.Code if found
+            // 🔽 Normalize connections: map Gemini "from/to" → Codes
             const normalizedConnections = (p.Connections || []).map(conn => {
-                let targetNameOrCode = null;
+                let target = null;
 
                 if (typeof conn === "string") {
-                    targetNameOrCode = conn;
+                    target = conn;
                 } else if (typeof conn === "object") {
-                    targetNameOrCode = conn.to || conn.toId; // Gemini uses {from, to}
+                    // Gemini format: { from: "Tank", to: "Pump" }
+                    target = conn.to || conn.toId;
                 }
 
-                if (!targetNameOrCode) return null;
+                if (!target) return null;
 
                 const foundItem =
                     [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
-                        .find(i => i?.Code === targetNameOrCode || i?.Name === targetNameOrCode);
+                        .find(i => i?.Code === target || i?.Name === target);
 
-                return foundItem?.Code || targetNameOrCode;
+                return foundItem?.Code || target; // ✅ Always return a Code
             }).filter(Boolean);
 
 

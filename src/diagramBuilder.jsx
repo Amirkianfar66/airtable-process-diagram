@@ -17,12 +17,16 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         id: item.id || `${item.Category}-${item.Type}-${item.Name || 'Unnamed'}-${item.Sequence}-${item.Number}`,
 
         // Normalize connections into ids
+        // Normalize connections into Codes
         Connections: Array.isArray(item.Connections)
-            ? item.Connections.map(conn => ({
-                fromId: conn.fromId || conn.from,
-                toId: conn.toId || conn.to,
-            }))
+            ? item.Connections.map(conn => {
+                if (typeof conn === "string") return conn;   // already a Code
+                if (conn.to) return conn.to;                 // structured AI {from,to}
+                if (conn.toId) return conn.toId;             // fallback {fromId,toId}
+                return null;
+            }).filter(Boolean)
             : [],
+
     }));
 
     // Ensure unitLayoutOrder is a 2D array of strings

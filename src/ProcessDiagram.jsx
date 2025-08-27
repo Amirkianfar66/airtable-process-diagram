@@ -159,7 +159,7 @@ export default function ProcessDiagram() {
         if (!aiDescription) return;
 
         try {
-            const { nodes: aiNodes, normalizedItems } = await AIPNIDGenerator(
+            const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(
                 aiDescription,
                 items,
                 nodes,
@@ -168,26 +168,26 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
-            // 1️⃣ Extract AI items
+            // Extract AI items
             const aiItems = normalizedItems || (aiNodes || []).map(n => n.data?.item).filter(Boolean);
             console.log("AI Items:", aiItems);
             aiItems.forEach(i => console.log(i.Name, i.Code, i.Connections));
-            // 2️⃣ Merge into items
+
+            // Merge into items
             const updatedItems = [...items];
             const existingIds = new Set(updatedItems.map(i => i.id));
             aiItems.forEach(item => {
-                if (!existingIds.has(item.id)) {
+                if (item.id && !existingIds.has(item.id)) {
                     updatedItems.push(item);
                 }
             });
             setItems(updatedItems);
 
-            // 3️⃣ Rebuild diagram fully (nodes + edges)
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(updatedItems, unitLayoutOrder);
-            setNodes(rebuiltNodes);
-            setEdges(rebuiltEdges);
+            // Merge nodes + edges directly (instead of discarding AI edges)
+            setNodes(aiNodes);
+            setEdges(aiEdges);
 
-            // 4️⃣ Auto-select first new node
+            // Auto-select first new node
             if (aiNodes?.length) {
                 const newNodesList = aiNodes.filter(n => !nodes.some(old => old.id === n.id));
                 if (newNodesList.length > 0) {
@@ -199,6 +199,7 @@ export default function ProcessDiagram() {
             console.error("AI PNID generation failed:", err);
         }
     };
+
 
     useEffect(() => {
         const loadItems = async () => {
