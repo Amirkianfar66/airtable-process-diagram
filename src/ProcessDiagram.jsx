@@ -159,7 +159,7 @@ export default function ProcessDiagram() {
         if (!aiDescription) return;
 
         try {
-            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
+            const { nodes: aiNodes, normalizedItems } = await AIPNIDGenerator(
                 aiDescription,
                 items,
                 nodes,
@@ -169,19 +169,20 @@ export default function ProcessDiagram() {
             );
 
             // 1️⃣ Extract AI items
-            const aiItems = (aiNodes || []).map(n => n.data?.item).filter(Boolean);
+            const aiItems = normalizedItems || (aiNodes || []).map(n => n.data?.item).filter(Boolean);
 
             // 2️⃣ Merge into items
             const updatedItems = [...items];
             const existingIds = new Set(updatedItems.map(i => i.id));
             aiItems.forEach(item => {
-                if (!existingIds.has(item.id)) updatedItems.push(item);
+                if (!existingIds.has(item.id)) {
+                    updatedItems.push(item);
+                }
             });
             setItems(updatedItems);
 
-            // 3️⃣ Rebuild diagram (nodes + edges) from updated items
+            // 3️⃣ Rebuild diagram fully (nodes + edges)
             const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(updatedItems, unitLayoutOrder);
-
             setNodes(rebuiltNodes);
             setEdges(rebuiltEdges);
 
