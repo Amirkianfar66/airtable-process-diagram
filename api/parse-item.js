@@ -155,34 +155,14 @@ User Input: """${trimmed}"""
             // --- Fallback: if user said "connect" but AI didn’t resolve names
             const userAskedToConnect = /connect/i.test(trimmed);
             if (userAskedToConnect && resolvedConnections.length === 0 && itemsArray.length === 2) {
-                // extract words around "connect"
-                const connectMatch = trimmed.match(/connect\s+(.+?)\s+(?:to|and)\s+(.+)/i);
-
-                if (connectMatch) {
-                    const [, firstName, secondName] = connectMatch;
-
-                    const firstItem =
-                        itemsArray.find(i => i.Name.toLowerCase() === firstName.toLowerCase()) || itemsArray[0];
-                    const secondItem =
-                        itemsArray.find(i => i.Name.toLowerCase() === secondName.toLowerCase()) || itemsArray[1];
-
-                    resolvedConnections = [
-                        {
-                            from: generateCode(firstItem),
-                            to: generateCode(secondItem),
-                        },
-                    ];
-                } else {
-                    // fallback: just assume first → second
-                    resolvedConnections = [
-                        {
-                            from: generateCode(itemsArray[0]),
-                            to: generateCode(itemsArray[1]),
-                        },
-                    ];
-                }
+                // ✅ Always assume first → second
+                resolvedConnections = [
+                    {
+                        from: generateCode(itemsArray[0]),
+                        to: generateCode(itemsArray[1]),
+                    },
+                ];
             }
-
 
             const cleanedItems = itemsArray.map((item) => ({
                 ...item,
@@ -204,7 +184,6 @@ User Input: """${trimmed}"""
                 mode: "structured",
                 connection: normalizedConnection,
             };
-
 
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
