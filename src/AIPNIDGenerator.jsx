@@ -333,57 +333,82 @@ export default async function AIPNIDGenerator(
     });
 
     // --------------------------
-    // Build edges from each nodeItem's Connections (normalizedItems are newly created + reused)
-    // Respect connect-command directionality via addEdge's logic.
+    // Use connections produced by parseItemLogic if any (these are objects like {from, to})
     // --------------------------
-    const allNodesSoFar = [...existingNodes, ...newNodes];
+    const rawConnections = Array.isArray(connection) ? connection : (connection ? [connection] : []);
+    const explicitConnectionPairs = new Set();
 
-    normalizedItems.forEach(item => {
-        if (!item.Connections || !Array.isArray(item.Connections)) return;
+    rawConnections.forEach(conn => {
+        if (!conn) return;
+        const fromVal = (conn.from || '').toString().trim();
+        const toVal = (conn.to || '').toString().trim();
+        if (!fromVal || !toVal) return;
 
-        item.Connections.forEach(connTarget => {
-            if (!connTarget) return;
+        // Resolve names to codes using nameToCode map (or parsedItems)
+        let sourceCode = fromVal;
+        let targetCode = toVal;
 
-            // resolve connTarget to node
-            let targetNode = allNodesSoFar.find(n => n.data?.item?.Code === connTarget);
-            if (!targetNode) {
-                targetNode = allNodesSoFar.find(n => {
-                    const nm = n.data?.item?.Name;
-                    return nm && nm.toLowerCase() === (connTarget || '').toLowerCase();
-                });
+        if (!codeToNodeId.has(sourceCode) && nameToCode.has(sourceCode.toLowerCase())) {
+            sourceCode = nameToCode.get(sourceCode.toLowerCase());
+        }
+        if (!codeToNodeId.has(targetCode) && nameToCode.has(targetCode.toLowerCase())) {
+            targetCode = nameToCode.get(targetCode.toLowerCase());
+        }
+
+        const parsedSource = parsedItems.find(i => i.Name && i.Name.toLowerCase() === (fromVal || '').toLowerCase());
+        const parsedTarget = parsedItems.find(i => i.Name && i.Name.toLowerCase() === (toVal || '').toLowerCase());
+        if (!codeToNodeId.has(sourceCode) && parsedSource) sourceCode = makeCodeForParsed(parsedSource);
+        if (!codeToNodeId.has(targetCode) && parsedTarget) targetCode = makeCodeForParsed(parsedTarget);
+
+        const sourceNodeId = codeToNodeId.get(sourceCode);
+        const targetNodeId = codeToNodeId.get(targetCode);
+
+        if (sourceNodeId && targetNodeId) {
+            const added = addEdge(sourceNodeId, targetNodeId, { type: 'smoothstep' });
+            if (added) {
+                explicitConnectionPairs.add(`${sourceNodeId}|${targetNodeId}`);
+                allMessages.push({ sender: "AI", message: `→ Connected ${sourceCode} → ${targetCode}` });
             }
-
-            const sourceNode = allNodesSoFar.find(n => n.data?.item?.Code === item.Code);
-
-            if (sourceNode && targetNode) {
-                const added = addEdge(sourceNode.id, targetNode.id, { type: 'smoothstep' });
-                if (added) {
-                    allMessages.push({
-                        sender: "AI",
-                        message: `→ Connected ${item.Code} → ${targetNode.data?.item?.Code || targetNode.data?.item?.Name}`
-                    });
-                }
-            }
-        });
+        }
     });
 
     // --------------------------
-    // Implicit connections (if user wrote "connect" and multiple new nodes exist, chain them in sequence)
-    // chain in newNodes order only (first → second → ...)
-    // this respects addEdge's dedupe and isConnectCommand behavior
+    // Build edges from each nodeItem's Connections
+    // If explicit connections were present, skip per-item connections to avoid duplicate/reverse edges.
     // --------------------------
-    if (isConnectCommand && newNodes.length > 1) {
-        for (let i = 0; i < newNodes.length - 1; i++) {
-            addEdge(newNodes[i].id, newNodes[i + 1].id, { type: 'smoothstep' });
-        }
-        allMessages.push({ sender: "AI", message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
+    const allNodesSoFar = [...existingNodes, ...newNodes];
+
+    if (explicitConnectionPairs.size === 0) {
+        // No explicit connections: use per-item Connections as before
+        normalizedItems.forEach(item => {
+            if (!item.Connections || !Array.isArray(item.Connections)) return;
+
+            item.Connections.forEach(connTarget => {
+                if (!connTarget) return;
+
+                // resolve connTarget to node
+                let targetNode = allNodesSoFar.find(n => n.data?.item?.Code === connTarget);
+                if (!targetNode) {
+                    targetNode = allNodesSoFar.find(n => {
+                        const nm = n.data?.item?.Name;
+                        return nm && nm.toLowerCase() === (connTarget || '').toLowerCase();
+                    });
+                }
+
+                const sourceNode = allNodesSoFar.find(n => n.data?.item?.Code === item.Code);
+
+                if (sourceNode && targetNode) {
+                    const added = addEdge(sourceNode.id, targetNode.id, { type: 'smoothstep' });
+                    if (added) {
+                        allMessages.push({
+                            sender: "AI",
+                            message: `→ Connected ${item.Code} → ${targetNode.data?.item?.Code || targetNode.data?.item?.Name}`
+                        });
+                    }
+                }
+            });
+        });
+    } else {
+        // There were explicit connections — skip per-item connections (they're likely duplicates or mis-placed)
+        allMessages.push({ sender: "AI", message: `→ Skipped per-item Connections because explicit connection(s) were provided.` });
     }
-
-    allMessages.push({ sender: "AI", message: `→ Generated ${newNodes.length} total item(s)` });
-
-    if (typeof setChatMessages === "function" && allMessages.length > 0) {
-        setChatMessages(prev => [...prev, ...allMessages]);
-    }
-
-    return { nodes: [...existingNodes, ...newNodes], edges: newEdges, normalizedItems };
-}
