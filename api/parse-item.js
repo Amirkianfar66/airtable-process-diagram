@@ -1,4 +1,21 @@
-﻿export async function parseItemLogic(description, existingNodes = []) {
+﻿import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Initialize Gemini model
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+// Utility to clean Markdown code blocks from AI output
+function cleanAIJson(text) {
+    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, "$1").trim();
+}
+
+// Reserved action commands
+const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
+
+// Regex for valid 4-digit codes
+const CODE_RE = /^[0-9]{4}$/;
+
+export async function parseItemLogic(description, existingNodes = []) {
     const trimmed = description.trim();
 
     // 1️⃣ Check for exact action match
@@ -13,6 +30,17 @@
             explanation: `Triggered action: ${actionMatch}`,
             connection: null,
         };
+    }
+
+    // Utility: generate PNID-style code (Unit + SubUnit + Sequence + Number)
+    function generateCode(item) {
+        return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
+    }
+
+    // Utility: find node in canvas by code
+    function findExistingByCode(code) {
+        if (!code) return null;
+        return existingNodes.find(n => n.id === code) || null;
     }
 
     // 2️⃣ Otherwise, normal Gemini call
@@ -64,7 +92,6 @@ User Input: """${trimmed}"""
             };
         }
 
-        // Try JSON parse
         try {
             const cleaned = cleanAIJson(text);
 
@@ -98,15 +125,19 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // Generate PNID-style code (Unit + SubUnit + Sequence + Number)
-            function generateCode(item) {
-                return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
-            }
-
-            // Helper to find existing node by code
-            function findExistingByCode(code) {
-                return existingNodes.find((n) => n.data?.code === code);
-            }
+            // 🔹 Deduplicate: if code exists in canvas, reuse existing
+            const dedupedItems = itemsArray.map(item => {
+                const code = generateCode(item);
+                const existing = findExistingByCode(code);
+                if (existing) {
+                    return {
+                        ...item,
+                        Name: existing.data?.Name || item.Name,
+                        Connections: [] // wipe to avoid duplicate edges
+                    };
+                }
+                return item;
+            });
 
             // --- Collect raw connections
             const allConnections = itemsArray.flatMap((i) => i.Connections || []);
@@ -123,30 +154,15 @@ User Input: """${trimmed}"""
 
             if (normalizedConnections.length > 0) {
                 resolvedConnections = normalizedConnections.map((c) => {
-                    // Try by code first
-                    let fromItem =
+                    const fromItem =
                         findExistingByCode(c.from) ||
-                        itemsArray.find((i) => generateCode(i) === c.from);
+                        itemsArray.find(i => generateCode(i) === c.from) ||
+                        itemsArray[0];
 
-                    let toItem =
+                    const toItem =
                         findExistingByCode(c.to) ||
-                        itemsArray.find((i) => generateCode(i) === c.to);
-
-                    // If not found, try by Name
-                    if (!fromItem) {
-                        fromItem =
-                            existingNodes.find((n) => n.data?.Name === c.from) ||
-                            itemsArray.find((i) => i.Name === c.from);
-                    }
-                    if (!toItem) {
-                        toItem =
-                            existingNodes.find((n) => n.data?.Name === c.to) ||
-                            itemsArray.find((i) => i.Name === c.to);
-                    }
-
-                    // Final fallback: sequential
-                    if (!fromItem) fromItem = itemsArray[0];
-                    if (!toItem) toItem = itemsArray[1];
+                        itemsArray.find(i => generateCode(i) === c.to) ||
+                        itemsArray[1];
 
                     return {
                         from: generateCode(fromItem),
@@ -157,18 +173,19 @@ User Input: """${trimmed}"""
 
             // --- Fallback: if user said "connect" but AI didn’t resolve names
             const userAskedToConnect = /connect/i.test(trimmed);
-            if (userAskedToConnect && resolvedConnections.length === 0 && itemsArray.length === 2) {
+            if (userAskedToConnect && resolvedConnections.length === 0 && dedupedItems.length === 2) {
                 resolvedConnections = [
                     {
-                        from: generateCode(itemsArray[0]),
-                        to: generateCode(itemsArray[1]),
+                        from: generateCode(dedupedItems[0]),
+                        to: generateCode(dedupedItems[1]),
                     },
                 ];
             }
 
-            const cleanedItems = itemsArray.map((item) => ({
+            // Final cleaned items (no raw AI connections inside them)
+            const cleanedItems = dedupedItems.map((item) => ({
                 ...item,
-                Connections: [], // always wipe Gemini's raw
+                Connections: [],
             }));
 
             let normalizedConnection = null;
@@ -186,6 +203,7 @@ User Input: """${trimmed}"""
                 mode: "structured",
                 connection: normalizedConnection,
             };
+
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
             return {
