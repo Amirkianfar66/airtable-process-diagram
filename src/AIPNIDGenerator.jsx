@@ -176,23 +176,32 @@ export default async function AIPNIDGenerator(
         // Create a node for each code
         allCodes.forEach((code, codeIdx) => {
             const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
+            // ✅ Create fully normalized item for ItemDetailCard
             const nodeItem = {
+                id: nodeId,
                 Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
                 Code: code,
                 'Item Code': code,
                 Category,
                 Type,
-                Unit,
-                SubUnit,
-                id: nodeId
+                Unit: Unit ?? 'Default Unit',         // fallback if missing
+                SubUnit: SubUnit ?? 'Default SubUnit',// fallback if missing
+                Sequence: Sequence + codeIdx,
+                Connections: p.Connections || []      // always an array
             };
 
+            // push to nodes
             newNodes.push({
                 id: nodeId,
                 position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
                 data: { label: `${nodeItem.Code} - ${nodeItem.Name}`, item: nodeItem, icon: getItemIcon(nodeItem) },
                 type: categoryTypeMap[Category] || 'scalableIcon',
             });
+
+            // ✅ push to normalizedItems array (so ProcessDiagram can use it)
+            if (!Array.isArray(normalizedItems)) normalizedItems = [];
+            normalizedItems.push(nodeItem);
+
 
             allMessages.push({ sender: "AI", message: `Generated code: ${code}` });
         });
@@ -247,5 +256,6 @@ export default async function AIPNIDGenerator(
         setChatMessages(prev => [...prev, ...allMessages]);
     }
 
-    return { nodes: [...existingNodes, ...newNodes], edges: newEdges };
+    return { nodes: [...existingNodes, ...newNodes], edges: newEdges, normalizedItems };
+
 } 
