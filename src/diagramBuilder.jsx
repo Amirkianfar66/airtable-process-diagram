@@ -113,16 +113,19 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         nameUnitSubToId[key] = item.id;
     });
 
+    // map item Name -> id
+    const nameToId = Object.fromEntries(normalized.map(i => [i.Name, i.id]));
+
     normalized.forEach(item => {
         if (Array.isArray(item.Connections)) {
             item.Connections.forEach(conn => {
-                const fromNode = normalized.find(n => n.Name === conn.from);
-                const toNode = normalized.find(n => n.Name === conn.to);
-                if (fromNode && toNode) {
+                const fromId = nameToId[conn.from];
+                const toId = nameToId[conn.to];
+                if (fromId && toId) {
                     newEdges.push({
-                        id: `edge-${fromNode.id}-${toNode.id}`,
-                        source: fromNode.id,
-                        target: toNode.id,
+                        id: `edge-${fromId}-${toId}`,
+                        source: fromId,
+                        target: toId,
                         type: 'smoothstep',
                         animated: true,
                         style: { stroke: '#888', strokeWidth: 2 },
@@ -131,6 +134,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             });
         }
     });
+
 
     return {
         nodes: newNodes,
