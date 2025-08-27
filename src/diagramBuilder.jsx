@@ -1,73 +1,101 @@
 ﻿// diagramBuilder.js
+import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
-    // 🔹 Normalize all items safely
-    const normalized = items.map((item, index) => ({
+    // normalize items
+    const normalized = items.map(item => ({
         ...item,
-        id: item.id || `${item.Name}-${index}`, // unique id fallback
         Unit: item.Unit != null ? String(item.Unit) : "No Unit",
         SubUnit: item.SubUnit != null ? String(item.SubUnit) : "No SubUnit",
         Sequence: Number.isFinite(Number(item.Sequence)) ? Number(item.Sequence) : 1,
         Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
         Category: item.Category != null ? String(item.Category) : "Equipment",
         Type: item.Type != null ? String(item.Type) : "Generic",
+        Connections: Array.isArray(item.Connections) ? item.Connections : [],
     }));
 
-    // Map Name → ID for connections
-    const nameToId = Object.fromEntries(normalized.map(i => [i.Name, i.id]));
+    // Ensure unitLayoutOrder is a 2D array of strings
+    let safeLayout = Array.isArray(unitLayoutOrder)
+        ? unitLayoutOrder.map(row => (Array.isArray(row) ? row.map(String) : []))
+        : [[]];
 
-    // --- Build nodes ---
+    // Add missing units dynamically
+    const allUnits = [...new Set(normalized.map(i => i.Unit))];
+    allUnits.forEach(u => {
+        const found = safeLayout.some(row => row.includes(u));
+        if (!found) safeLayout[0].push(u); // add to first row
+    });
+
+    // Group items by Unit/SubUnit
+    const grouped = {};
+    normalized.forEach(item => {
+        const { Unit, SubUnit, Category, Sequence, Name, Code, id, Type } = item;
+        if (!grouped[Unit]) grouped[Unit] = {};
+        if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
+        grouped[Unit][SubUnit].push({ Category, Type, Sequence, Name, Code, id });
+    });
+
     const newNodes = [];
+    const newEdges = [];
     const unitWidth = 5000;
     const unitHeight = 6000;
     const subUnitHeight = unitHeight / 9;
     const itemWidth = 160;
     const itemGap = 30;
 
-    unitLayoutOrder.forEach((row, rowIndex) => {
+    // --- Build diagram nodes ---
+    safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
-            const unitId = `unit-${unitName}`;
-            const unitItems = normalized.filter(i => i.Unit === unitName);
-
-            if (!unitItems.length) return;
+            const groupedUnitName = String(unitName || "No Unit");
+            if (!grouped[groupedUnitName]) return;
 
             // --- Unit Node ---
             newNodes.push({
-                id: unitId,
+                id: `unit-${groupedUnitName}`,
                 type: 'custom',
                 position: { x: colIndex * (unitWidth + 100), y: rowIndex * (unitHeight + 100) },
-                data: { label: unitName },
+                data: {
+                    label: groupedUnitName,
+                    fontSize: 200,
+                    fontWeight: 'bold',
+                    color: '#222',
+                    fontFamily: 'Arial, sans-serif',
+                    offsetX: 200,
+                    offsetY: -300,
+                },
                 style: { width: unitWidth, height: unitHeight, background: 'transparent', border: '4px dashed #444', borderRadius: '10px' },
                 draggable: false,
                 selectable: false,
             });
 
-            // --- SubUnit Nodes and Items ---
-            const subUnits = [...new Set(unitItems.map(i => i.SubUnit))];
-            subUnits.forEach((subUnit, subIndex) => {
-                const subUnitId = `sub-${unitName}-${subUnit}`;
+            const subUnits = grouped[groupedUnitName];
+            Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
                 const subUnitY = rowIndex * (unitHeight + 100) + subIndex * subUnitHeight;
 
+                // --- SubUnit Node ---
                 newNodes.push({
-                    id: subUnitId,
+                    id: `sub-${groupedUnitName}-${subUnit}`,
                     position: { x: colIndex * (unitWidth + 100) + 10, y: subUnitY + 10 },
                     data: { label: subUnit },
                     style: { width: unitWidth - 20, height: subUnitHeight - 20, border: '2px dashed #aaa', background: 'transparent' },
+                    labelStyle: { fontSize: 100, fontWeight: 600, color: '#555', fontFamily: 'Arial, sans-serif' },
                     draggable: false,
                     selectable: false,
                 });
 
-                const itemsArr = unitItems.filter(i => i.SubUnit === subUnit)
-                    .sort((a, b) => a.Sequence - b.Sequence);
-
+                // --- Items inside SubUnit ---
                 let itemX = colIndex * (unitWidth + 100) + 40;
+                itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                 itemsArr.forEach(item => {
+                    const safeCategory = (item.Category || 'Equipment').toString();
+                    const safeType = (item.Type || 'Generic').toString();
+
                     newNodes.push({
                         id: item.id,
                         position: { x: itemX, y: subUnitY + 20 },
                         data: { label: `${item.Code || ''} - ${item.Name || ''}`, item, icon: getItemIcon(item) },
-                        type: categoryTypeMap[item.Category] || 'scalableIcon',
+                        type: categoryTypeMap[safeCategory] || 'scalableIcon',
                         sourcePosition: 'right',
                         targetPosition: 'left',
                         style: { background: 'transparent', boxShadow: 'none' },
@@ -78,9 +106,19 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    // --- Build edges ---
-    const newEdges = [];
+    // --- Build edges from Connections ---
+    const nameUnitSubToId = {};
     normalized.forEach(item => {
+        const key = `${item.Name}__${item.Unit}__${item.SubUnit}`;
+        nameUnitSubToId[key] = item.id;
+    });
+
+    const nameToId = Object.fromEntries(normalized.map(i => [i.Name, i.id]));
+
+    normalized.forEach(item => {
+        console.log('Connections for item:', item.Name, item.Connections);
+        console.log('nameToId mapping:', nameToId);
+
         if (Array.isArray(item.Connections)) {
             item.Connections.forEach(conn => {
                 const fromId = nameToId[conn.from];
@@ -92,14 +130,14 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                         target: toId,
                         type: 'smoothstep',
                         animated: true,
-                        style: { stroke: '#00f', strokeWidth: 2 },
+                        style: { stroke: '#888', strokeWidth: 2 },
                     });
-                } else {
-                    console.warn('Skipped edge due to missing ID:', conn, 'nameToId:', nameToId);
                 }
             });
         }
     });
+
+
 
     return {
         nodes: newNodes,
