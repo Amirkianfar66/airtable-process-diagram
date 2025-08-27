@@ -59,6 +59,9 @@ export default async function AIPNIDGenerator(
 ) {
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
+    // detect whether user explicitly asked to connect (affects direction policy)
+    const isConnectCommand = /connect/i.test(description);
+
     // 1️⃣ Send input to Gemini for classification
     let normalizedItems = [];
     let aiResult;
@@ -71,8 +74,7 @@ export default async function AIPNIDGenerator(
                 mode: "structured",
                 parsed: aiResult,
                 explanation: null,
-                connection: null,
-                connectionResolved: []
+                connection: null
             };
         }
     } catch (err) {
@@ -87,7 +89,7 @@ export default async function AIPNIDGenerator(
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    const { mode, explanation, parsed = {}, connection, connectionResolved = [] } = aiResult;
+    const { mode, explanation, parsed = {}, connection } = aiResult;
 
     // Handle Hybrid action mode
     if (aiResult.mode === "action") {
@@ -102,7 +104,7 @@ export default async function AIPNIDGenerator(
             ]);
         }
 
-        // Return early (no nodes added for actions here)
+        // Return existing nodes/edges since we don't add new items
         return { nodes: existingNodes, edges: existingEdges };
     }
 
@@ -112,7 +114,7 @@ export default async function AIPNIDGenerator(
             setChatMessages(prev => [
                 ...prev,
                 { sender: "User", message: description },
-                { sender: "AI", message: parsed?.message || explanation }
+                { sender: "AI", message: parsed.message || explanation }
             ]);
         }
         return { nodes: existingNodes, edges: existingEdges };
@@ -124,11 +126,11 @@ export default async function AIPNIDGenerator(
     const newEdges = [...existingEdges];
     const allMessages = [{ sender: "User", message: description }];
 
-    // Build quick lookup of existing nodes by code (prefer canvas)
+    // build quick lookup of existing nodes by code/name
     const existingItems = existingNodes.map(n => n.data?.item).filter(Boolean);
-    const codeToNodeId = new Map();   // code => nodeId (includes existing)
-    const codeToItem = new Map();     // code => item object
-    const nameToCode = new Map();     // name(lower) => code
+    const codeToNodeId = new Map();
+    const codeToItem = new Map();
+    const nameToCode = new Map();
 
     existingNodes.forEach(n => {
         const it = n.data?.item;
@@ -142,7 +144,7 @@ export default async function AIPNIDGenerator(
         }
     });
 
-    // Helper to compute PNID code same way parse-item does
+    // helper to compute PNID code like parse-item
     function makeCodeForParsed(item) {
         return generateCode({
             Category: item.Category || 'Equipment',
@@ -155,13 +157,50 @@ export default async function AIPNIDGenerator(
         });
     }
 
-    // Pre-fill name -> code based on parsedItems
+    // pre-fill name->code for parsed items
     parsedItems.forEach(it => {
         const code = makeCodeForParsed(it);
         if (it.Name) nameToCode.set(it.Name.toLowerCase(), code);
     });
 
-    // Process parsed items and create nodes only if code not already present in canvas
+    // A set to track edges we've already added (sourceId|targetId)
+    const addedEdges = new Set();
+
+    // central helper for adding an edge while respecting dedupe and "connect" directionality
+    function addEdge(sourceId, targetId, meta = {}) {
+        if (!sourceId || !targetId) return false;
+        const key = `${sourceId}|${targetId}`;
+        const reverseKey = `${targetId}|${sourceId}`;
+
+        // skip duplicate exact edge
+        if (addedEdges.has(key)) return false;
+
+        // If user asked to "connect" explicitly, avoid creating the reverse if it exists
+        if (isConnectCommand && addedEdges.has(reverseKey)) {
+            // don't add reverse if the forward edge is already present (respect original direction)
+            return false;
+        }
+
+        // otherwise we still allow reverse if not a connect command (user might intend bi-directional)
+        if (addedEdges.has(reverseKey) && isConnectCommand === false) {
+            // allow both directions if explicitly produced by AI and not a simple "connect" command
+            // but avoid duplicate of this same direction
+        }
+
+        // add edge
+        newEdges.push({
+            id: `edge-${sourceId}-${targetId}`,
+            source: sourceId,
+            target: targetId,
+            type: meta.type || 'smoothstep',
+            animated: meta.animated !== undefined ? meta.animated : true,
+            style: meta.style || { stroke: '#888', strokeWidth: 2 },
+        });
+        addedEdges.add(key);
+        return true;
+    }
+
+    // Process parsed items -> create nodes only if not present in canvas
     parsedItems.forEach((p, idx) => {
         const Name = (p.Name || description).trim();
         const Category = p.Category && p.Category !== '' ? p.Category : 'Equipment';
@@ -176,7 +215,7 @@ export default async function AIPNIDGenerator(
         const baseCode = generateCode({ Category, Type, Unit, SubUnit, Sequence, SensorType: p.SensorType || '' });
         const allCodes = [baseCode].filter(Boolean);
 
-        // Optionally generate additional codes if NumberOfItems > 1
+        // Optionally additional codes
         for (let i = 1; i < NumberOfItems; i++) {
             const nextCode = generateCode({
                 Category,
@@ -189,9 +228,8 @@ export default async function AIPNIDGenerator(
             if (nextCode) allCodes.push(nextCode);
         }
 
-        // Create a node for each code, but reuse existing canvas node if code exists there
         allCodes.forEach((code, codeIdx) => {
-            // If the code already exists in canvas -> reuse it (do not create new node)
+            // reuse existing canvas node if code exists
             if (codeToNodeId.has(code)) {
                 const existingItem = codeToItem.get(code);
                 if (existingItem && !normalizedItems.find(it => it.Code === code)) normalizedItems.push(existingItem);
@@ -199,28 +237,30 @@ export default async function AIPNIDGenerator(
                 return;
             }
 
-            // Normalize connections declared on this parsed object (we will resolve targets later)
+            // normalize connections on the parsed object (we'll resolve to codes later)
             const normalizedConnections = (p.Connections || []).map(conn => {
-                if (!conn) return null;
+                let targetNameOrCode = null;
+
                 if (typeof conn === "string") {
-                    return conn.trim();
+                    targetNameOrCode = conn;
                 } else if (typeof conn === "object") {
-                    const fromVal = (conn.from || conn.fromName || "").toString().trim();
-                    const toVal = (conn.to || conn.toName || conn.toId || "").toString().trim();
-                    const thisIsSource = (fromVal && (fromVal.toLowerCase() === (p.Name || '').toLowerCase())) || fromVal === code || fromVal === makeCodeForParsed(p);
-                    if (thisIsSource && toVal) {
-                        return nameToCode.get(toVal.toLowerCase()) || toVal;
-                    }
-                    return null;
+                    targetNameOrCode = conn.to || conn.toId || conn.toName;
                 }
-                return null;
+
+                if (!targetNameOrCode) return null;
+
+                // prefer existing items first
+                const foundItem =
+                    [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
+                        .find(i => i?.Code === targetNameOrCode || i?.Name === targetNameOrCode);
+
+                return foundItem?.Code || targetNameOrCode;
             }).filter(Boolean);
 
-            const uniqueConnections = Array.from(new Set(normalizedConnections)).filter(Boolean);
+            const nodeId = crypto?.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
 
-            // ✅ Create fully normalized item for ItemDetailCard
             const nodeItem = {
-                id: null,
+                id: nodeId,
                 Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
                 Code: code,
                 'Item Code': code,
@@ -229,12 +269,8 @@ export default async function AIPNIDGenerator(
                 Unit: Unit ?? 'Default Unit',
                 SubUnit: SubUnit ?? 'Default SubUnit',
                 Sequence: Sequence + codeIdx,
-                Connections: uniqueConnections
+                Connections: normalizedConnections
             };
-
-            // Create new node (only when not in canvas)
-            const nodeId = crypto?.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
-            nodeItem.id = nodeId;
 
             newNodes.push({
                 id: nodeId,
@@ -261,60 +297,44 @@ export default async function AIPNIDGenerator(
     });
 
     // --------------------------
-    // Use the resolved connections from API (connectionResolved) first if present.
-    // connectionResolved entries are { from: codeOrName, to: codeOrName }
+    // Use connections produced by parseItemLogic if any (these are objects like {from, to})
     // --------------------------
-    const connectionArray = Array.isArray(connectionResolved) && connectionResolved.length > 0
-        ? connectionResolved
-        : (Array.isArray(connection) ? connection : []);
+    const rawConnections = Array.isArray(connection) ? connection : (connection ? [connection] : []);
+    rawConnections.forEach(conn => {
+        if (!conn) return;
+        const fromVal = (conn.from || '').toString().trim();
+        const toVal = (conn.to || '').toString().trim();
+        if (!fromVal || !toVal) return;
 
-    if (connectionArray && connectionArray.length > 0) {
-        connectionArray.forEach(conn => {
-            if (!conn) return;
-            const fromVal = (conn.from || '').toString().trim();
-            const toVal = (conn.to || '').toString().trim();
-            if (!fromVal || !toVal) return;
+        // Try to resolve names to codes
+        let sourceCode = fromVal;
+        let targetCode = toVal;
 
-            // Resolve source/target to known codes (prefer existing canvas codeToNodeId)
-            let sourceCode = fromVal;
-            let targetCode = toVal;
+        if (!codeToNodeId.has(sourceCode) && nameToCode.has(sourceCode.toLowerCase())) {
+            sourceCode = nameToCode.get(sourceCode.toLowerCase());
+        }
+        if (!codeToNodeId.has(targetCode) && nameToCode.has(targetCode.toLowerCase())) {
+            targetCode = nameToCode.get(targetCode.toLowerCase());
+        }
 
-            // If the from/to look like a parsed name, map to code
-            if (!codeToNodeId.has(sourceCode) && nameToCode.has(sourceCode.toLowerCase())) {
-                sourceCode = nameToCode.get(sourceCode.toLowerCase());
-            }
-            if (!codeToNodeId.has(targetCode) && nameToCode.has(targetCode.toLowerCase())) {
-                targetCode = nameToCode.get(targetCode.toLowerCase());
-            }
+        // fallback: try matching parsedItems by name and compute code
+        const parsedSource = parsedItems.find(i => i.Name && i.Name.toLowerCase() === (fromVal || '').toLowerCase());
+        const parsedTarget = parsedItems.find(i => i.Name && i.Name.toLowerCase() === (toVal || '').toLowerCase());
+        if (!codeToNodeId.has(sourceCode) && parsedSource) sourceCode = makeCodeForParsed(parsedSource);
+        if (!codeToNodeId.has(targetCode) && parsedTarget) targetCode = makeCodeForParsed(parsedTarget);
 
-            // If still not a code but matches parsedItems names, convert
-            const parsedSource = parsedItems.find(i => i.Name && i.Name.toLowerCase() === (fromVal || '').toLowerCase());
-            const parsedTarget = parsedItems.find(i => i.Name && i.Name.toLowerCase() === (toVal || '').toLowerCase());
-            if (!codeToNodeId.has(sourceCode) && parsedSource) sourceCode = makeCodeForParsed(parsedSource);
-            if (!codeToNodeId.has(targetCode) && parsedTarget) targetCode = makeCodeForParsed(parsedTarget);
+        const sourceNodeId = codeToNodeId.get(sourceCode);
+        const targetNodeId = codeToNodeId.get(targetCode);
 
-            const sourceNodeId = codeToNodeId.get(sourceCode);
-            const targetNodeId = codeToNodeId.get(targetCode);
-
-            if (sourceNodeId && targetNodeId) {
-                const exists = newEdges.some(e => e.source === sourceNodeId && e.target === targetNodeId);
-                if (!exists) {
-                    newEdges.push({
-                        id: `edge-${sourceNodeId}-${targetNodeId}`,
-                        source: sourceNodeId,
-                        target: targetNodeId,
-                        type: 'smoothstep',
-                        animated: true,
-                        style: { stroke: '#888', strokeWidth: 2 },
-                    });
-                    allMessages.push({ sender: "AI", message: `→ Connected ${sourceCode} → ${targetCode}` });
-                }
-            }
-        });
-    }
+        if (sourceNodeId && targetNodeId) {
+            const added = addEdge(sourceNodeId, targetNodeId, { type: 'smoothstep' });
+            if (added) allMessages.push({ sender: "AI", message: `→ Connected ${sourceCode} → ${targetCode}` });
+        }
+    });
 
     // --------------------------
-    // Build edges from each nodeItem's Connections (normalizedItems contains newly created items + reused existing items)
+    // Build edges from each nodeItem's Connections (normalizedItems are newly created + reused)
+    // Respect connect-command directionality via addEdge's logic.
     // --------------------------
     const allNodesSoFar = [...existingNodes, ...newNodes];
 
@@ -323,7 +343,8 @@ export default async function AIPNIDGenerator(
 
         item.Connections.forEach(connTarget => {
             if (!connTarget) return;
-            // try to resolve connTarget to code first, then name
+
+            // resolve connTarget to node
             let targetNode = allNodesSoFar.find(n => n.data?.item?.Code === connTarget);
             if (!targetNode) {
                 targetNode = allNodesSoFar.find(n => {
@@ -335,16 +356,8 @@ export default async function AIPNIDGenerator(
             const sourceNode = allNodesSoFar.find(n => n.data?.item?.Code === item.Code);
 
             if (sourceNode && targetNode) {
-                const exists = newEdges.some(e => e.source === sourceNode.id && e.target === targetNode.id);
-                if (!exists) {
-                    newEdges.push({
-                        id: `edge-${sourceNode.id}-${targetNode.id}`,
-                        source: sourceNode.id,
-                        target: targetNode.id,
-                        type: 'smoothstep',
-                        animated: true,
-                        style: { stroke: '#888', strokeWidth: 2 },
-                    });
+                const added = addEdge(sourceNode.id, targetNode.id, { type: 'smoothstep' });
+                if (added) {
                     allMessages.push({
                         sender: "AI",
                         message: `→ Connected ${item.Code} → ${targetNode.data?.item?.Code || targetNode.data?.item?.Name}`
@@ -356,18 +369,12 @@ export default async function AIPNIDGenerator(
 
     // --------------------------
     // Implicit connections (if user wrote "connect" and multiple new nodes exist, chain them in sequence)
+    // chain in newNodes order only (first → second → ...)
+    // this respects addEdge's dedupe and isConnectCommand behavior
     // --------------------------
-    if (/connect/i.test(description) && newNodes.length > 1) {
+    if (isConnectCommand && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
-            const exists = newEdges.some(e => e.source === newNodes[i].id && e.target === newNodes[i + 1].id);
-            if (!exists) {
-                newEdges.push({
-                    id: `edge-${newNodes[i].id}-${newNodes[i + 1].id}`,
-                    source: newNodes[i].id,
-                    target: newNodes[i + 1].id,
-                    animated: true
-                });
-            }
+            addEdge(newNodes[i].id, newNodes[i + 1].id, { type: 'smoothstep' });
         }
         allMessages.push({ sender: "AI", message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
     }
