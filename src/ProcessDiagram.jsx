@@ -156,12 +156,7 @@ export default function ProcessDiagram() {
        
 
     const handleGeneratePNID = async () => {
-        if (!aiDescription) {
-            console.warn("⚠️ No AI description provided");
-            return;
-        }
-
-        console.log("👉 Sending to AI:", aiDescription);
+        if (!aiDescription) return;
 
         try {
             const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(
@@ -173,28 +168,23 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
-            // ✅ Merge AI nodes/edges instead of replacing
+            // --- Merge AI nodes and edges ---
             setNodes(prev => [...prev, ...(aiNodes || [])]);
             setEdges(prev => [...prev, ...(aiEdges || [])]);
 
-            // ✅ Save normalized items (with Connections) for buildDiagram
+            // --- Add AI items for ItemDetailCard ---
             if (normalizedItems?.length) {
                 setItems(prev => {
                     const existingIds = new Set(prev.map(i => i.id));
-                    const fresh = normalizedItems.filter(i => !existingIds.has(i.id));
-                    return [...prev, ...fresh];
+                    return [...prev, ...normalizedItems.filter(i => !existingIds.has(i.id))];
                 });
             }
 
-            // ✅ Auto-select the first new node
+            // --- Auto-select first new AI node ---
             if (aiNodes?.length) {
-                const prevNodeIds = new Set(nodes.map(n => n.id));
-                const newNodes = aiNodes.filter(n => !prevNodeIds.has(n.id));
-
-                if (newNodes.length > 0) {
-                    setSelectedNodes([newNodes[0]]);
-                    setSelectedItem(newNodes[0].data?.item || null);
-                }
+                const firstAiNode = aiNodes[0];
+                setSelectedNodes([firstAiNode]);
+                setSelectedItem(firstAiNode.data?.item || null);
             }
         } catch (err) {
             console.error("AI PNID generation failed:", err);
