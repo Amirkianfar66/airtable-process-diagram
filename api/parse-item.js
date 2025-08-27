@@ -115,56 +115,96 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // --- Collect raw connections
-            const allConnections = itemsArray.flatMap((i) => i.Connections || []);
-
-            // --- Extract explicit codes from user input
-            const explicitCodesInInput = (trimmed.match(/[0-9]{4}/g) || []).map((c) => c.trim());
-
-            // --- Keep ONLY valid explicit code connections
-            const userExplicitCodeConnections = allConnections
-                .map((c) => ({
-                    from: (c.from || "").trim(),
-                    to: (c.to || "").trim(),
-                }))
-                .filter(
-                    (c) =>
-                        CODE_RE.test(c.from) &&
-                        CODE_RE.test(c.to) &&
-                        explicitCodesInInput.includes(c.from) &&
-                        explicitCodesInInput.includes(c.to)
-                );
-
-            // Deduplicate
-            const uniqueConnections = Array.from(
-                new Map(userExplicitCodeConnections.map((c) => [c.from + "->" + c.to, c])).values()
-            );
-
-            // --- Per-batch auto-connect fallback ---
-            const userAskedToConnect = /connect/i.test(trimmed);
-            const shouldAutoConnect =
-                userAskedToConnect && uniqueConnections.length === 0 && itemsArray.length === 2;
-
             // Generate PNID-style code (Unit + SubUnit + Sequence + Number)
             function generateCode(item) {
                 return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
             }
 
+            // --- Collect raw connections
+            const allConnections = itemsArray.flatMap((i) => i.Connections || []);
+
+            // --- Normalize connections (names or codes)
+            const normalizedConnections = allConnections
+                .map((c) => ({
+                    from: (c.from || "").trim(),
+                    to: (c.to || "").trim(),
+                }))
+                .filter((c) => c.from && c.to);
+
+            let resolvedConnections = [];
+
+            if (normalizedConnections.length > 0) {
+                resolvedConnections = normalizedConnections.map((c) => {
+                    const fromItem =
+                        itemsArray.find(i => i.Name.toLowerCase() === c.from.toLowerCase()) ||
+                        itemsArray.find(i => generateCode(i) === c.from) ||
+                        itemsArray[0];
+
+                    const toItem =
+                        itemsArray.find(i => i.Name.toLowerCase() === c.to.toLowerCase()) ||
+                        itemsArray.find(i => generateCode(i) === c.to) ||
+                        itemsArray[1];
+
+                    return {
+                        from: generateCode(fromItem),
+                        to: generateCode(toItem),
+                    };
+                });
+            }
+
+            // --- Fallback: if user said "connect" but AI didn’t resolve names
+            const userAskedToConnect = /connect/i.test(trimmed);
+            if (userAskedToConnect && resolvedConnections.length === 0 && itemsArray.length === 2) {
+                // extract words around "connect"
+                const connectMatch = trimmed.match(/connect\s+(.+?)\s+(?:to|and)\s+(.+)/i);
+
+                if (connectMatch) {
+                    const [, firstName, secondName] = connectMatch;
+
+                    const firstItem =
+                        itemsArray.find(i => i.Name.toLowerCase() === firstName.toLowerCase()) || itemsArray[0];
+                    const secondItem =
+                        itemsArray.find(i => i.Name.toLowerCase() === secondName.toLowerCase()) || itemsArray[1];
+
+                    resolvedConnections = [
+                        {
+                            from: generateCode(firstItem),
+                            to: generateCode(secondItem),
+                        },
+                    ];
+                } else {
+                    // fallback: just assume first → second
+                    resolvedConnections = [
+                        {
+                            from: generateCode(itemsArray[0]),
+                            to: generateCode(itemsArray[1]),
+                        },
+                    ];
+                }
+            }
+
+
             const cleanedItems = itemsArray.map((item) => ({
                 ...item,
-                Connections: []  // always wipe Gemini's raw
+                Connections: [] // always wipe Gemini's raw
             }));
+
+            let normalizedConnection = null;
+            if (resolvedConnections.length > 0) {
+                // only handle first connection for now
+                normalizedConnection = {
+                    sourceCode: resolvedConnections[0].from,
+                    targetCode: resolvedConnections[0].to,
+                };
+            }
 
             return {
                 parsed: cleanedItems,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
-                connection: shouldAutoConnect
-                    ? [
-                        { from: generateCode(itemsArray[0]), to: generateCode(itemsArray[1]) }
-                    ]
-                    : uniqueConnections,
+                connection: normalizedConnection,
             };
+
 
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);

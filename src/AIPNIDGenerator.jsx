@@ -259,66 +259,31 @@ export default async function AIPNIDGenerator(
         }
     }
     // --------------------------
-    // Build edges from each item's Connections
+    // ONLY connect if AI gave explicit connection (first → second)
     // --------------------------
-    const allNodesSoFar = [...existingNodes, ...newNodes];
+    if (connection && connection.sourceCode && connection.targetCode) {
+        const sourceNode = [...existingNodes, ...newNodes]
+            .find(n => n.data?.item?.Code === connection.sourceCode);
+        const targetNode = [...existingNodes, ...newNodes]
+            .find(n => n.data?.item?.Code === connection.targetCode);
 
-    normalizedItems.forEach(item => {
-        if (!item.Connections || !Array.isArray(item.Connections)) return;
-
-        item.Connections.forEach(connCode => {
-            const sourceNode = allNodesSoFar.find(n => n.data?.item?.Code === item.Code);
-            const targetNode = allNodesSoFar.find(
-                n => n.data?.item?.Code === connCode || n.data?.item?.Name === connCode
+        if (sourceNode && targetNode) {
+            const exists = newEdges.some(
+                e => e.source === sourceNode.id && e.target === targetNode.id
             );
-
-            if (sourceNode && targetNode) {
-                const exists = newEdges.some(
-                    e => e.source === sourceNode.id && e.target === targetNode.id
-                );
-                if (!exists) {
-                    newEdges.push({
-                        id: `edge-${sourceNode.id}-${targetNode.id}`,
-                        source: sourceNode.id,
-                        target: targetNode.id,
-                        type: 'smoothstep',
-                        animated: true,
-                        style: { stroke: '#888', strokeWidth: 2 },
-                    });
-                    allMessages.push({
-                        sender: "AI",
-                        message: `→ Connected ${item.Code} → ${connCode}`
-                    });
-                }
-            }
-        });
-    });
-
-    // --------------------------
-    // Implicit connections (chain all new items)
-    // --------------------------
-    if (/Connect/i.test(description) && newNodes.length > 1) {
-        for (let i = 0; i < newNodes.length - 1; i++) {
-            const exists = newEdges.some(e => e.source === newNodes[i].id && e.target === newNodes[i + 1].id);
             if (!exists) {
                 newEdges.push({
-                    id: `edge-${newNodes[i].id}-${newNodes[i + 1].id}`,
-                    source: newNodes[i].id,
-                    target: newNodes[i + 1].id,
-                    animated: true
+                    id: `edge-${sourceNode.id}-${targetNode.id}`,
+                    source: sourceNode.id,
+                    target: targetNode.id,
+                    type: 'smoothstep',
+                    animated: true,
+                    style: { stroke: '#888', strokeWidth: 2 },
                 });
             }
+            allMessages.push({
+                sender: "AI",
+                message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}`
+            });
         }
-        allMessages.push({ sender: "AI", message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
     }
-
-    allMessages.push({ sender: "AI", message: `→ Generated ${newNodes.length} total item(s)` });
-
-    if (typeof setChatMessages === "function" && allMessages.length > 0) {
-        setChatMessages(prev => [...prev, ...allMessages]);
-    }
-
-    return { nodes: [...existingNodes, ...newNodes], edges: newEdges, normalizedItems };
-
-
-} 
