@@ -150,8 +150,10 @@ User Input: """${trimmed}"""
                 return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
             }
 
-            // 🔹 Strip out Gemini's raw Connections so frontend only uses `connection`
-            const cleanedItems = itemsArray.map(({ Connections, ...rest }) => rest);
+            const cleanedItems = itemsArray.map((item) => ({
+                ...item,
+                Connections: []  // always wipe Gemini's raw
+            }));
 
             return {
                 parsed: cleanedItems,
@@ -159,14 +161,10 @@ User Input: """${trimmed}"""
                 mode: "structured",
                 connection: shouldAutoConnect
                     ? [
-                        {
-                            from: generateCode(itemsArray[0]),
-                            to: generateCode(itemsArray[1]),
-                        },
+                        { from: generateCode(itemsArray[0]), to: generateCode(itemsArray[1]) }
                     ]
                     : uniqueConnections,
             };
-
 
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
