@@ -3,7 +3,7 @@ import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
-    // 🔹 Normalize all items safely
+    // normalize items
     const normalized = items.map(item => ({
         ...item,
         Unit: item.Unit != null ? String(item.Unit) : "No Unit",
@@ -12,6 +12,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
         Category: item.Category != null ? String(item.Category) : "Equipment",
         Type: item.Type != null ? String(item.Type) : "Generic",
+        Connections: Array.isArray(item.Connections) ? item.Connections : [],
     }));
 
     // Ensure unitLayoutOrder is a 2D array of strings
@@ -115,17 +116,13 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     normalized.forEach(item => {
         if (Array.isArray(item.Connections)) {
             item.Connections.forEach(conn => {
-                let fromKey = `${conn.from}__${item.Unit}__${item.SubUnit}`;
-                let toKey = `${conn.to}__${item.Unit}__${item.SubUnit}`;
-
-                let fromId = nameUnitSubToId[fromKey] || normalized.find(i => i.Name === conn.from)?.id;
-                let toId = nameUnitSubToId[toKey] || normalized.find(i => i.Name === conn.to)?.id;
-
-                if (fromId && toId) {
+                const fromNode = normalized.find(n => n.Name === conn.from);
+                const toNode = normalized.find(n => n.Name === conn.to);
+                if (fromNode && toNode) {
                     newEdges.push({
-                        id: `edge-${fromId}-${toId}`,
-                        source: fromId,
-                        target: toId,
+                        id: `edge-${fromNode.id}-${toNode.id}`,
+                        source: fromNode.id,
+                        target: toNode.id,
                         type: 'smoothstep',
                         animated: true,
                         style: { stroke: '#888', strokeWidth: 2 },
