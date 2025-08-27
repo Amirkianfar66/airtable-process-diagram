@@ -14,11 +14,10 @@ function cleanAIJson(text) {
 // Reserved action commands
 const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
 
-// Core logic for both chat and structured PNID commands
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // 1️⃣ Check for exact action match (Hybrid)
+    // 1️⃣ Check for action command
     const actionMatch = ACTION_COMMANDS.find(
         (cmd) => cmd.toLowerCase() === trimmed.toLowerCase()
     );
@@ -32,7 +31,7 @@ export async function parseItemLogic(description) {
         };
     }
 
-    // 2️⃣ Otherwise, normal Gemini call
+    // 2️⃣ Structured prompt
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
@@ -43,26 +42,12 @@ Rules:
 - Output ONLY valid JSON with these fields:
   { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
 - Always set "mode": "structured".
-- Type must be a string. If multiple types are mentioned (e.g., "Tank and Pump"), generate **separate JSON objects** for each type.
-- All fields must be non-null strings or numbers. If a value is missing, use:
-    - "" (empty string) for text fields
-    - 0 for Unit and SubUnit
-    - 1 for Sequence and Number
-    - [] for Connections
-- If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
-- Connections: map "Connect X to Y" → {"from": X, "to": Y}.
-- If user says "Connect A and B", always output ONE connection only.
-- Do NOT mirror the direction (e.g., no Pump→Tank if you already have Tank→Pump).
-- Explanation: include a short human-readable note if relevant.
-- Wrap structured PNID JSON in a \`\`\`json ... \`\`\` code block.
-- Do NOT wrap chat mode responses in any code block or JSON.
+- If multiple items are mentioned, return multiple JSON objects.
+- Connections: "Connect A to B" → {"from": A, "to": B}.
+- If AI uses "Tank"/"Pump" instead of codes, still output them as placeholders.
 
 2. Chat mode
-- Triggered if input is small talk, greetings, or unrelated to PNID.
-- Output plain text only.
-- Always set "mode": "chat".
-
-Never mix modes. Default to chat mode if unsure.
+- If unrelated to PNID → plain text only.
 
 User Input: """${trimmed}"""
 `;
@@ -81,7 +66,6 @@ User Input: """${trimmed}"""
             };
         }
 
-        // Try JSON parse
         try {
             const cleaned = cleanAIJson(text);
 
@@ -94,13 +78,14 @@ User Input: """${trimmed}"""
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
                         if (idx === 0 && arr.length > 1) return part + "}";
-                        if (idx === arr.length - 1 && arr.length > 1) return "{" + part;
+                        if (idx === arr.length - 1 && arr.length > 1)
+                            return "{" + part;
                         return "{" + part + "}";
                     });
                 parsed = objects.map((obj) => JSON.parse(obj));
             }
 
-            // 🔹 Normalize items: remove nulls, fix types, set defaults
+            // 🔹 Normalize items
             const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(
                 (item) => ({
                     mode: "structured",
@@ -119,14 +104,52 @@ User Input: """${trimmed}"""
                 })
             );
 
-            // 🔹 Collect all connections
+            // --- Code generator helper ---
+            function generateCode({ Unit, SubUnit, Sequence, Number }) {
+                const u = String(Unit).padStart(1, "0");
+                const su = String(SubUnit).padStart(1, "0");
+                const seq = String(Sequence).padStart(2, "0");
+                const num = String(Number).padStart(2, "0");
+                return `${u}${su}${seq}${num}`;
+            }
+
+            // 🔹 Resolve AI connections inside this batch only
             const allConnections = itemsArray.flatMap((i) => i.Connections);
 
-            // 🔹 Preserve order (no lexicographic flipping)
-            const normalizedConnections = allConnections.map((c) => ({
-                from: (c.from || "").trim(),
-                to: (c.to || "").trim(),
-            }));
+            const normalizedConnections = allConnections
+                .map((c) => {
+                    let from = (c.from || "").trim();
+                    let to = (c.to || "").trim();
+
+                    // Replace "Tank"/"Pump" placeholders with actual codes from this batch
+                    if (/^tank$/i.test(from)) {
+                        const tank = itemsArray.find((i) =>
+                            /tank/i.test(i.Type)
+                        );
+                        if (tank) from = generateCode(tank);
+                    }
+                    if (/^pump$/i.test(from)) {
+                        const pump = itemsArray.find((i) =>
+                            /pump/i.test(i.Type)
+                        );
+                        if (pump) from = generateCode(pump);
+                    }
+                    if (/^tank$/i.test(to)) {
+                        const tank = itemsArray.find((i) =>
+                            /tank/i.test(i.Type)
+                        );
+                        if (tank) to = generateCode(tank);
+                    }
+                    if (/^pump$/i.test(to)) {
+                        const pump = itemsArray.find((i) =>
+                            /pump/i.test(i.Type)
+                        );
+                        if (pump) to = generateCode(pump);
+                    }
+
+                    return { from, to };
+                })
+                .filter((c) => c.from && c.to);
 
             // 🔹 Deduplicate
             const uniqueConnections = Array.from(
@@ -135,16 +158,7 @@ User Input: """${trimmed}"""
                 ).values()
             );
 
-            // --- Code generator helper ---
-            function generateCode({ Unit, SubUnit, Sequence, Number }) {
-                const u = String(Unit).padStart(1, "0"); // 1 digit (Unit)
-                const su = String(SubUnit).padStart(1, "0"); // 1 digit (SubUnit)
-                const seq = String(Sequence).padStart(2, "0"); // 2 digits (Sequence)
-                const num = String(Number).padStart(2, "0"); // 2 digits (Number)
-                return `${u}${su}${seq}${num}`;
-            }
-
-            // --- Auto-connect fallback logic (per batch only) ---
+            // --- Auto-connect fallback (per batch only) ---
             if (
                 itemsArray.length === 2 &&
                 /connect/i.test(trimmed) &&
@@ -152,7 +166,6 @@ User Input: """${trimmed}"""
             ) {
                 const prevCode = generateCode(itemsArray[0]);
                 const currCode = generateCode(itemsArray[1]);
-
                 uniqueConnections.push({ from: prevCode, to: currCode });
             }
 
