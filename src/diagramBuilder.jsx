@@ -1,17 +1,14 @@
 ﻿// diagramBuilder.js
-import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
-    // Build Name→Code lookup first
+    // 0) Build Name → Code lookup from *incoming items*
     const nameToCode = {};
     items.forEach(i => {
-        if (i.Name && i.Code) {
-            nameToCode[i.Name] = i.Code;
-        }
+        if (i?.Name && i?.Code) nameToCode[i.Name] = i.Code;
     });
 
-    // Normalize items
+    // 1) Normalize items
     const normalized = items.map(item => ({
         ...item,
         Unit: item.Unit != null ? String(item.Unit) : "No Unit",
@@ -21,20 +18,27 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         Category: item.Category != null ? String(item.Category) : "Equipment",
         Type: item.Type != null ? String(item.Type) : "Generic",
 
+        // Stable id
         id: item.id || `${item.Category}-${item.Type}-${item.Name || 'Unnamed'}-${item.Sequence}-${item.Number}`,
 
+        // 🔑 Normalize connections to **Codes**
         Connections: Array.isArray(item.Connections)
             ? item.Connections.map(conn => {
-                if (typeof conn === "string") return conn; // already a Code
-                if (conn.to) return nameToCode[conn.to] || null; // map Name → Code
-                if (conn.toId) return conn.toId;
+                if (typeof conn === "string") {
+                    // could be a Name or already a Code
+                    return nameToCode[conn] || conn; // map Name→Code, else keep as-is
+                }
+                if (conn && typeof conn === "object") {
+                    // supports {from,to} or {fromId,toId} forms from AI
+                    if (conn.to) return nameToCode[conn.to] || conn.to;      // map Name→Code when possible
+                    if (conn.toId) return conn.toId;                         // already a Code/id
+                }
                 return null;
             }).filter(Boolean)
             : [],
     }));
 
-
-    // Ensure unitLayoutOrder is a 2D array of strings
+    // 2) Ensure unitLayoutOrder is 2D strings
     let safeLayout = Array.isArray(unitLayoutOrder)
         ? unitLayoutOrder.map(row => (Array.isArray(row) ? row.map(String) : []))
         : [[]];
@@ -43,10 +47,10 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     const allUnits = [...new Set(normalized.map(i => i.Unit))];
     allUnits.forEach(u => {
         const found = safeLayout.some(row => row.includes(u));
-        if (!found) safeLayout[0].push(u); // add to first row
+        if (!found) safeLayout[0].push(u);
     });
 
-    // Group items by Unit/SubUnit
+    // 3) Group items by Unit/SubUnit
     const grouped = {};
     normalized.forEach(item => {
         const { Unit, SubUnit, Category, Sequence, Name, Code, id, Type } = item;
@@ -63,13 +67,13 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     const itemWidth = 160;
     const itemGap = 30;
 
-    // --- Build diagram nodes ---
+    // 4) Build diagram nodes
     safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
             const groupedUnitName = String(unitName || "No Unit");
             if (!grouped[groupedUnitName]) return;
 
-            // --- Unit Node ---
+            // Unit
             newNodes.push({
                 id: `unit-${groupedUnitName}`,
                 type: 'custom',
@@ -98,7 +102,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
                 const subUnitY = rowIndex * (unitHeight + 100) + subIndex * subUnitHeight;
 
-                // --- SubUnit Node ---
+                // SubUnit
                 newNodes.push({
                     id: `sub-${groupedUnitName}-${subUnit}`,
                     position: { x: colIndex * (unitWidth + 100) + 10, y: subUnitY + 10 },
@@ -119,7 +123,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                     selectable: false,
                 });
 
-                // --- Items inside SubUnit ---
+                // Items
                 let itemX = colIndex * (unitWidth + 100) + 40;
                 itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                 itemsArr.forEach(item => {
@@ -145,14 +149,18 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    // --- Build edges (resolve connections flexibly) ---
+    // 5) Build edges (now Connections are **Codes**)
     normalized.forEach(item => {
-        (item.Connections || []).forEach(connCode => {
+        (item.Connections || []).forEach(connCodeOrName => {
+            // Prefer code, but fallback to name→code if any slipped through
+            const targetCode = nameToCode[connCodeOrName] || connCodeOrName;
+
             const sourceNode = newNodes.find(n => n.data?.item?.Code === item.Code);
-            const targetNode = newNodes.find(n => n.data?.item?.Code === connCode);
+            const targetNode = newNodes.find(n => n.data?.item?.Code === targetCode
+                || n.data?.item?.Name === connCodeOrName); // extra safety
 
             if (sourceNode && targetNode) {
-                const edgeId = `edge-${item.Code}-${connCode}`;
+                const edgeId = `edge-${sourceNode.id}-${targetNode.id}`;
                 if (!newEdges.some(e => e.id === edgeId)) {
                     newEdges.push({
                         id: edgeId,
@@ -166,8 +174,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             }
         });
     });
-
-
 
     return {
         nodes: newNodes,
