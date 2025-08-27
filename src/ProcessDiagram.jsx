@@ -306,10 +306,15 @@ export default function ProcessDiagram() {
             'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
             Unit: rawItem.Unit || '',
             SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? '',
-            Category: Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
-            'Category Item Type': Array.isArray(rawItem['Category Item Type']) ? rawItem['Category Item Type'][0] : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
+            Category: Array.isArray(rawItem['Category Item Type'])
+                ? rawItem['Category Item Type'][0]
+                : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
+            'Category Item Type': Array.isArray(rawItem['Category Item Type'])
+                ? rawItem['Category Item Type'][0]
+                : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
             Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
             Sequence: rawItem.Sequence ?? 0,
+            Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [], // ✅ include connections
         };
 
         const newNode = {
@@ -326,10 +331,28 @@ export default function ProcessDiagram() {
             style: { background: 'transparent', boxShadow: 'none' },
         };
 
-
-
         setNodes(nds => [...nds, newNode]);
         setItems(prev => [...prev, normalizedItem]);
+
+        // --- ✅ generate edges from Connections immediately ---
+        if (normalizedItem.Connections.length) {
+            const newEdges = normalizedItem.Connections.map(conn => {
+                const fromNode = normalizedItem.id; // this node
+                // Find target node by name or id
+                const targetNode = nodes.find(n => n.data?.item?.Name === conn.to);
+                if (!targetNode) return null; // skip if target not found
+                return {
+                    id: `edge-${fromNode}-${targetNode.id}`,
+                    source: fromNode,
+                    target: targetNode.id,
+                    type: 'smoothstep',
+                    animated: true,
+                    style: { stroke: '#888', strokeWidth: 2 },
+                };
+            }).filter(e => e != null);
+
+            setEdges(eds => [...eds, ...newEdges]);
+        }
 
         // Auto-select new node so ItemDetailCard opens
         setSelectedNodes([newNode]);
