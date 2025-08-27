@@ -159,7 +159,7 @@ export default function ProcessDiagram() {
         if (!aiDescription) return;
 
         try {
-            const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(
+            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
                 aiDescription,
                 items,
                 nodes,
@@ -168,29 +168,35 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
-            // --- Merge AI nodes and edges ---
-            setNodes(prev => [...prev, ...(aiNodes || [])]);
-            setEdges(prev => [...prev, ...(aiEdges || [])]);
+            // 1️⃣ Extract AI items
+            const aiItems = (aiNodes || []).map(n => n.data?.item).filter(Boolean);
 
-            // --- Add AI items for ItemDetailCard ---
-            if (normalizedItems?.length) {
-                setItems(prev => {
-                    const existingIds = new Set(prev.map(i => i.id));
-                    return [...prev, ...normalizedItems.filter(i => !existingIds.has(i.id))];
-                });
-            }
+            // 2️⃣ Merge into items
+            const updatedItems = [...items];
+            const existingIds = new Set(updatedItems.map(i => i.id));
+            aiItems.forEach(item => {
+                if (!existingIds.has(item.id)) updatedItems.push(item);
+            });
+            setItems(updatedItems);
 
-            // --- Auto-select first new AI node ---
+            // 3️⃣ Rebuild diagram (nodes + edges) from updated items
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(updatedItems, unitLayoutOrder);
+
+            setNodes(rebuiltNodes);
+            setEdges(rebuiltEdges);
+
+            // 4️⃣ Auto-select first new node
             if (aiNodes?.length) {
-                const firstAiNode = aiNodes[0];
-                setSelectedNodes([firstAiNode]);
-                setSelectedItem(firstAiNode.data?.item || null);
+                const newNodesList = aiNodes.filter(n => !nodes.some(old => old.id === n.id));
+                if (newNodesList.length > 0) {
+                    setSelectedNodes([newNodesList[0]]);
+                    setSelectedItem(newNodesList[0].data?.item || null);
+                }
             }
         } catch (err) {
             console.error("AI PNID generation failed:", err);
         }
     };
-
 
     useEffect(() => {
         const loadItems = async () => {
