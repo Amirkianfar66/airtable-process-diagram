@@ -130,12 +130,28 @@ User Input: """${trimmed}"""
                 new Map(normalizedConnections.map(c => [c.from + "->" + c.to, c])).values()
             );
 
+            // --- Auto-connect fallback logic ---
+            if (
+                itemsArray.length >= 2 &&
+                /connect/i.test(trimmed) &&
+                uniqueConnections.length === 0
+            ) {
+                const prev = itemsArray[itemsArray.length - 2];
+                const curr = itemsArray[itemsArray.length - 1];
+
+                const prevCode = `${prev.Unit}${prev.SubUnit}${prev.Sequence}${prev.Number}`;
+                const currCode = `${curr.Unit}${curr.SubUnit}${curr.Sequence}${curr.Number}`;
+
+                uniqueConnections.push({ from: prevCode, to: currCode });
+            }
+
             return {
                 parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
                 connection: uniqueConnections,
             };
+
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
             return {
