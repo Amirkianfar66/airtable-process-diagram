@@ -177,6 +177,18 @@ export default async function AIPNIDGenerator(
         // Create a node for each code
         allCodes.forEach((code, codeIdx) => {
             const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
+
+            // 🔽 Normalize connections: map Name/Code → existing item.Code if found
+            const normalizedConnections = (p.Connections || []).map(conn => {
+                if (!conn) return null;
+
+                const foundItem =
+                    [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
+                        .find(i => i?.Code === conn || i?.Name === conn);
+
+                return foundItem?.Code || conn; // fallback to raw
+            }).filter(Boolean);
+
             // ✅ Create fully normalized item for ItemDetailCard
             const nodeItem = {
                 id: nodeId,
@@ -185,26 +197,30 @@ export default async function AIPNIDGenerator(
                 'Item Code': code,
                 Category,
                 Type,
-                Unit: Unit ?? 'Default Unit',         // fallback if missing
-                SubUnit: SubUnit ?? 'Default SubUnit',// fallback if missing
+                Unit: Unit ?? 'Default Unit',          // fallback if missing
+                SubUnit: SubUnit ?? 'Default SubUnit', // fallback if missing
                 Sequence: Sequence + codeIdx,
-                Connections: p.Connections || []      // always an array
+                Connections: normalizedConnections     // ✅ use normalized list
             };
 
             // push to nodes
             newNodes.push({
                 id: nodeId,
                 position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
-                data: { label: `${nodeItem.Code} - ${nodeItem.Name}`, item: nodeItem, icon: getItemIcon(nodeItem) },
+                data: {
+                    label: `${nodeItem.Code} - ${nodeItem.Name}`,
+                    item: nodeItem,
+                    icon: getItemIcon(nodeItem)
+                },
                 type: categoryTypeMap[Category] || 'scalableIcon',
             });
 
             // ✅ push to normalizedItems array (so ProcessDiagram can use it)
             normalizedItems.push(nodeItem);
 
-
             allMessages.push({ sender: "AI", message: `Generated code: ${code}` });
         });
+
 
         if (explanation && idx === 0) {
             allMessages.push({ sender: "AI", message: explanation });
