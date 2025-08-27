@@ -145,12 +145,29 @@ User Input: """${trimmed}"""
             const shouldAutoConnect =
                 userAskedToConnect && uniqueConnections.length === 0 && itemsArray.length === 2;
 
+            // Generate PNID-style code (Unit + SubUnit + Sequence + Number)
+            function generateCode(item) {
+                return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
+            }
+
+            // 🔹 Strip out Gemini's raw Connections so frontend only uses `connection`
+            const cleanedItems = itemsArray.map(({ Connections, ...rest }) => rest);
+
             return {
-                parsed: itemsArray,
+                parsed: cleanedItems,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
-                connection: shouldAutoConnect ? [] : uniqueConnections,
+                connection: shouldAutoConnect
+                    ? [
+                        {
+                            from: generateCode(itemsArray[0]),
+                            to: generateCode(itemsArray[1]),
+                        },
+                    ]
+                    : uniqueConnections,
             };
+
+
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
             return {
