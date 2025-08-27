@@ -3,7 +3,7 @@ import { fetchData } from './ProcessDiagram';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
-    // normalize items
+    // Normalize items
     const normalized = items.map(item => ({
         ...item,
         Unit: item.Unit != null ? String(item.Unit) : "No Unit",
@@ -106,20 +106,20 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    // --- Build edges from Connections robustly ---
-    const nameToId = Object.fromEntries(normalized.map(i => [i.Name, i.id]));
+    // --- Build edges from Connections ---
+    // Map names (strip numbers) → node IDs
+    const nameToId = {};
+    newNodes.forEach(n => {
+        const nameOnly = n.data?.item?.Name?.replace(/\s\d+$/, ''); // Tank 1 → Tank
+        if (nameOnly) nameToId[nameOnly] = n.id;
+    });
 
     normalized.forEach(item => {
         if (!Array.isArray(item.Connections)) return;
-
         item.Connections.forEach(conn => {
             const fromId = nameToId[conn.from];
             const toId = nameToId[conn.to];
-
-            if (!fromId || !toId) return; // skip if nodes not found
-
-            const edgeExists = newEdges.some(e => e.source === fromId && e.target === toId);
-            if (!edgeExists) {
+            if (fromId && toId && !newEdges.some(e => e.source === fromId && e.target === toId)) {
                 newEdges.push({
                     id: `edge-${fromId}-${toId}`,
                     source: fromId,
@@ -131,7 +131,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             }
         });
     });
-
 
     return {
         nodes: newNodes,
