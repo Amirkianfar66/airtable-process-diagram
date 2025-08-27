@@ -168,24 +168,20 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
-            // 1️⃣ Extract AI items
+            // --- Merge AI nodes and edges without rebuilding ---
+            setNodes(prev => [...prev, ...(aiNodes || [])]);
+            setEdges(prev => [...prev, ...(aiEdges || [])]);
+
+            // --- Add AI items for ItemDetailCard ---
             const aiItems = (aiNodes || []).map(n => n.data?.item).filter(Boolean);
+            if (aiItems.length) {
+                setItems(prev => {
+                    const existingIds = new Set(prev.map(i => i.id));
+                    return [...prev, ...aiItems.filter(i => !existingIds.has(i.id))];
+                });
+            }
 
-            // 2️⃣ Merge into items
-            const updatedItems = [...items];
-            const existingIds = new Set(updatedItems.map(i => i.id));
-            aiItems.forEach(item => {
-                if (!existingIds.has(item.id)) updatedItems.push(item);
-            });
-            setItems(updatedItems);
-
-            // 3️⃣ Rebuild diagram (nodes + edges) from updated items
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(updatedItems, unitLayoutOrder);
-
-            setNodes(rebuiltNodes);
-            setEdges(rebuiltEdges);
-
-            // 4️⃣ Auto-select first new node
+            // --- Auto-select first new AI node ---
             if (aiNodes?.length) {
                 const newNodesList = aiNodes.filter(n => !nodes.some(old => old.id === n.id));
                 if (newNodesList.length > 0) {
@@ -197,7 +193,6 @@ export default function ProcessDiagram() {
             console.error("AI PNID generation failed:", err);
         }
     };
-
 
     useEffect(() => {
         const loadItems = async () => {
