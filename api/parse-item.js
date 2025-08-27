@@ -1,25 +1,24 @@
 ﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// In-memory storage of items across API calls
-let existingItemsArray = [];
-
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
+    // Remove ```json ... ``` or ``` ... ``` blocks
     return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
 }
 
 // Reserved action commands
 const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
 
+// Core logic for both chat and structured PNID commands
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // Check for exact action match
+    // 1️⃣ Check for exact action match (Hybrid)
     const actionMatch = ACTION_COMMANDS.find(
         cmd => cmd.toLowerCase() === trimmed.toLowerCase()
     );
@@ -33,22 +32,35 @@ export async function parseItemLogic(description) {
         };
     }
 
+    // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
 Rules:
+
 1. Structured PNID mode
+- Triggered if input starts with a command (Draw, Connect, Add, Generate, PnID) or clearly describes equipment, piping, instruments, or diagrams.
 - Output ONLY valid JSON with these fields:
   { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
 - Always set "mode": "structured".
-- Type must be a string. If multiple types are mentioned, generate separate JSON objects.
-- Fill missing fields with defaults: "" for text, 0 for Unit/SubUnit, 1 for Sequence/Number, [] for Connections.
-- Map "Connect X to Y" → {"from": X, "to": Y}.
+- Type must be a string. If multiple types are mentioned (e.g., "Tank and Pump"), generate **separate JSON objects** for each type.
+- All fields must be non-null strings or numbers. If a value is missing, use:
+    - "" (empty string) for text fields
+    - 0 for Unit and SubUnit
+    - 1 for Sequence and Number
+    - [] for Connections
+- If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
+- Connections: map "Connect X to Y" → {"from": X, "to": Y}.
+- If user says "Connect A and B", always output ONE connection only.
+- Do NOT mirror the direction (e.g., no Pump→Tank if you already have Tank→Pump).
+- Explanation: include a short human-readable note if relevant.
 - Wrap structured PNID JSON in a \`\`\`json ... \`\`\` code block.
+- Do NOT wrap chat mode responses in any code block or JSON.
 
 2. Chat mode
-- Triggered for small talk or unrelated input.
+- Triggered if input is small talk, greetings, or unrelated to PNID.
 - Output plain text only.
+- Always set "mode": "chat".
 
 Never mix modes. Default to chat mode if unsure.
 
@@ -60,7 +72,14 @@ User Input: """${trimmed}"""
         const text = result?.response?.text?.().trim() || "";
         console.log("👉 Gemini raw text:", text);
 
-        if (!text) return { parsed: [], explanation: "⚠️ AI returned empty response", mode: "chat", connection: null };
+        if (!text) {
+            return {
+                parsed: [],
+                explanation: "⚠️ AI returned empty response",
+                mode: "chat",
+                connection: null,
+            };
+        }
 
         // Try JSON parse
         try {
@@ -69,7 +88,8 @@ User Input: """${trimmed}"""
             let parsed;
             try {
                 parsed = JSON.parse(cleaned);
-            } catch {
+            } catch (e) {
+                // Handle multiple JSON objects concatenated
                 const objects = cleaned
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
@@ -80,7 +100,7 @@ User Input: """${trimmed}"""
                 parsed = objects.map(obj => JSON.parse(obj));
             }
 
-            // Normalize items
+            // 🔹 Normalize items: remove nulls, fix types, set defaults
             const newItems = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
@@ -95,25 +115,26 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // Merge into global array
-            const itemsArray = [...existingItemsArray, ...newItems];
+            // 🔹 Merge into global array
+            const itemsArray = [...existingItemsArray, ...newItems]; // if you track previous items
 
-            // Collect connections
+
+            // 🔹 Collect all connections
             const allConnections = itemsArray.flatMap(i => i.Connections);
 
-            // Normalize to avoid mirrored duplicates
+            // 🔹 Normalize to avoid mirrored duplicates
             const normalizedConnections = allConnections.map(c => {
                 const from = (c.from || "").trim();
                 const to = (c.to || "").trim();
                 return from < to ? { from, to } : { from: to, to: from };
             });
 
-            // Deduplicate
+            // 🔹 Deduplicate
             const uniqueConnections = Array.from(
                 new Map(normalizedConnections.map(c => [c.from + "->" + c.to, c])).values()
             );
 
-            // Code generator helper
+            // --- Code generator helper (place here once) ---
             function generateCode({ Unit, SubUnit, Sequence, Number }) {
                 const u = String(Unit).padStart(1, "0");
                 const su = String(SubUnit).padStart(1, "0");
@@ -122,14 +143,51 @@ User Input: """${trimmed}"""
                 return `${u}${su}${seq}${num}`;
             }
 
-            // Auto-connect fallback for exactly two new items
-            if (newItems.length === 2 && /connect/i.test(trimmed) && uniqueConnections.length === 0) {
+            // --- Auto-connect fallback logic for exactly two new items ---
+            if (
+                newItems.length === 2 &&
+                /connect/i.test(trimmed) &&
+                uniqueConnections.length === 0
+            ) {
                 const [first, second] = newItems;
-                uniqueConnections.push({ from: generateCode(first), to: generateCode(second) });
+                uniqueConnections.push({
+                    from: generateCode(first),
+                    to: generateCode(second),
+                });
             }
 
-            // Update in-memory array
-            existingItemsArray = itemsArray;
+
+
+            // --- Code generator helper ---
+            function generateCode({ Unit, SubUnit, Sequence, Number }) {
+                const u = String(Unit).padStart(1, "0");       // 1 digit (Unit)
+                const su = String(SubUnit).padStart(1, "0");   // 1 digit (SubUnit)
+                const seq = String(Sequence).padStart(2, "0"); // 2 digits (Sequence)
+                const num = String(Number).padStart(2, "0");   // 2 digits (Number)
+                return `${u}${su}${seq}${num}`;
+            }
+
+            // --- Auto-connect fallback logic ---
+            if (
+                itemsArray.length >= 2 &&
+                /connect/i.test(trimmed) &&
+                uniqueConnections.length === 0
+            ) {
+                const prev = itemsArray[itemsArray.length - 2];
+                const curr = itemsArray[itemsArray.length - 1];
+
+                const prevCode = generateCode(prev);
+                const currCode = generateCode(curr);
+
+                uniqueConnections.push({ from: prevCode, to: currCode });
+            }
+
+            // keep your return here
+            return {
+                parsed: itemsArray,
+                connection: uniqueConnections,
+            };
+
 
             return {
                 parsed: itemsArray,
@@ -140,11 +198,21 @@ User Input: """${trimmed}"""
 
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
-            return { parsed: [], explanation: text, mode: "chat", connection: null };
+            return {
+                parsed: [],
+                explanation: text,
+                mode: "chat",
+                connection: null,
+            };
         }
     } catch (err) {
         console.error("❌ parseItemLogic failed:", err);
-        return { parsed: [], explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"), mode: "chat", connection: null };
+        return {
+            parsed: [],
+            explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
+            mode: "chat",
+            connection: null,
+        };
     }
 }
 
