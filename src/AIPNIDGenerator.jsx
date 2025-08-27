@@ -180,14 +180,22 @@ export default async function AIPNIDGenerator(
 
             // 🔽 Normalize connections: map Name/Code → existing item.Code if found
             const normalizedConnections = (p.Connections || []).map(conn => {
-                if (!conn) return null;
+                let target = null;
+
+                if (typeof conn === "string") {
+                    target = conn;
+                } else if (typeof conn === "object") {
+                    // Prefer "to"
+                    target = conn.to || conn.toId || conn.from || conn.fromId;
+                }
 
                 const foundItem =
                     [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
-                        .find(i => i?.Code === conn || i?.Name === conn);
+                        .find(i => i?.Code === target || i?.Name === target);
 
-                return foundItem?.Code || conn; // fallback to raw
+                return foundItem?.Code || target;
             }).filter(Boolean);
+
 
             // ✅ Create fully normalized item for ItemDetailCard
             const nodeItem = {

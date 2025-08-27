@@ -138,35 +138,17 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
 
     // --- Build edges (resolve connections flexibly) ---
     normalized.forEach(item => {
-        if (!Array.isArray(item.Connections)) return;
+        (item.Connections || []).forEach(connCode => {
+            const sourceNode = newNodes.find(n => n.data?.item?.Code === item.Code);
+            const targetNode = newNodes.find(n => n.data?.item?.Code === connCode);
 
-        item.Connections.forEach(conn => {
-            let fromId = null;
-            let toId = null;
-
-            if (typeof conn === "string") {
-                // Connection expressed as a code or name
-                fromId = item.id;
-                const target = normalized.find(
-                    n => n.id === conn || n.Code === conn || n.Name === conn
-                );
-                toId = target?.id || null;
-            } else if (typeof conn === "object") {
-                // Connection expressed as { fromId, toId }
-                fromId = conn.fromId || conn.from || item.id;
-                const target = normalized.find(
-                    n => n.id === conn.toId || n.id === conn.to || n.Code === conn.to || n.Name === conn.to
-                );
-                toId = target?.id || null;
-            }
-
-            if (fromId && toId && fromId !== toId) {
-                const exists = newEdges.some(e => e.source === fromId && e.target === toId);
-                if (!exists) {
+            if (sourceNode && targetNode) {
+                const edgeId = `edge-${item.Code}-${connCode}`;
+                if (!newEdges.some(e => e.id === edgeId)) {
                     newEdges.push({
-                        id: `edge-${fromId}-${toId}`,
-                        source: fromId,
-                        target: toId,
+                        id: edgeId,
+                        source: sourceNode.id,
+                        target: targetNode.id,
                         type: "smoothstep",
                         animated: true,
                         style: { stroke: "#888", strokeWidth: 2 },
@@ -175,6 +157,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             }
         });
     });
+
 
 
     return {
