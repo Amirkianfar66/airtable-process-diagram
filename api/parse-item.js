@@ -101,7 +101,7 @@ User Input: """${trimmed}"""
             }
 
             // 🔹 Normalize items: remove nulls, fix types, set defaults
-            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
+            const newItems = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
                 Category: item.Category || "Equipment",
@@ -114,6 +114,10 @@ User Input: """${trimmed}"""
                 Explanation: item.Explanation || "Added PNID item",
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
+
+            // 🔹 Merge into global array
+            const itemsArray = [...existingItemsArray, ...newItems]; // if you track previous items
+
 
             // 🔹 Collect all connections
             const allConnections = itemsArray.flatMap(i => i.Connections);
@@ -130,37 +134,29 @@ User Input: """${trimmed}"""
                 new Map(normalizedConnections.map(c => [c.from + "->" + c.to, c])).values()
             );
 
-            // --- Code generator helper ---
+            // --- Code generator helper (place once) ---
             function generateCode({ Unit, SubUnit, Sequence, Number }) {
-                const u = String(Unit).padStart(1, "0");       // 1 digit (Unit)
-                const su = String(SubUnit).padStart(1, "0");   // 1 digit (SubUnit)
-                const seq = String(Sequence).padStart(2, "0"); // 2 digits (Sequence)
-                const num = String(Number).padStart(2, "0");   // 2 digits (Number)
+                const u = String(Unit).padStart(1, "0");
+                const su = String(SubUnit).padStart(1, "0");
+                const seq = String(Sequence).padStart(2, "0");
+                const num = String(Number).padStart(2, "0");
                 return `${u}${su}${seq}${num}`;
             }
 
-            // --- Auto-connect fallback logic ---
+            // --- Auto-connect fallback logic for exactly two new items ---
             if (
-                itemsArray.length >= 2 &&
+                newItems.length === 2 &&
                 /connect/i.test(trimmed) &&
                 uniqueConnections.length === 0
             ) {
-                const prev = itemsArray[itemsArray.length - 2];
-                const curr = itemsArray[itemsArray.length - 1];
-
-                const prevCode = generateCode(prev);
-                const currCode = generateCode(curr);
-
-                uniqueConnections.push({ from: prevCode, to: currCode });
+                const [first, second] = newItems;
+                uniqueConnections.push({
+                    from: generateCode(first),
+                    to: generateCode(second),
+                });
             }
 
-            // keep your return here
-            return {
-                parsed: itemsArray,
-                connection: uniqueConnections,
-            };
-
-
+            // --- Return result ---
             return {
                 parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
