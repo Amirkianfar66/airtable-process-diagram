@@ -1,7 +1,6 @@
 ﻿// src/utils/AIPNIDGenerator.js
 import { getItemIcon, categoryTypeMap } from './IconManager';
 import { generateCode } from './codeGenerator';
-import { parseItemLogic } from '../api/parse-item'; // Gemini wrapper
 
 // --------------------------
 // ChatBox component
@@ -45,6 +44,21 @@ export function ChatBox({ messages }) {
     );
 }
 
+// --------------------------
+// Local helper: call the server API (do NOT import the server file)
+// --------------------------
+async function callParseItemAPI(description) {
+    const res = await fetch('/api/parse-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description }),
+    });
+    if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`parse-item API failed: ${res.status} ${txt}`);
+    }
+    return res.json();
+}
 
 // --------------------------
 // AI PNID generator (with human AI layer)
@@ -62,8 +76,10 @@ async function AIPNIDGenerator(
     let normalizedItems = [];
     let aiResult;
     try {
-        aiResult = await parseItemLogic(description);
+        // IMPORTANT: call the server endpoint instead of importing server code
+        aiResult = await callParseItemAPI(description);
 
+        // In case the API returned raw array (older behavior), normalize it
         if (Array.isArray(aiResult)) {
             aiResult = {
                 mode: "structured",
@@ -120,6 +136,7 @@ async function AIPNIDGenerator(
     const newEdges = [...existingEdges];
     const allMessages = [{ sender: "User", message: description }];
 
+    // Build nodes & normalizedItems (these contain the generated Code field)
     parsedItems.forEach((p, idx) => {
         const Name = (p.Name || description).trim();
         const Category = p.Category || 'Equipment';
@@ -148,6 +165,7 @@ async function AIPNIDGenerator(
         allCodes.forEach((code, codeIdx) => {
             const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
 
+            // Normalize connections (AI can include name-based connections) -> map to Code if existing in canvas
             const normalizedConnections = (p.Connections || []).map(conn => {
                 let target = null;
                 if (typeof conn === "string") {
@@ -159,7 +177,7 @@ async function AIPNIDGenerator(
 
                 const foundItem =
                     [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
-                        .find(i => i?.Code === target || i?.Name === target);
+                        .find(i => i?.Code === target || (i?.Name && i.Name.toLowerCase() === String(target).toLowerCase()));
 
                 return foundItem?.Code || target;
             }).filter(Boolean);
@@ -189,7 +207,6 @@ async function AIPNIDGenerator(
             });
 
             normalizedItems.push(nodeItem);
-
             allMessages.push({ sender: "AI", message: `Generated code: ${code}` });
         });
 
@@ -201,6 +218,7 @@ async function AIPNIDGenerator(
     // --------------------------
     // Connection handling
     // --------------------------
+    // If AI explicitly gave a connection (sourceCode/targetCode) use that
     if (connection && connection.sourceCode && connection.targetCode) {
         const sourceNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.sourceCode);
         const targetNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.targetCode);
@@ -219,9 +237,10 @@ async function AIPNIDGenerator(
             }
             allMessages.push({ sender: "AI", message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` });
         }
-    } else if (parsedItems.length >= 2) {
-        const first = parsedItems[0];
-        const rest = parsedItems.slice(1);
+    } else if (normalizedItems.length >= 2) {
+        // Fallback chaining/branching: use normalizedItems (these have Code)
+        const first = normalizedItems[0];
+        const rest = normalizedItems.slice(1);
 
         for (let i = 0; i < rest.length; i++) {
             const sourceNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === first.Code);
@@ -244,11 +263,15 @@ async function AIPNIDGenerator(
         }
     }
 
-    // ✅ Final return (inside function)
+    if (typeof setChatMessages === "function") {
+        setChatMessages(prev => [...prev, ...allMessages]);
+    }
+
+    // ✅ Final return
     return {
         nodes: [...existingNodes, ...newNodes],
         edges: [...existingEdges, ...newEdges],
-        normalizedItems: parsedItems,
+        normalizedItems: normalizedItems,
         messages: allMessages,
     };
 }

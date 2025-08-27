@@ -101,80 +101,90 @@ User Input: """${trimmed}"""
             }
 
             // 🔹 Normalize items
-            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map((item) => ({
-                mode: "structured",
-                Name: (item.Name || "").toString().trim(),
-                Category: item.Category || "Equipment",
-                Type: item.Type || "Generic",
-                Unit: parseInt(item.Unit, 10) || 0,
-                SubUnit: parseInt(item.SubUnit, 10) || 0,
-                Sequence: parseInt(item.Sequence, 10) || 1,
-                Number: parseInt(item.Number, 10) || 1,
-                SensorType: item.SensorType || "",
-                Explanation: item.Explanation || "Added PNID item",
-                Connections: Array.isArray(item.Connections) ? item.Connections : [],
-            }));
+            const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map((item) => {
+                const Unit = parseInt(item.Unit, 10) || 0;
+                const SubUnit = parseInt(item.SubUnit, 10) || 0;
+                const Sequence = parseInt(item.Sequence, 10) || 1;
+                const NumberVal = parseInt(item.Number, 10) || 1;
 
-            // Generate PNID-style code (Unit + SubUnit + Sequence + Number)
-            function generateCode(item) {
-                return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
-            }
+                // computed Code (Unit + SubUnit + Sequence + Number)
+                const Code = `${Unit}${SubUnit}${Sequence}${NumberVal}`;
+
+                return {
+                    mode: "structured",
+                    Name: (item.Name || "").toString().trim(),
+                    Category: item.Category || "Equipment",
+                    Type: item.Type || "Generic",
+                    Unit,
+                    SubUnit,
+                    Sequence,
+                    Number: NumberVal,
+                    SensorType: item.SensorType || "",
+                    Explanation: item.Explanation || "Added PNID item",
+                    Connections: Array.isArray(item.Connections) ? item.Connections : [],
+                    Code,
+                };
+            });
 
             // --- Collect raw connections
             const allConnections = itemsArray.flatMap((i) => i.Connections || []);
 
             // --- Normalize connections (names or codes)
             const normalizedConnections = allConnections
-                .map((c) => ({
-                    from: (c.from || "").trim(),
-                    to: (c.to || "").trim(),
-                }))
-                .filter((c) => c.from && c.to);
-
-            let resolvedConnections = [];
-
-            if (normalizedConnections.length > 0) {
-                resolvedConnections = normalizedConnections.map((c) => {
-                    const fromItem =
-                        itemsArray.find(i => i.Name.toLowerCase() === c.from.toLowerCase()) ||
-                        itemsArray.find(i => generateCode(i) === c.from) ||
-                        itemsArray[0];
-
-                    const toItem =
-                        itemsArray.find(i => i.Name.toLowerCase() === c.to.toLowerCase()) ||
-                        itemsArray.find(i => generateCode(i) === c.to) ||
-                        itemsArray[1];
-
+                .map((c) => {
+                    if (!c) return null;
                     return {
-                        from: generateCode(fromItem),
-                        to: generateCode(toItem),
+                        from: (c.from || "").toString().trim(),
+                        to: (c.to || "").toString().trim(),
                     };
-                });
-            }
+                })
+                .filter((c) => c && c.from && c.to);
+
+            // Resolve normalized connections to codes (try match by Name then by Code)
+            let resolvedConnections = normalizedConnections.map((c) => {
+                const fromItem =
+                    itemsArray.find(i => i.Name && i.Name.toLowerCase() === c.from.toLowerCase()) ||
+                    itemsArray.find(i => i.Code === c.from);
+
+                const toItem =
+                    itemsArray.find(i => i.Name && i.Name.toLowerCase() === c.to.toLowerCase()) ||
+                    itemsArray.find(i => i.Code === c.to);
+
+                return {
+                    fromCode: fromItem ? fromItem.Code : (CODE_RE.test(c.from) ? c.from : ""),
+                    toCode: toItem ? toItem.Code : (CODE_RE.test(c.to) ? c.to : ""),
+                    raw: c
+                };
+            }).filter(rc => rc.fromCode || rc.toCode);
 
             // --- Fallback: if user said "connect" but AI didn’t resolve names
             const userAskedToConnect = /connect/i.test(trimmed);
             if (userAskedToConnect && resolvedConnections.length === 0 && itemsArray.length === 2) {
-                // ✅ Always assume first → second
                 resolvedConnections = [
                     {
-                        from: generateCode(itemsArray[0]),
-                        to: generateCode(itemsArray[1]),
-                    },
+                        fromCode: itemsArray[0].Code,
+                        toCode: itemsArray[1].Code,
+                        raw: { from: itemsArray[0].Name, to: itemsArray[1].Name }
+                    }
                 ];
             }
 
+            // dedupe by from->to
+            const uniqueConnections = Array.from(
+                new Map(resolvedConnections.map(rc => [`${rc.fromCode}->${rc.toCode}`, rc])).values()
+            ).filter(rc => rc.fromCode && rc.toCode);
+
             const cleanedItems = itemsArray.map((item) => ({
                 ...item,
-                Connections: [] // always wipe Gemini's raw
+                Connections: [] // always wipe Gemini's raw so client decides linking
             }));
 
+            // first connection for backward compatibility
             let normalizedConnection = null;
-            if (resolvedConnections.length > 0) {
-                // only handle first connection for now
+            if (uniqueConnections.length > 0) {
                 normalizedConnection = {
-                    sourceCode: resolvedConnections[0].from,
-                    targetCode: resolvedConnections[0].to,
+                    sourceCode: uniqueConnections[0].fromCode,
+                    targetCode: uniqueConnections[0].toCode,
                 };
             }
 
@@ -183,6 +193,7 @@ User Input: """${trimmed}"""
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
                 connection: normalizedConnection,
+                connections: uniqueConnections.map(rc => ({ fromCode: rc.fromCode, toCode: rc.toCode })),
             };
 
         } catch (err) {
@@ -202,21 +213,5 @@ User Input: """${trimmed}"""
             mode: "chat",
             connection: null,
         };
-    }
-}
-
-// Default API handler
-export default async function handler(req, res) {
-    try {
-        if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-
-        const { description } = req.body;
-        if (!description) return res.status(400).json({ error: "Missing description" });
-
-        const aiResult = await parseItemLogic(description);
-        res.status(200).json(aiResult);
-    } catch (err) {
-        console.error("/api/parse-item error:", err);
-        res.status(500).json({ error: "Server error", details: err.message });
     }
 }
