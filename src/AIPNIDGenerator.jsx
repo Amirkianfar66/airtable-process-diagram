@@ -46,6 +46,9 @@ export function ChatBox({ messages }) {
 }
 
 
+// --------------------------
+// AI PNID generator (with human AI layer)
+// --------------------------
 export default async function AIPNIDGenerator(
     description,
     itemsLibrary = [],
@@ -54,94 +57,241 @@ export default async function AIPNIDGenerator(
     setSelectedItem,
     setChatMessages
 ) {
-    if (!description) return { normalizedItems: [] };
+    if (!description) return { nodes: existingNodes, edges: existingEdges };
 
+    // 1️⃣ Send input to Gemini for classification
+    // 1️⃣ Send input to Gemini for classification
+    // 1️⃣ Send input to Gemini for classification
     let normalizedItems = [];
     let aiResult;
-
     try {
         aiResult = await parseItemLogic(description);
 
+        // Normalize if AI returned an array directly
         if (Array.isArray(aiResult)) {
-            aiResult = { mode: "structured", parsed: aiResult };
+            aiResult = {
+                mode: "structured",
+                parsed: aiResult,
+                explanation: null,
+                connection: null
+            };
         }
     } catch (err) {
-        console.error("❌ Chat AI failed:", err);
-        if (setChatMessages) {
+        console.error('❌ Chat AI failed:', err);
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: 'User', message: description },
+                { sender: 'AI', message: '⚠️ AI processing failed.' }
+            ]);
+        }
+        return { nodes: existingNodes, edges: existingEdges };
+    }
+
+    const { mode, explanation, parsed = {}, connection } = aiResult;
+
+    // Handle Hybrid action mode
+    if (aiResult.mode === "action") {
+        const action = aiResult.action;
+        const actionMsg = `⚡ Action triggered: ${action}`;
+
+        if (typeof setChatMessages === "function") {
             setChatMessages(prev => [
                 ...prev,
                 { sender: "User", message: description },
-                { sender: "AI", message: "⚠️ AI processing failed." }
+                { sender: "AI", message: actionMsg }
             ]);
         }
-        return { normalizedItems: [] };
+
+        // TODO: call your export function if action === "Generate PNID"
+        if (action === "Generate PNID") {
+            // Example: generatePNID(existingNodes, existingEdges);
+        }
+
+        // Return existing nodes/edges since we don't add new items
+        return { nodes: existingNodes, edges: existingEdges };
     }
 
-    const { mode, explanation, parsed = [] } = aiResult;
-
-    // 🟦 Mode: pure chat
+    // 2️⃣ Branch based on AI classification
     if (mode === "chat") {
-        if (setChatMessages) {
+        // AI says this is general conversation → just show chat
+        if (typeof setChatMessages === "function") {
             setChatMessages(prev => [
                 ...prev,
                 { sender: "User", message: description },
-                { sender: "AI", message: explanation || parsed.message }
+                { sender: "AI", message: parsed.message || explanation }
             ]);
         }
-        return { normalizedItems: [] };
+        return { nodes: existingNodes, edges: existingEdges };
+    } else if (mode === "structured" || mode === "pnid") {
+        // PNID logic → generate nodes and edges
+        // ... your existing PNID generation code here ...
     }
 
-    // 🟩 Mode: structured PNID
+
+    // 2️⃣ Chat/human mode → reply directly
+    if (mode === 'chat') {
+        if (typeof setChatMessages === 'function') {
+            setChatMessages(prev => [
+                ...prev,
+                { sender: 'User', message: description },
+                { sender: 'AI', message: explanation }
+            ]);
+        }
+        return { nodes: existingNodes, edges: existingEdges };
+    }
+
+    // 3️⃣ Structured PNID logic
     const parsedItems = Array.isArray(parsed) ? parsed : [parsed];
+    const newNodes = [];
+    const newEdges = [...existingEdges];
     const allMessages = [{ sender: "User", message: description }];
 
     parsedItems.forEach((p, idx) => {
         const Name = (p.Name || description).trim();
-        const Category = p.Category || "Equipment";
-        const Type = p.Type || "Generic";
-        const Unit = p.Unit ?? "Default Unit";
-        const SubUnit = p.SubUnit ?? "Default SubUnit";
+        const Category = p.Category && p.Category !== '' ? p.Category : 'Equipment';
+        const Type = p.Type && p.Type !== '' ? p.Type : 'Generic';
+        const NumberOfItems = p.Number && p.Number > 0 ? p.Number : 1;
+
+        const Unit = p.Unit ?? 0;
+        const SubUnit = p.SubUnit ?? 0;
         const Sequence = p.Sequence ?? 1;
-        const NumberOfItems = p.Number > 0 ? p.Number : 1;
 
-        // Generate codes
-        for (let i = 0; i < NumberOfItems; i++) {
-            const code = generateCode({
+        // Generate base code
+        const baseCode = generateCode({ Category, Type, Unit, SubUnit, Sequence, SensorType: p.SensorType || '' });
+        const allCodes = [baseCode].filter(Boolean);
+
+        // Optionally generate additional codes if NumberOfItems > 1
+        for (let i = 1; i < NumberOfItems; i++) {
+            const nextCode = generateCode({
                 Category,
                 Type,
                 Unit,
                 SubUnit,
                 Sequence: Sequence + i,
-                SensorType: p.SensorType || ""
+                SensorType: p.SensorType || ''
             });
+            if (nextCode) allCodes.push(nextCode);
+        }
 
+        // Create a node for each code
+        allCodes.forEach((code, codeIdx) => {
+            const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
+            // ✅ Create fully normalized item for ItemDetailCard
             const nodeItem = {
-                id: crypto.randomUUID(),
-                Name: NumberOfItems > 1 ? `${Name} ${i + 1}` : Name,
+                id: nodeId,
+                Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
                 Code: code,
-                "Item Code": code,
+                'Item Code': code,
                 Category,
                 Type,
-                Unit,
-                SubUnit,
-                Sequence: Sequence + i,
-                Connections: p.Connections || [] // store raw, let buildDiagram handle
+                Unit: Unit ?? 'Default Unit',         // fallback if missing
+                SubUnit: SubUnit ?? 'Default SubUnit',// fallback if missing
+                Sequence: Sequence + codeIdx,
+                Connections: p.Connections || []      // always an array
             };
 
+            // push to nodes
+            newNodes.push({
+                id: nodeId,
+                position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
+                data: { label: `${nodeItem.Code} - ${nodeItem.Name}`, item: nodeItem, icon: getItemIcon(nodeItem) },
+                type: categoryTypeMap[Category] || 'scalableIcon',
+            });
+
+            // ✅ push to normalizedItems array (so ProcessDiagram can use it)
             normalizedItems.push(nodeItem);
+
+
             allMessages.push({ sender: "AI", message: `Generated code: ${code}` });
-        }
+        });
 
         if (explanation && idx === 0) {
             allMessages.push({ sender: "AI", message: explanation });
         }
     });
 
-    allMessages.push({ sender: "AI", message: `→ Generated ${normalizedItems.length} item(s)` });
+    // --------------------------
+    // Explicit connections
+    // --------------------------
+    if (connection && connection.sourceCode && connection.targetCode) {
+        const sourceNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.sourceCode);
+        const targetNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.targetCode);
 
-    if (setChatMessages && allMessages.length > 0) {
+        if (sourceNode && targetNode) {
+            const exists = newEdges.some(e => e.source === sourceNode.id && e.target === targetNode.id);
+            if (!exists) {
+                newEdges.push({
+                    id: `edge-${sourceNode.id}-${targetNode.id}`,
+                    source: sourceNode.id,
+                    target: targetNode.id,
+                    animated: true
+                });
+            }
+            allMessages.push({ sender: "AI", message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` });
+        }
+    }
+    // --------------------------
+    // Build edges from each item's Connections
+    // --------------------------
+    const allNodesSoFar = [...existingNodes, ...newNodes];
+
+    normalizedItems.forEach(item => {
+        if (!item.Connections || !Array.isArray(item.Connections)) return;
+
+        item.Connections.forEach(connCode => {
+            const sourceNode = allNodesSoFar.find(n => n.data?.item?.Code === item.Code);
+            const targetNode = allNodesSoFar.find(
+                n => n.data?.item?.Code === connCode || n.data?.item?.Name === connCode
+            );
+
+            if (sourceNode && targetNode) {
+                const exists = newEdges.some(
+                    e => e.source === sourceNode.id && e.target === targetNode.id
+                );
+                if (!exists) {
+                    newEdges.push({
+                        id: `edge-${sourceNode.id}-${targetNode.id}`,
+                        source: sourceNode.id,
+                        target: targetNode.id,
+                        type: 'smoothstep',
+                        animated: true,
+                        style: { stroke: '#888', strokeWidth: 2 },
+                    });
+                    allMessages.push({
+                        sender: "AI",
+                        message: `→ Connected ${item.Code} → ${connCode}`
+                    });
+                }
+            }
+        });
+    });
+
+    // --------------------------
+    // Implicit connections (chain all new items)
+    // --------------------------
+    if (/Connect/i.test(description) && newNodes.length > 1) {
+        for (let i = 0; i < newNodes.length - 1; i++) {
+            const exists = newEdges.some(e => e.source === newNodes[i].id && e.target === newNodes[i + 1].id);
+            if (!exists) {
+                newEdges.push({
+                    id: `edge-${newNodes[i].id}-${newNodes[i + 1].id}`,
+                    source: newNodes[i].id,
+                    target: newNodes[i + 1].id,
+                    animated: true
+                });
+            }
+        }
+        allMessages.push({ sender: "AI", message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
+    }
+
+    allMessages.push({ sender: "AI", message: `→ Generated ${newNodes.length} total item(s)` });
+
+    if (typeof setChatMessages === "function" && allMessages.length > 0) {
         setChatMessages(prev => [...prev, ...allMessages]);
     }
 
-    return { normalizedItems };
-}
+    return { nodes: [...existingNodes, ...newNodes], edges: newEdges, normalizedItems };
+
+
+} 
