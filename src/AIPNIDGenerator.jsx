@@ -71,7 +71,8 @@ export default async function AIPNIDGenerator(
                 mode: "structured",
                 parsed: aiResult,
                 explanation: null,
-                connection: null
+                connection: null,
+                connectionResolved: []
             };
         }
     } catch (err) {
@@ -86,7 +87,7 @@ export default async function AIPNIDGenerator(
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    const { mode, explanation, parsed = {}, connection } = aiResult;
+    const { mode, explanation, parsed = {}, connection, connectionResolved = [] } = aiResult;
 
     // Handle Hybrid action mode
     if (aiResult.mode === "action") {
@@ -101,7 +102,6 @@ export default async function AIPNIDGenerator(
             ]);
         }
 
-        // Return existing nodes/edges since we don't add new items
         return { nodes: existingNodes, edges: existingEdges };
     }
 
@@ -111,7 +111,7 @@ export default async function AIPNIDGenerator(
             setChatMessages(prev => [
                 ...prev,
                 { sender: "User", message: description },
-                { sender: "AI", message: parsed.message || explanation }
+                { sender: "AI", message: parsed?.message || explanation }
             ]);
         }
         return { nodes: existingNodes, edges: existingEdges };
@@ -123,11 +123,11 @@ export default async function AIPNIDGenerator(
     const newEdges = [...existingEdges];
     const allMessages = [{ sender: "User", message: description }];
 
-    // Build quick lookup of existing nodes by code & by name (prefer existing canvas)
+    // Build quick lookup of existing nodes by code (prefer canvas)
     const existingItems = existingNodes.map(n => n.data?.item).filter(Boolean);
     const codeToNodeId = new Map();   // code => nodeId (includes existing)
     const codeToItem = new Map();     // code => item object
-    const nameToCode = new Map();     // name => code (for resolving by name)
+    const nameToCode = new Map();     // name(lower) => code
 
     existingNodes.forEach(n => {
         const it = n.data?.item;
@@ -139,6 +139,25 @@ export default async function AIPNIDGenerator(
         if (it.Name) {
             nameToCode.set(it.Name.toLowerCase(), it.Code || it.Name);
         }
+    });
+
+    // Helper to compute PNID code same way parse-item does
+    function makeCodeForParsed(item) {
+        return generateCode({
+            Category: item.Category || 'Equipment',
+            Type: item.Type || 'Generic',
+            Unit: item.Unit ?? 0,
+            SubUnit: item.SubUnit ?? 0,
+            Sequence: item.Sequence ?? 1,
+            Number: item.Number ?? 1,
+            SensorType: item.SensorType || ''
+        });
+    }
+
+    // Pre-fill name -> code based on parsedItems
+    parsedItems.forEach(it => {
+        const code = makeCodeForParsed(it);
+        if (it.Name) nameToCode.set(it.Name.toLowerCase(), code);
     });
 
     // Process parsed items and create nodes only if code not already present in canvas
@@ -174,78 +193,37 @@ export default async function AIPNIDGenerator(
             // If the code already exists in canvas -> reuse it (do not create new node)
             if (codeToNodeId.has(code)) {
                 const existingItem = codeToItem.get(code);
-                // ensure normalizedItems contains this item so connections can reference it
-                if (!normalizedItems.find(it => it.Code === code)) {
-                    normalizedItems.push(existingItem);
-                }
-                // still add a message that code was recognized
+                if (!normalizedItems.find(it => it.Code === code)) normalizedItems.push(existingItem);
                 allMessages.push({ sender: "AI", message: `Reused existing code: ${code}` });
                 return;
             }
 
-            // Normalize connections: respect direction when object form is used
-            const normalizedConnections = [];
-            const existingItemsPool = [...existingItems]; // prefer existing canvas items when resolving targets
-
-            (p.Connections || []).forEach(conn => {
-                if (!conn) return;
-
-                // CASE 1: string connection -> treat as outgoing to that name/code
+            // Normalize connections declared on this parsed object (we don't use raw 'connection' here)
+            const normalizedConnections = (p.Connections || []).map(conn => {
+                if (!conn) return null;
                 if (typeof conn === "string") {
-                    const targetNameOrCode = conn.trim();
-                    // search existing canvas items first
-                    const found =
-                        existingItemsPool.find(i => i?.Code === targetNameOrCode || (i?.Name && i.Name.toLowerCase() === targetNameOrCode.toLowerCase()))
-                        || normalizedItems.find(i => i?.Code === targetNameOrCode || (i?.Name && i.Name.toLowerCase() === targetNameOrCode.toLowerCase()));
-
-                    if (found) {
-                        normalizedConnections.push(found.Code || targetNameOrCode);
-                    } else {
-                        normalizedConnections.push(targetNameOrCode);
-                    }
-                    return;
-                }
-
-                // CASE 2: object connection -> { from, to } or similar
-                if (typeof conn === "object") {
+                    // string might be "A to B" or a name — but final resolution will happen later
+                    return conn.trim();
+                } else if (typeof conn === "object") {
+                    // If AI gave object connections like { from: "Tank", to: "Pump" }, only keep outgoing where 'from' matches this parsed item
                     const fromVal = (conn.from || conn.fromName || "").toString().trim();
                     const toVal = (conn.to || conn.toName || conn.toId || "").toString().trim();
-                    if (!fromVal || !toVal) return;
-
-                    // Determine whether this generated code or parsed name equals the `from` (so it's outgoing for this item)
-                    const thisIsSource =
-                        // match parsed name (case-insensitive)
-                        (p.Name && fromVal.toLowerCase() === p.Name.toLowerCase()) ||
-                        // match generated code string (AI might return code strings)
-                        (fromVal === code) ||
-                        // or match PNID style code for this parsed object
-                        (fromVal === generateCode(p));
-
-                    if (!thisIsSource) {
-                        // it's an incoming connection for this node — skip adding outgoing here
-                        return;
+                    // if fromVal matches this parsed item name or code, it's an outgoing
+                    const thisIsSource = (fromVal && (fromVal.toLowerCase() === (p.Name || '').toLowerCase())) || fromVal === code || fromVal === makeCodeForParsed(p);
+                    if (thisIsSource && toVal) {
+                        // prefer parsed name->code mapping if available
+                        return nameToCode.get(toVal.toLowerCase()) || toVal;
                     }
-
-                    // resolve 'toVal' (prefer existing canvas item)
-                    const foundTarget =
-                        existingItemsPool.find(i => i?.Code === toVal || (i?.Name && i.Name.toLowerCase() === toVal.toLowerCase()))
-                        || normalizedItems.find(i => i?.Code === toVal || (i?.Name && i.Name.toLowerCase() === toVal.toLowerCase()));
-
-                    if (foundTarget) {
-                        normalizedConnections.push(foundTarget.Code || toVal);
-                    } else {
-                        normalizedConnections.push(toVal);
-                    }
-                    return;
+                    return null;
                 }
-            });
+                return null;
+            }).filter(Boolean);
 
-            // unique and filter
             const uniqueConnections = Array.from(new Set(normalizedConnections)).filter(Boolean);
 
             // ✅ Create fully normalized item for ItemDetailCard
             const nodeItem = {
-                id: null, // will be set when we create node below
+                id: null,
                 Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
                 Code: code,
                 'Item Code': code,
@@ -272,7 +250,6 @@ export default async function AIPNIDGenerator(
                 type: categoryTypeMap[Category] || 'scalableIcon',
             });
 
-            // Add to normalizedItems and maps for later resolution
             normalizedItems.push(nodeItem);
             codeToNodeId.set(code, nodeId);
             codeToItem.set(code, nodeItem);
@@ -287,42 +264,40 @@ export default async function AIPNIDGenerator(
     });
 
     // --------------------------
-    // Build edges from explicit normalized `connection` returned by parseItemLogic
-    // connection may be raw objects; try to resolve to codes then node ids
+    // Use the resolved connections from API (connectionResolved) first if present.
+    // connectionResolved entries are { from: codeOrName, to: codeOrName }
     // --------------------------
-    if (connection && Array.isArray(connection) && connection.length > 0) {
-        // connection may be an array of {from,to} objects — try to handle all
-        connection.forEach(rawConn => {
-            if (!rawConn) return;
-            const fromVal = (rawConn.from || rawConn.fromName || "").toString().trim();
-            const toVal = (rawConn.to || rawConn.toName || rawConn.toId || "").toString().trim();
+    const connectionArray = Array.isArray(connectionResolved) && connectionResolved.length > 0
+        ? connectionResolved
+        : (Array.isArray(connection) ? connection : []);
+
+    if (connectionArray && connectionArray.length > 0) {
+        connectionArray.forEach(conn => {
+            if (!conn) return;
+            const fromVal = (conn.from || '').toString().trim();
+            const toVal = (conn.to || '').toString().trim();
             if (!fromVal || !toVal) return;
 
-            // try to resolve source code (prefer existing canvas)
-            let sourceCode =
-                (existingItems.find(i => i.Code === fromVal) && fromVal) ||
-                (codeToItem.has(fromVal) && fromVal) ||
-                // maybe user used name -> try to map name to code
-                (nameToCode.get(fromVal.toLowerCase())) ||
-                null;
+            // Resolve source/target to known codes (prefer existing canvas codeToNodeId)
+            let sourceCode = fromVal;
+            let targetCode = toVal;
 
-            let targetCode =
-                (existingItems.find(i => i.Code === toVal) && toVal) ||
-                (codeToItem.has(toVal) && toVal) ||
-                (nameToCode.get(toVal.toLowerCase())) ||
-                null;
-
-            if (!sourceCode && !targetCode) {
-                // fallback: generate codes from parsedItems if names match
-                const sourceParsed = parsedItems.find(i => i.Name.toLowerCase() === fromVal.toLowerCase());
-                const targetParsed = parsedItems.find(i => i.Name.toLowerCase() === toVal.toLowerCase());
-                if (sourceParsed) sourceCode = generateCode(sourceParsed);
-                if (targetParsed) targetCode = generateCode(targetParsed);
+            // If the from/to look like a parsed name, map to code
+            if (!codeToNodeId.has(sourceCode) && nameToCode.has(sourceCode.toLowerCase())) {
+                sourceCode = nameToCode.get(sourceCode.toLowerCase());
+            }
+            if (!codeToNodeId.has(targetCode) && nameToCode.has(targetCode.toLowerCase())) {
+                targetCode = nameToCode.get(targetCode.toLowerCase());
             }
 
-            // If resolved, map to node ids and add edge
-            const sourceNodeId = sourceCode ? codeToNodeId.get(sourceCode) : null;
-            const targetNodeId = targetCode ? codeToNodeId.get(targetCode) : null;
+            // If still not a code but matches parsedItems names, convert
+            const parsedSource = parsedItems.find(i => i.Name && i.Name.toLowerCase() === (fromVal || '').toLowerCase());
+            const parsedTarget = parsedItems.find(i => i.Name && i.Name.toLowerCase() === (toVal || '').toLowerCase());
+            if (!codeToNodeId.has(sourceCode) && parsedSource) sourceCode = makeCodeForParsed(parsedSource);
+            if (!codeToNodeId.has(targetCode) && parsedTarget) targetCode = makeCodeForParsed(parsedTarget);
+
+            const sourceNodeId = codeToNodeId.get(sourceCode);
+            const targetNodeId = codeToNodeId.get(targetCode);
 
             if (sourceNodeId && targetNodeId) {
                 const exists = newEdges.some(e => e.source === sourceNodeId && e.target === targetNodeId);
@@ -349,11 +324,15 @@ export default async function AIPNIDGenerator(
     normalizedItems.forEach(item => {
         if (!item.Connections || !Array.isArray(item.Connections)) return;
 
-        item.Connections.forEach(connCodeOrName => {
-            // try to resolve to node id by code first, then by name in existing nodes
-            let targetNode = allNodesSoFar.find(n => n.data?.item?.Code === connCodeOrName);
+        item.Connections.forEach(connTarget => {
+            if (!connTarget) return;
+            // try to resolve connTarget to code first, then name
+            let targetNode = allNodesSoFar.find(n => n.data?.item?.Code === connTarget);
             if (!targetNode) {
-                targetNode = allNodesSoFar.find(n => n.data?.item?.Name && n.data.item.Name.toLowerCase() === (connCodeOrName || '').toLowerCase());
+                targetNode = allNodesSoFar.find(n => {
+                    const nm = n.data?.item?.Name;
+                    return nm && nm.toLowerCase() === (connTarget || '').toLowerCase();
+                });
             }
 
             const sourceNode = allNodesSoFar.find(n => n.data?.item?.Code === item.Code);
@@ -389,18 +368,4 @@ export default async function AIPNIDGenerator(
                     id: `edge-${newNodes[i].id}-${newNodes[i + 1].id}`,
                     source: newNodes[i].id,
                     target: newNodes[i + 1].id,
-                    animated: true
-                });
-            }
-        }
-        allMessages.push({ sender: "AI", message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
-    }
-
-    allMessages.push({ sender: "AI", message: `→ Generated ${newNodes.length} total item(s)` });
-
-    if (typeof setChatMessages === "function" && allMessages.length > 0) {
-        setChatMessages(prev => [...prev, ...allMessages]);
-    }
-
-    return { nodes: [...existingNodes, ...newNodes], edges: newEdges, normalizedItems };
-}
+                    ani
