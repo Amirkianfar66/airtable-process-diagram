@@ -130,6 +130,15 @@ User Input: """${trimmed}"""
                 new Map(normalizedConnections.map(c => [c.from + "->" + c.to, c])).values()
             );
 
+            // --- Code generator helper ---
+            function generateCode({ Unit, SubUnit, Sequence, Number }) {
+                const u = String(Unit).padStart(1, "0");       // 1 digit (Unit)
+                const su = String(SubUnit).padStart(1, "0");   // 1 digit (SubUnit)
+                const seq = String(Sequence).padStart(2, "0"); // 2 digits (Sequence)
+                const num = String(Number).padStart(2, "0");   // 2 digits (Number)
+                return `${u}${su}${seq}${num}`;
+            }
+
             // --- Auto-connect fallback logic ---
             if (
                 itemsArray.length >= 2 &&
@@ -139,11 +148,18 @@ User Input: """${trimmed}"""
                 const prev = itemsArray[itemsArray.length - 2];
                 const curr = itemsArray[itemsArray.length - 1];
 
-                const prevCode = `${prev.Unit}${prev.SubUnit}${prev.Sequence}${prev.Number}`;
-                const currCode = `${curr.Unit}${curr.SubUnit}${curr.Sequence}${curr.Number}`;
+                const prevCode = generateCode(prev);
+                const currCode = generateCode(curr);
 
                 uniqueConnections.push({ from: prevCode, to: currCode });
             }
+
+            // keep your return here
+            return {
+                parsed: itemsArray,
+                connection: uniqueConnections,
+            };
+
 
             return {
                 parsed: itemsArray,
