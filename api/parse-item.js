@@ -133,27 +133,6 @@ User Input: """${trimmed}"""
             const uniqueConnections = Array.from(
                 new Map(normalizedConnections.map(c => [c.from + "->" + c.to, c])).values()
             );
-            // --- Auto-connect fallback logic for exactly two new items ---
-            if (
-                newItems.length === 2 &&
-                /connect/i.test(trimmed) &&
-                uniqueConnections.length === 0
-            ) {
-                const [first, second] = newItems;
-
-                const generateCode = ({ Unit, SubUnit, Sequence, Number }) => {
-                    const u = String(Unit).padStart(1, "0");
-                    const su = String(SubUnit).padStart(1, "0");
-                    const seq = String(Sequence).padStart(2, "0");
-                    const num = String(Number).padStart(2, "0");
-                    return `${u}${su}${seq}${num}`;
-                };
-
-                uniqueConnections.push({
-                    from: generateCode(first),
-                    to: generateCode(second)
-                });
-            }
 
 
             // --- Code generator helper ---
