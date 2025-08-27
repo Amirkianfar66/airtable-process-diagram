@@ -170,7 +170,8 @@ export default function ProcessDiagram() {
 
             // 1️⃣ Extract AI items
             const aiItems = normalizedItems || (aiNodes || []).map(n => n.data?.item).filter(Boolean);
-
+            console.log("AI Items:", aiItems);
+            aiItems.forEach(i => console.log(i.Name, i.Code, i.Connections));
             // 2️⃣ Merge into items
             const updatedItems = [...items];
             const existingIds = new Set(updatedItems.map(i => i.id));
