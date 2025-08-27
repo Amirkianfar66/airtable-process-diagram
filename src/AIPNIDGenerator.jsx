@@ -200,7 +200,6 @@ export default async function AIPNIDGenerator(
             });
 
             // ✅ push to normalizedItems array (so ProcessDiagram can use it)
-            if (!Array.isArray(normalizedItems)) normalizedItems = [];
             normalizedItems.push(nodeItem);
 
 
@@ -258,5 +257,6 @@ export default async function AIPNIDGenerator(
     }
 
     return { nodes: [...existingNodes, ...newNodes], edges: newEdges, normalizedItems };
+
 
 } 
