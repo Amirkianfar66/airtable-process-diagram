@@ -106,35 +106,40 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    // --- Build edges from Connections ---
-    const nameUnitSubToId = {};
-    normalized.forEach(item => {
-        const key = `${item.Name}__${item.Unit}__${item.SubUnit}`;
-        nameUnitSubToId[key] = item.id;
-    });
-
-    const nameToId = Object.fromEntries(normalized.map(i => [i.Name, i.id]));
+    // --- Build edges from Connections robustly ---
+    const codeToId = Object.fromEntries(
+        normalized.map(i => [i.Code || i.Name.toLowerCase(), i.id])
+    );
 
     normalized.forEach(item => {
-
         if (Array.isArray(item.Connections)) {
             item.Connections.forEach(conn => {
-                const fromId = nameToId[conn.from];
-                const toId = nameToId[conn.to];
+                // Prefer matching by Code if available, fallback to name lowercase
+                const fromKey = conn.fromCode || conn.from?.toLowerCase();
+                const toKey = conn.toCode || conn.to?.toLowerCase();
+
+                const fromId = codeToId[fromKey];
+                const toId = codeToId[toKey];
+
                 if (fromId && toId) {
-                    newEdges.push({
-                        id: `edge-${fromId}-${toId}`,
-                        source: fromId,
-                        target: toId,
-                        type: 'smoothstep',
-                        animated: true,
-                        style: { stroke: '#888', strokeWidth: 2 },
-                    });
+                    // Check if edge already exists
+                    const exists = newEdges.some(e => e.source === fromId && e.target === toId);
+                    if (!exists) {
+                        newEdges.push({
+                            id: `edge-${fromId}-${toId}`,
+                            source: fromId,
+                            target: toId,
+                            type: 'smoothstep',
+                            animated: true,
+                            style: { stroke: '#007bff', strokeWidth: 2 },
+                        });
+                    }
+                } else {
+                    console.warn(`Cannot find nodes for connection: ${conn.from} → ${conn.to}`);
                 }
             });
         }
     });
-
 
 
     return {
