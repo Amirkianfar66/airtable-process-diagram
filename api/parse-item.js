@@ -113,11 +113,17 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
+            // 🔹 Deduplicate and normalize connections
+            const allConnections = itemsArray.flatMap(i => i.Connections);
+            const uniqueConnections = Array.from(
+                new Map(allConnections.map(c => [c.from + "->" + c.to, c])).values()
+            );
+
             return {
                 parsed: itemsArray,
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
-                connection: itemsArray.flatMap(i => i.Connections),
+                connection: uniqueConnections,
             };
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
