@@ -1,7 +1,6 @@
 ﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import fs from "fs";
-import path from "path";
+import examples from "./gemini_pid_dataset.json"; // ✅ Import your local dataset
 
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
@@ -9,21 +8,11 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
-    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, "$1").trim();
+    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
 }
 
 // Reserved action commands
 const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
-
-// ✅ Load NDJSON dataset at runtime
-async function loadExamples() {
-    const filePath = path.join(process.cwd(), "public", "gemini_pid_dataset.json");
-    const text = await fs.promises.readFile(filePath, "utf-8");
-    return text
-        .split("\n")
-        .filter(Boolean)
-        .map(line => JSON.parse(line));
-}
 
 // Core logic for both chat and structured PNID commands
 export async function parseItemLogic(description) {
@@ -40,7 +29,7 @@ export async function parseItemLogic(description) {
             parsed: [],
             explanation: `Triggered action: ${actionMatch}`,
             connection: null,
-            connectionResolved: [],
+            connectionResolved: []
         };
     }
 
@@ -52,21 +41,19 @@ export async function parseItemLogic(description) {
     const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
     const inputNumber = numberMatch ? parseInt(numberMatch[1], 10) : 1;
 
-    // --- Load examples at runtime
-    const examples = await loadExamples();
-
-    // --- Build few-shot prompt
-    const BATCH_SIZE = 10;
+    // --- Build few-shot prompt with all examples (split into batches if too long)
+    const BATCH_SIZE = 10; // You can tweak based on prompt length limits
     const batches = [];
     for (let i = 0; i < examples.length; i += BATCH_SIZE) {
-        const batch = examples
-            .slice(i, i + BATCH_SIZE)
-            .map(e => `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`)
-            .join("\n\n");
+        const batch = examples.slice(i, i + BATCH_SIZE).map(e => {
+            return `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`;
+        }).join("\n\n");
         batches.push(batch);
     }
-    const fewShots = batches.join("\n\n");
 
+    const fewShots = batches.join("\n\n"); // Combine all batches
+
+    // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
@@ -95,6 +82,7 @@ ${fewShots}
 User Input: """${trimmed}"""
 `;
 
+
     try {
         const result = await model.generateContent(prompt);
         const text = result?.response?.text?.().trim() || "";
@@ -106,7 +94,7 @@ User Input: """${trimmed}"""
                 explanation: "⚠️ AI returned empty response",
                 mode: "chat",
                 connection: null,
-                connectionResolved: [],
+                connectionResolved: []
             };
         }
 
@@ -127,7 +115,7 @@ User Input: """${trimmed}"""
                 parsed = objects.map(obj => JSON.parse(obj));
             }
 
-            // 🔹 Normalize items
+            // 🔹 Normalize items: remove nulls, fix types, set defaults
             const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
@@ -142,18 +130,22 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
+            // Small helper: generate PNID-style code (Unit + SubUnit + Sequence + Number)
             function generateCode(item) {
                 return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
             }
 
+            // Build a name -> code map for parsed items (resolve connections)
             const nameToCode = new Map();
             itemsArray.forEach(it => {
                 const code = generateCode(it);
                 if (it.Name) nameToCode.set(it.Name.toLowerCase(), code);
             });
 
+            // --- Collect raw connections (flatten)
             const allRawConnections = itemsArray.flatMap(i => i.Connections || []);
 
+            // Normalize raw connections into objects { from, to }
             const normalizedConnections = allRawConnections
                 .map(c => {
                     if (!c) return null;
@@ -165,7 +157,7 @@ User Input: """${trimmed}"""
                     if (typeof c === "object") {
                         return {
                             from: (c.from || c.fromName || "").toString().trim(),
-                            to: (c.to || c.toName || c.toId || "").toString().trim(),
+                            to: (c.to || c.toName || c.toId || "").toString().trim()
                         };
                     }
                     return null;
@@ -183,7 +175,7 @@ User Input: """${trimmed}"""
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
                 connection: connectionResolved.length > 0 ? connectionResolved : normalizedConnections,
-                connectionResolved,
+                connectionResolved
             };
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
@@ -192,7 +184,7 @@ User Input: """${trimmed}"""
                 explanation: text,
                 mode: "chat",
                 connection: null,
-                connectionResolved: [],
+                connectionResolved: []
             };
         }
     } catch (err) {
@@ -202,7 +194,7 @@ User Input: """${trimmed}"""
             explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
             mode: "chat",
             connection: null,
-            connectionResolved: [],
+            connectionResolved: []
         };
     }
 }
