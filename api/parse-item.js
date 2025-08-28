@@ -7,7 +7,6 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
-    // Remove ```json ... ``` or ``` ... ``` blocks
     return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
 }
 
@@ -33,6 +32,14 @@ export async function parseItemLogic(description) {
         };
     }
 
+    // --- Extract Unit from user input if mentioned
+    const unitMatch = trimmed.match(/Unit\s+(\d+)/i);
+    const inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : 0;
+
+    // --- Extract explicit number of items only if user wrote "Draw N ..."
+    const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
+    const inputNumber = numberMatch ? parseInt(numberMatch[1], 10) : 1;
+
     // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
@@ -43,16 +50,11 @@ Rules:
 - Triggered if input starts with a command (Draw, Connect, Add, Generate, PnID) or clearly describes equipment, piping, instruments, or diagrams.
 - Output ONLY valid JSON with these fields:
   { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
-- Always set "mode": "structured".
-- Type must be a string. If multiple types are mentioned (e.g., "Tank and Pump"), generate **separate JSON objects** for each type.
-- All fields must be non-null strings or numbers. If a value is missing, use:
+- All fields must be non-null. Use:
     - "" (empty string) for text fields
     - 0 for Unit and SubUnit
     - 1 for Sequence and Number
     - [] for Connections
-- If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
-- Connections: map "Connect X to Y" → {"from": X, "to": Y}.
-- Explanation: include a short human-readable note if relevant.
 - Wrap structured PNID JSON in a \`\`\`json ... \`\`\` code block.
 - Do NOT wrap chat mode responses in any code block or JSON.
 
@@ -60,8 +62,6 @@ Rules:
 - Triggered if input is small talk, greetings, or unrelated to PNID.
 - Output plain text only.
 - Always set "mode": "chat".
-
-Never mix modes. Default to chat mode if unsure.
 
 User Input: """${trimmed}"""
 `;
@@ -81,7 +81,6 @@ User Input: """${trimmed}"""
             };
         }
 
-        // Try JSON parse
         try {
             const cleaned = cleanAIJson(text);
 
@@ -89,7 +88,6 @@ User Input: """${trimmed}"""
             try {
                 parsed = JSON.parse(cleaned);
             } catch (e) {
-                // Handle multiple JSON objects concatenated
                 const objects = cleaned
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
@@ -99,15 +97,8 @@ User Input: """${trimmed}"""
                     });
                 parsed = objects.map(obj => JSON.parse(obj));
             }
-            // Extract Unit from user input if mentioned
-            const unitMatch = trimmed.match(/Unit\s+(\d+)/i);
-            const inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : 0;
 
-            // Extract explicit number of items only if user wrote "Draw N ..."
-            const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
-            const inputNumber = numberMatch ? parseInt(numberMatch[1], 10) : 1;
-
-
+            // 🔹 Normalize items: remove nulls, fix types, set defaults
             const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
@@ -116,7 +107,7 @@ User Input: """${trimmed}"""
                 Unit: item.Unit !== undefined ? parseInt(item.Unit, 10) : inputUnit,
                 SubUnit: item.SubUnit !== undefined ? parseInt(item.SubUnit, 10) : 0,
                 Sequence: item.Sequence !== undefined ? parseInt(item.Sequence, 10) : 1,
-                Number: item.Number !== undefined ? parseInt(item.Number, 10) : inputNumber, // Always default to 1 if not provided
+                Number: item.Number !== undefined ? parseInt(item.Number, 10) : inputNumber,
                 SensorType: item.SensorType || "",
                 Explanation: item.Explanation || "Added PNID item",
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
@@ -127,7 +118,7 @@ User Input: """${trimmed}"""
                 return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
             }
 
-            // Build a name -> code map for parsed items (so we can resolve names in connections to codes)
+            // Build a name -> code map for parsed items (resolve connections)
             const nameToCode = new Map();
             itemsArray.forEach(it => {
                 const code = generateCode(it);
@@ -137,12 +128,11 @@ User Input: """${trimmed}"""
             // --- Collect raw connections (flatten)
             const allRawConnections = itemsArray.flatMap(i => i.Connections || []);
 
-            // Normalize raw connections into objects { from, to } (both strings)
+            // Normalize raw connections into objects { from, to }
             const normalizedConnections = allRawConnections
                 .map(c => {
                     if (!c) return null;
                     if (typeof c === "string") {
-                        // try to parse "A to B" or "A and B"
                         const m = c.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
                         if (m) return { from: m[1].trim(), to: m[2].trim() };
                         return null;
@@ -157,7 +147,6 @@ User Input: """${trimmed}"""
                 })
                 .filter(Boolean);
 
-            // Resolve connections to codes where possible using parsed items
             const connectionResolved = normalizedConnections.map(c => {
                 const fromCode = nameToCode.get((c.from || "").toLowerCase()) || c.from;
                 const toCode = nameToCode.get((c.to || "").toLowerCase()) || c.to;
