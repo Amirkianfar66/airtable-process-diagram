@@ -1,0 +1,52 @@
+﻿{"input":"Draw a Tank","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Place a Pump","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Generate a Valve","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Valve","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Create a Reactor","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Reactor","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Draw 2 Tanks at Unit 2","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Tank","Unit":2,"SubUnit":1,"Count":2}}
+{"input":"Place 3 Pumps at Unit 1 SubUnit 2","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":2,"Count":3}}
+{"input":"Draw a Tank at Unit 1 SubUnit 1 and a Pump at Unit 2 SubUnit 1","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1},{"Category":"Equipment","Type":"Pump","Unit":2,"SubUnit":1,"Count":1}],"connections":[]}}
+{"input":"Draw 2 Tanks and Connect them together","output":{"mode":"structured","orders":[{"action":"Draw","items":[{"Name":"Tank","Category":"Equipment","Type":"Tank","Count":2}]},{"action":"Connect","connections":[{"from":"Tank1","to":"Tank2"}]}]}}
+{"input":"Place a Pump at Unit 3 SubUnit 1","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Pump","Unit":3,"SubUnit":1,"Count":1}}
+{"input":"Generate 2 Valves at Unit 2","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Valve","Unit":2,"SubUnit":1,"Count":2}}
+{"input":"Create a Tank","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Draw 3 Pumps at Unit 2","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Pump","Unit":2,"SubUnit":1,"Count":3}}
+{"input":"Place a Reactor at Unit 3","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Reactor","Unit":3,"SubUnit":1,"Count":1}}
+{"input":"Draw 2 Tanks at Unit 1","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":2}}
+{"input":"Connect a Tank at Unit 1 SubUnit 1 to a Pump at Unit 2 SubUnit 1","output":{"mode":"structured","connections":[{"from":"Tank","to":"Pump"}]}}
+{"input":"Draw a Pump at Unit 1 SubUnit 1 and Connect to a Valve at Unit 2 SubUnit 2","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1},{"Category":"Equipment","Type":"Valve","Unit":2,"SubUnit":2,"Count":1}],"connections":[{"from":"Pump","to":"Valve"}]}}
+{"input":"Generate 3 Tanks at Unit 2 SubUnit 1","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Tank","Unit":2,"SubUnit":1,"Count":3}}
+{"input":"Draw a Reactor at Unit 3 SubUnit 1","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Reactor","Unit":3,"SubUnit":1,"Count":1}}
+{"input":"Place 2 Valves at Unit 2","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Valve","Unit":2,"SubUnit":1,"Count":2}}
+{"input":"Create 2 Pumps","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":2}}
+{"input":"Draw a Tank at Unit 1 SubUnit 2 and a Pump at Unit 2 SubUnit 1","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":2,"Count":1},{"Category":"Equipment","Type":"Pump","Unit":2,"SubUnit":1,"Count":1}],"connections":[]}}
+{"input":"Draw 2 Reactors and Connect them together","output":{"mode":"structured","orders":[{"action":"Draw","items":[{"Name":"Reactor","Category":"Equipment","Type":"Reactor","Count":2}]},{"action":"Connect","connections":[{"from":"Reactor1","to":"Reactor2"}]}]}}
+{"input":"Place a Tank at Unit 2 SubUnit 1","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Tank","Unit":2,"SubUnit":1,"Count":1}}
+{"input":"Generate a Pump at Unit 1 SubUnit 1","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Create 3 Valves at Unit 3","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Valve","Unit":3,"SubUnit":1,"Count":3}}
+{"input":"Draw a Tank and a Pump then connect them","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1},{"Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1}],"connections":[{"from":"Tank","to":"Pump"}]}}
+{"input":"Place 2 Reactors at Unit 2 SubUnit 2","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Reactor","Unit":2,"SubUnit":2,"Count":2}}
+{"input":"Draw 2 Pumps at Unit 1","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":2}}
+{"input":"Connect Tank at Unit 1 to Pump at Unit 2","output":{"mode":"structured","connections":[{"from":"Tank","to":"Pump"}]}}
+{"input":"Generate a Reactor","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Reactor","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Create a Tank at Unit 3","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Tank","Unit":3,"SubUnit":1,"Count":1}}
+{"input":"Draw 3 Valves at Unit 2 SubUnit 1","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Valve","Unit":2,"SubUnit":1,"Count":3}}
+{"input":"Place a Pump at Unit 1 and a Valve at Unit 2, then connect them together","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1},{"Category":"Equipment","Type":"Valve","Unit":2,"SubUnit":1,"Count":1}],"connections":[{"from":"Pump","to":"Valve"}]}}
+{"input":"Draw a Reactor and Connect to a Tank","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Reactor","Unit":1,"SubUnit":1,"Count":1},{"Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1}],"connections":[{"from":"Reactor","to":"Tank"}]}}
+{"input":"Generate 2 Pumps at Unit 3","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Pump","Unit":3,"SubUnit":1,"Count":2}}
+{"input":"Create a Valve","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Valve","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Draw a Tank at Unit 1 SubUnit 3 and a Reactor at Unit 2 SubUnit 1","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":3,"Count":1},{"Category":"Equipment","Type":"Reactor","Unit":2,"SubUnit":1,"Count":1}],"connections":[]}}
+{"input":"Place 2 Tanks and Connect them","output":{"mode":"structured","orders":[{"action":"Place","items":[{"Name":"Tank","Category":"Equipment","Type":"Tank","Count":2}]},{"action":"Connect","connections":[{"from":"Tank1","to":"Tank2"}]}]}}
+{"input":"Draw 3 Pumps at Unit 1 SubUnit 1","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":3}}
+{"input":"Connect a Reactor at Unit 2 to a Valve at Unit 3","output":{"mode":"structured","connections":[{"from":"Reactor","to":"Valve"}]}}
+{"input":"Generate a Tank at Unit 2 SubUnit 1 and a Pump at Unit 1 SubUnit 2","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Tank","Unit":2,"SubUnit":1,"Count":1},{"Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":2,"Count":1}],"connections":[]}}
+{"input":"Create 2 Reactors","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Reactor","Unit":1,"SubUnit":1,"Count":2}}
+{"input":"Draw a Valve and Connect to a Pump","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Valve","Unit":1,"SubUnit":1,"Count":1},{"Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1}],"connections":[{"from":"Valve","to":"Pump"}]}}
+{"input":"Place a Tank at Unit 1 SubUnit 1","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Draw a Pump at Unit 2","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Pump","Unit":2,"SubUnit":1,"Count":1}}
+{"input":"Generate 3 Reactors at Unit 3 SubUnit 1","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Reactor","Unit":3,"SubUnit":1,"Count":3}}
+{"input":"Create a Pump at Unit 1 SubUnit 1","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1}}
+{"input":"Draw 2 Tanks and a Pump, then connect the Pump to both Tanks","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":2},{"Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1}],"connections":[{"from":"Pump","to":"Tank1"},{"from":"Pump","to":"Tank2"}]}}
+{"input":"Place a Reactor at Unit 2 SubUnit 2","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Reactor","Unit":2,"SubUnit":2,"Count":1}}
+{"input":"Draw a Tank and a Valve then connect them","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1},{"Category":"Equipment","Type":"Valve","Unit":1,"SubUnit":1,"Count":1}],"connections":[{"from":"Tank","to":"Valve"}]}}
+{"input":"Generate 2 Pumps at Unit 1 SubUnit 2","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":2,"Count":2}}
+{"input":"Create a Tank at Unit 3 SubUnit 1","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Tank","Unit":3,"SubUnit":1,"Count":1}}

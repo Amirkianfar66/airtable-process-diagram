@@ -1,5 +1,6 @@
 ﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import examples from "./gemini_pid_dataset.json"; // ✅ Import your local dataset
 
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
@@ -40,6 +41,18 @@ export async function parseItemLogic(description) {
     const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
     const inputNumber = numberMatch ? parseInt(numberMatch[1], 10) : 1;
 
+    // --- Build few-shot prompt with all examples (split into batches if too long)
+    const BATCH_SIZE = 10; // You can tweak based on prompt length limits
+    const batches = [];
+    for (let i = 0; i < examples.length; i += BATCH_SIZE) {
+        const batch = examples.slice(i, i + BATCH_SIZE).map(e => {
+            return `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`;
+        }).join("\n\n");
+        batches.push(batch);
+    }
+
+    const fewShots = batches.join("\n\n"); // Combine all batches
+
     // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
@@ -63,8 +76,12 @@ Rules:
 - Output plain text only.
 - Always set "mode": "chat".
 
+### Few-shot examples (all 100):
+${fewShots}
+
 User Input: """${trimmed}"""
 `;
+
 
     try {
         const result = await model.generateContent(prompt);
