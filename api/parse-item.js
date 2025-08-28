@@ -170,46 +170,62 @@ User Input: """${trimmed}"""
             // Filter only real-looking items
             rawItems = rawItems.filter(isLikelyItem);
 
-            // Normalize items to itemsArray
+            // --- AFTER rawItems is built and filtered ---
+            // Normalize single item -> itemsArray skeleton (one entry per raw item)
             let itemsArray = rawItems.map((item, idx) => ({
                 mode: "structured",
-                Name: (item.Name || item.name || `Item${idx + 1}`).toString().trim(),
+                // prefer Name, if empty fall back to Type (e.g. "Tank"), will uniquify later
+                Name: (item.Name || item.name || item.Type || item.type || `Item${idx + 1}`).toString().trim(),
                 Category: item.Category || item.category || "Equipment",
                 Type: item.Type || item.type || "Generic",
                 Unit: item.Unit !== undefined ? parseInt(item.Unit, 10) : inputUnit || 0,
                 SubUnit: item.SubUnit !== undefined ? parseInt(item.SubUnit, 10) : 0,
-                Sequence: item.Sequence !== undefined ? parseInt(item.Sequence, 10) : idx + 1,
-                Number: item.Number !== undefined ? parseInt(item.Number, 10) : 1,
+                // Use parsed Sequence if present, else placeholder; we'll reassign unique sequences below
+                Sequence: item.Sequence !== undefined ? parseInt(item.Sequence, 10) : null,
+                // Number may mean "quantity" from the model; default 1
+                Number: item.Number !== undefined ? Math.max(1, parseInt(item.Number, 10)) : 1,
                 SensorType: item.SensorType || item.sensorType || "",
-                Explanation: item.Explanation || item.explanation || "Added PNID item",
+                Explanation: item.Explanation || item.explanation || `Added ${item.Type || 'item'}`,
                 Connections: []
             }));
 
-            // Guarantee unique names (Tank -> Tank_1, Tank_2) to avoid collisions in name->code mapping
-            const nameCounts = {};
-            itemsArray = itemsArray.map((it, idx) => {
-                const base = (it.Name || `Item`).toString();
-                const key = base.toLowerCase().replace(/\s+/g, "_");
-                nameCounts[key] = (nameCounts[key] || 0) + 1;
-                if (nameCounts[key] > 1) {
-                    it.Name = `${base}_${nameCounts[key]}`;
-                } else {
-                    it.Name = base;
+            // --- EXPAND items BY their Number field ---
+            // If a single parsed object says Number: 2, expand it into two separate item entries now.
+            {
+                const expanded = [];
+                let globalSeq = 1;
+                for (const it of itemsArray) {
+                    const qty = Math.max(1, it.Number || 1);
+                    for (let k = 0; k < qty; k++) {
+                        // create a shallow clone per unit with distinct Sequence placeholder
+                        const clone = { ...it };
+                        clone.Sequence = globalSeq; // temporarily unique sequence index; will be normalized again if needed
+                        // If original Name looked generic or repeated, append instance suffix; we'll run full uniquify later
+                        clone.Name = qty > 1 ? `${it.Name}_${k + 1}` : it.Name;
+                        // Each expanded clone represents a single item now (Number becomes 1)
+                        clone.Number = 1;
+                        expanded.push(clone);
+                        globalSeq++;
+                    }
                 }
-                // Also ensure Sequence exists and is integer
-                it.Sequence = Number.isFinite(it.Sequence) ? parseInt(it.Sequence, 10) : idx + 1;
+                itemsArray = expanded;
+            }
+
+            // --- ENSURE sequences are contiguous & deterministic ---
+            // Assign sequences 1..N to avoid duplicate Sequence causing identical codes.
+            itemsArray = itemsArray.map((it, idx) => {
+                it.Sequence = idx + 1; // guaranteed unique
                 return it;
             });
 
-            // ENFORCE explicit "Draw N" count (stronger)
+            // --- NOW enforce the user's Draw N if present ---
+            // If user explicitly requested Draw M, ensure final length = M.
+            // But prefer already-expanded items if they already satisfy the count.
             if (inputNumber && inputNumber > 0) {
                 if (itemsArray.length > inputNumber) {
-                    // Trim extras (likely mis-parsed fragments)
-                    const originalLen = itemsArray.length;
                     itemsArray = itemsArray.slice(0, inputNumber);
-                    console.warn(`Trimmed itemsArray from ${originalLen} -> ${itemsArray.length} to respect Draw ${inputNumber}`);
                 } else if (itemsArray.length < inputNumber) {
-                    // Clone last item until we have inputNumber; ensure clones get unique Name & Sequence
+                    // Clone last item until reach requested count (give clones unique names & sequences)
                     const last = itemsArray[itemsArray.length - 1] || {
                         mode: "structured",
                         Name: `Item`,
@@ -217,7 +233,7 @@ User Input: """${trimmed}"""
                         Type: "Generic",
                         Unit: inputUnit || 0,
                         SubUnit: 0,
-                        Sequence: 1,
+                        Sequence: itemsArray.length + 1,
                         Number: 1,
                         SensorType: "",
                         Explanation: "Auto-cloned PNID item",
@@ -225,16 +241,12 @@ User Input: """${trimmed}"""
                     };
                     while (itemsArray.length < inputNumber) {
                         const seq = itemsArray.length + 1;
-                        const clone = {
-                            ...last,
-                            Sequence: seq,
-                            Name: `${last.Name}_${seq}`
-                        };
+                        const clone = { ...last, Sequence: seq, Name: `${last.Name}_${seq}` };
                         itemsArray.push(clone);
                     }
-                    console.warn(`Cloned items to reach Draw ${inputNumber}; final length ${itemsArray.length}`);
                 }
             }
+
 
             // Generate deterministic unique codes (and avoid collisions)
             const codeSet = new Set();
