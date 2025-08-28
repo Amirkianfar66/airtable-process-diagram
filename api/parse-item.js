@@ -106,7 +106,7 @@ User Input: """${trimmed}"""
                 explanation: "⚠️ AI returned empty response",
                 mode: "chat",
                 connection: null,
-                connectionResolved: []
+                connectionResolved: [],
             };
         }
 
@@ -127,7 +127,7 @@ User Input: """${trimmed}"""
                 parsed = objects.map(obj => JSON.parse(obj));
             }
 
-            // 🔹 Normalize items: remove nulls, fix types, set defaults
+            // 🔹 Normalize items
             const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
@@ -142,22 +142,18 @@ User Input: """${trimmed}"""
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
 
-            // Small helper: generate PNID-style code (Unit + SubUnit + Sequence + Number)
             function generateCode(item) {
                 return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
             }
 
-            // Build a name -> code map for parsed items (resolve connections)
             const nameToCode = new Map();
             itemsArray.forEach(it => {
                 const code = generateCode(it);
                 if (it.Name) nameToCode.set(it.Name.toLowerCase(), code);
             });
 
-            // --- Collect raw connections (flatten)
             const allRawConnections = itemsArray.flatMap(i => i.Connections || []);
 
-            // Normalize raw connections into objects { from, to }
             const normalizedConnections = allRawConnections
                 .map(c => {
                     if (!c) return null;
@@ -169,7 +165,7 @@ User Input: """${trimmed}"""
                     if (typeof c === "object") {
                         return {
                             from: (c.from || c.fromName || "").toString().trim(),
-                            to: (c.to || c.toName || c.toId || "").toString().trim()
+                            to: (c.to || c.toName || c.toId || "").toString().trim(),
                         };
                     }
                     return null;
@@ -187,7 +183,7 @@ User Input: """${trimmed}"""
                 explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
                 mode: "structured",
                 connection: connectionResolved.length > 0 ? connectionResolved : normalizedConnections,
-                connectionResolved
+                connectionResolved,
             };
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
@@ -196,7 +192,7 @@ User Input: """${trimmed}"""
                 explanation: text,
                 mode: "chat",
                 connection: null,
-                connectionResolved: []
+                connectionResolved: [],
             };
         }
     } catch (err) {
@@ -206,7 +202,7 @@ User Input: """${trimmed}"""
             explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
             mode: "chat",
             connection: null,
-            connectionResolved: []
+            connectionResolved: [],
         };
     }
 }
