@@ -17,22 +17,19 @@ const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
 // Helper: decide whether a parsed object looks like a PNID item
 function isLikelyItem(obj) {
     if (!obj || typeof obj !== "object") return false;
-    // Must contain at least one of these identifying fields with truthy value
     const hasName = !!(obj.Name || obj.name);
     const hasCategory = !!(obj.Category || obj.category);
     const hasType = !!(obj.Type || obj.type);
-    const hasExplicitFields = hasName || hasCategory || hasType;
-    // Also, reject objects that look like "action" / "connections" wrappers
     const looksLikeAction = !!(obj.action || obj.actionType);
     const isOnlyConnections = obj.connections && Object.keys(obj).length === 1;
-    return hasExplicitFields && !looksLikeAction && !isOnlyConnections;
+    return (hasName || hasCategory || hasType) && !looksLikeAction && !isOnlyConnections;
 }
 
-// Core logic for both chat and structured PNID commands
+// Core parsing logic
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // 1️⃣ Check for exact action match (Hybrid)
+    // Action command check
     const actionMatch = ACTION_COMMANDS.find(
         cmd => cmd.toLowerCase() === trimmed.toLowerCase()
     );
@@ -47,17 +44,16 @@ export async function parseItemLogic(description) {
         };
     }
 
-    // --- Extract Unit from user input if mentioned
+    // Extract Unit and Draw count
     const unitMatch = trimmed.match(/Unit\s+(\d+)/i);
     let inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : 0;
     if (Number.isNaN(inputUnit)) inputUnit = 0;
 
-    // --- Extract explicit number of items only if user wrote "Draw N ..."
     const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
     const inputNumber = numberMatch ? Math.max(1, parseInt(numberMatch[1], 10)) : 1;
 
-    // --- Build few-shot prompt with all examples (split into batches if too long)
-    const BATCH_SIZE = 10; // You can tweak based on prompt length limits
+    // Build few-shot prompt (batched)
+    const BATCH_SIZE = 10;
     const batches = [];
     for (let i = 0; i < examples.length; i += BATCH_SIZE) {
         const batch = examples.slice(i, i + BATCH_SIZE).map(e => {
@@ -65,10 +61,9 @@ export async function parseItemLogic(description) {
         }).join("\n\n");
         batches.push(batch);
     }
+    const fewShots = batches.join("\n\n");
 
-    const fewShots = batches.join("\n\n"); // Combine all batches
-
-    // 2️⃣ Otherwise, normal Gemini call
+    // Prompt
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
@@ -119,7 +114,7 @@ User Input: """${trimmed}"""
             try {
                 parsed = JSON.parse(cleaned);
             } catch (e) {
-                // Try splitting concatenated JSON objects "}{"
+                // Split concatenated JSON fragments safely; ignore unparsable fragments
                 const objects = cleaned
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
@@ -131,19 +126,17 @@ User Input: """${trimmed}"""
                     try {
                         return JSON.parse(obj);
                     } catch (err) {
-                        // If a fragment is unparsable, return null (we will filter later)
-                        console.warn("⚠️ Failed parsing fragment:", err.message, obj);
+                        console.warn("⚠️ Failed parsing fragment (ignored):", err.message, obj.slice?.(0, 200) || obj);
                         return null;
                     }
                 }).filter(Boolean);
             }
 
-            // 🔹 Step 1: extract items & connections safely
+            // Extract rawItems & rawConnections safely
             let rawItems = [];
             let rawConnections = [];
 
             if (parsed?.orders && Array.isArray(parsed.orders)) {
-                // Option A: structured orders
                 parsed.orders.forEach(order => {
                     if (order.action && order.action.toLowerCase() === "draw" && Array.isArray(order.items)) {
                         rawItems.push(...order.items);
@@ -153,12 +146,8 @@ User Input: """${trimmed}"""
                     }
                 });
             } else {
-                // Option B: flat JSON (new Gemini)
-                // parsed could be an array or object
                 const candidateArray = Array.isArray(parsed) ? parsed : [parsed];
-
                 candidateArray.forEach(obj => {
-                    // If the object describes an order (has action + items/connections), extract appropriately
                     if (obj.action && obj.action.toLowerCase() === "draw" && Array.isArray(obj.items)) {
                         rawItems.push(...obj.items);
                         return;
@@ -167,26 +156,21 @@ User Input: """${trimmed}"""
                         rawConnections.push(...obj.connections);
                         return;
                     }
-
-                    // Otherwise treat plain objects that look like items as items
                     if (isLikelyItem(obj)) {
                         rawItems.push(obj);
-                        // also capture any Connections field embedded inside items but keep them separate
                         if (Array.isArray(obj.Connections)) rawConnections.push(...obj.Connections);
                     } else if (Array.isArray(obj.connections)) {
                         rawConnections.push(...obj.connections);
                     } else if (typeof obj === "string") {
-                        // strings can be connection descriptions or simple names
-                        // we'll handle them during normalization
                         rawConnections.push(obj);
                     }
                 });
             }
 
-            // Filter rawItems to only keep those that look like real items
+            // Filter only real-looking items
             rawItems = rawItems.filter(isLikelyItem);
 
-            // 🔹 Step 2: normalize items
+            // Normalize items to itemsArray
             let itemsArray = rawItems.map((item, idx) => ({
                 mode: "structured",
                 Name: (item.Name || item.name || `Item${idx + 1}`).toString().trim(),
@@ -194,21 +178,38 @@ User Input: """${trimmed}"""
                 Type: item.Type || item.type || "Generic",
                 Unit: item.Unit !== undefined ? parseInt(item.Unit, 10) : inputUnit || 0,
                 SubUnit: item.SubUnit !== undefined ? parseInt(item.SubUnit, 10) : 0,
-                Sequence: item.Sequence !== undefined ? parseInt(item.Sequence, 10) : idx + 1, // sequence auto
-                Number: item.Number !== undefined ? parseInt(item.Number, 10) : 1,            // default 1
+                Sequence: item.Sequence !== undefined ? parseInt(item.Sequence, 10) : idx + 1,
+                Number: item.Number !== undefined ? parseInt(item.Number, 10) : 1,
                 SensorType: item.SensorType || item.sensorType || "",
                 Explanation: item.Explanation || item.explanation || "Added PNID item",
-                Connections: [] // we will fill this next
+                Connections: []
             }));
 
-            // 🔹 Step 2.5: ENFORCE explicit "Draw N" count from user input
-            // If user asked "Draw 2 ..." we ensure exactly 2 items are produced.
+            // Guarantee unique names (Tank -> Tank_1, Tank_2) to avoid collisions in name->code mapping
+            const nameCounts = {};
+            itemsArray = itemsArray.map((it, idx) => {
+                const base = (it.Name || `Item`).toString();
+                const key = base.toLowerCase().replace(/\s+/g, "_");
+                nameCounts[key] = (nameCounts[key] || 0) + 1;
+                if (nameCounts[key] > 1) {
+                    it.Name = `${base}_${nameCounts[key]}`;
+                } else {
+                    it.Name = base;
+                }
+                // Also ensure Sequence exists and is integer
+                it.Sequence = Number.isFinite(it.Sequence) ? parseInt(it.Sequence, 10) : idx + 1;
+                return it;
+            });
+
+            // ENFORCE explicit "Draw N" count (stronger)
             if (inputNumber && inputNumber > 0) {
                 if (itemsArray.length > inputNumber) {
-                    // Trim extras (likely caused by mis-parsed fragments)
+                    // Trim extras (likely mis-parsed fragments)
+                    const originalLen = itemsArray.length;
                     itemsArray = itemsArray.slice(0, inputNumber);
+                    console.warn(`Trimmed itemsArray from ${originalLen} -> ${itemsArray.length} to respect Draw ${inputNumber}`);
                 } else if (itemsArray.length < inputNumber) {
-                    // Auto-clone the last valid item until we reach requested count
+                    // Clone last item until we have inputNumber; ensure clones get unique Name & Sequence
                     const last = itemsArray[itemsArray.length - 1] || {
                         mode: "structured",
                         Name: `Item`,
@@ -231,31 +232,48 @@ User Input: """${trimmed}"""
                         };
                         itemsArray.push(clone);
                     }
+                    console.warn(`Cloned items to reach Draw ${inputNumber}; final length ${itemsArray.length}`);
                 }
             }
 
-            // 🔹 Step 3: generate codes
-            function generateCode(item) {
-                // Keep original simple code scheme (Unit SubUnit Sequence Number)
-                return `${item.Unit}${item.SubUnit}${item.Sequence}${item.Number}`;
-            }
+            // Generate deterministic unique codes (and avoid collisions)
+            const codeSet = new Set();
             const nameToCode = new Map();
-            itemsArray.forEach(it => {
-                const code = generateCode(it);
-                if (it.Name) nameToCode.set(it.Name.toLowerCase(), code);
+
+            function baseCodeFor(item, idx) {
+                // Base code made from Unit/SubUnit/Sequence/Number with consistent padding
+                const u = String(item.Unit ?? 0).padStart(1, "0");
+                const su = String(item.SubUnit ?? 0).padStart(1, "0");
+                // Sequence use at least 2 digits so sequences of 1 and 01 don't collide
+                const seq = String(item.Sequence ?? (idx + 1)).padStart(2, "0");
+                const num = String(item.Number ?? 1).padStart(2, "0");
+                return `${u}${su}${seq}${num}`; // e.g. "000101"
+            }
+
+            itemsArray.forEach((it, idx) => {
+                let base = baseCodeFor(it, idx);
+                let code = base;
+                let suffix = 0;
+                // If collision, append a small suffix until unique.
+                while (codeSet.has(code)) {
+                    suffix++;
+                    code = `${base}_${suffix}`; // e.g. "000101_1"
+                }
+                codeSet.add(code);
+                nameToCode.set(it.Name.toLowerCase(), code);
+                it._generatedCode = code; // keep transient code on object for debugging
             });
 
-            // 🔹 Step 4: normalize connections
+            // Normalize connections
             const normalizedConnections = rawConnections
                 .map(c => {
                     if (!c) return null;
                     if (typeof c === "string") {
-                        // parse texts like "Tank1 to Tank2", "Tank1 → Tank2", "Tank1 and Tank2"
+                        // accept "X -> Y", "X to Y", "X and Y", "X,Y"
                         const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
                         const toMatch = c.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
                         const m = arrowMatch || toMatch;
                         if (m) return { from: m[1].trim(), to: m[2].trim() };
-                        // fallback: maybe it's "Connect Tank1,Tank2" or "Tank1, Tank2"
                         const csv = c.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
                         if (csv.length === 2) return { from: csv[0], to: csv[1] };
                         return null;
@@ -270,47 +288,56 @@ User Input: """${trimmed}"""
                 })
                 .filter(Boolean);
 
-            // 🔹 Step 5: resolve names to codes
+            // Resolve connections to generated codes
             const connectionResolved = normalizedConnections.map(c => ({
                 from: nameToCode.get((c.from || "").toLowerCase()) || c.from,
                 to: nameToCode.get((c.to || "").toLowerCase()) || c.to
             }));
 
-            // 🔹 Step 6: attach resolved connections to items
+            // Attach resolved connections to items (by _generatedCode)
             itemsArray.forEach(item => {
-                const itemCode = generateCode(item);
+                const itemCode = item._generatedCode;
                 item.Connections = connectionResolved
                     .filter(c => c.from === itemCode)
                     .map(c => c.to);
             });
 
-            // 🔹 Step 7: if user explicitly asked to "connect" but Gemini returned no connections,
-            // and there are multiple items, auto-sequentially connect them (Item1 -> Item2 -> ...)
-            const userWantsConnect = /\bconnect\b/i.test(trimmed) || /\bconnect them\b/i.test(trimmed) || /connect together/i.test(trimmed);
+            // If user requested connect and no explicit connections were provided,
+            // auto-connect sequentially using generated codes
+            const userWantsConnect = /\bconnect\b/i.test(trimmed) || /connect them/i.test(trimmed);
             if (userWantsConnect && connectionResolved.length === 0 && itemsArray.length > 1) {
                 for (let i = 0; i < itemsArray.length - 1; i++) {
-                    const fromCode = generateCode(itemsArray[i]);
-                    const toCode = generateCode(itemsArray[i + 1]);
-                    // attach to from item's Connections
-                    const fromItem = itemsArray[i];
-                    if (!fromItem.Connections.includes(toCode)) fromItem.Connections.push(toCode);
+                    const fromCode = itemsArray[i]._generatedCode;
+                    const toCode = itemsArray[i + 1]._generatedCode;
+                    if (!itemsArray[i].Connections.includes(toCode)) itemsArray[i].Connections.push(toCode);
                     connectionResolved.push({ from: fromCode, to: toCode });
                 }
             }
 
-            // 🔹 Step 8: final explanation
-            const explanation = itemsArray.length > 0
-                ? itemsArray.map(it => it.Explanation || `Added ${it.Name}`).join(" | ")
+            // Build final parsed objects removing internal-only fields and including code
+            const finalParsed = itemsArray.map(it => {
+                const out = { ...it };
+                out.Code = it._generatedCode;
+                delete out._generatedCode;
+                return out;
+            });
+
+            // If something suspicious happened (e.g., finalParsed length != inputNumber), log full parsed frag for debugging
+            if (finalParsed.length !== inputNumber) {
+                console.warn("🛠️ parseItemLogic: finalParsed length mismatch",
+                    { requested: inputNumber, got: finalParsed.length, rawParsedPreview: parsed?.slice?.(0, 5) || parsed });
+            }
+
+            const explanation = finalParsed.length > 0
+                ? finalParsed.map(it => it.Explanation || `Added ${it.Name}`).join(" | ")
                 : "Added PNID item(s)";
 
-            // 🔹 Step 9: return clean structure
             return {
-                parsed: itemsArray,
+                parsed: finalParsed,
                 connectionResolved,
                 explanation,
                 mode: "structured"
             };
-
 
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
