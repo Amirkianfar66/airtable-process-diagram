@@ -1,6 +1,7 @@
 ﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import examples from "./gemini_pid_dataset.json"; // ✅ Import your local dataset
+import fs from "fs";
+import path from "path";
 
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
@@ -8,11 +9,21 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
-    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
+    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, "$1").trim();
 }
 
 // Reserved action commands
 const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
+
+// ✅ Load NDJSON dataset at runtime
+async function loadExamples() {
+    const filePath = path.join(process.cwd(), "public", "gemini_pid_dataset.json");
+    const text = await fs.promises.readFile(filePath, "utf-8");
+    return text
+        .split("\n")
+        .filter(Boolean)
+        .map(line => JSON.parse(line));
+}
 
 // Core logic for both chat and structured PNID commands
 export async function parseItemLogic(description) {
@@ -29,7 +40,7 @@ export async function parseItemLogic(description) {
             parsed: [],
             explanation: `Triggered action: ${actionMatch}`,
             connection: null,
-            connectionResolved: []
+            connectionResolved: [],
         };
     }
 
@@ -41,19 +52,21 @@ export async function parseItemLogic(description) {
     const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
     const inputNumber = numberMatch ? parseInt(numberMatch[1], 10) : 1;
 
-    // --- Build few-shot prompt with all examples (split into batches if too long)
-    const BATCH_SIZE = 10; // You can tweak based on prompt length limits
+    // --- Load examples at runtime
+    const examples = await loadExamples();
+
+    // --- Build few-shot prompt
+    const BATCH_SIZE = 10;
     const batches = [];
     for (let i = 0; i < examples.length; i += BATCH_SIZE) {
-        const batch = examples.slice(i, i + BATCH_SIZE).map(e => {
-            return `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`;
-        }).join("\n\n");
+        const batch = examples
+            .slice(i, i + BATCH_SIZE)
+            .map(e => `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`)
+            .join("\n\n");
         batches.push(batch);
     }
+    const fewShots = batches.join("\n\n");
 
-    const fewShots = batches.join("\n\n"); // Combine all batches
-
-    // 2️⃣ Otherwise, normal Gemini call
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
@@ -81,7 +94,6 @@ ${fewShots}
 
 User Input: """${trimmed}"""
 `;
-
 
     try {
         const result = await model.generateContent(prompt);
