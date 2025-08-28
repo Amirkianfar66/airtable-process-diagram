@@ -101,10 +101,10 @@ User Input: """${trimmed}"""
             }
 
             // Extract Unit from user input if mentioned
-            const unitMatch = trimmed.match(/unit\s+(\d+)/i);
-            const inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : null;
+            const unitMatch = trimmed.match(/Unit\s+(\d+)/i);
+            const inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : 0;
 
-            // Normalize parsed items
+            // 🔹 Normalize items: remove nulls, fix types, set defaults
             const itemsArray = (Array.isArray(parsed) ? parsed : [parsed]).map(item => ({
                 mode: "structured",
                 Name: (item.Name || "").toString().trim(),
@@ -112,20 +112,21 @@ User Input: """${trimmed}"""
                 Type: item.Type || "Generic",
                 Unit: item.Unit !== undefined && item.Unit !== null
                     ? parseInt(item.Unit, 10)
-                    : (inputUnit || 0),   // Use user-specified Unit if Gemini didn't provide
+                    : inputUnit,        // Use unit from user input if Gemini didn't provide
                 SubUnit: item.SubUnit !== undefined && item.SubUnit !== null
                     ? parseInt(item.SubUnit, 10)
-                    : 0,                  // Default SubUnit = 0
+                    : 0,
                 Sequence: item.Sequence !== undefined && item.Sequence !== null
                     ? parseInt(item.Sequence, 10)
-                    : 1,                  // Default Sequence = 1
+                    : 1,
                 Number: item.Number !== undefined && item.Number !== null
                     ? parseInt(item.Number, 10)
-                    : 1,                  // Default Number = 1
+                    : 1,                // Always default to 1
                 SensorType: item.SensorType || "",
                 Explanation: item.Explanation || "Added PNID item",
                 Connections: Array.isArray(item.Connections) ? item.Connections : [],
             }));
+
 
 
 
