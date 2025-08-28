@@ -7,10 +7,6 @@
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:api\\parse-item.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\IconManager.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\IconManager.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\AIPNIDGenerator.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\AIPNIDGenerator.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
@@ -19,12 +15,16 @@
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\ProcessDiagram.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\UnitLayoutConfig.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\diagramBuilder.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\diagramBuilder.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\IconManager.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\IconManager.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\UnitLayoutConfig.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\DiagramCanvas.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
@@ -54,11 +54,11 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 7,
+          "SelectedChildIndex": 6,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 4,
               "Title": "IconManager.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\IconManager.jsx",
               "RelativeDocumentMoniker": "src\\IconManager.jsx",
@@ -67,21 +67,7 @@
               "ViewState": "AgIAAH8AAAAAAAAAAAAmwJcAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-08-26T00:04:32.197Z",
-              "IsPinned": true,
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "UnitLayoutConfig.jsx",
-              "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
-              "RelativeDocumentMoniker": "src\\UnitLayoutConfig.jsx",
-              "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
-              "RelativeToolTip": "src\\UnitLayoutConfig.jsx",
-              "ViewState": "AgIAAD8AAAAAAAAAAAAmwE4AAAApAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-08-26T16:00:46.564Z",
-              "EditorCaption": ""
+              "IsPinned": true
             },
             {
               "$type": "Bookmark",
@@ -101,13 +87,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 2,
               "Title": "ProcessDiagram.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\ProcessDiagram.jsx",
               "RelativeDocumentMoniker": "src\\ProcessDiagram.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\ProcessDiagram.jsx",
               "RelativeToolTip": "src\\ProcessDiagram.jsx",
-              "ViewState": "AgIAAC0AAAAAAAAAAAAAAD4AAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAALcAAAAAAAAAAAAmwMgAAAAGAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-08-21T10:13:37.091Z",
               "EditorCaption": ""
@@ -120,36 +106,48 @@
               "RelativeDocumentMoniker": "api\\parse-item.js",
               "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\api\\parse-item.js",
               "RelativeToolTip": "api\\parse-item.js",
-              "ViewState": "AgIAAHcAAAAAAAAAAAAmwI8AAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAALUAAAAAAAAAAAAswMsAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
               "WhenOpened": "2025-08-22T21:59:36.179Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
               "Title": "AIPNIDGenerator.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\AIPNIDGenerator.jsx",
               "RelativeDocumentMoniker": "src\\AIPNIDGenerator.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\AIPNIDGenerator.jsx",
               "RelativeToolTip": "src\\AIPNIDGenerator.jsx",
-              "ViewState": "AgIAAOIAAAAAAAAAAAAmwPoAAAACAAAAAAAAAA==",
+              "ViewState": "AgIAACkBAAAAAAAAAAAswDwBAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-08-22T21:58:36.302Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 3,
               "Title": "diagramBuilder.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\diagramBuilder.jsx",
               "RelativeDocumentMoniker": "src\\diagramBuilder.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\diagramBuilder.jsx",
               "RelativeToolTip": "src\\diagramBuilder.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAGQAAAABAAAAAAAAAA==",
+              "ViewState": "AgIAAJ8AAAAAAAAAAAAmwLcAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-08-26T14:52:29.143Z",
               "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "UnitLayoutConfig.jsx",
+              "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
+              "RelativeDocumentMoniker": "src\\UnitLayoutConfig.jsx",
+              "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
+              "RelativeToolTip": "src\\UnitLayoutConfig.jsx",
+              "ViewState": "AgIAAD8AAAAAAAAAAAAmwE4AAAApAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-08-26T16:00:46.564Z"
             },
             {
               "$type": "Document",
@@ -173,8 +171,7 @@
               "RelativeToolTip": "src\\DiagramCanvas.jsx",
               "ViewState": "AgIAADIAAAAAAAAAAAAswFMAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-08-25T12:56:53.885Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-08-25T12:56:53.885Z"
             },
             {
               "$type": "Document",
