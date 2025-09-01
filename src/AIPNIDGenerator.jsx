@@ -81,6 +81,7 @@ export default async function AIPNIDGenerator(
     }
 
     const { mode, explanation, items = [], connectionResolved = [] } = aiResult;
+    const parserConnections = connectionResolved || [];
 
     if (mode === "chat") {
         setChatMessages?.(prev => [
