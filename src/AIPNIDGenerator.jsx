@@ -309,46 +309,42 @@ export default async function AIPNIDGenerator(
         }
     });
 
+    // --------------------------
+    // Handle explicit connections (from parseItemLogic). Prefer these first.
+    // Ensure direction follows the parsed-items order (first-mentioned -> second-mentioned).
+    // --------------------------
     explicitConnectionsArr.forEach(connObj => {
         if (!connObj) return;
 
-        // Normalize shapes: either { sourceCode, targetCode } (our normalized shape)
-        // or { from, to } coming from Gemini.
-        let fromRef = connObj.sourceCode || connObj.from || connObj.fromCode || connObj.source || null;
-        let toRef = connObj.targetCode || connObj.to || connObj.toCode || connObj.target || null;
-
+        // Normalize incoming shapes: support { sourceCode, targetCode } or { from, to }
+        const fromRef = connObj.sourceCode || connObj.from || connObj.fromCode || connObj.source || null;
+        const toRef = connObj.targetCode || connObj.to || connObj.toCode || connObj.target || null;
         if (!fromRef || !toRef) return;
 
-        // First, trust resolved codes/names from parse-item
-        let finalFromCode = resolveRefToCode(fromRef, normalizedItems);
-        let finalToCode = resolveRefToCode(toRef, normalizedItems);
+        // Try to resolve "Tank1" / "0001" / "Tank_1" → canonical generated code (from normalizedItems)
+        const resolvedFromCode = resolveRefToCode(fromRef, normalizedItems);
+        const resolvedToCode = resolveRefToCode(toRef, normalizedItems);
 
-        // If still unresolved, try raw values
-        if (!finalFromCode) finalFromCode = fromRef;
-        if (!finalToCode) finalToCode = toRef;
+        // If resolution didn't return a known code, keep the raw reference for later fallback
+        let finalFromCode = resolvedFromCode || fromRef;
+        let finalToCode = resolvedToCode || toRef;
 
-        // Use new variable names to avoid "already declared" errors
-        const idxFromConn = codeToIndex.get(String(finalFromCode));
-        const idxToConn = codeToIndex.get(String(finalToCode));
+        // Compute index values (parsed order) if available, using codeToIndex map
+        const idxFromVal = codeToIndex.has(String(finalFromCode))
+            ? codeToIndex.get(String(finalFromCode))
+            : (codeToIndex.has(String(finalFromCode).toLowerCase()) ? codeToIndex.get(String(finalFromCode).toLowerCase()) : Infinity);
 
-        // Only swap if both indexes exist and are reversed
-        if (Number.isFinite(idxFromConn) && Number.isFinite(idxToConn) && idxFromConn > idxToConn) {
+        const idxToVal = codeToIndex.has(String(finalToCode))
+            ? codeToIndex.get(String(finalToCode))
+            : (codeToIndex.has(String(finalToCode).toLowerCase()) ? codeToIndex.get(String(finalToCode).toLowerCase()) : Infinity);
+
+        // If both indexes exist and are reversed (from appears after to in parsed order), swap them
+        if (Number.isFinite(idxFromVal) && Number.isFinite(idxToVal) && idxFromVal > idxToVal) {
             [finalFromCode, finalToCode] = [finalToCode, finalFromCode];
         }
 
-        console.log("🔗 Trying edge:", { fromRef, toRef, finalFromCode, finalToCode });
-
-        // Use finalFromCode / finalToCode consistently
-        const idxFrom = codeToIndex.has(String(finalFromCode)) ? codeToIndex.get(String(finalFromCode)) : Infinity;
-        const idxTo = codeToIndex.has(String(finalToCode)) ? codeToIndex.get(String(finalToCode)) : Infinity;
-
-        // If both indexes are finite and the "from" appears after the "to" in parsed order, swap them.
-        if (Number.isFinite(idxFrom) && Number.isFinite(idxTo) && idxFrom > idxTo) {
-            [finalFromCode, finalToCode] = [finalToCode, finalFromCode];
-        }
-
-
-        // If we couldn't resolve codes, fallback to parsedItems order (if there are at least 2 items)
+        // Fallback: if either endpoint still unresolved and we have at least two parsed items,
+        // default to first -> second (keeps direction deterministic)
         if ((!finalFromCode || !finalToCode) && normalizedItems.length >= 2) {
             const firstCode = normalizedItems[0]?.Code;
             const secondCode = normalizedItems[1]?.Code;
@@ -358,8 +354,30 @@ export default async function AIPNIDGenerator(
             }
         }
 
-        const srcNodeId = codeToNodeId.get(String(finalFromCode));
-        const tgtNodeId = codeToNodeId.get(String(finalToCode));
+        console.log("🔗 Trying explicit connection:", { fromRef, toRef, resolvedFromCode, resolvedToCode, finalFromCode, finalToCode });
+
+        // Try to locate node IDs using codeToNodeId or nameToNodeId (both populated earlier)
+        let srcNodeId = codeToNodeId.get(String(finalFromCode));
+        if (!srcNodeId && typeof finalFromCode === "string") {
+            srcNodeId = nameToNodeId.get(String(finalFromCode).toLowerCase());
+        }
+
+        let tgtNodeId = codeToNodeId.get(String(finalToCode));
+        if (!tgtNodeId && typeof finalToCode === "string") {
+            tgtNodeId = nameToNodeId.get(String(finalToCode).toLowerCase());
+        }
+
+        // If we still can't find node IDs, try a looser resolution: direct name-to-code lookup from normalizedItems
+        if ((!srcNodeId || !tgtNodeId) && normalizedItems.length) {
+            if (!srcNodeId) {
+                const alt = normalizedItems.find(it => String(it.Code) === String(finalFromCode) || (it.Name && it.Name.toLowerCase() === String(finalFromCode).toLowerCase()));
+                if (alt) srcNodeId = codeToNodeId.get(String(alt.Code));
+            }
+            if (!tgtNodeId) {
+                const alt = normalizedItems.find(it => String(it.Code) === String(finalToCode) || (it.Name && it.Name.toLowerCase() === String(finalToCode).toLowerCase()));
+                if (alt) tgtNodeId = codeToNodeId.get(String(alt.Code));
+            }
+        }
 
         if (srcNodeId && tgtNodeId) {
             const added = addEdgeByNodeIds(srcNodeId, tgtNodeId, { type: 'smoothstep' });
@@ -367,35 +385,12 @@ export default async function AIPNIDGenerator(
                 allMessages.push({ sender: "AI", message: `→ Connected ${finalFromCode} → ${finalToCode}` });
                 explicitAddedCount++;
             }
+        } else {
+            // Debug info if we couldn't map to nodes (helps diagnose why edges are missing)
+            console.warn("⚠️ Could not resolve explicit connection to node IDs:", { fromRef, toRef, finalFromCode, finalToCode, srcNodeId, tgtNodeId });
         }
     });
 
-    // Build edges from each item's Connections (fallback if explicit connections were not present)
-    if (explicitAddedCount === 0) {
-        normalizedItems.forEach(item => {
-            if (!item.Connections || !Array.isArray(item.Connections)) return;
-
-            item.Connections.forEach(connTarget => {
-                if (!connTarget) return;
-
-                const resolvedTargetCode = resolveRefToCode(connTarget, normalizedItems);
-                const sourceNodeId = codeToNodeId.get(String(item.Code));
-                const targetNodeId = codeToNodeId.get(String(resolvedTargetCode));
-
-                if (sourceNodeId && targetNodeId) {
-                    const added = addEdgeByNodeIds(sourceNodeId, targetNodeId, { type: 'smoothstep' });
-                    if (added) {
-                        allMessages.push({
-                            sender: "AI",
-                            message: `→ Connected ${item.Code} → ${resolvedTargetCode}`
-                        });
-                    }
-                }
-            });
-        });
-    } else {
-        allMessages.push({ sender: "AI", message: `→ Skipped per-item Connections because explicit connection(s) were provided.` });
-    }
 
     // --------------------------
     // Implicit connections (chain all new items) — only when user asked to "connect" and there were no explicit connections
