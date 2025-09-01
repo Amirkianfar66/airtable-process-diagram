@@ -1,26 +1,38 @@
 ﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import examples from "./gemini_pid_dataset.json"; // ✅ Import your local dataset
 
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Utility to clean Markdown code blocks from AI output
-// Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
-    // Remove ```json ... ``` or ``` ... ``` blocks
     return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
 }
 
 // Reserved action commands
 const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
 
-// Core logic for both chat and structured PNID commands
+// Helper: decide whether a parsed object looks like a PNID item
+function isLikelyItem(obj) {
+    if (!obj || typeof obj !== "object") return false;
+    const hasName = !!(obj.Name || obj.name);
+    const hasCategory = !!(obj.Category || obj.category);
+    const hasType = !!(obj.Type || obj.type);
+    const looksLikeAction = !!(obj.action || obj.actionType);
+    const isOnlyConnections = obj.connections && Object.keys(obj).length === 1;
+    return (hasName || hasCategory || hasType) && !looksLikeAction && !isOnlyConnections;
+}
+
+// Core parsing logic
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // 1️⃣ Check for exact action match (Hybrid)
-    const actionMatch = ACTION_COMMANDS.find(cmd => cmd.toLowerCase() === trimmed.toLowerCase());
+    // Action command check
+    const actionMatch = ACTION_COMMANDS.find(
+        cmd => cmd.toLowerCase() === trimmed.toLowerCase()
+    );
     if (actionMatch) {
         return {
             mode: "action",
@@ -28,40 +40,57 @@ export async function parseItemLogic(description) {
             parsed: [],
             explanation: `Triggered action: ${actionMatch}`,
             connection: null,
+            connectionResolved: []
         };
     }
 
-    // 2️⃣ Otherwise, normal Gemini call
+    // Extract Unit and Draw count
+    const unitMatch = trimmed.match(/Unit\s+(\d+)/i);
+    let inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : 0;
+    if (Number.isNaN(inputUnit)) inputUnit = 0;
+
+    const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
+    const inputNumber = numberMatch ? Math.max(1, parseInt(numberMatch[1], 10)) : 1;
+
+    // Build few-shot prompt (batched)
+    const BATCH_SIZE = 10;
+    const batches = [];
+    for (let i = 0; i < examples.length; i += BATCH_SIZE) {
+        const batch = examples.slice(i, i + BATCH_SIZE).map(e => {
+            return `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`;
+        }).join("\n\n");
+        batches.push(batch);
+    }
+    const fewShots = batches.join("\n\n");
+
+    // Prompt
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
 Rules:
 
 1. Structured PNID mode
-- Triggered if input starts with a command (Draw, Connect, Add, Generate, PnID) or describes equipment, piping, instruments, or diagrams.
+- Triggered if input starts with a command (Draw, Connect, Add, Generate, PnID) or clearly describes equipment, piping, instruments, or diagrams.
 - Output ONLY valid JSON with these fields:
   { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
-- Always set "mode": "structured".
-- Type must be a string. If multiple types are mentioned (e.g., "Tank and Pump"), generate separate JSON objects for each type.
-- If the user mentions "Draw N ...", set Number = N. Default to 1 if unspecified.
-- Connections: map "Connect X to Y" → {"from": X, "to": Y}.
-- Explanation: include a short human-readable note if relevant.
-- Correct any misspelled equipment, piping, or instrument names automatically.
+- All fields must be non-null. Use:
+    - "" (empty string) for text fields
+    - 0 for Unit and SubUnit
+    - 1 for Sequence and Number
+    - [] for Connections
 - Wrap structured PNID JSON in a \`\`\`json ... \`\`\` code block.
+- Do NOT wrap chat mode responses in any code block or JSON.
 
 2. Chat mode
 - Triggered if input is small talk, greetings, or unrelated to PNID.
 - Output plain text only.
 - Always set "mode": "chat".
 
-Never mix modes. Default to chat mode if unsure.
+### Few-shot examples (all 100):
+${fewShots}
 
 User Input: """${trimmed}"""
 `;
-
-
-
-
 
     try {
         const result = await model.generateContent(prompt);
@@ -74,18 +103,18 @@ User Input: """${trimmed}"""
                 explanation: "⚠️ AI returned empty response",
                 mode: "chat",
                 connection: null,
+                connectionResolved: []
             };
         }
 
-        // Try JSON parse
         try {
-            const cleaned = text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
+            const cleaned = cleanAIJson(text);
 
             let parsed;
             try {
                 parsed = JSON.parse(cleaned);
             } catch (e) {
-                // Handle multiple JSON objects concatenated
+                // Split concatenated JSON fragments safely; ignore unparsable fragments
                 const objects = cleaned
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
@@ -93,17 +122,235 @@ User Input: """${trimmed}"""
                         if (idx === arr.length - 1 && arr.length > 1) return "{" + part;
                         return "{" + part + "}";
                     });
-                parsed = objects.map(obj => JSON.parse(obj));
+                parsed = objects.map(obj => {
+                    try {
+                        return JSON.parse(obj);
+                    } catch (err) {
+                        console.warn("⚠️ Failed parsing fragment (ignored):", err.message, obj.slice?.(0, 200) || obj);
+                        return null;
+                    }
+                }).filter(Boolean);
             }
 
-            const itemsArray = Array.isArray(parsed) ? parsed : [parsed];
+            // Extract rawItems & rawConnections safely
+            let rawItems = [];
+            let rawConnections = [];
+
+            if (parsed?.orders && Array.isArray(parsed.orders)) {
+                parsed.orders.forEach(order => {
+                    if (order.action && order.action.toLowerCase() === "draw" && Array.isArray(order.items)) {
+                        rawItems.push(...order.items);
+                    }
+                    if (order.action && order.action.toLowerCase() === "connect" && Array.isArray(order.connections)) {
+                        rawConnections.push(...order.connections);
+                    }
+                });
+            } else {
+                const candidateArray = Array.isArray(parsed) ? parsed : [parsed];
+                candidateArray.forEach(obj => {
+                    if (obj.action && obj.action.toLowerCase() === "draw" && Array.isArray(obj.items)) {
+                        rawItems.push(...obj.items);
+                        return;
+                    }
+                    if (obj.action && obj.action.toLowerCase() === "connect" && Array.isArray(obj.connections)) {
+                        rawConnections.push(...obj.connections);
+                        return;
+                    }
+                    if (isLikelyItem(obj)) {
+                        rawItems.push(obj);
+                        if (Array.isArray(obj.Connections)) rawConnections.push(...obj.Connections);
+                    } else if (Array.isArray(obj.connections)) {
+                        rawConnections.push(...obj.connections);
+                    } else if (typeof obj === "string") {
+                        rawConnections.push(obj);
+                    }
+                });
+            }
+
+            // Filter only real-looking items
+            rawItems = rawItems.filter(isLikelyItem);
+
+            // --- AFTER rawItems is built and filtered ---
+            // Normalize single item -> itemsArray skeleton (one entry per raw item)
+            let itemsArray = rawItems.map((item, idx) => ({
+                mode: "structured",
+                // prefer Name, if empty fall back to Type (e.g. "Tank"), will uniquify later
+                Name: (item.Name || item.name || item.Type || item.type || `Item${idx + 1}`).toString().trim(),
+                Category: item.Category || item.category || "Equipment",
+                Type: item.Type || item.type || "Generic",
+                Unit: item.Unit !== undefined ? parseInt(item.Unit, 10) : inputUnit || 0,
+                SubUnit: item.SubUnit !== undefined ? parseInt(item.SubUnit, 10) : 0,
+                // Use parsed Sequence if present, else placeholder; we'll reassign unique sequences below
+                Sequence: item.Sequence !== undefined ? parseInt(item.Sequence, 10) : null,
+                // Number may mean "quantity" from the model; default 1
+                Number: item.Number !== undefined ? Math.max(1, parseInt(item.Number, 10)) : 1,
+                SensorType: item.SensorType || item.sensorType || "",
+                Explanation: item.Explanation || item.explanation || `Added ${item.Type || 'item'}`,
+                Connections: []
+            }));
+
+            // --- EXPAND items BY their Number field ---
+            // If a single parsed object says Number: 2, expand it into two separate item entries now.
+            {
+                const expanded = [];
+                let globalSeq = 1;
+                for (const it of itemsArray) {
+                    const qty = Math.max(1, it.Number || 1);
+                    for (let k = 0; k < qty; k++) {
+                        // create a shallow clone per unit with distinct Sequence placeholder
+                        const clone = { ...it };
+                        clone.Sequence = globalSeq; // temporarily unique sequence index; will be normalized again if needed
+                        // If original Name looked generic or repeated, append instance suffix; we'll run full uniquify later
+                        clone.Name = qty > 1 ? `${it.Name}_${k + 1}` : it.Name;
+                        // Each expanded clone represents a single item now (Number becomes 1)
+                        clone.Number = 1;
+                        expanded.push(clone);
+                        globalSeq++;
+                    }
+                }
+                itemsArray = expanded;
+            }
+
+            // --- ENSURE sequences are contiguous & deterministic ---
+            // Assign sequences 1..N to avoid duplicate Sequence causing identical codes.
+            itemsArray = itemsArray.map((it, idx) => {
+                it.Sequence = idx + 1; // guaranteed unique
+                return it;
+            });
+
+            // --- NOW enforce the user's Draw N if present ---
+            // If user explicitly requested Draw M, ensure final length = M.
+            // But prefer already-expanded items if they already satisfy the count.
+            if (inputNumber && inputNumber > 0) {
+                if (itemsArray.length > inputNumber) {
+                    itemsArray = itemsArray.slice(0, inputNumber);
+                } else if (itemsArray.length < inputNumber) {
+                    // Clone last item until reach requested count (give clones unique names & sequences)
+                    const last = itemsArray[itemsArray.length - 1] || {
+                        mode: "structured",
+                        Name: `Item`,
+                        Category: "Equipment",
+                        Type: "Generic",
+                        Unit: inputUnit || 0,
+                        SubUnit: 0,
+                        Sequence: itemsArray.length + 1,
+                        Number: 1,
+                        SensorType: "",
+                        Explanation: "Auto-cloned PNID item",
+                        Connections: []
+                    };
+                    while (itemsArray.length < inputNumber) {
+                        const seq = itemsArray.length + 1;
+                        const clone = { ...last, Sequence: seq, Name: `${last.Name}_${seq}` };
+                        itemsArray.push(clone);
+                    }
+                }
+            }
+
+
+            // Generate deterministic unique codes (and avoid collisions)
+            const codeSet = new Set();
+            const nameToCode = new Map();
+
+            function baseCodeFor(item, idx) {
+                // Base code made from Unit/SubUnit/Sequence/Number with consistent padding
+                const u = String(item.Unit ?? 0).padStart(1, "0");
+                const su = String(item.SubUnit ?? 0).padStart(1, "0");
+                // Sequence use at least 2 digits so sequences of 1 and 01 don't collide
+                const seq = String(item.Sequence ?? (idx + 1)).padStart(2, "0");
+                const num = String(item.Number ?? 1).padStart(2, "0");
+                return `${u}${su}${seq}${num}`; // e.g. "000101"
+            }
+
+            itemsArray.forEach((it, idx) => {
+                let base = baseCodeFor(it, idx);
+                let code = base;
+                let suffix = 0;
+                // If collision, append a small suffix until unique.
+                while (codeSet.has(code)) {
+                    suffix++;
+                    code = `${base}_${suffix}`; // e.g. "000101_1"
+                }
+                codeSet.add(code);
+                nameToCode.set(it.Name.toLowerCase(), code);
+                it._generatedCode = code; // keep transient code on object for debugging
+            });
+
+            // Normalize connections
+            const normalizedConnections = rawConnections
+                .map(c => {
+                    if (!c) return null;
+                    if (typeof c === "string") {
+                        // accept "X -> Y", "X to Y", "X and Y", "X,Y"
+                        const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
+                        const toMatch = c.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
+                        const m = arrowMatch || toMatch;
+                        if (m) return { from: m[1].trim(), to: m[2].trim() };
+                        const csv = c.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                        if (csv.length === 2) return { from: csv[0], to: csv[1] };
+                        return null;
+                    }
+                    if (typeof c === "object") {
+                        return {
+                            from: (c.from || c.fromName || c.source || "").toString().trim(),
+                            to: (c.to || c.toName || c.target || c.toId || "").toString().trim()
+                        };
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+
+            // Resolve connections to generated codes
+            const connectionResolved = normalizedConnections.map(c => ({
+                from: nameToCode.get((c.from || "").toLowerCase()) || c.from,
+                to: nameToCode.get((c.to || "").toLowerCase()) || c.to
+            }));
+
+            // Attach resolved connections to items (by _generatedCode)
+            itemsArray.forEach(item => {
+                const itemCode = item._generatedCode;
+                item.Connections = connectionResolved
+                    .filter(c => c.from === itemCode)
+                    .map(c => c.to);
+            });
+
+            // If user requested connect and no explicit connections were provided,
+            // auto-connect sequentially using generated codes
+            const userWantsConnect = /\bconnect\b/i.test(trimmed) || /connect them/i.test(trimmed);
+            if (userWantsConnect && connectionResolved.length === 0 && itemsArray.length > 1) {
+                for (let i = 0; i < itemsArray.length - 1; i++) {
+                    const fromCode = itemsArray[i]._generatedCode;
+                    const toCode = itemsArray[i + 1]._generatedCode;
+                    if (!itemsArray[i].Connections.includes(toCode)) itemsArray[i].Connections.push(toCode);
+                    connectionResolved.push({ from: fromCode, to: toCode });
+                }
+            }
+
+            // Build final parsed objects removing internal-only fields and including code
+            const finalParsed = itemsArray.map(it => {
+                const out = { ...it };
+                out.Code = it._generatedCode;
+                delete out._generatedCode;
+                return out;
+            });
+
+            // If something suspicious happened (e.g., finalParsed length != inputNumber), log full parsed frag for debugging
+            if (finalParsed.length !== inputNumber) {
+                console.warn("🛠️ parseItemLogic: finalParsed length mismatch",
+                    { requested: inputNumber, got: finalParsed.length, rawParsedPreview: parsed?.slice?.(0, 5) || parsed });
+            }
+
+            const explanation = finalParsed.length > 0
+                ? finalParsed.map(it => it.Explanation || `Added ${it.Name}`).join(" | ")
+                : "Added PNID item(s)";
 
             return {
-                parsed: itemsArray,
-                explanation: itemsArray[0]?.Explanation || "Added PNID item(s)",
-                mode: "structured",
-                connection: itemsArray.some(i => i.Connections) ? itemsArray.map(i => i.Connections).flat() : null,
+                parsed: finalParsed,
+                connectionResolved,
+                explanation,
+                mode: "structured"
             };
+
         } catch (err) {
             console.warn("⚠️ Not JSON, treating as chat:", err.message);
             return {
@@ -111,6 +358,7 @@ User Input: """${trimmed}"""
                 explanation: text,
                 mode: "chat",
                 connection: null,
+                connectionResolved: []
             };
         }
     } catch (err) {
@@ -120,11 +368,10 @@ User Input: """${trimmed}"""
             explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
             mode: "chat",
             connection: null,
+            connectionResolved: []
         };
     }
-
 }
-
 
 // Default API handler
 export default async function handler(req, res) {
