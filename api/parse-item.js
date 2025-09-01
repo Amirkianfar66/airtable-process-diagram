@@ -274,7 +274,7 @@ User Input: """${trimmed}"""
             const expanded = [];
             let globalSeq = 1;
             for (const it of itemsArray) {
-                const qty = Math.max(1, it.Number || 1);
+                const qty = Math.max(1, it.Number || it.Count || 1);
                 for (let k = 0; k < qty; k++) {
                     const clone = { ...it };
                     clone.Sequence = globalSeq;
