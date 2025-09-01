@@ -278,7 +278,7 @@ User Input: """${trimmed}"""
                 for (let k = 0; k < qty; k++) {
                     const clone = { ...it };
                     clone.Sequence = globalSeq;
-                    clone.Name = qty > 1 ? `${it.Name}_${k + 1}` : it.Name;
+                    clone.Name = `${it.Name}${k + 1}`;
                     clone.Number = 1;
                     expanded.push(clone);
                     globalSeq++;
