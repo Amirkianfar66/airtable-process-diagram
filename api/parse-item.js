@@ -226,13 +226,12 @@ User Input: """${trimmed}"""
             });
 
             // --- NOW enforce the user's Draw N if present ---
-            // If user explicitly requested Draw M, ensure final length = M.
-            // But prefer already-expanded items if they already satisfy the count.
+            // --- NOW enforce the user's Draw N if present ---
+            // Instead of truncating, treat inputNumber as a minimum requested count.
+            // Preserve all different items (e.g., Tank + Pump), only pad if fewer exist.
             if (inputNumber && inputNumber > 0) {
-                if (itemsArray.length > inputNumber) {
-                    itemsArray = itemsArray.slice(0, inputNumber);
-                } else if (itemsArray.length < inputNumber) {
-                    // Clone last item until reach requested count (give clones unique names & sequences)
+                if (itemsArray.length < inputNumber) {
+                    // Pad with clones of the last item until reaching requested count
                     const last = itemsArray[itemsArray.length - 1] || {
                         mode: "structured",
                         Name: `Item`,
@@ -252,6 +251,7 @@ User Input: """${trimmed}"""
                         itemsArray.push(clone);
                     }
                 }
+                // ❌ Removed: if (itemsArray.length > inputNumber) slice down
             }
 
 
