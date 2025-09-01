@@ -86,6 +86,9 @@ export default async function AIPNIDGenerator(
     }
 
     const { mode, explanation, parsed = {}, connection } = aiResult;
+    // prefer parser-resolved connections when available
+    const parserConnections = aiResult.connectionResolved || connection || [];
+
 
     // Handle Hybrid action mode
     if (aiResult.mode === "action") {
@@ -206,24 +209,7 @@ export default async function AIPNIDGenerator(
             allMessages.push({ sender: "AI", message: explanation });
         }
     });
-    // After nodes are built
-    const edges = [];
-    if (parsed.connections) {
-        parsed.connections.forEach((conn, index) => {
-            const sourceNode = nodes.find(n => n.data.label.toLowerCase() === conn.source);
-            const targetNode = nodes.find(n => n.data.label.toLowerCase() === conn.target);
-
-            if (sourceNode && targetNode) {
-                edges.push({
-                    id: `edge-${index}`,
-                    source: sourceNode.id,
-                    target: targetNode.id,
-                    animated: true,
-                    style: { stroke: "#555" }
-                });
-            }
-        });
-    }
+   
 
     // Build helper maps to resolve codes/names -> node IDs
     const allNodesSoFar = [...existingNodes, ...newNodes];
@@ -386,3 +372,10 @@ export default async function AIPNIDGenerator(
         messages: allMessages,
     };
 }
+const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(...);
+// merge aiEdges into rebuiltEdges (avoid duplicates)
+const mergedEdges = [...rebuiltEdges];
+(aiEdges || []).forEach(e => {
+    if (!mergedEdges.some(me => me.id === e.id)) mergedEdges.push(e);
+});
+setEdges(mergedEdges);
