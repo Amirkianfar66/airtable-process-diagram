@@ -65,9 +65,9 @@ function buildCodeLookups(itemsArray) {
         const u = String(item.Unit ?? 0).padStart(1, "0");
         const su = String(item.SubUnit ?? 0).padStart(1, "0");
         const seq = String(item.Sequence ?? (idx + 1)).padStart(2, "0");
-        const num = String(item.Number ?? 1).padStart(2, "0");
-        return `${u}${su}${seq}${num}`;
+        return `${u}${su}${seq}`; // Number no longer part of code
     }
+
 
     function normalizeKey(s) {
         if (!s) return "";
