@@ -291,13 +291,6 @@ export default async function AIPNIDGenerator(
         return true;
     }
 
-    // --------------------------
-    // --------------------------
-    // Handle explicit connections (from parseItemLogic). Prefer these first.
-    // Ensure direction follows the parsed-items order (first-mentioned -> second-mentioned).
-    // --------------------------
-    const explicitConnectionsArr = Array.isArray(parserConnections) ? parserConnections : (parserConnections ? [parserConnections] : []);
-    let explicitAddedCount = 0;
 
     // build a code -> index map based on normalizedItems order (this reflects parsed order)
     const codeToIndex = new Map();
@@ -385,7 +378,6 @@ export default async function AIPNIDGenerator(
         return undefined;
     }
 
-    // Primary pass: try to resolve and add edges
     // --------------------------
     // Handle explicit connections (from parseItemLogic)
     // --------------------------
@@ -395,11 +387,7 @@ export default async function AIPNIDGenerator(
             ? [parserConnections]
             : [];
 
-    const codeToNodeId = new Map();
-    [...existingNodes, ...newNodes].forEach(n => {
-        const c = n.data?.item?.Code;
-        if (c) codeToNodeId.set(String(c), n.id);
-    });
+    let explicitAddedCount = 0;
 
     explicitConnectionsArr.forEach(connObj => {
         if (!connObj) return;
@@ -410,7 +398,7 @@ export default async function AIPNIDGenerator(
         if (!fromCode || !toCode) return;
 
         const fromNodeId = codeToNodeId.get(fromCode) || (() => {
-            // fallback: try normalizeKey match
+            // fallback: normalizeKey match
             const key = normalizeKey(fromCode);
             return [...codeToNodeId.entries()].find(([k]) => normalizeKey(k) === key)?.[1];
         })();
@@ -421,7 +409,6 @@ export default async function AIPNIDGenerator(
         })();
 
         if (fromNodeId && toNodeId) {
-            // avoid duplicates
             const exists = [...existingEdges, ...newEdges].some(
                 e => e.source === fromNodeId && e.target === toNodeId
             );
@@ -434,6 +421,7 @@ export default async function AIPNIDGenerator(
                     animated: true,
                     style: { stroke: '#888', strokeWidth: 2 },
                 });
+                explicitAddedCount++;
                 if (typeof setChatMessages === 'function') {
                     setChatMessages(prev => [
                         ...prev,
@@ -449,35 +437,34 @@ export default async function AIPNIDGenerator(
         }
     });
 
-
-    // Additional conservative fallback: try to use parser-provided numeric codes or long codes
-    if (explicitAddedCount === 0 && Array.isArray(explicitConnectionsArr) && explicitConnectionsArr.length > 0) {
+    // --------------------------
+    // Fallback explicit connection pass (if nothing was added)
+    // --------------------------
+    if (explicitAddedCount === 0 && explicitConnectionsArr.length > 0) {
         explicitConnectionsArr.forEach(connObj => {
             if (!connObj) return;
+
             const fromRaw = String(connObj.from || connObj.sourceCode || connObj.fromCode || '').trim();
             const toRaw = String(connObj.to || connObj.targetCode || connObj.toCode || '').trim();
             if (!fromRaw || !toRaw) return;
 
-            // try direct code keys, longCode variants from normalizedItems
             let src = codeToNodeId.get(fromRaw) || codeToNodeId.get(fromRaw.replace(/^0+/, ''));
             let tgt = codeToNodeId.get(toRaw) || codeToNodeId.get(toRaw.replace(/^0+/, ''));
 
             if (!src || !tgt) {
-                // build longCode for each item and compare
                 normalizedItems.forEach(it => {
-                    try {
-                        const u = String(it.Unit ?? 0).padStart(1, '0');
-                        const su = String(it.SubUnit ?? 0).padStart(1, '0');
-                        const seq = String(it.Sequence ?? 1).padStart(2, '0');
-                        const num = String(it.Number ?? 1).padStart(2, '0');
-                        const longCode = `${u}${su}${seq}${num}`;
-                        if (!src && (fromRaw === longCode || fromRaw.endsWith(longCode) || longCode.endsWith(fromRaw))) {
-                            src = codeToNodeId.get(String(it.Code));
-                        }
-                        if (!tgt && (toRaw === longCode || toRaw.endsWith(longCode) || longCode.endsWith(toRaw))) {
-                            tgt = codeToNodeId.get(String(it.Code));
-                        }
-                    } catch (e) { /* ignore */ }
+                    const u = String(it.Unit ?? 0).padStart(1, '0');
+                    const su = String(it.SubUnit ?? 0).padStart(1, '0');
+                    const seq = String(it.Sequence ?? 1).padStart(2, '0');
+                    const num = String(it.Number ?? 1).padStart(2, '0');
+                    const longCode = `${u}${su}${seq}${num}`;
+
+                    if (!src && (fromRaw === longCode || fromRaw.endsWith(longCode) || longCode.endsWith(fromRaw))) {
+                        src = codeToNodeId.get(String(it.Code));
+                    }
+                    if (!tgt && (toRaw === longCode || toRaw.endsWith(longCode) || longCode.endsWith(toRaw))) {
+                        tgt = codeToNodeId.get(String(it.Code));
+                    }
                 });
             }
 
@@ -491,14 +478,12 @@ export default async function AIPNIDGenerator(
         });
 
         if (explicitAddedCount === 0) {
-            console.warn("⚠️ Fallback explicit-connection pass could not resolve any edges. See normalized items above.");
+            console.warn("⚠️ Fallback explicit-connection pass could not resolve any edges.");
         } else {
             console.log("✅ Fallback explicit-connection pass added", explicitAddedCount, "edges");
         }
     }
 
-    // --------------------------
-    // Implicit connections (chain all new items) — only when user asked to "connect" and there were no explicit connections
     // --------------------------
     if (/connect/i.test(description) && explicitAddedCount === 0 && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
