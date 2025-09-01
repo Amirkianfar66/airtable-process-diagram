@@ -206,6 +206,24 @@ export default async function AIPNIDGenerator(
             allMessages.push({ sender: "AI", message: explanation });
         }
     });
+    // After nodes are built
+    const edges = [];
+    if (parsed.connections) {
+        parsed.connections.forEach((conn, index) => {
+            const sourceNode = nodes.find(n => n.data.label.toLowerCase() === conn.source);
+            const targetNode = nodes.find(n => n.data.label.toLowerCase() === conn.target);
+
+            if (sourceNode && targetNode) {
+                edges.push({
+                    id: `edge-${index}`,
+                    source: sourceNode.id,
+                    target: targetNode.id,
+                    animated: true,
+                    style: { stroke: "#555" }
+                });
+            }
+        });
+    }
 
     // Build helper maps to resolve codes/names -> node IDs
     const allNodesSoFar = [...existingNodes, ...newNodes];

@@ -25,6 +25,41 @@ function isLikelyItem(obj) {
     return (hasName || hasCategory || hasType) && !looksLikeAction && !isOnlyConnections;
 }
 
+// parse a connection-string into an array of ordered {from,to} pairs
+function parseConnectionStringToPairs(str) {
+    if (!str || typeof str !== "string") return [];
+
+    // Normalize arrows and common separators to a single hit for splitting
+    // Handles: ">>", "->", "→", " to ", ",", ";", " and ", " then "
+    const tokens = str
+        .split(/(?:\s*(?:>>|->|→|–>|to|,|;|\band\b|\bthen\b|\band then\b)\s*)+/i)
+        .map(t => t.trim())
+        .filter(Boolean);
+
+    if (tokens.length >= 2) {
+        // produce pairwise sequence: [A,B,C] => A->B, B->C
+        const pairs = [];
+        for (let i = 0; i < tokens.length - 1; i++) {
+            pairs.push({ from: tokens[i], to: tokens[i + 1] });
+        }
+        return pairs;
+    }
+
+    // fallback: try to match a single explicit arrow "A -> B" or "A to B"
+    const arrowMatch = str.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
+    const toMatch = str.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
+    const m = arrowMatch || toMatch;
+    if (m) {
+        return [{ from: m[1].trim(), to: m[2].trim() }];
+    }
+
+    // fallback: if csv has two items
+    const csv = str.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+    if (csv.length === 2) return [{ from: csv[0], to: csv[1] }];
+
+    return [];
+}
+
 // Core parsing logic
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
@@ -276,29 +311,42 @@ User Input: """${trimmed}"""
                 it._generatedCode = code; // keep transient code on object for debugging
             });
 
-            // Normalize connections
-            const normalizedConnections = rawConnections
-                .map(c => {
-                    if (!c) return null;
-                    if (typeof c === "string") {
-                        // accept "X -> Y", "X to Y", "X and Y", "X,Y"
-                        const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
-                        const toMatch = c.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
-                        const m = arrowMatch || toMatch;
-                        if (m) return { from: m[1].trim(), to: m[2].trim() };
-                        const csv = c.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
-                        if (csv.length === 2) return { from: csv[0], to: csv[1] };
-                        return null;
+            // Normalize connections (support multi-step chains)
+            const normalizedConnections = [];
+            rawConnections.forEach(c => {
+                if (!c) return;
+
+                if (typeof c === "string") {
+                    // Parse string into ordered pairs (support chains like A >> B >> C)
+                    const pairs = parseConnectionStringToPairs(c);
+                    if (pairs.length) {
+                        pairs.forEach(pair => normalizedConnections.push(pair));
+                        return;
                     }
-                    if (typeof c === "object") {
-                        return {
-                            from: (c.from || c.fromName || c.source || "").toString().trim(),
-                            to: (c.to || c.toName || c.target || c.toId || "").toString().trim()
-                        };
+                    // If no chain detected, attempt previous heuristics:
+                    const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
+                    const toMatch = c.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
+                    const m = arrowMatch || toMatch;
+                    if (m) {
+                        normalizedConnections.push({ from: m[1].trim(), to: m[2].trim() });
+                        return;
                     }
-                    return null;
-                })
-                .filter(Boolean);
+                    const csv = c.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                    if (csv.length === 2) {
+                        normalizedConnections.push({ from: csv[0], to: csv[1] });
+                        return;
+                    }
+                    // otherwise ignore or treat as single token (no-op)
+                    return;
+                }
+
+                if (typeof c === "object") {
+                    normalizedConnections.push({
+                        from: (c.from || c.fromName || c.source || "").toString().trim(),
+                        to: (c.to || c.toName || c.target || c.toId || "").toString().trim()
+                    });
+                }
+            });
 
             // Resolve connections to generated codes
             const connectionResolved = normalizedConnections.map(c => ({
