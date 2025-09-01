@@ -305,27 +305,6 @@ User Input: """${trimmed}"""
             return null; // not found
         }
 
-        // --- expand connections into edges ---
-        const edges = [];
-        for (const conn of (orders.find(o => o.action === "Connect")?.connections || [])) {
-            const fromCode = resolveToCode(conn.from, itemsArray);
-            const toCode = resolveToCode(conn.to, itemsArray);
-
-            if (fromCode && toCode) {
-                edges.push({
-                    id: `${fromCode}-${toCode}`,
-                    source: fromCode, // always use Code as ReactFlow id
-                    target: toCode,
-                });
-            } else {
-                console.warn("⚠️ Could not resolve explicit connection to node IDs", {
-                    fromCode: conn.from,
-                    toCode: conn.to,
-                    normalizedPreview: itemsArray,
-                });
-            }
-        }
-
         // Ensure contiguous sequences 1..N
         itemsArray = itemsArray.map((it, idx) => {
             it.Sequence = idx + 1;
