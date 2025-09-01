@@ -372,7 +372,8 @@ export default async function AIPNIDGenerator(
         messages: allMessages,
     };
 }
-const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(...);
+const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(parsedOrders);
+
 // merge aiEdges into rebuiltEdges (avoid duplicates)
 const mergedEdges = [...rebuiltEdges];
 (aiEdges || []).forEach(e => {
