@@ -338,14 +338,15 @@ export default async function AIPNIDGenerator(
 
         console.log("🔗 Trying edge:", { fromRef, toRef, finalFromCode, finalToCode });
 
-        const idxFrom = codeToIndex.has(String(resolvedFromCode)) ? codeToIndex.get(String(resolvedFromCode)) : Infinity;
-        const idxTo = codeToIndex.has(String(resolvedToCode)) ? codeToIndex.get(String(resolvedToCode)) : Infinity;
+        // Use finalFromCode / finalToCode consistently
+        const idxFrom = codeToIndex.has(String(finalFromCode)) ? codeToIndex.get(String(finalFromCode)) : Infinity;
+        const idxTo = codeToIndex.has(String(finalToCode)) ? codeToIndex.get(String(finalToCode)) : Infinity;
 
         // If both indexes are finite and the "from" appears after the "to" in parsed order, swap them.
         if (Number.isFinite(idxFrom) && Number.isFinite(idxTo) && idxFrom > idxTo) {
-            finalFromCode = resolvedToCode;
-            finalToCode = resolvedFromCode;
+            [finalFromCode, finalToCode] = [finalToCode, finalFromCode];
         }
+
 
         // If we couldn't resolve codes, fallback to parsedItems order (if there are at least 2 items)
         if ((!finalFromCode || !finalToCode) && normalizedItems.length >= 2) {
