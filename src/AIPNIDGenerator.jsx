@@ -46,6 +46,61 @@ export function ChatBox({ messages }) {
 }
 
 // --------------------------
+// Helpers for name/code resolution
+// --------------------------
+function normalizeKey(s) {
+    if (!s) return "";
+    // lowercase, remove separators, keep alnum only, collapse numeric leading zeros
+    const str = String(s).trim().toLowerCase();
+    const compact = str.replace(/[_\s,-]+/g, "");
+    return compact.replace(/^0+/, "").replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * resolveRefToCode(ref, normalizedItems)
+ * - Tries to map a reference (could be code like "0001" or name like "Tank1" or "Tank_2")
+ *   to a canonical generated code (string) using normalizedItems.
+ * - normalizedItems should be the array of items produced in this run (in creation order).
+ */
+function resolveRefToCode(ref, normalizedItems = []) {
+    if (!ref) return null;
+    const raw = String(ref).trim();
+
+    // 1) Direct code match (exact)
+    const direct = normalizedItems.find(i => String(i.Code) === raw);
+    if (direct) return String(direct.Code);
+
+    // 2) Exact name match (case-insensitive)
+    const exact = normalizedItems.find(i => i.Name && i.Name.toLowerCase() === raw.toLowerCase());
+    if (exact) return String(exact.Code);
+
+    // 3) Name + index pattern, e.g. "Tank2", "Tank_2", "Tank 2"
+    const m = raw.match(/^(.+?)[_\s-]*([0-9]+)$/);
+    if (m) {
+        const baseRaw = m[1];
+        const idx = parseInt(m[2], 10);
+        const baseKey = normalizeKey(baseRaw);
+
+        // filter candidates whose normalized name starts with the baseKey
+        const candidates = normalizedItems.filter(it => normalizeKey(it.Name).startsWith(baseKey));
+        if (candidates.length > 0) {
+            // idx is 1-based: return candidate[idx-1] if exists
+            if (idx >= 1 && idx <= candidates.length) return String(candidates[idx - 1].Code);
+            // out of range: return best-effort first
+            return String(candidates[0].Code);
+        }
+    }
+
+    // 4) Loose base-name match (no index): find first item whose normalized name starts with base
+    const base = normalizeKey(raw);
+    const loose = normalizedItems.find(it => normalizeKey(it.Name).startsWith(base));
+    if (loose) return String(loose.Code);
+
+    // 5) fallback: return raw so callers can decide
+    return raw;
+}
+
+// --------------------------
 // AI PNID generator (with human AI layer)
 // --------------------------
 export default async function AIPNIDGenerator(
@@ -236,22 +291,11 @@ export default async function AIPNIDGenerator(
         return true;
     }
 
-    // Resolve a reference (could be code or name) to a canonical code string if possible, otherwise return original
-    function resolveCodeString(ref) {
-        if (!ref) return null;
-        const str = String(ref).trim();
-        // first look for exact Code among existing/new items
-        const foundItem = [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
-            .find(i => String(i?.Code) === str || (i?.Name && i.Name.toLowerCase() === str.toLowerCase()));
-        if (foundItem) return String(foundItem.Code);
-        return str;
-    }
-
     // --------------------------
     // Handle explicit connections (from parseItemLogic). Prefer these first.
-    // But ensure direction follows the parsed-items order (first-mentioned -> second-mentioned).
+    // Ensure direction follows the parsed-items order (first-mentioned -> second-mentioned).
     // --------------------------
-    const explicitConnectionsArr = Array.isArray(connection) ? connection : (connection ? [connection] : []);
+    const explicitConnectionsArr = Array.isArray(parserConnections) ? parserConnections : (parserConnections ? [parserConnections] : []);
     let explicitAddedCount = 0;
 
     // build a code -> index map based on normalizedItems order (this reflects parsed order)
@@ -260,7 +304,6 @@ export default async function AIPNIDGenerator(
         if (item && item.Code !== undefined && item.Code !== null) {
             codeToIndex.set(String(item.Code), idx);
             if (item.Name) {
-                // also store by name lowercased so resolveCodeString can find order if needed
                 codeToIndex.set(String(item.Name).toLowerCase(), idx);
             }
         }
@@ -276,9 +319,9 @@ export default async function AIPNIDGenerator(
 
         if (!fromRef || !toRef) return;
 
-        // Resolve to canonical code strings (tries to find existing/new items by name/code)
-        const resolvedFromCode = resolveCodeString(fromRef);
-        const resolvedToCode = resolveCodeString(toRef);
+        // Resolve to canonical code strings using normalizedItems
+        const resolvedFromCode = resolveRefToCode(fromRef, normalizedItems);
+        const resolvedToCode = resolveRefToCode(toRef, normalizedItems);
 
         // If both resolved codes are found, check their parsed order (if available) and swap if reversed.
         let finalFromCode = resolvedFromCode;
@@ -294,7 +337,7 @@ export default async function AIPNIDGenerator(
         }
 
         // If we couldn't resolve codes, fallback to parsedItems order (if there are at least 2 items)
-        if ((!finalFromCode || !finalToCode) && parsedItems.length >= 2) {
+        if ((!finalFromCode || !finalToCode) && normalizedItems.length >= 2) {
             const firstCode = normalizedItems[0]?.Code;
             const secondCode = normalizedItems[1]?.Code;
             if (firstCode && secondCode) {
@@ -315,17 +358,15 @@ export default async function AIPNIDGenerator(
         }
     });
 
-    // Build edges from each item's Connections
-    // If explicit connections were present, skip per-item connections to avoid duplicates/reversed edges.
+    // Build edges from each item's Connections (fallback if explicit connections were not present)
     if (explicitAddedCount === 0) {
-        // No explicit connections added → fall back to per-item Connections
         normalizedItems.forEach(item => {
             if (!item.Connections || !Array.isArray(item.Connections)) return;
 
             item.Connections.forEach(connTarget => {
                 if (!connTarget) return;
 
-                const resolvedTargetCode = resolveCodeString(connTarget);
+                const resolvedTargetCode = resolveRefToCode(connTarget, normalizedItems);
                 const sourceNodeId = codeToNodeId.get(String(item.Code));
                 const targetNodeId = codeToNodeId.get(String(resolvedTargetCode));
 
@@ -344,7 +385,9 @@ export default async function AIPNIDGenerator(
         allMessages.push({ sender: "AI", message: `→ Skipped per-item Connections because explicit connection(s) were provided.` });
     }
 
+    // --------------------------
     // Implicit connections (chain all new items) — only when user asked to "connect" and there were no explicit connections
+    // --------------------------
     if (/connect/i.test(description) && explicitAddedCount === 0 && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
             addEdgeByNodeIds(newNodes[i].id, newNodes[i + 1].id, { animated: true });
