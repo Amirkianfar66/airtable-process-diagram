@@ -286,6 +286,45 @@ User Input: """${trimmed}"""
             }
             itemsArray = expanded;
         }
+        // --- normalize a Gemini connection ref into a Code ---
+        function resolveToCode(ref, items) {
+            if (!ref) return null;
+
+            // 1. Match directly by Code
+            let target = items.find(it => it.Code === ref);
+            if (target) return target.Code;
+
+            // 2. Match by Name (Tank1, Tank2, etc.)
+            target = items.find(it => it.Name === ref);
+            if (target) return target.Code;
+
+            // 3. Handle underscore / formatting differences
+            target = items.find(it => it.Name.replace(/_/g, '') === ref.replace(/_/g, ''));
+            if (target) return target.Code;
+
+            return null; // not found
+        }
+
+        // --- expand connections into edges ---
+        const edges = [];
+        for (const conn of (orders.find(o => o.action === "Connect")?.connections || [])) {
+            const fromCode = resolveToCode(conn.from, itemsArray);
+            const toCode = resolveToCode(conn.to, itemsArray);
+
+            if (fromCode && toCode) {
+                edges.push({
+                    id: `${fromCode}-${toCode}`,
+                    source: fromCode, // always use Code as ReactFlow id
+                    target: toCode,
+                });
+            } else {
+                console.warn("⚠️ Could not resolve explicit connection to node IDs", {
+                    fromCode: conn.from,
+                    toCode: conn.to,
+                    normalizedPreview: itemsArray,
+                });
+            }
+        }
 
         // Ensure contiguous sequences 1..N
         itemsArray = itemsArray.map((it, idx) => {
