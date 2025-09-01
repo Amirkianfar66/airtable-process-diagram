@@ -118,10 +118,16 @@ export default async function AIPNIDGenerator(
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // 3️⃣ Structured PNID logic
-    const parsedItems = Array.isArray(parsed) ? parsed : [parsed];
+    // With this improved block:
+    const parsedItems = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(aiResult.items) // some responses use `items`
+            ? aiResult.items
+            : [parsed];
+
     const newNodes = [];
     const newEdges = [...existingEdges]; // start with existing edges so dedupe checks include them
+    const normalizedItems = []; // <<--- declare here so you can push into it safely
     const allMessages = [{ sender: "User", message: description }];
 
     // Create nodes / normalizedItems
