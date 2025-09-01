@@ -89,7 +89,6 @@ export default async function AIPNIDGenerator(
     // prefer parser-resolved connections when available
     const parserConnections = aiResult.connectionResolved || connection || [];
 
-
     // Handle Hybrid action mode
     if (aiResult.mode === "action") {
         const action = aiResult.action;
@@ -209,7 +208,6 @@ export default async function AIPNIDGenerator(
             allMessages.push({ sender: "AI", message: explanation });
         }
     });
-   
 
     // Build helper maps to resolve codes/names -> node IDs
     const allNodesSoFar = [...existingNodes, ...newNodes];
@@ -249,8 +247,6 @@ export default async function AIPNIDGenerator(
         return str;
     }
 
-    // --------------------------
-    // Handle explicit connections (from parseItemLogic). Prefer these first.
     // --------------------------
     // Handle explicit connections (from parseItemLogic). Prefer these first.
     // But ensure direction follows the parsed-items order (first-mentioned -> second-mentioned).
@@ -321,7 +317,6 @@ export default async function AIPNIDGenerator(
 
     // Build edges from each item's Connections
     // If explicit connections were present, skip per-item connections to avoid duplicates/reversed edges.
-    // --------------------------
     if (explicitAddedCount === 0) {
         // No explicit connections added → fall back to per-item Connections
         normalizedItems.forEach(item => {
@@ -349,9 +344,7 @@ export default async function AIPNIDGenerator(
         allMessages.push({ sender: "AI", message: `→ Skipped per-item Connections because explicit connection(s) were provided.` });
     }
 
-    // --------------------------
     // Implicit connections (chain all new items) — only when user asked to "connect" and there were no explicit connections
-    // --------------------------
     if (/connect/i.test(description) && explicitAddedCount === 0 && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
             addEdgeByNodeIds(newNodes[i].id, newNodes[i + 1].id, { animated: true });
@@ -372,21 +365,3 @@ export default async function AIPNIDGenerator(
         messages: allMessages,
     };
 }
-AIPNIDGenerator(parsedOrders /*, args */)
-    .then(({ nodes: aiNodes = [], edges: aiEdges = [] }) => {
-        const mergedEdges = [...(rebuiltEdges || [])];
-        (aiEdges || []).forEach(e => {
-            if (!mergedEdges.some(me => me.id === e.id)) mergedEdges.push(e);
-        });
-        if (typeof setEdges === 'function') setEdges(mergedEdges);
-        if (typeof setNodes === 'function') setNodes(prev => [...prev, ...aiNodes]);
-    })
-    .catch(err => console.error('AIPNIDGenerator error:', err));
-
-
-// merge aiEdges into rebuiltEdges (avoid duplicates)
-const mergedEdges = [...rebuiltEdges];
-(aiEdges || []).forEach(e => {
-    if (!mergedEdges.some(me => me.id === e.id)) mergedEdges.push(e);
-});
-setEdges(mergedEdges);
