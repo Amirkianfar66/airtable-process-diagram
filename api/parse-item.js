@@ -351,6 +351,9 @@ User Input: """${trimmed}"""
                 ? finalParsed.map(it => it.Explanation || `Added ${it.Name}`).join(" | ")
                 : "Added PNID item(s)";
 
+            console.log("parseItemLogic → parsed:", finalParsed);
+            console.log("parseItemLogic → connectionResolved:", connectionResolved);
+
             return {
                 parsed: finalParsed,
                 connectionResolved,
