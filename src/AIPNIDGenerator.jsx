@@ -319,13 +319,24 @@ export default async function AIPNIDGenerator(
 
         if (!fromRef || !toRef) return;
 
-        // Resolve to canonical code strings using normalizedItems
-        const resolvedFromCode = resolveRefToCode(fromRef, normalizedItems);
-        const resolvedToCode = resolveRefToCode(toRef, normalizedItems);
+        // First, trust resolved codes/names from parse-item
+        let finalFromCode = resolveRefToCode(fromRef, normalizedItems);
+        let finalToCode = resolveRefToCode(toRef, normalizedItems);
 
-        // If both resolved codes are found, check their parsed order (if available) and swap if reversed.
-        let finalFromCode = resolvedFromCode;
-        let finalToCode = resolvedToCode;
+        // If still unresolved, try raw values
+        if (!finalFromCode) finalFromCode = fromRef;
+        if (!finalToCode) finalToCode = toRef;
+
+        // Do NOT over-swap direction: only swap if user literally wrote "connect B to A"
+        const idxFrom = codeToIndex.get(String(finalFromCode));
+        const idxTo = codeToIndex.get(String(finalToCode));
+        if (Number.isFinite(idxFrom) && Number.isFinite(idxTo) && idxFrom > idxTo) {
+            // only swap if both are found and strictly reversed
+            [finalFromCode, finalToCode] = [finalToCode, finalFromCode];
+        }
+
+        console.log("🔗 Trying edge:", { fromRef, toRef, finalFromCode, finalToCode });
+
 
         const idxFrom = codeToIndex.has(String(resolvedFromCode)) ? codeToIndex.get(String(resolvedFromCode)) : Infinity;
         const idxTo = codeToIndex.has(String(resolvedToCode)) ? codeToIndex.get(String(resolvedToCode)) : Infinity;
