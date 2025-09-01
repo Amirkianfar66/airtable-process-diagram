@@ -277,8 +277,7 @@ export default async function AIPNIDGenerator(
         const shortCode = String(item.Code);
         codeToNodeId.set(shortCode, n.id);
 
-        // map parse-item's long format (Unit 1, SubUnit 1, Sequence 02, Number 01 -> "110201")
-        // parse-item uses: padStart(1) for Unit/SubUnit, padStart(2) for Sequence/Number
+        // map parse-item's long format (Unit/SubUnit/Sequence/Number -> long code)
         try {
             const u = String(item.Unit ?? 0).padStart(1, '0');
             const su = String(item.SubUnit ?? 0).padStart(1, '0');
@@ -337,11 +336,7 @@ export default async function AIPNIDGenerator(
         }
     });
 
-    // --------------------------
-    // --------------------------
-    // Handle explicit connections (from parseItemLogic). Prefer these first.
-    // Replaces your explicitConnectionsArr.forEach(...) block
-    // --------------------------
+    // Replaced and simplified resolver logic: robust matching helper + strictResolve fallback
     explicitConnectionsArr.forEach(connObj => {
         if (!connObj) return;
 
@@ -360,7 +355,6 @@ export default async function AIPNIDGenerator(
             // 2) exact name match (case-insensitive)
             const exactNameNode = nameToNodeId.get(String(raw).toLowerCase());
             if (exactNameNode) {
-                // find the code for this name by looking up the node
                 for (const n of allNodesSoFar) {
                     if (n.id === exactNameNode && n.data?.item?.Code) return String(n.data.item.Code);
                 }
@@ -373,13 +367,10 @@ export default async function AIPNIDGenerator(
                 const idx = parseInt(m[2], 10);
                 if (!Number.isNaN(idx)) {
                     const baseKey = normalizeKey(baseRaw);
-                    // find candidates in creation order whose normalized name starts with baseKey
                     const candidates = normalizedItems.filter(it => normalizeKey(it.Name).startsWith(baseKey));
                     if (candidates.length >= idx) {
-                        // return the idx'th candidate's code (1-based)
                         return String(candidates[idx - 1].Code);
                     }
-                    // try to find a candidate that explicitly ends with that index
                     const endMatch = normalizedItems.find(it => {
                         const nk = normalizeKey(it.Name);
                         return nk.endsWith(String(idx)) && nk.startsWith(baseKey);
@@ -397,9 +388,7 @@ export default async function AIPNIDGenerator(
                 raw.toLowerCase().replace(/\s+/g, '')
             ];
             for (const v of variants) {
-                // try code map
                 if (codeToNodeId.has(v)) return v;
-                // try name map
                 const nid = nameToNodeId.get(String(v).toLowerCase());
                 if (nid) {
                     const node = allNodesSoFar.find(n => n.id === nid);
@@ -407,8 +396,44 @@ export default async function AIPNIDGenerator(
                 }
             }
 
-            // 5) fallback: return null (caller will decide fallback behavior)
             return null;
+        }
+
+        // New helper: robust node-id finder (tries suffixes, stripped zeros, contains/suffix)
+        function findNodeIdFromCode(raw) {
+            if (!raw) return undefined;
+            const s = String(raw).trim();
+
+            // direct exact code
+            if (codeToNodeId.has(s)) return codeToNodeId.get(s);
+
+            // strip leading zeros
+            const noZeros = s.replace(/^0+/, "");
+            if (noZeros && codeToNodeId.has(noZeros)) return codeToNodeId.get(noZeros);
+
+            // try last-4/5/6 digits (parser sometimes appends/combines)
+            const tryLens = [4, 5, 6];
+            for (const L of tryLens) {
+                if (s.length >= L) {
+                    const tail = s.slice(-L);
+                    if (codeToNodeId.has(tail)) return codeToNodeId.get(tail);
+                }
+            }
+
+            // try matching against keys using suffix/contains heuristics
+            for (const [key, nodeId] of codeToNodeId.entries()) {
+                if (!key) continue;
+                if (s.endsWith(key) || key.endsWith(s) || s.includes(key) || key.includes(s)) return nodeId;
+                const ks = key.replace(/[_\s-]/g, "");
+                const ss = s.replace(/[_\s-]/g, "");
+                if (ss.endsWith(ks) || ks.endsWith(ss) || ss.includes(ks) || ks.includes(ss)) return nodeId;
+            }
+
+            // try name map (sometimes parser returns a name)
+            const nameKey = String(s).toLowerCase();
+            if (nameToNodeId.has(nameKey)) return nameToNodeId.get(nameKey);
+
+            return undefined;
         }
 
         // Resolve endpoints
@@ -427,21 +452,24 @@ export default async function AIPNIDGenerator(
             [resolvedFrom, resolvedTo] = [resolvedTo, resolvedFrom];
         }
 
-        // Find node IDs: prefer codeToNodeId first, then nameToNodeId
-        let srcNodeId = codeToNodeId.get(String(resolvedFrom));
-        if (!srcNodeId) srcNodeId = nameToNodeId.get(String(resolvedFrom).toLowerCase());
-
-        let tgtNodeId = codeToNodeId.get(String(resolvedTo));
-        if (!tgtNodeId) tgtNodeId = nameToNodeId.get(String(resolvedTo).toLowerCase());
+        // Find node IDs using robust finder
+        let srcNodeId = findNodeIdFromCode(resolvedFrom) || nameToNodeId.get(String(resolvedFrom).toLowerCase());
+        let tgtNodeId = findNodeIdFromCode(resolvedTo) || nameToNodeId.get(String(resolvedTo).toLowerCase());
 
         // Final fallback: scan normalizedItems by code or by name (loose)
         if ((!srcNodeId || !tgtNodeId) && normalizedItems.length) {
             if (!srcNodeId) {
-                const cand = normalizedItems.find(it => String(it.Code) === String(resolvedFrom) || (it.Name && it.Name.toLowerCase() === String(resolvedFrom).toLowerCase()));
+                const cand = normalizedItems.find(it =>
+                    String(it.Code) === String(resolvedFrom) ||
+                    (it.Name && it.Name.toLowerCase() === String(resolvedFrom).toLowerCase())
+                );
                 if (cand) srcNodeId = codeToNodeId.get(String(cand.Code));
             }
             if (!tgtNodeId) {
-                const cand = normalizedItems.find(it => String(it.Code) === String(resolvedTo) || (it.Name && it.Name.toLowerCase() === String(resolvedTo).toLowerCase()));
+                const cand = normalizedItems.find(it =>
+                    String(it.Code) === String(resolvedTo) ||
+                    (it.Name && it.Name.toLowerCase() === String(resolvedTo).toLowerCase())
+                );
                 if (cand) tgtNodeId = codeToNodeId.get(String(cand.Code));
             }
         }
@@ -461,7 +489,7 @@ export default async function AIPNIDGenerator(
     });
 
     // --------------------------
-    // Implicit connections (chain all new items) — only when user asked to "connect" and there were no explicit connections
+    // Implicit connections (chain all new items) — only when user asked to "connect" and explicitAddedCount === 0
     // --------------------------
     if (/connect/i.test(description) && explicitAddedCount === 0 && newNodes.length > 1) {
         for (let i = 0; i < newNodes.length - 1; i++) {
