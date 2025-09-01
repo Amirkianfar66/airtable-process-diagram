@@ -310,8 +310,10 @@ export default async function AIPNIDGenerator(
     });
 
     // --------------------------
+    // --------------------------
     // Handle explicit connections (from parseItemLogic). Prefer these first.
-    // Ensure direction follows the parsed-items order (first-mentioned -> second-mentioned).
+    // Replaces your explicitConnectionsArr.forEach(...) block
+    // --------------------------
     explicitConnectionsArr.forEach(connObj => {
         if (!connObj) return;
 
@@ -319,79 +321,99 @@ export default async function AIPNIDGenerator(
         const toRef = connObj.targetCode || connObj.to || connObj.toCode || connObj.target || null;
         if (!fromRef || !toRef) return;
 
-        // try a variety of variants for a reference like "Tank2" / "Tank 2" / "Tank_2" / "0001"
-        function tryResolveVariants(ref) {
+        // Try a variety of ways to resolve a human ref ("Tank2","Tank 2","Tank_2","0001") to a generated code.
+        function strictResolve(ref) {
             if (!ref) return null;
             const raw = String(ref).trim();
 
-            // 1) direct attempt with resolveRefToCode (your helper)
-            let r = resolveRefToCode(raw, normalizedItems);
-            if (r && r !== raw) return r;
+            // 1) direct code match (exact)
+            if (codeToNodeId.has(raw)) return raw;
 
-            // 2) common variants
+            // 2) exact name match (case-insensitive)
+            const exactNameNode = nameToNodeId.get(String(raw).toLowerCase());
+            if (exactNameNode) {
+                // find the code for this name by looking up the node
+                for (const n of allNodesSoFar) {
+                    if (n.id === exactNameNode && n.data?.item?.Code) return String(n.data.item.Code);
+                }
+            }
+
+            // 3) numeric-suffix strict match: "Tank2" -> look for item whose normalized name base matches and whose sequence/index equals 2
+            const m = raw.match(/^(.+?)[_\s-]*0*([0-9]+)$/);
+            if (m) {
+                const baseRaw = m[1].trim();
+                const idx = parseInt(m[2], 10);
+                if (!Number.isNaN(idx)) {
+                    const baseKey = normalizeKey(baseRaw);
+                    // find candidates in creation order whose normalized name starts with baseKey
+                    const candidates = normalizedItems.filter(it => normalizeKey(it.Name).startsWith(baseKey));
+                    if (candidates.length >= idx) {
+                        // return the idx'th candidate's code (1-based)
+                        return String(candidates[idx - 1].Code);
+                    }
+                    // try to find a candidate that explicitly ends with that index
+                    const endMatch = normalizedItems.find(it => {
+                        const nk = normalizeKey(it.Name);
+                        return nk.endsWith(String(idx)) && nk.startsWith(baseKey);
+                    });
+                    if (endMatch) return String(endMatch.Code);
+                }
+            }
+
+            // 4) loose variants: compact / underscore / lowercase
             const variants = [
                 raw,
-                raw.replace(/[_\s]+/g, ''),    // Tank 2 -> Tank2
-                raw.replace(/[_\s]+/g, '_'),   // Tank 2 -> Tank_2
-                raw.replace(/\s+/g, ' '),      // normalize spaces
+                raw.replace(/\s+/g, ''),
+                raw.replace(/\s+/g, '_'),
                 raw.toLowerCase(),
-                raw.toLowerCase().replace(/[_\s]+/g, ''),
-                raw.toLowerCase().replace(/[_\s]+/g, '_'),
-            ].filter(Boolean);
-
+                raw.toLowerCase().replace(/\s+/g, '')
+            ];
             for (const v of variants) {
-                r = resolveRefToCode(v, normalizedItems);
-                if (r && r !== v) return r;
+                // try code map
+                if (codeToNodeId.has(v)) return v;
+                // try name map
+                const nid = nameToNodeId.get(String(v).toLowerCase());
+                if (nid) {
+                    const node = allNodesSoFar.find(n => n.id === nid);
+                    if (node?.data?.item?.Code) return String(node.data.item.Code);
+                }
             }
 
-            // 3) numeric-suffix heuristic: "Tank2" => "Tank 2" or "Tank_2"
-            const m = raw.match(/^([a-zA-Z]+)0*([0-9]+)$/);
-            if (m) {
-                const tryA = `${m[1]} ${Number(m[2])}`;
-                const tryB = `${m[1]}_${Number(m[2])}`;
-                r = resolveRefToCode(tryA, normalizedItems) || resolveRefToCode(tryB, normalizedItems);
-                if (r) return r;
-            }
-
-            // 4) fallback: if ref already looks like a generated code, return it directly
-            if (String(raw).match(/^[0-9_]+$/)) return raw;
-
+            // 5) fallback: return null (caller will decide fallback behavior)
             return null;
         }
 
-        let resolvedFromCode = tryResolveVariants(fromRef) || fromRef;
-        let resolvedToCode = tryResolveVariants(toRef) || toRef;
+        // Resolve endpoints
+        let resolvedFrom = strictResolve(fromRef) || fromRef;
+        let resolvedTo = strictResolve(toRef) || toRef;
 
-        // Use parsed-order map to decide orientation: codeToIndex (built earlier)
-        const idxFromVal = codeToIndex.has(String(resolvedFromCode)) ? codeToIndex.get(String(resolvedFromCode)) : Infinity;
-        const idxToVal = codeToIndex.has(String(resolvedToCode)) ? codeToIndex.get(String(resolvedToCode)) : Infinity;
+        // Log attempt early so we can see raw refs and resolved candidates
+        console.log("🔗 Trying explicit connection:", { fromRef, toRef, resolvedFrom, resolvedTo });
 
-        // If both indexes are known and reversed, swap to maintain parsed first->second order
+        // Use parsed-item order (codeToIndex) to ensure orientation is first-mentioned -> second-mentioned
+        const idxFromVal = codeToIndex.has(String(resolvedFrom)) ? codeToIndex.get(String(resolvedFrom)) : Infinity;
+        const idxToVal = codeToIndex.has(String(resolvedTo)) ? codeToIndex.get(String(resolvedTo)) : Infinity;
+
         if (Number.isFinite(idxFromVal) && Number.isFinite(idxToVal) && idxFromVal > idxToVal) {
-            [resolvedFromCode, resolvedToCode] = [resolvedToCode, resolvedFromCode];
+            // swap to preserve parsed order
+            [resolvedFrom, resolvedTo] = [resolvedTo, resolvedFrom];
         }
 
-        console.log("🔗 Trying explicit connection:", { fromRef, toRef, resolvedFromCode, resolvedToCode, idxFromVal, idxToVal });
+        // Find node IDs: prefer codeToNodeId first, then nameToNodeId
+        let srcNodeId = codeToNodeId.get(String(resolvedFrom));
+        if (!srcNodeId) srcNodeId = nameToNodeId.get(String(resolvedFrom).toLowerCase());
 
-        // locate node IDs (try code lookup then name lookup)
-        let srcNodeId = codeToNodeId.get(String(resolvedFromCode));
-        if (!srcNodeId && typeof resolvedFromCode === "string") {
-            srcNodeId = nameToNodeId.get(String(resolvedFromCode).toLowerCase());
-        }
+        let tgtNodeId = codeToNodeId.get(String(resolvedTo));
+        if (!tgtNodeId) tgtNodeId = nameToNodeId.get(String(resolvedTo).toLowerCase());
 
-        let tgtNodeId = codeToNodeId.get(String(resolvedToCode));
-        if (!tgtNodeId && typeof resolvedToCode === "string") {
-            tgtNodeId = nameToNodeId.get(String(resolvedToCode).toLowerCase());
-        }
-
-        // final fallback: search normalizedItems for matching code or name (loose)
+        // Final fallback: scan normalizedItems by code or by name (loose)
         if ((!srcNodeId || !tgtNodeId) && normalizedItems.length) {
             if (!srcNodeId) {
-                const cand = normalizedItems.find(it => String(it.Code) === String(resolvedFromCode) || (it.Name && it.Name.toLowerCase() === String(resolvedFromCode).toLowerCase()));
+                const cand = normalizedItems.find(it => String(it.Code) === String(resolvedFrom) || (it.Name && it.Name.toLowerCase() === String(resolvedFrom).toLowerCase()));
                 if (cand) srcNodeId = codeToNodeId.get(String(cand.Code));
             }
             if (!tgtNodeId) {
-                const cand = normalizedItems.find(it => String(it.Code) === String(resolvedToCode) || (it.Name && it.Name.toLowerCase() === String(resolvedToCode).toLowerCase()));
+                const cand = normalizedItems.find(it => String(it.Code) === String(resolvedTo) || (it.Name && it.Name.toLowerCase() === String(resolvedTo).toLowerCase()));
                 if (cand) tgtNodeId = codeToNodeId.get(String(cand.Code));
             }
         }
@@ -399,14 +421,16 @@ export default async function AIPNIDGenerator(
         if (srcNodeId && tgtNodeId) {
             const added = addEdgeByNodeIds(srcNodeId, tgtNodeId, { type: 'smoothstep' });
             if (added) {
-                allMessages.push({ sender: "AI", message: `→ Connected ${resolvedFromCode} → ${resolvedToCode}` });
+                allMessages.push({ sender: "AI", message: `→ Connected ${resolvedFrom} → ${resolvedTo}` });
                 explicitAddedCount++;
             }
         } else {
-            console.warn("⚠️ Could not resolve explicit connection to node IDs:", { fromRef, toRef, resolvedFromCode, resolvedToCode, srcNodeId, tgtNodeId, normalizedItems });
+            console.warn("⚠️ Could not resolve explicit connection to node IDs:", {
+                fromRef, toRef, resolvedFrom, resolvedTo, srcNodeId, tgtNodeId,
+                normalizedPreview: normalizedItems.map(it => ({ Name: it.Name, Code: it.Code })).slice(0, 10)
+            });
         }
     });
-
 
     // --------------------------
     // Implicit connections (chain all new items) — only when user asked to "connect" and there were no explicit connections
