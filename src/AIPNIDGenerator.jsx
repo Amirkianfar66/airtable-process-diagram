@@ -405,8 +405,9 @@ export default async function AIPNIDGenerator(
 
         const toNodeId = codeToNodeId.get(toCode) || (() => {
             const key = normalizeKey(toCode);
-            return [...codeToNodeId.entries()].find(([k]) => normalizeKey(k) === key)?.[1];
+            return allNodesSoFar.find(n => normalizeKey(n.data?.item?.Name) === key)?.id;
         })();
+
 
         if (fromNodeId && toNodeId) {
             const exists = [...existingEdges, ...newEdges].some(
