@@ -59,7 +59,7 @@ export default async function AIPNIDGenerator(
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
     // 1️⃣ Send input to Gemini for classification
-    let normalizedItems = [];
+
     let aiResult;
     try {
         aiResult = await parseItemLogic(description);
@@ -105,8 +105,6 @@ export default async function AIPNIDGenerator(
 
         return { nodes: existingNodes, edges: existingEdges };
     }
-    // top of AIPNIDGenerator after aiResult obtained
-    console.log("AIPNIDGenerator: aiResult:", aiResult);
 
     // Chat mode
     if (mode === "chat") {
@@ -122,48 +120,54 @@ export default async function AIPNIDGenerator(
 
     // 3️⃣ Structured PNID logic
     const parsedItems = Array.isArray(parsed) ? parsed : [parsed];
-    // --- Replace the node creation loop / small helpers with this block ---
-
-    // Build helper maps later (after nodes created)
     const newNodes = [];
-    const normalizedItems = []; // will hold normalized item objects created below
+    const newEdges = [...existingEdges]; // start with existing edges so dedupe checks include them
     const allMessages = [{ sender: "User", message: description }];
 
-    // Create nodes / normalizedItems (with robust Name fallback)
+    // Create nodes / normalizedItems
     parsedItems.forEach((p, idx) => {
-        const rawName = (p.Name ?? "").toString().trim();
+        const Name = (p.Name || description).trim();
         const Category = p.Category && p.Category !== '' ? p.Category : 'Equipment';
         const Type = p.Type && p.Type !== '' ? p.Type : 'Generic';
         const NumberOfItems = p.Number && p.Number > 0 ? p.Number : 1;
+
         const Unit = p.Unit ?? 0;
         const SubUnit = p.SubUnit ?? 0;
-        const Sequence = p.Sequence ?? (idx + 1);
+        const Sequence = p.Sequence ?? 1;
 
-        // generate base code(s) - reuse your generateCode utility
+        // Generate base code
         const baseCode = generateCode({ Category, Type, Unit, SubUnit, Sequence, SensorType: p.SensorType || '' });
-        const codes = [baseCode].filter(Boolean);
+        const allCodes = [baseCode].filter(Boolean);
+
+        // Optionally generate additional codes if NumberOfItems > 1
         for (let i = 1; i < NumberOfItems; i++) {
-            const nextCode = generateCode({ Category, Type, Unit, SubUnit, Sequence: Sequence + i, SensorType: p.SensorType || '' });
-            if (nextCode) codes.push(nextCode);
-        }
-
-        codes.forEach((code, codeIdx) => {
-            const nodeId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
-
-            // Build a sensible Name: prefer parser Name, fallback to Type + index (Tank1, Pump1)
-            const safeName = rawName || `${Type}${codeIdx + 1}` || `${Type}`;
-
-            const nodeItem = {
-                id: nodeId,
-                Name: safeName,
-                Code: String(code),
-                "Item Code": String(code),
+            const nextCode = generateCode({
                 Category,
                 Type,
                 Unit,
                 SubUnit,
+                Sequence: Sequence + i,
+                SensorType: p.SensorType || ''
+            });
+            if (nextCode) allCodes.push(nextCode);
+        }
+
+        // Create a node for each code
+        allCodes.forEach((code, codeIdx) => {
+            const nodeId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : `ai-${Date.now()}-${Math.random()}`;
+
+            const nodeItem = {
+                id: nodeId,
+                Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
+                Code: code,
+                'Item Code': code,
+                Category,
+                Type,
+                Unit: Unit ?? 'Default Unit',
+                SubUnit: SubUnit ?? 'Default SubUnit',
                 Sequence: Sequence + codeIdx,
-                // copy parser connections (may be codes/names) so we can process them later
                 Connections: Array.isArray(p.Connections) ? p.Connections.slice() : []
             };
 
@@ -175,104 +179,13 @@ export default async function AIPNIDGenerator(
             });
 
             normalizedItems.push(nodeItem);
-            allMessages.push({ sender: "AI", message: `Generated code: ${nodeItem.Code}` });
+            allMessages.push({ sender: "AI", message: `Generated code: ${code}` });
         });
-    });
 
-    // Build maps for resolving connections
-    const allNodesSoFar = [...existingNodes, ...newNodes];
-    const codeToNodeId = new Map();
-    const nameToNodeId = new Map();
-    const typeIndexedMap = {}; // e.g. { Tank: [nodeId1,nodeId2], Pump: [...] }
-
-    allNodesSoFar.forEach(n => {
-        const it = n.data?.item;
-        if (!it) return;
-        if (it.Code !== undefined && it.Code !== null) codeToNodeId.set(String(it.Code), n.id);
-        if (it.Name) {
-            nameToNodeId.set(String(it.Name).toLowerCase(), n.id);
-            const t = (it.Type || '').toString();
-            if (!typeIndexedMap[t]) typeIndexedMap[t] = [];
-            typeIndexedMap[t].push(n.id);
+        if (explanation && idx === 0) {
+            allMessages.push({ sender: "AI", message: explanation });
         }
     });
-
-    // helper to add edge without duplicating
-    function addEdgeByNodeIds(sourceId, targetId, opts = {}) {
-        if (!sourceId || !targetId) return false;
-        const exists = [...existingEdges, ...newEdges].some(e => e.source === sourceId && e.target === targetId);
-        if (exists) return false;
-        newEdges.push({
-            id: `edge-${sourceId}-${targetId}`,
-            source: sourceId,
-            target: targetId,
-            type: opts.type || 'smoothstep',
-            animated: opts.animated !== undefined ? opts.animated : true,
-            style: opts.style || { stroke: '#888', strokeWidth: 2 },
-        });
-        return true;
-    }
-
-    // Resolve a connection reference (code, name, "Tank1", "Tank2") => nodeId
-    function resolveToNodeId(ref) {
-        if (!ref) return null;
-        const s = String(ref).trim();
-        // 1) direct code match
-        if (codeToNodeId.has(s)) return codeToNodeId.get(s);
-        // 2) direct name match (case-insensitive)
-        const nameId = nameToNodeId.get(s.toLowerCase());
-        if (nameId) return nameId;
-        // 3) try "Type + index" like "Tank1" or "Tank_1"
-        const m = s.match(/^([a-zA-Z]+)[\s_]*([0-9]+)$/);
-        if (m) {
-            const typ = m[1];
-            const idx = parseInt(m[2], 10) - 1; // user typically uses 1-based
-            const bucket = typeIndexedMap[typ] || [];
-            return bucket[idx] || null;
-        }
-        // 4) fallback: find first node whose name contains the ref
-        const found = [...nameToNodeId.entries()].find(([nm, id]) => nm.includes(s.toLowerCase()));
-        return found ? found[1] : null;
-    }
-
-    // 1) prefer parser-provided explicit connections (connectionResolved or parsed connection list)
-    const parserConnList = aiResult.connectionResolved || parserConnections || [];
-    if (Array.isArray(parserConnList) && parserConnList.length) {
-        parserConnList.forEach(c => {
-            if (!c) return;
-            const src = resolveToNodeId(c.from || c.source || c.fromName || c.fromCode);
-            const tgt = resolveToNodeId(c.to || c.target || c.toName || c.toCode);
-            if (src && tgt) addEdgeByNodeIds(src, tgt, { type: 'smoothstep' });
-        });
-    }
-
-    // 2) fallback: use per-item Connections attached to normalizedItems
-    if (newEdges.length === 0) {
-        normalizedItems.forEach(it => {
-            if (!Array.isArray(it.Connections)) return;
-            const src = resolveToNodeId(it.Code);
-            it.Connections.forEach(targetRef => {
-                const tgt = resolveToNodeId(targetRef);
-                if (src && tgt) addEdgeByNodeIds(src, tgt, { type: 'smoothstep' });
-            });
-        });
-    }
-
-    // 3) implicit "connect" chain if still no explicit edges and user asked to connect
-    if (/connect/i.test(description) && newNodes.length > 1 && newEdges.length === 0) {
-        for (let i = 0; i < newNodes.length - 1; i++) {
-            addEdgeByNodeIds(newNodes[i].id, newNodes[i + 1].id, { animated: true });
-        }
-        allMessages.push({ sender: "AI", message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
-    }
-
-    // return nodes + newEdges
-    return {
-        nodes: [...existingNodes, ...newNodes],
-        edges: [...existingEdges, ...newEdges],
-        normalizedItems,
-        messages: allMessages,
-    };
 
     // Build helper maps to resolve codes/names -> node IDs (includes existing + new)
     const allNodesSoFar = [...existingNodes, ...newNodes];
