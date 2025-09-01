@@ -13,7 +13,7 @@ export function ChatBox({ messages }) {
                 padding: 10,
                 border: "2px solid #007bff",
                 borderRadius: 8,
-                maxHeight: "150px",
+                maxHeight: "300px",
                 overflowY: "auto",
                 backgroundColor: "#f9f9f9",
                 display: "flex",
@@ -45,7 +45,6 @@ export function ChatBox({ messages }) {
     );
 }
 
-
 // --------------------------
 // AI PNID generator (with human AI layer)
 // --------------------------
@@ -60,8 +59,7 @@ export default async function AIPNIDGenerator(
     if (!description) return { nodes: existingNodes, edges: existingEdges };
 
     // 1️⃣ Send input to Gemini for classification
-    // 1️⃣ Send input to Gemini for classification
-    // 1️⃣ Send input to Gemini for classification
+    let normalizedItems = [];
     let aiResult;
     try {
         aiResult = await parseItemLogic(description);
@@ -72,7 +70,8 @@ export default async function AIPNIDGenerator(
                 mode: "structured",
                 parsed: aiResult,
                 explanation: null,
-                connection: null
+                connection: null,
+                connectionResolved: []
             };
         }
     } catch (err) {
@@ -88,6 +87,8 @@ export default async function AIPNIDGenerator(
     }
 
     const { mode, explanation, parsed = {}, connection } = aiResult;
+    // prefer parser-resolved connections when available
+    const parserConnections = aiResult.connectionResolved || aiResult.connection || [];
 
     // Handle Hybrid action mode
     if (aiResult.mode === "action") {
@@ -102,18 +103,11 @@ export default async function AIPNIDGenerator(
             ]);
         }
 
-        // TODO: call your export function if action === "Generate PNID"
-        if (action === "Generate PNID") {
-            // Example: generatePNID(existingNodes, existingEdges);
-        }
-
-        // Return existing nodes/edges since we don't add new items
         return { nodes: existingNodes, edges: existingEdges };
     }
 
-    // 2️⃣ Branch based on AI classification
+    // Chat mode
     if (mode === "chat") {
-        // AI says this is general conversation → just show chat
         if (typeof setChatMessages === "function") {
             setChatMessages(prev => [
                 ...prev,
@@ -122,30 +116,15 @@ export default async function AIPNIDGenerator(
             ]);
         }
         return { nodes: existingNodes, edges: existingEdges };
-    } else if (mode === "structured" || mode === "pnid") {
-        // PNID logic → generate nodes and edges
-        // ... your existing PNID generation code here ...
-    }
-
-
-    // 2️⃣ Chat/human mode → reply directly
-    if (mode === 'chat') {
-        if (typeof setChatMessages === 'function') {
-            setChatMessages(prev => [
-                ...prev,
-                { sender: 'User', message: description },
-                { sender: 'AI', message: explanation }
-            ]);
-        }
-        return { nodes: existingNodes, edges: existingEdges };
     }
 
     // 3️⃣ Structured PNID logic
     const parsedItems = Array.isArray(parsed) ? parsed : [parsed];
     const newNodes = [];
-    const newEdges = [...existingEdges];
+    const newEdges = [...existingEdges]; // start with existing edges so dedupe checks include them
     const allMessages = [{ sender: "User", message: description }];
 
+    // Create nodes / normalizedItems
     parsedItems.forEach((p, idx) => {
         const Name = (p.Name || description).trim();
         const Category = p.Category && p.Category !== '' ? p.Category : 'Equipment';
@@ -175,16 +154,21 @@ export default async function AIPNIDGenerator(
 
         // Create a node for each code
         allCodes.forEach((code, codeIdx) => {
-            const nodeId = crypto.randomUUID ? crypto.randomUUID() : `ai-${Date.now()}-${Math.random()}`;
+            const nodeId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : `ai-${Date.now()}-${Math.random()}`;
+
             const nodeItem = {
+                id: nodeId,
                 Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
                 Code: code,
                 'Item Code': code,
                 Category,
                 Type,
-                Unit,
-                SubUnit,
-                id: nodeId
+                Unit: Unit ?? 'Default Unit',
+                SubUnit: SubUnit ?? 'Default SubUnit',
+                Sequence: Sequence + codeIdx,
+                Connections: Array.isArray(p.Connections) ? p.Connections.slice() : []
             };
 
             newNodes.push({
@@ -194,6 +178,7 @@ export default async function AIPNIDGenerator(
                 type: categoryTypeMap[Category] || 'scalableIcon',
             });
 
+            normalizedItems.push(nodeItem);
             allMessages.push({ sender: "AI", message: `Generated code: ${code}` });
         });
 
@@ -202,41 +187,92 @@ export default async function AIPNIDGenerator(
         }
     });
 
-    // --------------------------
-    // Explicit connections
-    // --------------------------
-    if (connection && connection.sourceCode && connection.targetCode) {
-        const sourceNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.sourceCode);
-        const targetNode = [...existingNodes, ...newNodes].find(n => n.data?.item?.Code === connection.targetCode);
+    // Build helper maps to resolve codes/names -> node IDs (includes existing + new)
+    const allNodesSoFar = [...existingNodes, ...newNodes];
+    const codeToNodeId = new Map();
+    const nameToNodeId = new Map();
+    allNodesSoFar.forEach(n => {
+        const item = n.data?.item;
+        if (!item) return;
+        if (item.Code !== undefined && item.Code !== null) codeToNodeId.set(String(item.Code), n.id);
+        if (item.Name) nameToNodeId.set(String(item.Name).toLowerCase(), n.id);
+    });
 
-        if (sourceNode && targetNode) {
-            const exists = newEdges.some(e => e.source === sourceNode.id && e.target === targetNode.id);
-            if (!exists) {
-                newEdges.push({
-                    id: `edge-${sourceNode.id}-${targetNode.id}`,
-                    source: sourceNode.id,
-                    target: targetNode.id,
-                    animated: true
-                });
-            }
-            allMessages.push({ sender: "AI", message: `→ Connected ${connection.sourceCode} → ${connection.targetCode}` });
-        }
+    // helper to add edge without duplicating (checks existingEdges + newEdges)
+    function addEdgeByNodeIds(sourceId, targetId, opts = {}) {
+        if (!sourceId || !targetId) return false;
+        const exists = [...existingEdges, ...newEdges].some(e => e.source === sourceId && e.target === targetId);
+        if (exists) return false;
+        newEdges.push({
+            id: `edge-${sourceId}-${targetId}`,
+            source: sourceId,
+            target: targetId,
+            type: opts.type || 'smoothstep',
+            animated: opts.animated !== undefined ? opts.animated : true,
+            style: opts.style || { stroke: '#888', strokeWidth: 2 },
+        });
+        return true;
+    }
+
+    // Resolve a reference (could be code or name) to a canonical code string if possible, otherwise return original
+    function resolveCodeString(ref) {
+        if (!ref) return null;
+        const str = String(ref).trim();
+        // first look for exact Code among existing/new items
+        const foundItem = [...normalizedItems, ...existingNodes.map(n => n.data?.item)]
+            .find(i => String(i?.Code) === str || (i?.Name && i.Name.toLowerCase() === str.toLowerCase()));
+        if (foundItem) return String(foundItem.Code);
+        return str;
     }
 
     // --------------------------
-    // Implicit connections (chain all new items)
+    // Use parser-provided resolved connections first (connectionResolved)
     // --------------------------
-    if (/Connect/i.test(description) && newNodes.length > 1) {
-        for (let i = 0; i < newNodes.length - 1; i++) {
-            const exists = newEdges.some(e => e.source === newNodes[i].id && e.target === newNodes[i + 1].id);
-            if (!exists) {
-                newEdges.push({
-                    id: `edge-${newNodes[i].id}-${newNodes[i + 1].id}`,
-                    source: newNodes[i].id,
-                    target: newNodes[i + 1].id,
-                    animated: true
-                });
+    if (Array.isArray(parserConnections) && parserConnections.length > 0) {
+        parserConnections.forEach(c => {
+            if (!c) return;
+            // c expected shape: { from: "<code|name>", to: "<code|name>" }
+            const resolvedFrom = resolveCodeString(c.from || c.source || c.fromCode || c.fromName || '');
+            const resolvedTo = resolveCodeString(c.to || c.target || c.toCode || c.toName || '');
+
+            const srcNodeId = codeToNodeId.get(String(resolvedFrom)) || nameToNodeId.get(String((c.from || '').toLowerCase()));
+            const tgtNodeId = codeToNodeId.get(String(resolvedTo)) || nameToNodeId.get(String((c.to || '').toLowerCase()));
+
+            if (srcNodeId && tgtNodeId) {
+                const added = addEdgeByNodeIds(srcNodeId, tgtNodeId, { type: 'smoothstep' });
+                if (added) allMessages.push({ sender: 'AI', message: `→ Connected ${c.from} → ${c.to}` });
             }
+        });
+    }
+
+    // --------------------------
+    // Fall back: build edges from each item's Connections if parser didn't provide explicit ones
+    // --------------------------
+    const explicitAdded = newEdges.length > existingEdges.length;
+    if (!explicitAdded) {
+        normalizedItems.forEach(item => {
+            if (!item.Connections || !Array.isArray(item.Connections)) return;
+            item.Connections.forEach(connTarget => {
+                const resolvedTargetCode = resolveCodeString(connTarget);
+                const sourceNodeId = codeToNodeId.get(String(item.Code));
+                const targetNodeId = codeToNodeId.get(String(resolvedTargetCode));
+
+                if (sourceNodeId && targetNodeId) {
+                    const added = addEdgeByNodeIds(sourceNodeId, targetNodeId, { type: 'smoothstep' });
+                    if (added) {
+                        allMessages.push({ sender: 'AI', message: `→ Connected ${item.Code} → ${resolvedTargetCode}` });
+                    }
+                }
+            });
+        });
+    }
+
+    // --------------------------
+    // Implicit connections (chain all new items) — only when user asked to "connect" and there were no explicit connections
+    // --------------------------
+    if (/connect/i.test(description) && newNodes.length > 1 && newEdges.length === existingEdges.length) {
+        for (let i = 0; i < newNodes.length - 1; i++) {
+            addEdgeByNodeIds(newNodes[i].id, newNodes[i + 1].id, { animated: true });
         }
         allMessages.push({ sender: "AI", message: `→ Automatically connected ${newNodes.length} nodes in sequence.` });
     }
@@ -247,5 +283,10 @@ export default async function AIPNIDGenerator(
         setChatMessages(prev => [...prev, ...allMessages]);
     }
 
-    return { nodes: [...existingNodes, ...newNodes], edges: newEdges };
-} 
+    return {
+        nodes: [...existingNodes, ...newNodes],
+        edges: [...newEdges],
+        normalizedItems,
+        messages: allMessages,
+    };
+}
