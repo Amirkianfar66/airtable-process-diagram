@@ -284,37 +284,34 @@ User Input: """${trimmed}"""
 
 
             // Generate deterministic unique codes (and avoid collisions)
+            // Generate deterministic unique codes (and avoid collisions)
             const codeSet = new Set();
-            const nameToCode = new Map();
+            const nameToCode = new Map();     // primary: normalizedName -> code
+            const altNameLookup = new Map();  // secondary: rawLower -> code
 
             function baseCodeFor(item, idx) {
                 // Base code made from Unit/SubUnit/Sequence/Number with consistent padding
                 const u = String(item.Unit ?? 0).padStart(1, "0");
                 const su = String(item.SubUnit ?? 0).padStart(1, "0");
-                // Sequence use at least 2 digits so sequences of 1 and 01 don't collide
                 const seq = String(item.Sequence ?? (idx + 1)).padStart(2, "0");
                 const num = String(item.Number ?? 1).padStart(2, "0");
-                return `${u}${su}${seq}${num}`; // e.g. "000101"
+                return `${u}${su}${seq}${num}`;
             }
-            // ---------- helper: normalize keys (strip non-alphanum, lowercase, drop leading zeros in numbers) ----------
+
+            // helper: normalize keys
             function normalizeKey(s) {
                 if (!s) return "";
                 const str = String(s).trim().toLowerCase();
-                // collapse spaces/underscores/dashes into nothing: "tank 1" / "Tank_1" -> "tank1"
                 const compact = str.replace(/[_\s,-]+/g, '');
-                // normalize numeric suffix zeroes: "tank01" -> "tank1"
                 return compact.replace(/([a-zA-Z]+)0+(\d+)$/i, (m, p1, p2) => `${p1}${Number(p2)}`);
             }
 
             // ---------- build nameToCode (multiple lookup variants) ----------
-            const nameToCode = new Map();     // primary: normalizedName -> code
-            const altNameLookup = new Map();  // secondary: rawLower -> code
-
             itemsArray.forEach((it, idx) => {
                 let base = baseCodeFor(it, idx);
                 let code = base;
                 let suffix = 0;
-                // ensure uniqueness
+
                 while (codeSet.has(code)) {
                     suffix++;
                     code = `${base}_${suffix}`;
@@ -325,15 +322,14 @@ User Input: """${trimmed}"""
                 const rawName = (it.Name || '').toString().trim();
                 const rawLower = rawName.toLowerCase();
 
-                // normalized keys:
-                const n1 = normalizeKey(rawName);           // e.g. "tank1" from "Tank_1", "Tank 1", "Tank1"
-                const n2 = rawLower.replace(/\s+/g, '_');   // e.g. "tank_1" fallback
+                const n1 = normalizeKey(rawName);
+                const n2 = rawLower.replace(/\s+/g, '_');
 
-                // store multiple keys mapping to the same code
                 if (n1) nameToCode.set(n1, code);
                 if (n2) nameToCode.set(n2, code);
                 if (rawLower) altNameLookup.set(rawLower, code);
             });
+
 
 
             // Normalize connections (support multi-step chains)
