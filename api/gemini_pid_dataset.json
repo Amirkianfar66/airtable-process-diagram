@@ -1,6 +1,5 @@
 ﻿[
   {"input":"Draw a Tank","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1}},
-  [
   {
     "input": "Draw a Tank",
     "output": {
