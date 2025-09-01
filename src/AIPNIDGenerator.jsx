@@ -268,11 +268,39 @@ export default async function AIPNIDGenerator(
     const allNodesSoFar = [...existingNodes, ...newNodes];
     const codeToNodeId = new Map();
     const nameToNodeId = new Map();
+
     allNodesSoFar.forEach(n => {
         const item = n.data?.item;
         if (!item) return;
-        if (item.Code !== undefined && item.Code !== null) codeToNodeId.set(String(item.Code), n.id);
-        if (item.Name) nameToNodeId.set(String(item.Name).toLowerCase(), n.id);
+
+        // canonical short code (what generateCode usually produces)
+        const shortCode = String(item.Code);
+        codeToNodeId.set(shortCode, n.id);
+
+        // map parse-item's long format (Unit 1, SubUnit 1, Sequence 02, Number 01 -> "110201")
+        // parse-item uses: padStart(1) for Unit/SubUnit, padStart(2) for Sequence/Number
+        try {
+            const u = String(item.Unit ?? 0).padStart(1, '0');
+            const su = String(item.SubUnit ?? 0).padStart(1, '0');
+            const seq = String(item.Sequence ?? 1).padStart(2, '0');
+            const num = String(item.Number ?? 1).padStart(2, '0');
+            const longCode = `${u}${su}${seq}${num}`;
+            if (!codeToNodeId.has(longCode)) codeToNodeId.set(longCode, n.id);
+        } catch (e) {
+            // ignore if item fields missing or unexpected
+        }
+
+        // also map variants without leading zeros (helpful if parser sometimes strips)
+        const noLeadingZeros = shortCode.replace(/^0+/, '');
+        if (noLeadingZeros && !codeToNodeId.has(noLeadingZeros)) codeToNodeId.set(noLeadingZeros, n.id);
+
+        // name variants
+        if (item.Name) {
+            const rawName = String(item.Name).toLowerCase();
+            nameToNodeId.set(rawName, n.id);
+            nameToNodeId.set(rawName.replace(/\s+/g, '_'), n.id);
+            nameToNodeId.set(rawName.replace(/\s+/g, ''), n.id);
+        }
     });
 
     // helper to add edge without duplicating (checks existingEdges + newEdges)
