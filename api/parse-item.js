@@ -296,20 +296,45 @@ User Input: """${trimmed}"""
                 const num = String(item.Number ?? 1).padStart(2, "0");
                 return `${u}${su}${seq}${num}`; // e.g. "000101"
             }
+            // ---------- helper: normalize keys (strip non-alphanum, lowercase, drop leading zeros in numbers) ----------
+            function normalizeKey(s) {
+                if (!s) return "";
+                const str = String(s).trim().toLowerCase();
+                // collapse spaces/underscores/dashes into nothing: "tank 1" / "Tank_1" -> "tank1"
+                const compact = str.replace(/[_\s,-]+/g, '');
+                // normalize numeric suffix zeroes: "tank01" -> "tank1"
+                return compact.replace(/([a-zA-Z]+)0+(\d+)$/i, (m, p1, p2) => `${p1}${Number(p2)}`);
+            }
+
+            // ---------- build nameToCode (multiple lookup variants) ----------
+            const nameToCode = new Map();     // primary: normalizedName -> code
+            const altNameLookup = new Map();  // secondary: rawLower -> code
 
             itemsArray.forEach((it, idx) => {
                 let base = baseCodeFor(it, idx);
                 let code = base;
                 let suffix = 0;
-                // If collision, append a small suffix until unique.
+                // ensure uniqueness
                 while (codeSet.has(code)) {
                     suffix++;
-                    code = `${base}_${suffix}`; // e.g. "000101_1"
+                    code = `${base}_${suffix}`;
                 }
                 codeSet.add(code);
-                nameToCode.set(it.Name.toLowerCase(), code);
-                it._generatedCode = code; // keep transient code on object for debugging
+                it._generatedCode = code;
+
+                const rawName = (it.Name || '').toString().trim();
+                const rawLower = rawName.toLowerCase();
+
+                // normalized keys:
+                const n1 = normalizeKey(rawName);           // e.g. "tank1" from "Tank_1", "Tank 1", "Tank1"
+                const n2 = rawLower.replace(/\s+/g, '_');   // e.g. "tank_1" fallback
+
+                // store multiple keys mapping to the same code
+                if (n1) nameToCode.set(n1, code);
+                if (n2) nameToCode.set(n2, code);
+                if (rawLower) altNameLookup.set(rawLower, code);
             });
+
 
             // Normalize connections (support multi-step chains)
             const normalizedConnections = [];
@@ -348,11 +373,61 @@ User Input: """${trimmed}"""
                 }
             });
 
-            // Resolve connections to generated codes
-            const connectionResolved = normalizedConnections.map(c => ({
-                from: nameToCode.get((c.from || "").toLowerCase()) || c.from,
-                to: nameToCode.get((c.to || "").toLowerCase()) || c.to
-            }));
+            const connectionResolved = normalizedConnections.map(c => {
+                const fromRaw = (c.from || "").toString().trim();
+                const toRaw = (c.to || "").toString().trim();
+
+                const candFromKeys = [
+                    normalizeKey(fromRaw),
+                    fromRaw.toLowerCase(),
+                    fromRaw.toLowerCase().replace(/\s+/g, '_'),
+                    fromRaw.replace(/\s+/g, '')
+                ].filter(Boolean);
+
+                const candToKeys = [
+                    normalizeKey(toRaw),
+                    toRaw.toLowerCase(),
+                    toRaw.toLowerCase().replace(/\s+/g, '_'),
+                    toRaw.replace(/\s+/g, '')
+                ].filter(Boolean);
+
+                let resolvedFrom = null;
+                let resolvedTo = null;
+
+                for (const k of candFromKeys) {
+                    if (nameToCode.has(k)) { resolvedFrom = nameToCode.get(k); break; }
+                    if (altNameLookup.has(k)) { resolvedFrom = altNameLookup.get(k); break; }
+                }
+                for (const k of candToKeys) {
+                    if (nameToCode.has(k)) { resolvedTo = nameToCode.get(k); break; }
+                    if (altNameLookup.has(k)) { resolvedTo = altNameLookup.get(k); break; }
+                }
+
+                // fallback: if we didn't resolve, try simple numeric-suffix heuristic
+                // e.g., fromRaw="Tank1" and names were "Tank" + "Tank_1" etc.
+                if (!resolvedFrom) {
+                    const m = fromRaw.match(/^([a-zA-Z]+)(\d+)$/);
+                    if (m) {
+                        const baseName = normalizeKey(m[1]);
+                        const candidate = `${baseName}${Number(m[2])}`;
+                        if (nameToCode.has(candidate)) resolvedFrom = nameToCode.get(candidate);
+                    }
+                }
+                if (!resolvedTo) {
+                    const m = toRaw.match(/^([a-zA-Z]+)(\d+)$/);
+                    if (m) {
+                        const baseName = normalizeKey(m[1]);
+                        const candidate = `${baseName}${Number(m[2])}`;
+                        if (nameToCode.has(candidate)) resolvedTo = nameToCode.get(candidate);
+                    }
+                }
+
+                return {
+                    from: resolvedFrom || fromRaw,
+                    to: resolvedTo || toRaw
+                };
+            });
+
 
             // Attach resolved connections to items (by _generatedCode)
             itemsArray.forEach(item => {
