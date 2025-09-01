@@ -327,16 +327,16 @@ export default async function AIPNIDGenerator(
         if (!finalFromCode) finalFromCode = fromRef;
         if (!finalToCode) finalToCode = toRef;
 
-        // Do NOT over-swap direction: only swap if user literally wrote "connect B to A"
-        const idxFrom = codeToIndex.get(String(finalFromCode));
-        const idxTo = codeToIndex.get(String(finalToCode));
-        if (Number.isFinite(idxFrom) && Number.isFinite(idxTo) && idxFrom > idxTo) {
-            // only swap if both are found and strictly reversed
+        // Use new variable names to avoid "already declared" errors
+        const idxFromConn = codeToIndex.get(String(finalFromCode));
+        const idxToConn = codeToIndex.get(String(finalToCode));
+
+        // Only swap if both indexes exist and are reversed
+        if (Number.isFinite(idxFromConn) && Number.isFinite(idxToConn) && idxFromConn > idxToConn) {
             [finalFromCode, finalToCode] = [finalToCode, finalFromCode];
         }
 
         console.log("🔗 Trying edge:", { fromRef, toRef, finalFromCode, finalToCode });
-
 
         const idxFrom = codeToIndex.has(String(resolvedFromCode)) ? codeToIndex.get(String(resolvedFromCode)) : Infinity;
         const idxTo = codeToIndex.has(String(resolvedToCode)) ? codeToIndex.get(String(resolvedToCode)) : Infinity;
