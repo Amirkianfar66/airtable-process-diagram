@@ -398,10 +398,10 @@ export default async function AIPNIDGenerator(
         if (!fromCode || !toCode) return;
 
         const fromNodeId = codeToNodeId.get(fromCode) || (() => {
-            // fallback: normalizeKey match
             const key = normalizeKey(fromCode);
-            return [...codeToNodeId.entries()].find(([k]) => normalizeKey(k) === key)?.[1];
+            return allNodesSoFar.find(n => normalizeKey(n.data?.item?.Name) === key)?.id;
         })();
+
 
         const toNodeId = codeToNodeId.get(toCode) || (() => {
             const key = normalizeKey(toCode);
