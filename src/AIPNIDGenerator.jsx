@@ -233,7 +233,7 @@ export default async function AIPNIDGenerator(
 
             const nodeItem = {
                 id: nodeId,
-                Name: NumberOfItems > 1 ? `${Name} ${codeIdx + 1}` : Name,
+                Name: NumberOfItems > 1 ? `${Name}${codeIdx + 1}` : Name,
                 Code: code,
                 'Item Code': code,
                 Category,
