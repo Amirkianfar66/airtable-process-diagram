@@ -386,59 +386,69 @@ export default async function AIPNIDGenerator(
     }
 
     // Primary pass: try to resolve and add edges
+    // --------------------------
+    // Handle explicit connections (from parseItemLogic)
+    // --------------------------
+    const explicitConnectionsArr = Array.isArray(parserConnections)
+        ? parserConnections
+        : parserConnections
+            ? [parserConnections]
+            : [];
+
+    const codeToNodeId = new Map();
+    [...existingNodes, ...newNodes].forEach(n => {
+        const c = n.data?.item?.Code;
+        if (c) codeToNodeId.set(String(c), n.id);
+    });
+
     explicitConnectionsArr.forEach(connObj => {
         if (!connObj) return;
 
-        const fromRef = connObj.sourceCode || connObj.from || connObj.fromCode || connObj.source || null;
-        const toRef = connObj.targetCode || connObj.to || connObj.toCode || connObj.target || null;
-        if (!fromRef || !toRef) return;
+        const fromCode = connObj.from || connObj.source || connObj.fromCode;
+        const toCode = connObj.to || connObj.target || connObj.toCode;
 
-        let resolvedFrom = strictResolve(fromRef) || fromRef;
-        let resolvedTo = strictResolve(toRef) || toRef;
+        if (!fromCode || !toCode) return;
 
-        // preserve parsed order
-        const idxFromVal = codeToIndex.has(String(resolvedFrom)) ? codeToIndex.get(String(resolvedFrom)) : Infinity;
-        const idxToVal = codeToIndex.has(String(resolvedTo)) ? codeToIndex.get(String(resolvedTo)) : Infinity;
-        if (Number.isFinite(idxFromVal) && Number.isFinite(idxToVal) && idxFromVal > idxToVal) {
-            [resolvedFrom, resolvedTo] = [resolvedTo, resolvedFrom];
-        }
+        const fromNodeId = codeToNodeId.get(fromCode) || (() => {
+            // fallback: try normalizeKey match
+            const key = normalizeKey(fromCode);
+            return [...codeToNodeId.entries()].find(([k]) => normalizeKey(k) === key)?.[1];
+        })();
 
-        console.log("🔗 Trying explicit connection:", { fromRef, toRef, resolvedFrom, resolvedTo });
+        const toNodeId = codeToNodeId.get(toCode) || (() => {
+            const key = normalizeKey(toCode);
+            return [...codeToNodeId.entries()].find(([k]) => normalizeKey(k) === key)?.[1];
+        })();
 
-        let srcNodeId = findNodeIdFromCode(resolvedFrom) || nameToNodeId.get(String(resolvedFrom).toLowerCase());
-        let tgtNodeId = findNodeIdFromCode(resolvedTo) || nameToNodeId.get(String(resolvedTo).toLowerCase());
-
-        // final fallback scanning normalizedItems
-        if ((!srcNodeId || !tgtNodeId) && normalizedItems.length) {
-            if (!srcNodeId) {
-                const cand = normalizedItems.find(it =>
-                    String(it.Code) === String(resolvedFrom) ||
-                    (it.Name && it.Name.toLowerCase() === String(resolvedFrom).toLowerCase())
-                );
-                if (cand) srcNodeId = codeToNodeId.get(String(cand.Code));
-            }
-            if (!tgtNodeId) {
-                const cand = normalizedItems.find(it =>
-                    String(it.Code) === String(resolvedTo) ||
-                    (it.Name && it.Name.toLowerCase() === String(resolvedTo).toLowerCase())
-                );
-                if (cand) tgtNodeId = codeToNodeId.get(String(cand.Code));
-            }
-        }
-
-        if (srcNodeId && tgtNodeId) {
-            const added = addEdgeByNodeIds(srcNodeId, tgtNodeId, { type: 'smoothstep' });
-            if (added) {
-                allMessages.push({ sender: "AI", message: `→ Connected ${resolvedFrom} → ${resolvedTo}` });
-                explicitAddedCount++;
+        if (fromNodeId && toNodeId) {
+            // avoid duplicates
+            const exists = [...existingEdges, ...newEdges].some(
+                e => e.source === fromNodeId && e.target === toNodeId
+            );
+            if (!exists) {
+                newEdges.push({
+                    id: `edge-${fromNodeId}-${toNodeId}`,
+                    source: fromNodeId,
+                    target: toNodeId,
+                    type: 'smoothstep',
+                    animated: true,
+                    style: { stroke: '#888', strokeWidth: 2 },
+                });
+                if (typeof setChatMessages === 'function') {
+                    setChatMessages(prev => [
+                        ...prev,
+                        { sender: "AI", message: `→ Connected ${fromCode} → ${toCode}` }
+                    ]);
+                }
             }
         } else {
-            console.warn("⚠️ Could not resolve explicit connection to node IDs:", {
-                fromRef, toRef, resolvedFrom, resolvedTo, srcNodeId, tgtNodeId,
-                normalizedPreview: normalizedItems.map(it => ({ Name: it.Name, Code: it.Code })).slice(0, 10)
+            console.warn('⚠️ Could not resolve explicit connection to node IDs', {
+                fromCode, toCode,
+                normalizedPreview: normalizedItems.map(it => ({ Name: it.Name, Code: it.Code }))
             });
         }
     });
+
 
     // Additional conservative fallback: try to use parser-provided numeric codes or long codes
     if (explicitAddedCount === 0 && Array.isArray(explicitConnectionsArr) && explicitConnectionsArr.length > 0) {
