@@ -402,11 +402,11 @@ export default async function AIPNIDGenerator(
             return allNodesSoFar.find(n => normalizeKey(n.data?.item?.Name) === key)?.id;
         })();
 
-
         const toNodeId = codeToNodeId.get(toCode) || (() => {
             const key = normalizeKey(toCode);
             return allNodesSoFar.find(n => normalizeKey(n.data?.item?.Name) === key)?.id;
         })();
+
 
 
         if (fromNodeId && toNodeId) {
