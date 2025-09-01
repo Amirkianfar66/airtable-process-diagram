@@ -1,5 +1,6 @@
 ﻿[
   {"input":"Draw a Tank","output":{"mode":"structured","Order":"Draw","Category":"Equipment","Type":"Tank","Unit":1,"SubUnit":1,"Count":1}},
+  {"input":"Draw a Tank and a Pump","output":{"mode":"structured","items":[{"Category":"Equipment","Type":"Tank","Unit":0,"SubUnit":0,"Count":1},{"Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1}},
   {"input":"Place a Pump","output":{"mode":"structured","Order":"Place","Category":"Equipment","Type":"Pump","Unit":1,"SubUnit":1,"Count":1}},
   {"input":"Generate a Valve","output":{"mode":"structured","Order":"Generate","Category":"Equipment","Type":"Valve","Unit":1,"SubUnit":1,"Count":1}},
   {"input":"Create a Reactor","output":{"mode":"structured","Order":"Create","Category":"Equipment","Type":"Reactor","Unit":1,"SubUnit":1,"Count":1}},
