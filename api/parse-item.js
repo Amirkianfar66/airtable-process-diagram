@@ -1,6 +1,8 @@
 ﻿// /api/parse-item.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import examples from "./gemini_pid_dataset.json"; // ✅ Import your local dataset
+console.log("Loaded gemini examples count:", examples?.length);
+
 
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
@@ -51,6 +53,11 @@ export async function parseItemLogic(description) {
 
     const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
     const inputNumber = numberMatch ? Math.max(1, parseInt(numberMatch[1], 10)) : 1;
+    // right before creating 'batches' or fewShots
+    console.log("parseItemLogic: using", examples.length, "few-shot examples");
+    // optionally check total prompt length (rough) to avoid token overflow
+    const approxPromptLen = examples.reduce((acc, e) => acc + JSON.stringify(e).length, 0);
+    console.log("parseItemLogic: examples JSON roughly", Math.round(approxPromptLen / 1000), "KB");
 
     // Build few-shot prompt (batched)
     const BATCH_SIZE = 10;
