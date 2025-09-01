@@ -372,7 +372,17 @@ export default async function AIPNIDGenerator(
         messages: allMessages,
     };
 }
-const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(parsedOrders);
+AIPNIDGenerator(parsedOrders /*, args */)
+    .then(({ nodes: aiNodes = [], edges: aiEdges = [] }) => {
+        const mergedEdges = [...(rebuiltEdges || [])];
+        (aiEdges || []).forEach(e => {
+            if (!mergedEdges.some(me => me.id === e.id)) mergedEdges.push(e);
+        });
+        if (typeof setEdges === 'function') setEdges(mergedEdges);
+        if (typeof setNodes === 'function') setNodes(prev => [...prev, ...aiNodes]);
+    })
+    .catch(err => console.error('AIPNIDGenerator error:', err));
+
 
 // merge aiEdges into rebuiltEdges (avoid duplicates)
 const mergedEdges = [...rebuiltEdges];
