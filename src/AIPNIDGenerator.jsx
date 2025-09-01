@@ -119,7 +119,14 @@ export default async function AIPNIDGenerator(
     }
 
     // 3️⃣ Structured PNID logic
-    const parsedItems = Array.isArray(parsed) ? parsed : [parsed];
+    const parsedItemsRaw = Array.isArray(aiResult.items)
+        ? aiResult.items
+        : Array.isArray(parsed)
+            ? parsed
+            : [parsed];
+
+    const parsedItems = parsedItemsRaw.filter(Boolean); // clean out null/undefined
+
     const newNodes = [];
     const newEdges = [...existingEdges]; // start with existing edges so dedupe checks include them
     const normalizedItems = []; // ✅ declare normalizedItems to avoid ReferenceError
