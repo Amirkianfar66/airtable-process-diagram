@@ -118,7 +118,18 @@ User Input: """${trimmed}"""
                 connections: [],
             };
         }
-
+        // --- Only proceed if parsed is structured PNID ---
+        if (!parsed || (parsed.mode && parsed.mode !== 'structured' && !parsed.items)) {
+            return {
+                parsed: [],
+                items: [],
+                explanation: text,
+                mode: 'chat',
+                connection: null,
+                connectionResolved: [],
+                connections: [],
+            };
+        }
         try {
             const cleaned = cleanAIJson(text);
 
