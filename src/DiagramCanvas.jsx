@@ -66,6 +66,7 @@ export default function DiagramCanvas({
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
+                    onEdgeClick={onEdgeClick}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     fitView
