@@ -5,10 +5,16 @@ import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
 import { getItemIcon, categoryTypeMap } from "./IconManager";
 import ScalableIconNode from './ScalableIconNode';
+import ResizableNode from './ResizableNode';
+import CustomItemNode from './CustomItemNode';
 
 export const nodeTypes = {
-    inlineValve: ScalableIconNode
+    resizable: ResizableNode,
+    custom: CustomItemNode,
+    scalableIcon: ScalableIconNode,
+    inlineValve: InlineValveIcon,
 };
+
 
 export default function DiagramCanvas({
     nodes,
