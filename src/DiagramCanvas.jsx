@@ -1,14 +1,11 @@
-﻿// ------------------------------
-// Updated: DiagramCanvas.jsx (accepts onNodeDrag + onNodeDragStop and forwards to ReactFlow)
-// Place this content into src/components/DiagramCanvas.jsx (replace existing)
-
-import React from 'react';
-import ReactFlow, { Controls } from 'reactflow';
+﻿// src/components/DiagramCanvas.jsx
+import React, { useEffect, useMemo } from 'react';
+import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
 
-// NOTE: keep this component presentational only — all state handlers are provided by the parent
+// Keep this component presentational — parent provides handlers
 export default function DiagramCanvas({
     nodes,
     edges,
@@ -29,13 +26,44 @@ export default function DiagramCanvas({
     selectedNodes,
     updateNode,
     deleteNode,
-    onNodeDrag, // <- new prop
-    onNodeDragStop, // <- new prop
+    onNodeDrag,
+    onNodeDragStop,
 }) {
-    console.log("DiagramCanvas onEdgeClick:", onEdgeClick);
+    // Debug: confirm prop arrives
+    useEffect(() => {
+        console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
+    }, [onEdgeClick]);
+
+    // Defensive handler - only call if function provided
+    const handleEdgeClick = (event, edge) => {
+        if (typeof onEdgeClick === 'function') {
+            try {
+                onEdgeClick(event, edge);
+            } catch (err) {
+                console.error('Error in parent onEdgeClick handler:', err);
+            }
+        } else {
+            console.warn('Edge clicked but onEdgeClick prop is not a function', edge);
+        }
+    };
+
+    // Ensure edges are clickable: add pointerEvents and interactionWidth if missing.
+    // This does not mutate original edges.
+    const enhancedEdges = useMemo(
+        () =>
+            (Array.isArray(edges) ? edges : []).map((e) => ({
+                ...e,
+                // make sure edge SVG can receive pointer events
+                style: { ...(e.style || {}), pointerEvents: e.style?.pointerEvents ?? 'auto' },
+                // widen clickable area if not explicitly set
+                interactionWidth: e.interactionWidth ?? 20,
+            })),
+        [edges]
+    );
+
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {/* Main toolbar */}
+            {/* Top toolbar */}
             <MainToolbar
                 selectedNodes={selectedNodes}
                 nodes={nodes}
@@ -45,31 +73,38 @@ export default function DiagramCanvas({
                 updateNode={updateNode}
                 deleteNode={deleteNode}
             />
+
             <div style={{ padding: 10 }}>
-                {/* Add item button is passed from parent so it has access to setNodes/setItems there if needed */}
                 {AddItemButton ? <AddItemButton setNodes={setNodes} setEdges={setEdges} /> : null}
             </div>
 
             <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
-                    <input type="text" placeholder="Describe PNID for AI" value={aiDescription} onChange={(e) => setAiDescription(e.target.value)} style={{ flex: 1, padding: 4 }} />
-                    <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>Generate PNID</button>
+                    <input
+                        type="text"
+                        placeholder="Describe PNID for AI"
+                        value={aiDescription}
+                        onChange={(e) => setAiDescription(e.target.value)}
+                        style={{ flex: 1, padding: 4 }}
+                    />
+                    <button onClick={handleGeneratePNID} style={{ padding: '4px 8px' }}>
+                        Generate PNID
+                    </button>
                 </div>
                 <div style={{ marginTop: 6 }}>
                     <ChatBox messages={chatMessages} />
                 </div>
             </div>
-           
 
             <div style={{ flex: 1 }}>
                 <ReactFlow
                     nodes={Array.isArray(nodes) ? nodes : []}
-                    edges={Array.isArray(edges) ? edges : []}
+                    edges={enhancedEdges}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
-                    onEdgeClick={onEdgeClick}
+                    onEdgeClick={handleEdgeClick}        // forwarded safely
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     fitView
@@ -79,6 +114,7 @@ export default function DiagramCanvas({
                     nodeTypes={nodeTypes}
                     style={{ background: 'transparent' }}
                 >
+                    <Background />
                     <Controls />
                 </ReactFlow>
             </div>
