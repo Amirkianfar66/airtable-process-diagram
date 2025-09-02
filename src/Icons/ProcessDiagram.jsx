@@ -426,6 +426,7 @@ export default function ProcessDiagram() {
                     deleteNode={deleteNode}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
+                    onEdgeClick={onEdgeClick}
                 />
             </div>
 
