@@ -394,7 +394,12 @@ export default async function AIPNIDGenerator(
         }
         allMessages.push({ sender: 'AI', message: `→ Auto-connected ${newNodes.length} nodes.` });
     }
+    // ✅ Summary
+    allMessages.push({ sender: 'AI', message: `→ Generated ${newNodes.length} item(s) and ${newEdges.length - existingEdges.length} connection(s).` });
 
+    if (typeof setChatMessages === 'function') {
+        setChatMessages((prev) => [...prev, ...allMessages]);
+    }
 
     return {
         nodes: [...existingNodes, ...newNodes],
