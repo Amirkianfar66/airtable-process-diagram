@@ -89,7 +89,7 @@ export default function ProcessDiagram() {
             const updatedEdges = addEdge(
                 {
                     ...params,
-                    ttype: 'default',
+                    type: 'default',
                     animated: true,
                     style: { stroke: 'blue', strokeWidth: 8, cursor: 'pointer', pointerEvents: 'all' },
                     interactionWidth: 20,   // 👈 extra clickable padding around the edge
