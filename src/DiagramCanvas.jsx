@@ -6,7 +6,7 @@ import { ChatBox } from './AIPNIDGenerator';
 
 // DiagramCanvas: owns full onEdgeClick behavior and a sliding Edge inspector
 // - opens a sliding panel from the right when an edge is clicked
-// - lets user edit label, toggle animation, delete edge, change color
+// - lets user edit label, toggle animation, delete edge, change color, set category (InlineValve)
 // - keyboard shortcuts: Delete -> delete edge (with confirm), Esc -> close inspector
 // - optionally notifies parent of selection changes via onEdgeSelect(edge|null)
 export default function DiagramCanvas({
@@ -113,6 +113,21 @@ export default function DiagramCanvas({
         updateSelectedEdge({ style: newStyle });
     };
 
+    // NEW: change category helper (e.g., InlineValve)
+    const changeEdgeCategory = (category) => {
+        // store category in edge.data.category so other parts of the app can read it
+        const newData = { ...(selectedEdge?.data || {}), category };
+
+        // If the category is InlineValve, optionally apply a visual style default
+        const stylePatch = {};
+        if (category === 'InlineValve') {
+            stylePatch.stroke = selectedEdge?.style?.stroke || '#d62728';
+            stylePatch.strokeWidth = selectedEdge?.style?.strokeWidth || 3;
+        }
+
+        updateSelectedEdge({ data: newData, style: { ...(selectedEdge?.style || {}), ...stylePatch } });
+    };
+
     const handleCloseInspector = () => {
         setSelectedEdge(null);
         if (typeof onEdgeSelect === 'function') {
@@ -148,6 +163,9 @@ export default function DiagramCanvas({
 
     // color preset swatches
     const colorPresets = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
+
+    // categories available for edges (you can extend this list)
+    const edgeCategories = ['None', 'InlineValve', 'Pipe', 'Signal', 'Control'];
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -251,6 +269,19 @@ export default function DiagramCanvas({
                                     onChange={(e) => changeEdgeLabel(e.target.value)}
                                     style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
                                 />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: 12 }}>Category</label>
+                                <select
+                                    value={(selectedEdge?.data?.category) || 'None'}
+                                    onChange={(e) => changeEdgeCategory(e.target.value)}
+                                    style={{ padding: 8, width: '100%' }}
+                                >
+                                    {edgeCategories.map((cat) => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div>
