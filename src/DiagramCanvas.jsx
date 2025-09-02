@@ -8,7 +8,7 @@ import InlineValveIcon from "./Icons/InlineValveIcon";
 import ScalableIconNode from './ScalableIconNode';
 
 export const nodeTypes = {
-    inlineValve: ScalableIcon,
+    inlineValve: ScalableIconNode, ,
 };
 
 // DiagramCanvas: owns full onEdgeClick behavior and a sliding Edge inspector
