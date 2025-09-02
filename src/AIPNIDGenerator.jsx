@@ -146,7 +146,14 @@ export default async function AIPNIDGenerator(
                 sender: 'AI',
                 message: `I understood that you want ${qty} items of type "${p.Name || p.Type || 'Item'}".`
             });
-        }
+
+            if (p.Connections && p.Connections.length > 0) {
+                allMessages.push({
+                    sender: 'AI',
+                    message: `These items should be connected to: ${p.Connections.join(', ')}`
+                });
+            }
+
 
         for (let i = 0; i < qty; i++) {
             expandedItems.push({
