@@ -126,44 +126,41 @@ export default async function AIPNIDGenerator(
         }
         return { nodes: existingNodes, edges: existingEdges };
     }
+
+    // --------------------------
     // Build nodes
     // --------------------------
     const newNodes = [];
     const newEdges = [...existingEdges];
     const normalizedItems = [];
     const allMessages = [{ sender: 'User', message: description }];
-    // 1️⃣ After receiving parsed items
-    const mergedItems = [];
-    const typeMap = new Map();
 
-    finalParsed.forEach(item => {
-        const type = item.Type || 'Generic';
-        if (typeMap.has(type)) {
-            const existing = typeMap.get(type);
-            existing.Number += item.Number || 1;
-            existing.Connections.push(...(item.Connections || []));
-        } else {
-            typeMap.set(type, { ...item, Connections: [...(item.Connections || [])] });
-        }
-    });
-    mergedItems.push(...typeMap.values());
-
-    // 2️⃣ ✅ Chat feedback about quantity
-    mergedItems.forEach(p => {
-        allMessages.push({
-            sender: 'AI',
-            message: `I understood that you want ${p.Number} items of type "${p.Type}".`
-        });
-    });
-
-    // 3️⃣ Expand mergedItems into individual nodes (as before)
+    // Expand Number into multiple clones if needed
     const expandedItems = [];
-    mergedItems.forEach((p) => {
-        for (let i = 0; i < p.Number; i++) {
+    parsedItems.forEach((p) => {
+        const qty = Math.max(1, parseInt(p?.Number ?? 1, 10));
+
+        // ✅ Chat feedback about quantity
+        if (qty > 1) {
+            allMessages.push({
+                sender: 'AI',
+                message: `I understood that you want ${qty} items of type "${p.Name || p.Type || 'Item'}".`
+            });
+
+            const conns = Array.isArray(p.Connections) ? p.Connections : [];
+            if (conns.length > 0) {
+                allMessages.push({
+                    sender: 'AI',
+                    message: `These items should be connected to: ${conns.join(', ')}`
+                });
+            }
+        } // <- closes the qty>1 if correctly
+
+        for (let i = 0; i < qty; i++) {
             expandedItems.push({
                 ...p,
                 Sequence: (p.Sequence ?? 1) + i,
-                Name: p.Number > 1 ? `${p.Type}_${i + 1}` : p.Name,
+                Name: qty > 1 ? `${p.Name || p.Type || 'Item'}_${i + 1}` : p.Name,
                 Number: 1, // clones are 1 each
             });
         }
