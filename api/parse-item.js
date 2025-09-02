@@ -331,55 +331,39 @@ User Input: """${trimmed}"""
             }
 
             // Build final parsed objects removing internal-only fields and including code
-            const finalParsed = itemsArray.map((it) => {
+            // 1️⃣ Keep expanded items for rendering
+            const finalParsed = itemsArray.map((it, idx) => {
                 const out = { ...it };
                 out.Code = it._generatedCode;
                 delete out._generatedCode;
                 return out;
             });
 
-            if (finalParsed.length !== inputNumber) {
-                console.warn('🛠️ parseItemLogic: finalParsed length mismatch', {
-                    requested: inputNumber,
-                    got: finalParsed.length,
-                    rawParsedPreview: Array.isArray(parsed) ? parsed.slice(0, 5) : parsed,
-                });
-            }
-
-            const explanation = finalParsed.length > 0
-                ? finalParsed.map((it) => it.Explanation || `Added ${it.Name}`).join(' | ')
-                : 'Added PNID item(s)';
-            // --- Merge items by Type, always Number = 1 per item ---
-            // --- Merge items by Type, always Number = 1 per item ---
+            // 2️⃣ Only merge for chat summary
+            const mergedForChat = [];
             const typeMap = new Map();
             finalParsed.forEach(item => {
                 const type = item.Type || 'Generic';
                 if (typeMap.has(type)) {
                     const existing = typeMap.get(type);
-                    existing._count = (existing._count || 1) + 1; // total count for chat
+                    existing._count = (existing._count || 1) + 1;
                     existing.Connections.push(...(item.Connections || []));
                 } else {
                     typeMap.set(type, { ...item, Connections: [...(item.Connections || [])], _count: 1 });
                 }
             });
+            typeMap.forEach(item => mergedForChat.push({ ...item, Number: 1 }));
 
-            const mergedByType = [];
-            typeMap.forEach(item => {
-                mergedByType.push({
-                    ...item,
-                    Number: 1 // ✅ always 1 per returned item
-                });
-            });
-
-            // Now expose merged items
+            // 3️⃣ Return both
             return {
-                parsed: mergedByType,
-                items: mergedByType,
+                parsed: finalParsed,         // ✅ keep all items for rendering
+                items: finalParsed,          // for consumers
                 connections: connectionResolved,
                 connectionResolved,
-                explanation,
+                explanation: mergedForChat.map(i => `${i.Type} x${i._count}`).join(' | '),
                 mode: 'structured',
             };
+
 
             console.log('parseItemLogic → parsed:', finalParsed);
             console.log('parseItemLogic → connectionResolved:', connectionResolved);
