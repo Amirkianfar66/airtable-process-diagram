@@ -110,8 +110,10 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
     const onEdgeClick = (event, edge) => {
-        console.log("Edge clicked:", edge);
+        console.log("Edge clicked:", edge.id);
+        alert(`Edge clicked: ${edge.id}`);
     };
+
 ;
 
 
