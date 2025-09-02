@@ -94,11 +94,60 @@ export default function ProcessDiagram() {
                 },
                 edges
             );
+
             setEdges(updatedEdges);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
+
+            // Save updated diagram
+            localStorage.setItem(
+                'diagram-layout',
+                JSON.stringify({ nodes, edges: updatedEdges })
+            );
         },
         [edges, nodes]
     );
+    const onEdgeClick = useCallback(
+        (event, edge) => {
+            event.stopPropagation();
+
+            const newNode = {
+                id: `valve-${+new Date()}`,
+                type: 'default', // later we’ll use your IconManager to show a valve icon
+                position: {
+                    x: (event.clientX - 200), // rough positioning, can refine
+                    y: (event.clientY - 100),
+                },
+                data: { label: 'Valve' },
+            };
+
+            setNodes((nds) => nds.concat(newNode));
+
+            // Disconnect edge → reconnect with valve node in the middle
+            setEdges((eds) =>
+                eds
+                    .filter((e) => e.id !== edge.id)
+                    .concat([
+                        {
+                            id: `${edge.source}-${newNode.id}`,
+                            source: edge.source,
+                            target: newNode.id,
+                            type: 'step',
+                            animated: true,
+                            style: { stroke: 'blue', strokeWidth: 2 },
+                        },
+                        {
+                            id: `${newNode.id}-${edge.target}`,
+                            source: newNode.id,
+                            target: edge.target,
+                            type: 'step',
+                            animated: true,
+                            style: { stroke: 'blue', strokeWidth: 2 },
+                        },
+                    ])
+            );
+        },
+        []
+    );
+
 
     // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
     const onNodeDrag = useCallback((event, draggedNode) => {
@@ -151,9 +200,6 @@ export default function ProcessDiagram() {
             )
         );
     }, []);
-
-
-       
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
