@@ -260,16 +260,11 @@ export default async function AIPNIDGenerator(
     function addEdgeSafely(sourceId, targetId, opts = {}) {
         if (!sourceId || !targetId) return false;
 
-        if (typeof addEdgeByNodeIds === 'function') {
-            try {
-                return addEdgeByNodeIds(sourceId, targetId, opts);
-            } catch (e) {
-                console.warn('addEdgeByNodeIds threw, fallback will be used', e);
-            }
-        }
-
-        const exists = newEdges.some((e) => e.source === sourceId && e.target === targetId);
+        const exists = newEdges.some(
+            (e) => e.source === sourceId && e.target === targetId
+        );
         if (exists) return false;
+
         newEdges.push({
             id: `edge-${sourceId}-${targetId}`,
             source: sourceId,
@@ -278,8 +273,10 @@ export default async function AIPNIDGenerator(
             animated: opts.animated ?? true,
             style: opts.style || { stroke: '#888', strokeWidth: 2 },
         });
+
         return true;
     }
+
 
     // Resolve textual ref -> canonical code or name (string only)
     function resolveCodeOrName(ref) {
