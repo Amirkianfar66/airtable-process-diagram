@@ -5,10 +5,12 @@ import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
 import InlineValveIcon from "./Icons/InlineValveIcon";
+import ScalableIcon from "./ScalableIcon"; // wrapper that renders SVG + handles
 
 export const nodeTypes = {
-    inlineValve: InlineValveIcon,
+    inlineValve: ScalableIcon,
 };
+
 
 
 // DiagramCanvas: owns full onEdgeClick behavior and a sliding Edge inspector
@@ -121,70 +123,58 @@ export default function DiagramCanvas({
     };
 
     const changeEdgeCategory = (category) => {
-        if (!selectedEdge) return;
+        if (!selectedEdge || category !== "InlineValve") return;
 
-        // 1. Update edge category in-place
-        updateSelectedEdge({
-            data: { ...selectedEdge.data, category }
-        });
+        // 1. Find source and target nodes
+        const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
+        const targetNode = nodes.find((n) => n.id === selectedEdge.target);
+        if (!sourceNode || !targetNode) return;
 
-        if (category === 'InlineValve') {
-            // 2. Find source and target nodes
-            const sourceNode = nodes.find(n => n.id === selectedEdge.source);
-            const targetNode = nodes.find(n => n.id === selectedEdge.target);
-            if (!sourceNode || !targetNode) return;
+        // 2. Calculate midpoint for the new node
+        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-            // 3. Compute midpoint for the InlineValve node
-            const midX = (sourceNode.position.x + targetNode.position.x) / 2;
-            const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+        // 3. Create InlineValve item
+        const newItem = {
+            id: `valve-${Date.now()}`,
+            Code: "VALVE001",
+            Name: "Inline Valve",
+            Category: "InlineValve",
+            Type: "Valve",
+        };
 
-            // 4. Create the InlineValve node
-            const newItem = {
-                id: `valve-${Date.now()}`,
-                Code: "VALVE001",
-                Name: "Inline Valve",
-                Category: "InlineValve",
-                Type: "Valve",
-                Unit: "Unit 1",
-                SubUnit: "Sub 1",
-            };
+        // 4. Create node with scalableIcon wrapper so handles are included
+        const newNode = {
+            id: newItem.id,
+            position: { x: midX, y: midY },
+            data: {
+                label: `${newItem.Code} - ${newItem.Name}`,
+                item: newItem,
+                icon: getItemIcon(newItem), // renders your InlineValve SVG
+            },
+            type: categoryTypeMap[newItem.Category] || "scalableIcon", // ensures handles
+            sourcePosition: "right",
+            targetPosition: "left",
+            style: { background: "transparent" },
+        };
 
-            const newNode = {
-                id: newItem.id,
-                position: { x: midX, y: midY },
-                data: {
-                    label: `${newItem.Code} - ${newItem.Name}`,
-                    item: newItem,
-                    icon: getItemIcon(newItem, { width: 30, height: 30 }),
-                },
-                type: categoryTypeMap[newItem.Category] || "scalableIcon",
-                sourcePosition: "right",
-                targetPosition: "left",
-                style: { background: "transparent" },
-            };
-
-            // 5. Add node and replace the original edge with two new edges
-            setNodes(nds => [...nds, newNode]);
-            setEdges(eds => [
-                ...eds.filter(e => e.id !== selectedEdge.id), // remove original edge
-                {
-                    id: `${selectedEdge.source}-${newNode.id}`,
-                    source: selectedEdge.source,
-                    target: newNode.id,
-                    style: { stroke: selectedEdge?.style?.stroke || "#000" },
-                },
-                {
-                    id: `${newNode.id}-${selectedEdge.target}`,
-                    source: newNode.id,
-                    target: selectedEdge.target,
-                    style: { stroke: selectedEdge?.style?.stroke || "#000" },
-                },
-            ]);
-
-            // 6. Close inspector (optional)
-            handleCloseInspector();
-        }
-    };
+        // 5. Update state: remove original edge, add new node and two connecting edges
+        setNodes((nds) => [...nds, newNode]);
+        setEdges((eds) => [
+            ...eds.filter((e) => e.id !== selectedEdge.id),
+            {
+                id: `${selectedEdge.source}-${newNode.id}`,
+                source: selectedEdge.source,
+                target: newNode.id,
+                style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            },
+            {
+                id: `${newNode.id}-${selectedEdge.target}`,
+                source: newNode.id,
+                target: selectedEdge.target,
+                style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            },
+        ]);
 
 
     const handleCloseInspector = () => {
