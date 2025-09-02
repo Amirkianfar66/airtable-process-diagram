@@ -120,63 +120,52 @@ export default function DiagramCanvas({
         updateSelectedEdge({ style: newStyle });
     };
 
-    const changeEdgeCategory = () => {
+    const changeEdgeCategory = (category) => {
         if (!selectedEdge) return;
 
-        // 1. Find source and target nodes
-        const sourceNode = nodes.find(n => n.id === selectedEdge.source);
-        const targetNode = nodes.find(n => n.id === selectedEdge.target);
-        if (!sourceNode || !targetNode) return;
+        // 1. Update edge category in-place
+        updateSelectedEdge({
+            data: { ...selectedEdge.data, category }
+        });
 
-        // 2. Midpoint of the edge
-        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
-        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+        if (category === 'InlineValve') {
+            // 2. Find source and target nodes
+            const sourceNode = nodes.find(n => n.id === selectedEdge.source);
+            const targetNode = nodes.find(n => n.id === selectedEdge.target);
+            if (!sourceNode || !targetNode) return;
 
-        // 3. Create the InlineValve node
-        const newItem = {
-            id: `valve-${Date.now()}`,
-            Code: "VALVE001",
-            Name: "Inline Valve",
-            Category: "InlineValve",
-            Type: "Valve",
-            Unit: "Unit 1",
-            SubUnit: "Sub 1",
-        };
+            // 3. Compute midpoint for the InlineValve node
+            const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+            const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-        const newNode = {
-            id: newItem.id,
-            position: { x: midX, y: midY },
-            data: {
-                label: `${newItem.Code} - ${newItem.Name}`,
-                item: newItem,
-                icon: getItemIcon(newItem, { width: 30, height: 30 }),
-            },
-            type: categoryTypeMap[newItem.Category] || "scalableIcon",
-            sourcePosition: "right",
-            targetPosition: "left",
-            style: { background: "transparent" },
-        };
+            // 4. Create the InlineValve node
+            const newItem = {
+                id: `valve-${Date.now()}`,
+                Code: "VALVE001",
+                Name: "Inline Valve",
+                Category: "InlineValve",
+                Type: "Valve",
+                Unit: "Unit 1",
+                SubUnit: "Sub 1",
+            };
 
-        // 4. Update state: remove old edge, add new node + two new edges
-        setNodes(nds => [...nds, newNode]);
-        setEdges(eds => [
-            ...eds.filter(e => e.id !== selectedEdge.id), // remove old edge
-            {
-                id: `${selectedEdge.source}-${newNode.id}`,
-                source: selectedEdge.source,
-                target: newNode.id,
-                style: { stroke: selectedEdge?.style?.stroke || "#000" },
-            },
-            {
-                id: `${newNode.id}-${selectedEdge.target}`,
-                source: newNode.id,
-                target: selectedEdge.target,
-                style: { stroke: selectedEdge?.style?.stroke || "#000" },
-            },
-        ]);
+            const newNode = {
+                id: newItem.id,
+                position: { x: midX, y: midY },
+                data: {
+                    label: `${newItem.Code} - ${newItem.Name}`,
+                    item: newItem,
+                    icon: getItemIcon(newItem, { width: 30, height: 30 }),
+                },
+                type: categoryTypeMap[newItem.Category] || "scalableIcon",
+                sourcePosition: "right",
+                targetPosition: "left",
+                style: { background: "transparent" },
+            };
 
-        // 5. Clear inspector since the original edge is replaced
-        handleCloseInspector();
+            // 5. Add node to the diagram without removing the edge
+            setNodes(nds => [...nds, newNode]);
+        }
     };
 
 
