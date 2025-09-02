@@ -199,34 +199,36 @@ User Input: """${trimmed}"""
             // --- AFTER rawItems is built and filtered ---
             // Normalize single item -> itemsArray skeleton (one entry per raw item)
             // 1️⃣ Parse items normally
+            // 1️⃣ Parse items normally
             let itemsArray = rawItems.map((item, idx) => ({
                 ...item,
-                Number: 1,           // ✅ ignore AI's Number
+                Number: 1,  // ignore AI Number
             }));
 
-            // 2️⃣ Determine counts from user input
-            const userCounts = {};
-            const matches = trimmed.matchAll(/\b(\d+)\s+(\w+)/gi);
-            for (const match of matches) {
+            // 2️⃣ Extract requested counts from input
+            const requestedCounts = {};
+            const regex = /\b(\d+)\s+(\w+)/gi;
+            for (const match of trimmed.matchAll(regex)) {
                 const count = parseInt(match[1], 10);
-                const type = match[2].trim().toLowerCase();
-                userCounts[type] = count;
+                const type = match[2].toLowerCase();
+                requestedCounts[type] = count;
             }
 
-            // 3️⃣ Expand items strictly according to userCounts
+            // 3️⃣ Expand items according to user input
             const expanded = [];
             let globalSeq = 1;
             itemsArray.forEach((it) => {
-                const count = userCounts[it.Type.toLowerCase()] || 1;
+                const typeKey = it.Type.toLowerCase();
+                const count = requestedCounts[typeKey] || 1;
                 for (let i = 0; i < count; i++) {
                     const clone = { ...it };
-                    clone.Sequence = globalSeq;
-                    clone.Name = count > 1 ? `${it.Type}_${i + 1}` : it.Type;
+                    clone.Sequence = globalSeq++;
+                    clone.Name = `${it.Type}_${i + 1}`;
                     clone.Number = 1;
                     expanded.push(clone);
-                    globalSeq++;
                 }
             });
+
             itemsArray = expanded;
 
 
