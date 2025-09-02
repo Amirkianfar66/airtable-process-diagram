@@ -29,7 +29,6 @@ function isLikelyItem(obj) {
 }
 
 // Core parsing logic
-// Core parsing logic
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
@@ -109,478 +108,208 @@ User Input: """${trimmed}"""
             };
         }
 
-        // --- Declare parsed upfront to avoid ReferenceError ---
         let parsed = null;
-
         try {
             const cleaned = cleanAIJson(text);
+            parsed = JSON.parse(cleaned);
+        } catch (err) {
+            console.warn('⚠️ Failed parsing JSON, treating as chat');
+            return {
+                parsed: [],
+                items: [],
+                explanation: text,
+                mode: 'chat',
+                connection: null,
+                connectionResolved: [],
+                connections: [],
+            };
+        }
 
-            // Try parsing JSON
-            try {
-                parsed = JSON.parse(cleaned);
-            } catch (err) {
-                // Split concatenated JSON fragments
-                const objects = cleaned
-                    .split(/}\s*{/)
-                    .map((part, idx, arr) => {
-                        if (idx === 0 && arr.length > 1) return part + '}';
-                        if (idx === arr.length - 1 && arr.length > 1) return '{' + part;
-                        return '{' + part + '}';
-                    });
+        // --- Extract rawItems & rawConnections safely ---
+        let rawItems = [];
+        let rawConnections = [];
 
-                parsed = objects
-                    .map(obj => {
-                        try { return JSON.parse(obj); }
-                        catch (e) {
-                            console.warn('⚠️ Failed parsing fragment (ignored):', e.message, obj.slice?.(0, 200) || obj);
-                            return null;
-                        }
-                    })
-                    .filter(Boolean);
-            }
-
-            // --- Chat fallback if not structured PNID ---
-            if (!parsed || (parsed.mode && parsed.mode !== 'structured' && !parsed.items)) {
-                return {
-                    parsed: [],
-                    items: [],
-                    explanation: text,
-                    mode: 'chat',
-                    connection: null,
-                    connectionResolved: [],
-                    connections: [],
-                };
-            }
-
-            // --- Extract raw items and connections ---
-            let rawItems = [];
-            let rawConnections = [];
-
-            if (parsed?.items && Array.isArray(parsed.items)) {
+        if (parsed?.orders && Array.isArray(parsed.orders)) {
+            parsed.orders.forEach((order) => {
+                if (order.action?.toLowerCase() === 'draw' && Array.isArray(order.items)) {
+                    rawItems.push(...order.items);
+                }
+                if (order.action?.toLowerCase() === 'connect' && Array.isArray(order.connections)) {
+                    rawConnections.push(...order.connections);
+                }
+            });
+        } else if (parsed?.items && Array.isArray(parsed.items)) {
+            rawItems.push(...parsed.items);
+            if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
+        } else if (Array.isArray(parsed)) {
+            parsed.forEach((obj) => {
+                if (!obj) return;
+                if (obj.action?.toLowerCase() === 'draw' && Array.isArray(obj.items)) {
+                    rawItems.push(...obj.items);
+                } else if (obj.action?.toLowerCase() === 'connect' && Array.isArray(obj.connections)) {
+                    rawConnections.push(...obj.connections);
+                } else if (isLikelyItem(obj)) {
+                    rawItems.push(obj);
+                    if (Array.isArray(obj.Connections)) rawConnections.push(...obj.Connections);
+                } else if (Array.isArray(obj.connections)) {
+                    rawConnections.push(...obj.connections);
+                } else if (typeof obj === 'string') {
+                    rawConnections.push(obj);
+                }
+            });
+        } else if (parsed && typeof parsed === 'object') {
+            if (parsed.action?.toLowerCase() === 'draw' && Array.isArray(parsed.items)) {
                 rawItems.push(...parsed.items);
-                if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
-            } else if (Array.isArray(parsed)) {
-                parsed.forEach(obj => {
-                    if (!obj) return;
-                    if (obj.items) rawItems.push(...obj.items);
-                    if (Array.isArray(obj.connections)) rawConnections.push(...obj.connections);
-                    if (isLikelyItem(obj)) rawItems.push(obj);
-                });
             } else if (isLikelyItem(parsed)) {
                 rawItems.push(parsed);
-                if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
+                if (Array.isArray(parsed.Connections)) rawConnections.push(...parsed.Connections);
             }
+            if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
+        }
 
-            rawItems = rawItems.filter(isLikelyItem);
+        rawItems = rawItems.filter(isLikelyItem);
 
-            // --- Expand items ---
-            let seq = 1;
-            const counts = {};
-            rawItems.forEach(item => {
-                const type = item.Type || 'Generic';
-                counts[type] = Math.max(counts[type] || 0, item.Number || 1);
-            });
+        // --- Expand & normalize items ---
+        let seq = 1;
+        const counts = {};
+        rawItems.forEach(item => {
+            const type = item.Type || 'Generic';
+            counts[type] = Math.max(counts[type] || 0, item.Number || 1);
+        });
 
-            const expandedItems = [];
-            Object.entries(counts).forEach(([type, count]) => {
-                for (let i = 0; i < count; i++) {
-                    expandedItems.push({
-                        Name: `${type}_${i + 1}`,
-                        Category: 'Equipment',
-                        Type: type,
-                        Unit: inputUnit || 0,
-                        SubUnit: 0,
-                        Sequence: seq++,
-                        Number: 1,
-                        SensorType: '',
-                        Explanation: `Added ${type}`,
-                        Connections: [],
-                    });
-                }
-            });
-
-            // --- Pad to Draw N if needed ---
-            while (expandedItems.length < inputNumber) {
-                const last = expandedItems[expandedItems.length - 1] || {
-                    Name: 'Item',
+        let itemsArray = [];
+        Object.entries(counts).forEach(([type, count]) => {
+            for (let i = 0; i < count; i++) {
+                itemsArray.push({
+                    Name: `${type}_${i + 1}`,
                     Category: 'Equipment',
-                    Type: 'Generic',
+                    Type: type,
                     Unit: inputUnit || 0,
                     SubUnit: 0,
-                    Sequence: expandedItems.length + 1,
+                    Sequence: seq++,
                     Number: 1,
                     SensorType: '',
-                    Explanation: 'Auto-cloned PNID item',
+                    Explanation: `Added ${type}`,
                     Connections: [],
-                };
-                const clone = { ...last, Sequence: expandedItems.length + 1, Name: `${last.Name}_${expandedItems.length + 1}` };
-                expandedItems.push(clone);
+                });
             }
+        });
 
-            // --- Generate deterministic codes ---
-            const codeSet = new Set();
-            const nameToCode = new Map();
-
-            function baseCodeFor(item, idx) {
-                const u = String(item.Unit ?? 0).padStart(1, '0');
-                const su = String(item.SubUnit ?? 0).padStart(1, '0');
-                const seq = String(item.Sequence ?? idx + 1).padStart(2, '0');
-                const num = String(item.Number ?? 1).padStart(2, '0');
-                return `${u}${su}${seq}${num}`;
-            }
-
-            expandedItems.forEach((it, idx) => {
-                let base = baseCodeFor(it, idx);
-                let code = base;
-                let suffix = 0;
-                while (codeSet.has(code)) { suffix++; code = `${base}_${suffix}`; }
-                codeSet.add(code);
-                nameToCode.set(it.Name.toLowerCase(), code);
-                it._generatedCode = code;
-            });
-
-            // --- Normalize connections ---
-            const normalizedConnections = rawConnections
-                .map(c => {
-                    if (!c) return null;
-                    if (typeof c === 'string') {
-                        const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
-                        if (arrowMatch) return { from: arrowMatch[1].trim(), to: arrowMatch[2].trim() };
-                        return null;
-                    }
-                    if (typeof c === 'object') {
-                        return { from: (c.from || c.fromName || '').toString().trim(), to: (c.to || c.toName || '').toString().trim() };
-                    }
-                    return null;
-                })
-                .filter(Boolean);
-
-            const connectionResolved = normalizedConnections.map(c => ({
-                from: nameToCode.get((c.from || '').toLowerCase()) || c.from,
-                to: nameToCode.get((c.to || '').toLowerCase()) || c.to,
-            }));
-
-            // Attach connections to items
-            expandedItems.forEach(item => {
-                const itemCode = item._generatedCode;
-                item.Connections = connectionResolved.filter(c => c.from === itemCode).map(c => c.to);
-            });
-
-            // Auto-connect sequentially if requested
-            if (/\bconnect\b/i.test(trimmed) && connectionResolved.length === 0 && expandedItems.length > 1) {
-                for (let i = 0; i < expandedItems.length - 1; i++) {
-                    const fromCode = expandedItems[i]._generatedCode;
-                    const toCode = expandedItems[i + 1]._generatedCode;
-                    expandedItems[i].Connections.push(toCode);
-                    connectionResolved.push({ from: fromCode, to: toCode });
-                }
-            }
-
-            // Build final parsed items
-            const finalParsed = expandedItems.map(it => {
-                const out = { ...it, Code: it._generatedCode };
-                delete out._generatedCode;
-                return out;
-            });
-
-            // Build chat-friendly explanation
-            const typeMap = new Map();
-            finalParsed.forEach(item => {
-                const type = item.Type || 'Generic';
-                if (typeMap.has(type)) {
-                    const existing = typeMap.get(type);
-                    existing._count = (existing._count || 1) + 1;
-                    existing.Connections.push(...(item.Connections || []));
-                } else {
-                    typeMap.set(type, { ...item, Connections: [...(item.Connections || [])], _count: 1 });
-                }
-            });
-            const mergedForChat = [];
-            typeMap.forEach(item => mergedForChat.push({ ...item, Number: 1 }));
-
-            return {
-                parsed: finalParsed,
-                items: finalParsed,
-                connections: connectionResolved,
-                connectionResolved,
-                explanation: mergedForChat.map(i => `${i.Type} x${i._count}`).join(' | '),
-                mode: 'structured',
+        // --- Pad to Draw N ---
+        while (itemsArray.length < inputNumber) {
+            const last = itemsArray[itemsArray.length - 1] || {
+                Name: 'Item',
+                Category: 'Equipment',
+                Type: 'Generic',
+                Unit: inputUnit || 0,
+                SubUnit: 0,
+                Sequence: itemsArray.length + 1,
+                Number: 1,
+                SensorType: '',
+                Explanation: 'Auto-cloned PNID item',
+                Connections: [],
             };
-
-        } catch (errInner) {
-            console.warn('⚠️ Not JSON, treating as chat:', errInner.message);
-            return {
-                parsed: [],
-                items: [],
-                explanation: text,
-                mode: 'chat',
-                connection: null,
-                connectionResolved: [],
-                connections: [],
-            };
+            const seqNum = itemsArray.length + 1;
+            itemsArray.push({ ...last, Sequence: seqNum, Name: `${last.Name}_${seqNum}` });
         }
 
-    } catch (err) {
-        console.error('❌ parseItemLogic failed:', err);
-        return {
-            parsed: [],
-            items: [],
-            explanation: '⚠️ AI processing failed: ' + (err.message || 'Unknown error'),
-            mode: 'chat',
-            connection: null,
-            connectionResolved: [],
-            connections: [],
-        };
-    }
-}
-
-
-            // Extract rawItems & rawConnections safely
-            let rawItems = [];
-            let rawConnections = [];
-
-            if (parsed?.orders && Array.isArray(parsed.orders)) {
-                parsed.orders.forEach((order) => {
-                    if (order.action && order.action.toLowerCase() === 'draw' && Array.isArray(order.items)) {
-                        rawItems.push(...order.items);
-                    }
-                    if (order.action && order.action.toLowerCase() === 'connect' && Array.isArray(order.connections)) {
-                        rawConnections.push(...order.connections);
-                    }
-                });
-            } else if (parsed?.items && Array.isArray(parsed.items)) {
-                // ✅ NEW: handle "items" array at root
-                rawItems.push(...parsed.items);
-                if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
-            } else if (Array.isArray(parsed)) {
-                parsed.forEach((obj) => {
-                    if (!obj) return;
-                    if (obj.action && obj.action.toLowerCase() === 'draw' && Array.isArray(obj.items)) {
-                        rawItems.push(...obj.items);
-                        return;
-                    }
-                    if (obj.action && obj.action.toLowerCase() === 'connect' && Array.isArray(obj.connections)) {
-                        rawConnections.push(...obj.connections);
-                        return;
-                    }
-                    if (isLikelyItem(obj)) {
-                        rawItems.push(obj);
-                        if (Array.isArray(obj.Connections)) rawConnections.push(...obj.Connections);
-                    } else if (Array.isArray(obj.connections)) {
-                        rawConnections.push(...obj.connections);
-                    } else if (typeof obj === 'string') {
-                        rawConnections.push(obj);
-                    }
-                });
-            } else if (parsed && typeof parsed === 'object') {
-                if (parsed.action && parsed.action.toLowerCase() === 'draw' && Array.isArray(parsed.items)) {
-                    rawItems.push(...parsed.items);
-                } else if (isLikelyItem(parsed)) {
-                    rawItems.push(parsed);
-                    if (Array.isArray(parsed.Connections)) rawConnections.push(...parsed.Connections);
-                }
-                if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
+        // --- Generate deterministic codes ---
+        const codeSet = new Set();
+        const nameToCode = new Map();
+        function baseCodeFor(item, idx) {
+            const u = String(item.Unit ?? 0).padStart(1, '0');
+            const su = String(item.SubUnit ?? 0).padStart(1, '0');
+            const seqStr = String(item.Sequence ?? idx + 1).padStart(2, '0');
+            const num = String(item.Number ?? 1).padStart(2, '0');
+            return `${u}${su}${seqStr}${num}`;
+        }
+        itemsArray.forEach((it, idx) => {
+            let base = baseCodeFor(it, idx);
+            let code = base;
+            let suffix = 0;
+            while (codeSet.has(code)) {
+                suffix++;
+                code = `${base}_${suffix}`;
             }
+            codeSet.add(code);
+            nameToCode.set(it.Name.toLowerCase(), code);
+            it._generatedCode = code;
+        });
 
-            // Filter only real-looking items
-            rawItems = rawItems.filter(isLikelyItem);
-
-            // --- AFTER rawItems is built and filtered ---
-            // Normalize single item -> itemsArray skeleton (one entry per raw item)
-            // 1️⃣ Parse items normally
-            // 1️⃣ Parse items normally
-            let itemsArray = rawItems.map((item, idx) => ({
-                ...item,
-                Number: 1,  // ignore AI Number
-            }));
-
-            // 2️⃣ Extract requested counts from input
-            const requestedCounts = {};
-            const regex = /\b(\d+)\s+(\w+)/gi;
-            for (const match of trimmed.matchAll(regex)) {
-                const count = parseInt(match[1], 10);
-                const type = match[2].toLowerCase();
-                requestedCounts[type] = count;
-            }
-
-            // --- EXPAND items according to maximum count per Type (avoid AI double-counting) ---
-            let seq = 1;
-            const counts = {};
-            rawItems.forEach(item => {
-                const type = item.Type || 'Generic';
-                counts[type] = Math.max(counts[type] || 0, item.Number || 1);
-            });
-
-            const expandedItems = [];
-            Object.entries(counts).forEach(([type, count]) => {
-                for (let i = 0; i < count; i++) {
-                    expandedItems.push({
-                        Name: `${type}_${i + 1}`,
-                        Category: 'Equipment',
-                        Type: type,
-                        Unit: inputUnit || 0,
-                        SubUnit: 0,
-                        Sequence: seq++,
-                        Number: 1,
-                        SensorType: '',
-                        Explanation: `Added ${type}`,
-                        Connections: [],
-                    });
+        // --- Normalize connections ---
+        const normalizedConnections = rawConnections
+            .map(c => {
+                if (!c) return null;
+                if (typeof c === 'string') {
+                    const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
+                    const toMatch = c.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
+                    const m = arrowMatch || toMatch;
+                    if (m) return { from: m[1].trim(), to: m[2].trim() };
+                    const csv = c.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                    if (csv.length === 2) return { from: csv[0], to: csv[1] };
+                    return null;
                 }
-            });
-            itemsArray = expandedItems;
-
-
-
-            // --- ENSURE sequences are contiguous & deterministic ---
-            itemsArray = itemsArray.map((it, idx) => ({ ...it, Sequence: idx + 1 }));
-
-            // --- NOW enforce the user's Draw N if present (pad only, never trim) ---
-            if (inputNumber && inputNumber > 0) {
-                if (itemsArray.length < inputNumber) {
-                    const last = itemsArray[itemsArray.length - 1] || {
-                        mode: 'structured',
-                        Name: 'Item',
-                        Category: 'Equipment',
-                        Type: 'Generic',
-                        Unit: inputUnit || 0,
-                        SubUnit: 0,
-                        Sequence: itemsArray.length + 1,
-                        Number: 1,
-                        SensorType: '',
-                        Explanation: 'Auto-cloned PNID item',
-                        Connections: [],
+                if (typeof c === 'object') {
+                    return {
+                        from: (c.from || c.fromName || c.source || '').toString().trim(),
+                        to: (c.to || c.toName || c.target || c.toId || '').toString().trim(),
                     };
-                    while (itemsArray.length < inputNumber) {
-                        const seq = itemsArray.length + 1;
-                        const clone = { ...last, Sequence: seq, Name: `${last.Name}_${seq}` };
-                        itemsArray.push(clone);
-                    }
                 }
+                return null;
+            })
+            .filter(Boolean);
+
+        const connectionResolved = normalizedConnections.map(c => ({
+            from: nameToCode.get((c.from || '').toLowerCase()) || c.from,
+            to: nameToCode.get((c.to || '').toLowerCase()) || c.to,
+        }));
+
+        // Attach to items
+        itemsArray.forEach(item => {
+            const itemCode = item._generatedCode;
+            item.Connections = connectionResolved.filter(c => c.from === itemCode).map(c => c.to);
+        });
+
+        // Auto-connect sequentially if requested
+        if (/\bconnect\b/i.test(trimmed) && connectionResolved.length === 0 && itemsArray.length > 1) {
+            for (let i = 0; i < itemsArray.length - 1; i++) {
+                const fromCode = itemsArray[i]._generatedCode;
+                const toCode = itemsArray[i + 1]._generatedCode;
+                itemsArray[i].Connections.push(toCode);
+                connectionResolved.push({ from: fromCode, to: toCode });
             }
-
-            // Generate deterministic unique codes (and avoid collisions)
-            const codeSet = new Set();
-            const nameToCode = new Map();
-
-            function baseCodeFor(item, idx) {
-                const u = String(item.Unit ?? 0).padStart(1, '0');
-                const su = String(item.SubUnit ?? 0).padStart(1, '0');
-                const seq = String(item.Sequence ?? idx + 1).padStart(2, '0');
-                const num = String(item.Number ?? 1).padStart(2, '0');
-                return `${u}${su}${seq}${num}`; // e.g. "000101"
-            }
-
-            itemsArray.forEach((it, idx) => {
-                let base = baseCodeFor(it, idx);
-                let code = base;
-                let suffix = 0;
-                while (codeSet.has(code)) {
-                    suffix++;
-                    code = `${base}_${suffix}`;
-                }
-                codeSet.add(code);
-                nameToCode.set(it.Name.toLowerCase(), code);
-                it._generatedCode = code;
-            });
-
-            // Normalize connections
-            const normalizedConnections = rawConnections
-                .map((c) => {
-                    if (!c) return null;
-                    if (typeof c === 'string') {
-                        const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
-                        const toMatch = c.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
-                        const m = arrowMatch || toMatch;
-                        if (m) return { from: m[1].trim(), to: m[2].trim() };
-                        const csv = c.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
-                        if (csv.length === 2) return { from: csv[0], to: csv[1] };
-                        return null;
-                    }
-                    if (typeof c === 'object') {
-                        return {
-                            from: (c.from || c.fromName || c.source || '').toString().trim(),
-                            to: (c.to || c.toName || c.target || c.toId || '').toString().trim(),
-                        };
-                    }
-                    return null;
-                })
-                .filter(Boolean);
-
-            // Resolve connections to generated codes
-            const connectionResolved = normalizedConnections.map((c) => ({
-                from: nameToCode.get((c.from || '').toLowerCase()) || c.from,
-                to: nameToCode.get((c.to || '').toLowerCase()) || c.to,
-            }));
-
-            // Attach resolved connections to items (by _generatedCode)
-            itemsArray.forEach((item) => {
-                const itemCode = item._generatedCode;
-                item.Connections = connectionResolved.filter((c) => c.from === itemCode).map((c) => c.to);
-            });
-
-            // If user requested connect and no explicit connections were provided,
-            // auto-connect sequentially using generated codes
-            const userWantsConnect = /\bconnect\b/i.test(trimmed) || /connect them/i.test(trimmed);
-            if (userWantsConnect && connectionResolved.length === 0 && itemsArray.length > 1) {
-                for (let i = 0; i < itemsArray.length - 1; i++) {
-                    const fromCode = itemsArray[i]._generatedCode;
-                    const toCode = itemsArray[i + 1]._generatedCode;
-                    if (!itemsArray[i].Connections.includes(toCode)) itemsArray[i].Connections.push(toCode);
-                    connectionResolved.push({ from: fromCode, to: toCode });
-                }
-            }
-
-            // Build final parsed objects removing internal-only fields and including code
-            // 1️⃣ Keep expanded items for rendering
-            const finalParsed = itemsArray.map((it, idx) => {
-                const out = { ...it };
-                out.Code = it._generatedCode;
-                delete out._generatedCode;
-                return out;
-            });
-
-            // 2️⃣ Only merge for chat summary
-            const mergedForChat = [];
-            const typeMap = new Map();
-            finalParsed.forEach(item => {
-                const type = item.Type || 'Generic';
-                if (typeMap.has(type)) {
-                    const existing = typeMap.get(type);
-                    existing._count = (existing._count || 1) + 1;
-                    existing.Connections.push(...(item.Connections || []));
-                } else {
-                    typeMap.set(type, { ...item, Connections: [...(item.Connections || [])], _count: 1 });
-                }
-            });
-            typeMap.forEach(item => mergedForChat.push({ ...item, Number: 1 }));
-
-            // 3️⃣ Return both
-            return {
-                parsed: finalParsed,         // ✅ keep all items for rendering
-                items: finalParsed,          // for consumers
-                connections: connectionResolved,
-                connectionResolved,
-                explanation: mergedForChat.map(i => `${i.Type} x${i._count}`).join(' | '),
-                mode: 'structured',
-            };
-
-
-            console.log('parseItemLogic → parsed:', finalParsed);
-            console.log('parseItemLogic → connectionResolved:', connectionResolved);
-
-        } catch (err) {
-            console.warn('⚠️ Not JSON, treating as chat:', err.message);
-            return {
-                parsed: [],
-                items: [],
-                explanation: text,
-                mode: 'chat',
-                connection: null,
-                connectionResolved: [],
-                connections: [],
-            };
         }
+
+        // --- Finalize output ---
+        const finalParsed = itemsArray.map(it => {
+            const out = { ...it, Code: it._generatedCode };
+            delete out._generatedCode;
+            return out;
+        });
+
+        const typeMap = new Map();
+        finalParsed.forEach(item => {
+            const type = item.Type || 'Generic';
+            if (typeMap.has(type)) {
+                const existing = typeMap.get(type);
+                existing._count = (existing._count || 1) + 1;
+                existing.Connections.push(...(item.Connections || []));
+            } else {
+                typeMap.set(type, { ...item, Connections: [...(item.Connections || [])], _count: 1 });
+            }
+        });
+        const mergedForChat = [];
+        typeMap.forEach(item => mergedForChat.push({ ...item, Number: 1 }));
+
+        return {
+            parsed: finalParsed,
+            items: finalParsed,
+            connections: connectionResolved,
+            connectionResolved,
+            explanation: mergedForChat.map(i => `${i.Type} x${i._count}`).join(' | '),
+            mode: 'structured',
+        };
+
     } catch (err) {
         console.error('❌ parseItemLogic failed:', err);
         return {
