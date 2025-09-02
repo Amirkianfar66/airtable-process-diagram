@@ -3,12 +3,12 @@ import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
-import { InlineValveIcon } from './IconManager';
+import { InlineValveIcon, getItemIcon, categoryTypeMap } from './IconManager';
 
 export const nodeTypes = {
-    inlineValve: InlineValveIcon, // matches categoryTypeMap['InlineValve']
-    // ...other custom node types if needed
+    inlineValve: InlineValveIcon,
 };
+
 
 // DiagramCanvas: owns full onEdgeClick behavior and a sliding Edge inspector
 // - opens a sliding panel from the right when an edge is clicked
