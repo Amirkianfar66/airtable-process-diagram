@@ -163,12 +163,28 @@ export default function DiagramCanvas({
                 style: { background: "transparent" },
             };
 
-            // 5. Add node to the diagram without removing the edge
+            // 5. Add node and replace the original edge with two new edges
             setNodes(nds => [...nds, newNode]);
+            setEdges(eds => [
+                ...eds.filter(e => e.id !== selectedEdge.id), // remove original edge
+                {
+                    id: `${selectedEdge.source}-${newNode.id}`,
+                    source: selectedEdge.source,
+                    target: newNode.id,
+                    style: { stroke: selectedEdge?.style?.stroke || "#000" },
+                },
+                {
+                    id: `${newNode.id}-${selectedEdge.target}`,
+                    source: newNode.id,
+                    target: selectedEdge.target,
+                    style: { stroke: selectedEdge?.style?.stroke || "#000" },
+                },
+            ]);
+
+            // 6. Close inspector (optional)
+            handleCloseInspector();
         }
     };
-
-
 
 
     const handleCloseInspector = () => {
