@@ -332,24 +332,32 @@ User Input: """${trimmed}"""`;
         const nameToCode = new Map();
 
         function baseCodeFor(item, idx) {
+            // NOTE: Number/Count is intentionally NOT part of the code anymore.
             const u = String(item.Unit ?? 0).padStart(1, '0');
             const su = String(item.SubUnit ?? 0).padStart(1, '0');
             const seq = String(item.Sequence ?? idx + 1).padStart(2, '0');
-            const num = String(item.Number ?? 1).padStart(2, '0');
-            return `${u}${su}${seq}${num}`; // e.g. "000101"
+            // const num = String(item.Number ?? 1).padStart(2, '0'); // removed
+            return `${u}${su}${seq}`; // e.g. "0001"  <-- no Number component
         }
 
         itemsArray.forEach((it, idx) => {
             let base = baseCodeFor(it, idx);
             let code = base;
             let suffix = 0;
+            // keep the collision-avoidance suffix (only used if two different items would otherwise collide)
             while (codeSet.has(code)) {
                 suffix++;
                 code = `${base}_${suffix}`;
             }
             codeSet.add(code);
-            nameToCode.set((it.Name || '').toString().toLowerCase(), code);
+
+            // store generated code and base separately (keeps internal uniqueness info)
+            it._baseCode = base;
             it._generatedCode = code;
+
+            // map name -> canonical code (use generated unique code to avoid accidental collisions)
+            // If you prefer name -> base code instead, change this to it._baseCode
+            nameToCode.set((it.Name || '').toString().toLowerCase(), code);
         });
 
         // Normalize connections (your existing logic)
