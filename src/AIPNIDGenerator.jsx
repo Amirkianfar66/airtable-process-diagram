@@ -160,10 +160,12 @@ export default async function AIPNIDGenerator(
             expandedItems.push({
                 ...p,
                 Sequence: (p.Sequence ?? 1) + i,
-                Name: qty > 1 ? `${p.Name || p.Type || 'Item'}_${i + 1}` : p.Name,
+                // Name is exactly the Type (no numbers). Fallback to Type if Name missing.
+                Name: (p.Type || p.Name || 'Item'),
                 Number: 1, // clones are 1 each
             });
         }
+
     });
 
     expandedItems.forEach((p, idx) => {
@@ -216,7 +218,7 @@ export default async function AIPNIDGenerator(
     // --------------------------
     const allNodesSoFar = [...existingNodes, ...newNodes];
     const codeToNodeId = new Map();    // key: trimmed code string -> nodeId
-    const nameToNodeId = new Map();    // key: trimmed lowercased name -> nodeId
+    const nameToNodeIds = new Map();   // key: trimmed lowercased name -> array of nodeIds
     const typeToNodeIds = new Map();   // key: trimmed lowercased type -> array of nodeIds
 
     allNodesSoFar.forEach((n) => {
@@ -228,8 +230,11 @@ export default async function AIPNIDGenerator(
         if (possibleCode) codeToNodeId.set(possibleCode, n.id);
 
         if (item.Name) {
-            const nm = String(item.Name).trim();
-            if (nm) nameToNodeId.set(nm.toLowerCase(), n.id);
+            const nm = String(item.Name).trim().toLowerCase();
+            if (nm) {
+                if (!nameToNodeIds.has(nm)) nameToNodeIds.set(nm, []);
+                nameToNodeIds.get(nm).push(n.id);
+            }
         }
 
         if (item.Type) {
@@ -239,20 +244,25 @@ export default async function AIPNIDGenerator(
         }
     });
 
-    // Safe edge-adder that falls back if addEdgeByNodeIds is missing
+    // debug dump (optional) — remove or comment out in production
+    console.debug('lookup maps', {
+        codes: [...codeToNodeId.keys()],
+        names: [...nameToNodeIds.keys()],
+        types: [...typeToNodeIds.keys()],
+    });
+
+    // Safe edge adder (prefers existing helper but falls back)
     function addEdgeSafely(sourceId, targetId, opts = {}) {
         if (!sourceId || !targetId) return false;
 
-        // If original helper exists, prefer it
         if (typeof addEdgeByNodeIds === 'function') {
             try {
                 return addEdgeByNodeIds(sourceId, targetId, opts);
-            } catch (err) {
-                console.warn('addEdgeByNodeIds threw, falling back:', err);
+            } catch (e) {
+                console.warn('addEdgeByNodeIds threw, fallback will be used', e);
             }
         }
 
-        // Local fallback: avoid duplicates and push to newEdges
         const exists = newEdges.some((e) => e.source === sourceId && e.target === targetId);
         if (exists) return false;
         newEdges.push({
@@ -266,7 +276,7 @@ export default async function AIPNIDGenerator(
         return true;
     }
 
-    // Helper: resolve a textual ref into a canonical code or raw string (tries code, name, type, normalizedItems)
+    // Resolve textual ref -> canonical code or name (string only)
     function resolveCodeOrName(ref) {
         if (!ref) return null;
         const raw = String(ref).trim();
@@ -277,24 +287,35 @@ export default async function AIPNIDGenerator(
 
         // 2) exact name (case-insensitive)
         const nameKey = raw.toLowerCase();
-        if (nameToNodeId.has(nameKey)) {
-            // return the canonical code for that node if available
-            const nodeId = nameToNodeId.get(nameKey);
-            for (const [codeKey, id] of codeToNodeId.entries()) {
-                if (id === nodeId) return codeKey;
+        if (nameToNodeIds.has(nameKey)) {
+            // return code of the first node that has this name if available
+            const nodeIds = nameToNodeIds.get(nameKey);
+            const nodeId = nodeIds && nodeIds[0];
+            if (nodeId) {
+                for (const [codeKey, id] of codeToNodeId.entries()) {
+                    if (id === nodeId) return codeKey;
+                }
             }
-            // otherwise return raw so callers can try name lookup
+            // otherwise return the raw name (caller may try name lookup)
             return raw;
         }
 
-        // 3) match by Type (return first matching node's code if available)
+        // 3) match by Type (return code of first node for that type if available)
         if (typeToNodeIds.has(nameKey)) {
             const nodeId = typeToNodeIds.get(nameKey)[0];
-            for (const [codeKey, id] of codeToNodeId.entries()) {
-                if (id === nodeId) return codeKey;
+            if (nodeId) {
+                for (const [codeKey, id] of codeToNodeId.entries()) {
+                    if (id === nodeId) return codeKey;
+                }
+                // if no code found, try return node's Name if present
+                const node = allNodesSoFar.find((n) => n.id === nodeId);
+                if (node && node.data?.item) {
+                    const alt = (node.data.item.Code ?? node.data.item['Item Code'] ?? node.data.item.Name ?? '').toString().trim();
+                    if (alt) return alt;
+                }
             }
-            // fallback: return node id as raw string
-            return nodeId;
+            // fallback to raw
+            return raw;
         }
 
         // 4) search normalizedItems (match Code, Name, Type)
@@ -315,25 +336,28 @@ export default async function AIPNIDGenerator(
         return raw;
     }
 
-    // Helper: get nodeId for code/name/type value (tries code, then name, then type)
+    // get nodeId by code | name | type. name returns first matching nodeId deterministically.
     function getNodeIdForRef(ref) {
         if (!ref) return null;
         const trimmed = String(ref).trim();
         if (!trimmed) return null;
 
-        // Try exact code
+        // accept direct node id if passed
+        if (allNodesSoFar.some((n) => n.id === trimmed)) return trimmed;
+
+        // try exact code
         if (codeToNodeId.has(trimmed)) return codeToNodeId.get(trimmed);
 
-        // Try name
-        if (nameToNodeId.has(trimmed.toLowerCase())) return nameToNodeId.get(trimmed.toLowerCase());
+        // try name (first id)
+        const nameArr = nameToNodeIds.get(trimmed.toLowerCase());
+        if (nameArr && nameArr.length > 0) return nameArr[0];
 
-        // Try type (returns first node for that type)
+        // try type -> first node id
         const maybeType = trimmed.toLowerCase();
         if (typeToNodeIds.has(maybeType) && typeToNodeIds.get(maybeType).length > 0) {
             return typeToNodeIds.get(maybeType)[0];
         }
 
-        // Not found
         return null;
     }
 
@@ -365,7 +389,7 @@ export default async function AIPNIDGenerator(
     }
 
     // --------------------------
-    // Fallback: item.Connections (try both name & code & type lookups)
+    // Fallback: item.Connections (try code/name/type lookups)
     // --------------------------
     if (newEdges.length === existingEdges.length) {
         normalizedItems.forEach((item) => {
@@ -394,6 +418,7 @@ export default async function AIPNIDGenerator(
         }
         allMessages.push({ sender: 'AI', message: `→ Auto-connected ${newNodes.length} nodes.` });
     }
+
     // ✅ Summary
     allMessages.push({ sender: 'AI', message: `→ Generated ${newNodes.length} item(s) and ${newEdges.length - existingEdges.length} connection(s).` });
 
