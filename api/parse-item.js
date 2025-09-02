@@ -1,33 +1,38 @@
-﻿// /api/parse-item.js
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import examples from "./gemini_pid_dataset.json"; // local examples dataset
+﻿// File: /api/parse-item.js
+// =============================
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import examples from './gemini_pid_dataset.json'; // ✅ Local few-shot dataset
+
+console.log('Loaded gemini examples count:', examples?.length || 0);
 
 // Initialize Gemini model
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // Utility to clean Markdown code blocks from AI output
 function cleanAIJson(text) {
-    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, "$1").trim();
+    if (!text || typeof text !== 'string') return '';
+    return text.replace(/```(?:json)?\n?([\s\S]*?)```/gi, '$1').trim();
 }
 
-// Reserved action commands
-const ACTION_COMMANDS = ["Generate PNID", "Export", "Clear", "Save"];
+// Reserved action commands (single declaration)
+const ACTION_COMMANDS = ['Generate PNID', 'Export', 'Clear', 'Save'];
 
 // Helper: decide whether a parsed object looks like a PNID item
 function isLikelyItem(obj) {
-    if (!obj || typeof obj !== "object") return false;
+    if (!obj || typeof obj !== 'object') return false;
     const hasName = !!(obj.Name || obj.name);
     const hasCategory = !!(obj.Category || obj.category);
     const hasType = !!(obj.Type || obj.type);
-    const looksLikeAction = !!(obj.action || obj.actionType);
-    const isOnlyConnections = obj && obj.connections && Object.keys(obj).length === 1;
+    const looksLikeAction = !!(obj.action || obj.actionType || (obj.mode && typeof obj.mode === 'string' && obj.mode.toLowerCase() === 'action'));
+    const conns = obj.Connections || obj.connections || null;
+    const isOnlyConnections = !!(conns && Object.keys(obj).length === 1);
     return (hasName || hasCategory || hasType) && !looksLikeAction && !isOnlyConnections;
 }
 
 // parse a connection-string into an array of ordered {from,to} pairs
 function parseConnectionStringToPairs(str) {
-    if (!str || typeof str !== "string") return [];
+    if (!str || typeof str !== 'string') return [];
 
     const tokens = str
         .split(/(?:\s*(?:>>|->|→|–>|to|,|;|\band\b|\bthen\b|\band then\b)\s*)+/i)
@@ -45,9 +50,7 @@ function parseConnectionStringToPairs(str) {
     const arrowMatch = str.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
     const toMatch = str.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
     const m = arrowMatch || toMatch;
-    if (m) {
-        return [{ from: m[1].trim(), to: m[2].trim() }];
-    }
+    if (m) return [{ from: m[1].trim(), to: m[2].trim() }];
 
     const csv = str.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
     if (csv.length === 2) return [{ from: csv[0], to: csv[1] }];
@@ -62,16 +65,16 @@ function buildCodeLookups(itemsArray) {
     const altNameLookup = new Map(); // rawLower -> code
 
     function baseCodeFor(item, idx) {
-        const u = String(item.Unit ?? 0).padStart(1, "0");
-        const su = String(item.SubUnit ?? 0).padStart(1, "0");
-        const seq = String(item.Sequence ?? (idx + 1)).padStart(2, "0");
-        return `${u}${su}${seq}`; // Number no longer part of code
+        const u = String(item.Unit ?? 0).padStart(1, '0');
+        const su = String(item.SubUnit ?? 0).padStart(1, '0');
+        const seq = String(item.Sequence ?? (idx + 1)).padStart(2, '0');
+        return `${u}${su}${seq}`; // Number intentionally not part of code
     }
 
     function normalizeKey(s) {
-        if (!s) return "";
+        if (!s) return '';
         const str = String(s).trim().toLowerCase();
-        const compact = str.replace(/[_\s,-]+/g, "");
+        const compact = str.replace(/[_\s,-]+/g, '');
         return compact.replace(/([a-zA-Z]+)0+(\d+)$/i, (m, p1, p2) => `${p1}${Number(p2)}`);
     }
 
@@ -85,11 +88,12 @@ function buildCodeLookups(itemsArray) {
         }
         codeSet.add(code);
         it._generatedCode = code;
+        it._baseCode = base;
 
-        const rawName = (it.Name || "").toString().trim();
+        const rawName = (it.Name || it.name || it.Type || '').toString().trim();
         const rawLower = rawName.toLowerCase();
         const n1 = normalizeKey(rawName);
-        const n2 = rawLower.replace(/\s+/g, "_");
+        const n2 = rawLower.replace(/\s+/g, '_');
 
         if (n1) nameToCode.set(n1, code);
         if (n2) nameToCode.set(n2, code);
@@ -103,58 +107,130 @@ function buildCodeLookups(itemsArray) {
     return { nameToCode, altNameLookup };
 }
 
-// Core parsing logic
-export async function parseItemLogic(description) {
-    const trimmed = (description || "").toString().trim();
+// --- Helper: attempt to extract JSON block or an inline JSON object ---
+function extractJsonBlockFromText(s) {
+    if (!s || typeof s !== 'string') return null;
+    // first try ```json blocks
+    const fenced = s.match(/```json\s*([\s\S]*?)```/i);
+    if (fenced) return fenced[1].trim();
+    // then try any {...} first object
+    const inline = s.match(/(\{[\s\S]*\})/m);
+    if (inline) return inline[1].trim();
+    // otherwise, try to remove stray backticks and return cleaned string
+    const cleaned = cleanAIJson(s);
+    if (cleaned) return cleaned;
+    return null;
+}
 
-    // Action command check
-    const actionMatch = ACTION_COMMANDS.find((cmd) => cmd.toLowerCase() === trimmed.toLowerCase());
-    if (actionMatch) {
+// Core parsing logic — upgraded: default chat, PNID-only structured JSON
+export async function parseItemLogic(description) {
+    const trimmed = (description || '').toString().trim();
+
+    // === Quick local small sanity check ===
+    if (!trimmed) {
         return {
-            mode: "action",
-            action: actionMatch,
             parsed: [],
-            explanation: `Triggered action: ${actionMatch}`,
+            items: [],
+            explanation: 'No input provided.',
+            mode: 'chat',
             connection: null,
-            connectionResolved: []
+            connectionResolved: [],
+            connections: [],
         };
     }
 
-    // Extract Unit and Draw count
-    const unitMatch = trimmed.match(/Unit\s+(\d+)/i);
-    let inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : 0;
-    if (Number.isNaN(inputUnit)) inputUnit = 0;
-
-    const numberMatch = trimmed.match(/Draw\s+(\d+)\s+/i);
-    const inputNumber = numberMatch ? Math.max(1, parseInt(numberMatch[1], 10)) : 1;
-
-    // Build few-shot prompt (batched)
-    const BATCH_SIZE = 10;
-    const batches = [];
-    for (let i = 0; i < examples.length; i += BATCH_SIZE) {
-        const batch = examples
-            .slice(i, i + BATCH_SIZE)
-            .map((e) => `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`)
-            .join("\n\n");
-        batches.push(batch);
+    // === Action commands ===
+    const actionMatch = ACTION_COMMANDS.find((cmd) => cmd.toLowerCase() === trimmed.toLowerCase());
+    if (actionMatch) {
+        return {
+            mode: 'action',
+            action: actionMatch,
+            parsed: [],
+            items: [],
+            explanation: `Triggered action: ${actionMatch}`,
+            connection: null,
+            connectionResolved: [],
+            connections: [],
+        };
     }
-    const fewShots = batches.join("\n\n");
 
-    // Prompt (keeps Option B preference)
-    const prompt = `
+    // === Intent detection (heuristic) ===
+    const PNID_COMMAND_START = /^\s*(draw|connect|add|generate|pnid|pnid:)/i;
+    const PNID_KEYWORDS = /\b(draw|connect|pump|valve|pipe|instrument|fitting|tank|equipment|flange|p&id|p&ids|pnid|p n i d|sensor|controller|pump\d*|unit\s*\d+|subunit|sequence|connect them|connect to)\b/i;
+
+    const likelyStructured = PNID_COMMAND_START.test(trimmed) || PNID_KEYWORDS.test(trimmed);
+
+    // If not structured -> chat
+    if (!likelyStructured) {
+        try {
+            const chatPrompt = `You are a friendly, helpful assistant. Reply conversationally to the user input below. Output plain text only (no JSON, no code blocks).
+
+User: """${trimmed}"""`;
+
+            const chatResult = await model.generateContent(chatPrompt);
+            const chatText = (chatResult?.response?.text?.().trim()) || `Hi — I'm here. How can I help with PNID or other questions?`;
+
+            return {
+                parsed: [],
+                items: [],
+                explanation: chatText,
+                mode: 'chat',
+                connection: null,
+                connectionResolved: [],
+                connections: [],
+            };
+        } catch (err) {
+            return {
+                parsed: [],
+                items: [],
+                explanation: "Hi — I couldn't contact the assistant for a reply. Try asking your PNID or general question again.",
+                mode: 'chat',
+                connection: null,
+                connectionResolved: [],
+                connections: [],
+            };
+        }
+    }
+
+    // === Structured PNID path ===
+    try {
+        // Extract Unit and Draw count
+        const unitMatch = trimmed.match(/Unit\s+(\d+)/i);
+        let inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : 0;
+        if (Number.isNaN(inputUnit)) inputUnit = 0;
+
+        const numberMatch = trimmed.match(/Draw\s+(\d+)\s*/i);
+        const inputNumber = numberMatch ? Math.max(1, parseInt(numberMatch[1], 10)) : 1;
+
+        console.log('parseItemLogic: using', examples?.length || 0, 'few-shot examples');
+        const approxPromptLen = (examples || []).reduce((acc, e) => acc + JSON.stringify(e).length, 0);
+        console.log('parseItemLogic: examples JSON roughly', Math.round(approxPromptLen / 1000), 'KB');
+
+        // Build few-shot batches (safe if examples missing)
+        const BATCH_SIZE = 10;
+        const batches = [];
+        const ex = Array.isArray(examples) ? examples : [];
+        for (let i = 0; i < ex.length; i += BATCH_SIZE) {
+            const batch = ex
+                .slice(i, i + BATCH_SIZE)
+                .map((e) => `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`)
+                .join('\n\n');
+            batches.push(batch);
+        }
+        const fewShots = batches.join('\n\n');
+
+        // Build structured prompt
+        const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
 Rules:
+1) Structured PNID mode:
+- If the user requests drawing/connecting/adding PNID items, RETURN ONLY a single VALID JSON object wrapped in a \`\`\`json ... \`\`\` block.
+- Fields for each item: Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections.
+- Use "" for empty text fields, 0 for Unit/SubUnit defaults, 1 for Sequence/Number defaults, and [] for Connections.
 
-1. Structured PNID mode
-- Triggered if input starts with a command (Draw, Connect, Add, Generate, PnID) or clearly describes equipment, piping, instruments, or diagrams.
-- Preferred output (Option B): return a single JSON object wrapped in a \`\`\`json ... \`\`\` block with fields:
-  { "mode":"structured", "items":[...], "connections":[...] }
-- Backward-compatible (Option A): older "orders" array format is acceptable if necessary.
-- Defaults: use "" for strings, 0 for Unit/SubUnit, 1 for Sequence/Number, [] for Connections.
-
-2. Chat mode
-- For greetings/small talk, return plain text and set "mode": "chat".
+2) Chat mode:
+- If the input is general chat, respond with plain text only (no JSON, no code blocks).
 
 Few-shot examples:
 ${fewShots}
@@ -162,76 +238,103 @@ ${fewShots}
 User Input: """${trimmed}"""
 `;
 
-    try {
         const result = await model.generateContent(prompt);
-        const text = result?.response?.text?.().trim() || "";
-        console.log("👉 Gemini raw text:", text);
+        const text = (result?.response?.text?.().trim()) || '';
+        console.log('👉 Gemini raw text (initial):', text);
 
         if (!text) {
             return {
                 parsed: [],
-                explanation: "⚠️ AI returned empty response",
-                mode: "chat",
+                items: [],
+                explanation: '⚠️ AI returned empty response',
+                mode: 'chat',
                 connection: null,
-                connectionResolved: []
+                connectionResolved: [],
+                connections: [],
             };
         }
 
-        // Clean code fences
-        const cleaned = cleanAIJson(text);
+        // Extract JSON block
+        let jsonText = extractJsonBlockFromText(text);
 
-        // Parse JSON with robust fallbacks
-        let parsedJson;
-        try {
-            parsedJson = JSON.parse(cleaned);
-        } catch (err) {
-            // try splitting concatenated objects and parsing each; ignore unparsable fragments
-            const fragments = cleaned.split(/}\s*{/).map((part, idx, arr) => {
-                if (idx === 0 && arr.length > 1) return part + "}";
-                if (idx === arr.length - 1 && arr.length > 1) return "{" + part;
-                return "{" + part + "}";
-            });
-            parsedJson = fragments.map((frag) => {
-                try {
-                    return JSON.parse(frag);
-                } catch (e) {
-                    // ignore bad fragment
-                    console.warn("⚠️ Ignored fragment while parsing AI JSON:", e.message, frag.slice?.(0, 200) || frag);
-                    return null;
-                }
-            }).filter(Boolean);
+        // If not found, re-prompt strictly once
+        if (!jsonText) {
+            console.warn('No JSON found in initial response. Re-prompting strictly for JSON once...');
+            const strictPrompt = `You are a PNID assistant. The user asked for PNID structured output. OUTPUT ONLY valid JSON inside a single triple-backtick json block. No extra text.
 
-            // if we ended up with just one object in array, unwrap it for simpler handling below
-            if (Array.isArray(parsedJson) && parsedJson.length === 1) parsedJson = parsedJson[0];
+User Input: """${trimmed}"""`;
+            try {
+                const strictRes = await model.generateContent(strictPrompt);
+                const strictText = (strictRes?.response?.text?.().trim()) || '';
+                console.log('👉 Gemini raw text (strict re-prompt):', strictText);
+                jsonText = extractJsonBlockFromText(strictText);
+            } catch (repErr) {
+                console.warn('Strict re-prompt failed:', repErr?.message || repErr);
+            }
         }
 
-        // Build rawItems & rawConnections from Option A (orders) or Option B (items + connections)
+        if (!jsonText) {
+            // fallback to returning the raw text as explanation (safe)
+            return {
+                parsed: [],
+                items: [],
+                explanation: text,
+                mode: 'chat',
+                connection: null,
+                connectionResolved: [],
+                connections: [],
+            };
+        }
+
+        // Clean JSON text
+        const cleanedJson = cleanAIJson(jsonText);
+
+        // Parse JSON with robust fallbacks
+        let parsed;
+        try {
+            parsed = JSON.parse(cleanedJson);
+        } catch (e) {
+            // Attempt to recover concatenated objects
+            const fragments = cleanedJson.split(/}\s*{/).map((part, idx, arr) => {
+                if (idx === 0 && arr.length > 1) return part + '}';
+                if (idx === arr.length - 1 && arr.length > 1) return '{' + part;
+                return '{' + part + '}';
+            });
+            parsed = fragments
+                .map((frag) => {
+                    try {
+                        return JSON.parse(frag);
+                    } catch (err) {
+                        console.warn('⚠️ Ignored fragment while parsing AI JSON:', err.message, frag.slice?.(0, 200) || frag);
+                        return null;
+                    }
+                })
+                .filter(Boolean);
+            if (Array.isArray(parsed) && parsed.length === 1) parsed = parsed[0];
+        }
+
+        // --- Extract rawItems & rawConnections ---
         let rawItems = [];
         let rawConnections = [];
 
-        if (parsedJson && parsedJson.orders && Array.isArray(parsedJson.orders)) {
-            // Option A
-            parsedJson.orders.forEach((order) => {
-                const act = (order.action || "").toString().toLowerCase();
-                if (act === "draw" && Array.isArray(order.items)) rawItems.push(...order.items);
-                if ((act === "connect" || act === "connection") && Array.isArray(order.connections)) rawConnections.push(...order.connections);
+        if (parsed?.orders && Array.isArray(parsed.orders)) {
+            parsed.orders.forEach((order) => {
+                const act = (order.action || '').toString().toLowerCase();
+                if (act === 'draw' && Array.isArray(order.items)) rawItems.push(...order.items);
+                if ((act === 'connect' || act === 'connection') && Array.isArray(order.connections)) rawConnections.push(...order.connections);
             });
-        } else {
-            // Option B or misc shapes
-            const candidateArray = Array.isArray(parsedJson) ? parsedJson : [parsedJson];
-            candidateArray.forEach((obj) => {
+        } else if (parsed?.items && Array.isArray(parsed.items)) {
+            rawItems.push(...parsed.items);
+            if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
+        } else if (Array.isArray(parsed)) {
+            parsed.forEach((obj) => {
                 if (!obj) return;
-                if (obj.action && obj.action.toLowerCase() === "draw" && Array.isArray(obj.items)) {
+                if (obj.action && obj.action.toLowerCase() === 'draw' && Array.isArray(obj.items)) {
                     rawItems.push(...obj.items);
                     return;
                 }
-                if (obj.action && obj.action.toLowerCase() === "connect" && Array.isArray(obj.connections)) {
+                if (obj.action && obj.action.toLowerCase() === 'connect' && Array.isArray(obj.connections)) {
                     rawConnections.push(...obj.connections);
-                    return;
-                }
-                if (obj.mode === "structured" && Array.isArray(obj.items)) {
-                    rawItems.push(...obj.items);
-                    if (Array.isArray(obj.connections)) rawConnections.push(...obj.connections);
                     return;
                 }
                 if (isLikelyItem(obj)) {
@@ -243,11 +346,19 @@ User Input: """${trimmed}"""
                     rawConnections.push(...obj.connections);
                     return;
                 }
-                if (typeof obj === "string") {
+                if (typeof obj === 'string') {
                     rawConnections.push(obj);
                     return;
                 }
             });
+        } else if (parsed && typeof parsed === 'object') {
+            if (parsed.action && parsed.action.toLowerCase() === 'draw' && Array.isArray(parsed.items)) {
+                rawItems.push(...parsed.items);
+            } else if (isLikelyItem(parsed)) {
+                rawItems.push(parsed);
+                if (Array.isArray(parsed.Connections)) rawConnections.push(...parsed.Connections);
+            }
+            if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
         }
 
         // Keep only real-looking items
@@ -255,22 +366,21 @@ User Input: """${trimmed}"""
 
         // Build itemsArray skeleton (one entry per raw item)
         let itemsArray = rawItems.map((item, idx) => ({
-            mode: "structured",
+            mode: 'structured',
             Name: (item.Name || item.name || item.Type || item.type || `Item${idx + 1}`).toString().trim(),
-            Category: item.Category || item.category || "Equipment",
-            Type: item.Type || item.type || (item.Name || "Generic"),
+            Category: item.Category || item.category || 'Equipment',
+            Type: item.Type || item.type || (item.Name || 'Generic'),
             Unit: item.Unit !== undefined ? parseInt(item.Unit, 10) : inputUnit || 0,
             SubUnit: item.SubUnit !== undefined ? parseInt(item.SubUnit, 10) : 0,
             Sequence: item.Sequence !== undefined ? parseInt(item.Sequence, 10) : null,
             Number: item.Number !== undefined ? Math.max(1, parseInt(item.Number, 10)) : 1,
-            // accept Count from some few-shots
             Count: item.Count !== undefined ? Math.max(1, parseInt(item.Count, 10)) : undefined,
-            SensorType: item.SensorType || item.sensorType || "",
-            Explanation: item.Explanation || item.explanation || `Added ${item.Type || "item"}`,
+            SensorType: item.SensorType || item.sensorType || '',
+            Explanation: item.Explanation || item.explanation || `Added ${item.Type || 'item'}`,
             Connections: []
         }));
 
-        // Expand items by their Number / Count field (if the model returned Number>1)
+        // Expand items by their Number / Count field (if the model returned >1)
         {
             const expanded = [];
             let globalSeq = 1;
@@ -279,7 +389,7 @@ User Input: """${trimmed}"""
                 for (let k = 0; k < qty; k++) {
                     const clone = { ...it };
                     clone.Sequence = globalSeq;
-                    // keep base name identical; instance numeric suffixes handled later by lookups
+                    // keep base name identical; instance numeric suffixes are not forced here
                     clone.Name = qty > 1 ? `${it.Name}` : it.Name;
                     clone.Number = 1;
                     expanded.push(clone);
@@ -290,27 +400,22 @@ User Input: """${trimmed}"""
         }
 
         // Ensure contiguous sequences 1..N
-        itemsArray = itemsArray.map((it, idx) => {
-            it.Sequence = idx + 1;
-            return it;
-        });
+        itemsArray = itemsArray.map((it, idx) => ({ ...it, Sequence: idx + 1 }));
 
-        // Enforce user Draw N if present (prefer existing expanded items if present)
+        // Enforce user Draw N if present (pad only)
         if (inputNumber && inputNumber > 0) {
-            if (itemsArray.length > inputNumber) {
-                itemsArray = itemsArray.slice(0, inputNumber);
-            } else if (itemsArray.length < inputNumber) {
+            if (itemsArray.length < inputNumber) {
                 const last = itemsArray[itemsArray.length - 1] || {
-                    mode: "structured",
-                    Name: `Item`,
-                    Category: "Equipment",
-                    Type: "Generic",
+                    mode: 'structured',
+                    Name: 'Item',
+                    Category: 'Equipment',
+                    Type: 'Generic',
                     Unit: inputUnit || 0,
                     SubUnit: 0,
                     Sequence: itemsArray.length + 1,
                     Number: 1,
-                    SensorType: "",
-                    Explanation: "Auto-cloned PNID item",
+                    SensorType: '',
+                    Explanation: 'Auto-cloned PNID item',
                     Connections: []
                 };
                 while (itemsArray.length < inputNumber) {
@@ -321,20 +426,19 @@ User Input: """${trimmed}"""
             }
         }
 
-        // Build code lookups once (avoid redeclarations)
+        // Build code lookups
         const { nameToCode, altNameLookup } = buildCodeLookups(itemsArray);
 
         // Normalize rawConnections into objects {from, to}
         const normalizedConnections = [];
         rawConnections.forEach((c) => {
             if (!c) return;
-            if (typeof c === "string") {
+            if (typeof c === 'string') {
                 const pairs = parseConnectionStringToPairs(c);
                 if (pairs.length) {
                     normalizedConnections.push(...pairs);
                     return;
                 }
-                // fallback heuristics
                 const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
                 const toMatch = c.match(/(.+?)\s+(?:to|and)\s+(.+)/i);
                 const m = arrowMatch || toMatch;
@@ -349,31 +453,31 @@ User Input: """${trimmed}"""
                 }
                 return;
             }
-            if (typeof c === "object") {
+            if (typeof c === 'object') {
                 normalizedConnections.push({
-                    from: (c.from || c.fromName || c.source || "").toString().trim(),
-                    to: (c.to || c.toName || c.target || c.toId || "").toString().trim()
+                    from: (c.from || c.fromName || c.source || '').toString().trim(),
+                    to: (c.to || c.toName || c.target || c.toId || '').toString().trim()
                 });
             }
         });
 
         // Resolve connection endpoints to generated codes using multiple candidate keys
         function candidateKeysFor(raw) {
-            const r = (raw || "").toString().trim();
+            const r = (raw || '').toString().trim();
             return [
-                r ? r.toLowerCase() : "",
-                r ? r.replace(/\s+/g, "_").toLowerCase() : "",
-                r ? r.replace(/\s+/g, "").toLowerCase() : "",
+                r ? r.toLowerCase() : '',
+                r ? r.replace(/\s+/g, '_').toLowerCase() : '',
+                r ? r.replace(/\s+/g, '').toLowerCase() : '',
                 (() => {
                     const m = r.match(/^([a-zA-Z]+)0*(\d+)$/);
-                    return m ? `${m[1].toLowerCase()}${Number(m[2])}` : "";
+                    return m ? `${m[1].toLowerCase()}${Number(m[2])}` : '';
                 })()
             ].filter(Boolean);
         }
 
         const connectionResolved = normalizedConnections.map((c) => {
-            const fromRaw = (c.from || "").toString().trim();
-            const toRaw = (c.to || "").toString().trim();
+            const fromRaw = (c.from || '').toString().trim();
+            const toRaw = (c.to || '').toString().trim();
 
             let resolvedFrom = null;
             let resolvedTo = null;
@@ -409,16 +513,14 @@ User Input: """${trimmed}"""
             };
         });
 
-        // Attach resolved connections to items (match by _generatedCode)
+        // Attach resolved connections to items (by _generatedCode)
         itemsArray.forEach((item) => {
-            const code = item._generatedCode;
-            item.Connections = connectionResolved
-                .filter((c) => String(c.from) === String(code))
-                .map((c) => c.to);
+            const itemCode = item._generatedCode;
+            item.Connections = connectionResolved.filter((c) => String(c.from) === String(itemCode)).map((c) => c.to);
         });
 
-        // If user asked to "connect" and there were no explicit connections, auto-connect sequentially
-        const userWantsConnect = /\bconnect\b/i.test(trimmed);
+        // Auto-connect sequentially if user asked "connect" and no explicit connections
+        const userWantsConnect = /\bconnect\b/i.test(trimmed) || /connect them/i.test(trimmed);
         if (userWantsConnect && connectionResolved.length === 0 && itemsArray.length > 1) {
             for (let i = 0; i < itemsArray.length - 1; i++) {
                 const fromCode = itemsArray[i]._generatedCode;
@@ -433,82 +535,60 @@ User Input: """${trimmed}"""
             const out = { ...it };
             out.Code = it._generatedCode;
             delete out._generatedCode;
+            delete out._baseCode;
             return out;
         });
 
-        // Debug: warn if mismatch between requested draw count and final items
-        if (finalParsed.length !== inputNumber) {
-            console.warn("🛠️ parseItemLogic: finalParsed length mismatch", {
-                requested: inputNumber,
-                got: finalParsed.length,
-                previewRawParsed: Array.isArray(parsedJson) ? parsedJson.slice(0, 5) : parsedJson
-            });
-        }
+        // Prepare chat-friendly summary
+        const typeMap = new Map();
+        finalParsed.forEach((item) => {
+            const type = item.Type || 'Generic';
+            if (typeMap.has(type)) {
+                const existing = typeMap.get(type);
+                existing._count = (existing._count || 1) + 1;
+                existing.Connections.push(...(item.Connections || []));
+            } else {
+                typeMap.set(type, { ...item, Connections: [...(item.Connections || [])], _count: 1 });
+            }
+        });
+        const mergedForChat = [];
+        typeMap.forEach((item) => mergedForChat.push({ ...item, Number: 1 }));
 
-        // --- NEW: if we have connections and at least one parsed item,
-        // return a single merged legacy-style object (from the first item)
-        // NOTE: keep defaults: Unit/SubUnit -> 0 if missing.
-        if (finalParsed.length > 0 && (connectionResolved.length > 0 || normalizedConnections.length > 0)) {
-            const first = finalParsed[0];
-            const single = {
-                mode: "structured",
-                Name: first.Name || first.Type || "",
-                Category: first.Category || "Equipment",
-                Type: first.Type || first.Category || "",
-                Unit: first.Unit !== undefined ? first.Unit : 0,
-                SubUnit: first.SubUnit !== undefined ? first.SubUnit : 0,
-                Sequence: first.Sequence !== undefined ? first.Sequence : 1,
-                Number: first.Number !== undefined ? first.Number : 1,
-                SensorType: first.SensorType || "",
-                Explanation: first.Explanation || `Added ${first.Name || first.Type || "item"}`,
-                Connections: connectionResolved.length > 0 ? connectionResolved : normalizedConnections
-            };
-
-            const explanation = single.Explanation;
-
-            return {
-                parsed: single,
-                connectionResolved,
-                explanation,
-                mode: "structured"
-            };
-        }
-
-        // Otherwise return standard array result (legacy behavior)
-        const explanation = finalParsed.length > 0
-            ? finalParsed.map((it) => it.Explanation || `Added ${it.Name}`).join(" | ")
-            : "Added PNID item(s)";
-
+        // Return structured result (array form). Frontend can accept parsed as array or object.
         return {
             parsed: finalParsed,
+            items: finalParsed,
+            connections: connectionResolved,
             connectionResolved,
-            explanation,
-            mode: "structured"
+            explanation: mergedForChat.map((i) => `${i.Type} x${i._count}`).join(' | ') || 'Added PNID item(s)',
+            mode: 'structured',
         };
     } catch (err) {
-        console.error("❌ parseItemLogic failed:", err);
+        console.error('❌ parseItemLogic failed:', err);
         return {
             parsed: [],
-            explanation: "⚠️ AI processing failed: " + (err.message || "Unknown error"),
-            mode: "chat",
+            items: [],
+            explanation: '⚠️ AI processing failed: ' + (err.message || 'Unknown error'),
+            mode: 'chat',
             connection: null,
-            connectionResolved: []
+            connectionResolved: [],
+            connections: [],
         };
     }
 }
 
-// Default API handler
+// Default API handler (Next.js / Vercel style)
 export default async function handler(req, res) {
     try {
-        if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+        if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-        const { description } = req.body;
-        if (!description) return res.status(400).json({ error: "Missing description" });
+        const { description } = req.body || {};
+        if (!description) return res.status(400).json({ error: 'Missing description' });
 
         const aiResult = await parseItemLogic(description);
         return res.status(200).json(aiResult);
     } catch (err) {
-        console.error("/api/parse-item error:", err);
-        return res.status(500).json({ error: "Server error", details: err.message });
+        console.error('/api/parse-item error:', err);
+        return res.status(500).json({ error: 'Server error', details: err?.message || String(err) });
     }
 }
