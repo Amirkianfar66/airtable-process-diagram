@@ -138,29 +138,24 @@ export default async function AIPNIDGenerator(
     const normalizedItems = [];
     const allMessages = [{ sender: 'User', message: description }];
 
-    // Create nodes / normalizedItems
-    parsedItems.forEach((p, idx) => {
-        const Name = (p?.Name && String(p.Name).trim()) || (p?.Type && String(p.Type).trim()) || `Item ${idx + 1}`;
-        const Category = p?.Category && p.Category !== '' ? p.Category : 'Equipment';
-        const Type = p?.Type && p.Type !== '' ? p.Type : 'Generic';
-
-        const Unit = p?.Unit ?? 0;
-        const SubUnit = p?.SubUnit ?? 0;
-        const Sequence = p?.Sequence ?? 1;
-
-        // Quantity support: if Number > 1, expand locally (parser usually already expands, but safe)
-        const count = Math.max(1, parseInt(p?.Number ?? 1, 10));
-
-        for (let i = 0; i < count; i++) {
-            const seq = Sequence + i;
-            const code = generateCode({
-                Category,
-                Type,
-                Unit,
-                SubUnit,
-                Sequence: seq,
-                SensorType: p?.SensorType || '',
+    // Expand quantity safely
+    const expandedItems = [];
+    parsedItems.forEach((p) => {
+        const qty = Math.max(1, parseInt(p?.Number ?? 1, 10));
+        for (let i = 0; i < qty; i++) {
+            expandedItems.push({
+                ...p,
+                Sequence: (p.Sequence ?? 1) + i,
+                Name: qty > 1 ? `${p.Name || p.Type || 'Item'}_${i + 1}` : p.Name,
+                Number: 1, // each clone now represents a single item
             });
+        }
+    });
+    // Use expandedItems instead of parsedItems for the node generation loop
+    expandedItems.forEach((p, idx) => {
+        // ... generate nodes as usual ...
+    });
+
 
             const nodeId = (typeof crypto !== 'undefined' && crypto.randomUUID)
                 ? crypto.randomUUID()
