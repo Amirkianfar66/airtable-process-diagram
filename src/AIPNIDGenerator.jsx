@@ -170,7 +170,7 @@ export default async function AIPNIDGenerator(
 
     expandedItems.forEach((p, idx) => {
         const {
-            Name,
+            Name: givenName,
             Category = 'Default',
             Type = 'Generic',
             Unit = 'Default Unit',
@@ -185,9 +185,12 @@ export default async function AIPNIDGenerator(
                 ? crypto.randomUUID()
                 : `ai-${Date.now()}-${Math.random()}`;
 
+        // ensure Name == Type (no numbers) and never empty
+        const finalName = (Type || givenName || 'Item');
+
         const nodeItem = {
             id: nodeId,
-            Name,
+            Name: finalName,
             Code: code,
             'Item Code': code,
             Category,
@@ -212,6 +215,8 @@ export default async function AIPNIDGenerator(
             allMessages.push({ sender: 'AI', message: explanation });
         }
     });
+
+
 
     // --------------------------
     // Build maps for lookups (robust + normalized keys)
@@ -360,6 +365,7 @@ export default async function AIPNIDGenerator(
 
         return null;
     }
+
 
     // --------------------------
     // Use parser connections if available
