@@ -126,8 +126,6 @@ export default async function AIPNIDGenerator(
         }
         return { nodes: existingNodes, edges: existingEdges };
     }
-
-    // --------------------------
     // Build nodes
     // --------------------------
     const newNodes = [];
@@ -166,37 +164,6 @@ export default async function AIPNIDGenerator(
                 ...p,
                 Sequence: (p.Sequence ?? 1) + i,
                 Name: p.Number > 1 ? `${p.Type}_${i + 1}` : p.Name,
-                Number: 1, // clones are 1 each
-            });
-        }
-    });
-
-    // Expand Number into multiple clones if needed
-    const expandedItems = [];
-    parsedItems.forEach((p) => {
-        const qty = Math.max(1, parseInt(p?.Number ?? 1, 10));
-
-        // ✅ Chat feedback about quantity
-        if (qty > 1) {
-            allMessages.push({
-                sender: 'AI',
-                message: `I understood that you want ${qty} items of type "${p.Name || p.Type || 'Item'}".`
-            });
-
-            const conns = Array.isArray(p.Connections) ? p.Connections : [];
-            if (conns.length > 0) {
-                allMessages.push({
-                    sender: 'AI',
-                    message: `These items should be connected to: ${conns.join(', ')}`
-                });
-            }
-        } // <- closes the qty>1 if correctly
-
-        for (let i = 0; i < qty; i++) {
-            expandedItems.push({
-                ...p,
-                Sequence: (p.Sequence ?? 1) + i,
-                Name: qty > 1 ? `${p.Name || p.Type || 'Item'}_${i + 1}` : p.Name,
                 Number: 1, // clones are 1 each
             });
         }
