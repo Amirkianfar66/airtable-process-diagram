@@ -106,11 +106,12 @@ export default function DiagramCanvas({
                 item: newItem,
                 icon: getItemIcon(newItem),
             },
-            type: categoryTypeMap[newItem.Category] || "scalableIcon",
+            type: "scalableIcon", // <-- force scalableIcon here
             sourcePosition: "right",
             targetPosition: "left",
             style: { background: "transparent" },
         };
+
 
         setNodes((nds) => [...nds, newNode]);
         setEdges((eds) => [
