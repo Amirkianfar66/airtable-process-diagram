@@ -11,8 +11,6 @@ export const nodeTypes = {
     inlineValve: ScalableIcon,
 };
 
-
-
 // DiagramCanvas: owns full onEdgeClick behavior and a sliding Edge inspector
 // - opens a sliding panel from the right when an edge is clicked
 // - lets user edit label, toggle animation, delete edge, change color, set category (InlineValve)
@@ -175,7 +173,7 @@ export default function DiagramCanvas({
                 style: { stroke: selectedEdge?.style?.stroke || "#000" },
             },
         ]);
-
+    }; // <-- FIX: close changeEdgeCategory
 
     const handleCloseInspector = () => {
         setSelectedEdge(null);
