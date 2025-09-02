@@ -4,7 +4,8 @@ import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
-import InlineValveIcon from './InlineValveIcon';
+import InlineValveIcon from "./Icons/InlineValveIcon";
+
 export const nodeTypes = {
     inlineValve: InlineValveIcon,
 };
