@@ -107,6 +107,7 @@ User Input: """${trimmed}"""
         const text = result?.response?.text?.().trim() || '';
         console.log('👉 Gemini raw text:', text);
 
+        // If AI returned empty text
         if (!text) {
             return {
                 parsed: [],
@@ -118,26 +119,18 @@ User Input: """${trimmed}"""
                 connections: [],
             };
         }
-        // --- Only proceed if parsed is structured PNID ---
-        if (!parsed || (parsed.mode && parsed.mode !== 'structured' && !parsed.items)) {
-            return {
-                parsed: [],
-                items: [],
-                explanation: text,
-                mode: 'chat',
-                connection: null,
-                connectionResolved: [],
-                connections: [],
-            };
-        }
+
+        // Declare parsed at top to avoid ReferenceError
+        let parsed = null;
+
         try {
             const cleaned = cleanAIJson(text);
 
-            let parsed;
+            // Try parsing as JSON directly
             try {
                 parsed = JSON.parse(cleaned);
             } catch (e) {
-                // Split concatenated JSON fragments safely; ignore unparsable fragments
+                // Handle concatenated JSON fragments safely
                 const objects = cleaned
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
@@ -145,6 +138,7 @@ User Input: """${trimmed}"""
                         if (idx === arr.length - 1 && arr.length > 1) return '{' + part;
                         return '{' + part + '}';
                     });
+
                 parsed = objects
                     .map((obj) => {
                         try {
@@ -156,6 +150,48 @@ User Input: """${trimmed}"""
                     })
                     .filter(Boolean);
             }
+
+            // If parsing failed or content is not structured PNID, treat as chat
+            if (!parsed || (parsed.mode && parsed.mode !== 'structured' && !parsed.items)) {
+                return {
+                    parsed: [],
+                    items: [],
+                    explanation: text,
+                    mode: 'chat',
+                    connection: null,
+                    connectionResolved: [],
+                    connections: [],
+                };
+            }
+
+            // ✅ At this point, parsed is safe to use for PNID item processing
+
+        } catch (errInner) {
+            console.warn('⚠️ Failed to parse AI output as PNID JSON, fallback to chat mode:', errInner.message);
+            return {
+                parsed: [],
+                items: [],
+                explanation: text,
+                mode: 'chat',
+                connection: null,
+                connectionResolved: [],
+                connections: [],
+            };
+        }
+
+    } catch (err) {
+        console.error('❌ parseItemLogic failed:', err);
+        return {
+            parsed: [],
+            items: [],
+            explanation: '⚠️ AI processing failed: ' + (err.message || 'Unknown error'),
+            mode: 'chat',
+            connection: null,
+            connectionResolved: [],
+            connections: [],
+        };
+    }
+
 
             // Extract rawItems & rawConnections safely
             let rawItems = [];
