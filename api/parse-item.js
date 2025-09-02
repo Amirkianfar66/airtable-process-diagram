@@ -214,22 +214,33 @@ User Input: """${trimmed}"""
                 requestedCounts[type] = count;
             }
 
-            // 3️⃣ Expand items according to user input
-            const expanded = [];
-            let globalSeq = 1;
-            itemsArray.forEach((it) => {
-                const typeKey = it.Type.toLowerCase();
-                const count = requestedCounts[typeKey] || 1;
-                for (let i = 0; i < count; i++) {
-                    const clone = { ...it };
-                    clone.Sequence = globalSeq++;
-                    clone.Name = `${it.Type}_${i + 1}`;
-                    clone.Number = 1;
-                    expanded.push(clone);
-                }
+            // --- EXPAND items according to maximum count per Type (avoid AI double-counting) ---
+            let seq = 1;
+            const counts = {};
+            rawItems.forEach(item => {
+                const type = item.Type || 'Generic';
+                counts[type] = Math.max(counts[type] || 0, item.Number || 1);
             });
 
-            itemsArray = expanded;
+            const expandedItems = [];
+            Object.entries(counts).forEach(([type, count]) => {
+                for (let i = 0; i < count; i++) {
+                    expandedItems.push({
+                        Name: `${type}_${i + 1}`,
+                        Category: 'Equipment',
+                        Type: type,
+                        Unit: inputUnit || 0,
+                        SubUnit: 0,
+                        Sequence: seq++,
+                        Number: 1,
+                        SensorType: '',
+                        Explanation: `Added ${type}`,
+                        Connections: [],
+                    });
+                }
+            });
+            itemsArray = expandedItems;
+
 
 
             // --- ENSURE sequences are contiguous & deterministic ---
