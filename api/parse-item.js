@@ -350,6 +350,34 @@ User Input: """${trimmed}"""
                 ? finalParsed.map((it) => it.Explanation || `Added ${it.Name}`).join(' | ')
                 : 'Added PNID item(s)';
 
+            // --- Merge items by Type ---
+            const mergedByType = [];
+            const typeMap = new Map();
+
+            finalParsed.forEach(item => {
+                const type = item.Type || 'Generic';
+                if (typeMap.has(type)) {
+                    const existing = typeMap.get(type);
+                    existing.Number += item.Number || 1;
+                    // Optionally merge connections too
+                    existing.Connections.push(...(item.Connections || []));
+                } else {
+                    typeMap.set(type, { ...item, Connections: [...(item.Connections || [])] });
+                }
+            });
+
+            mergedByType.push(...typeMap.values());
+
+            // Now expose merged items
+            return {
+                parsed: mergedByType,
+                items: mergedByType,
+                connections: connectionResolved,
+                connectionResolved,
+                explanation,
+                mode: 'structured',
+            };
+
             console.log('parseItemLogic → parsed:', finalParsed);
             console.log('parseItemLogic → connectionResolved:', connectionResolved);
 
