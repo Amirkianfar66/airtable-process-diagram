@@ -18,6 +18,7 @@ export default function DiagramCanvas({
     onEdgesChange,
     onConnect,
     onSelectionChange,
+    onEdgeClick,
     nodeTypes,
     AddItemButton,
     aiDescription,
