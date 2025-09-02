@@ -91,10 +91,11 @@ export default function ProcessDiagram() {
                     ...params,
                     type: 'step',
                     animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2 },
+                    style: { stroke: 'blue', strokeWidth: 8, cursor: 'pointer' },
                 },
                 edges
             );
+
 
             setEdges(updatedEdges);
 
@@ -107,9 +108,9 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
     const onEdgeClick = (event, edge) => {
-        event.stopPropagation();
-        alert(`Edge clicked: ${edge.id}`);
+        alert(`Clicked edge ${edge.id}`);
     };
+
 
 
 
