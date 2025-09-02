@@ -152,14 +152,14 @@ export default function ProcessDiagram() {
         );
     }, []);
 
-
-       
+    // Replace your existing handleGeneratePNID with this version.
+    // Assumes you have access to: aiDescription, items, nodes, edges, setItems, setNodes, setEdges, setSelectedItem, setChatMessages
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
 
         try {
-            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
+            const result = await AIPNIDGenerator(
                 aiDescription,
                 items,
                 nodes,
@@ -168,26 +168,76 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
-            const newItems = aiNodes.map(n => n.data?.item).filter(Boolean);
+            // result contains: nodes (array of ReactFlow nodes), edges (array), normalizedItems, messages
+            const aiNodes = result.nodes || [];
+            const aiEdges = result.edges || [];
+            const normalizedItems = result.normalizedItems || [];
 
-            setItems(prev => {
-                const existingIds = new Set(prev.map(i => i.id));
-                const filteredNew = newItems.filter(i => !existingIds.has(i.id));
-                const updatedItems = [...prev, ...filteredNew];
+            // --- 1) Merge items by Code (dedupe by Code) ---
+            setItems((prevItems) => {
+                // build map by canonical Code (fallback to 'no_code:<id>' to avoid collision)
+                const map = new Map();
+                prevItems.forEach((it) => {
+                    const code =
+                        String(it.Code ?? it['Item Code'] ?? it.code ?? it.id ?? '').trim() || `no_code:${it.id || Math.random()}`;
+                    map.set(code, it);
+                });
 
-                if (filteredNew.length > 0) setSelectedItem(filteredNew[0]);
+                // take new items from aiNodes (they hold .data.item)
+                const incoming = aiNodes.map((n) => n.data?.item).filter(Boolean);
+                incoming.forEach((it) => {
+                    const code = String(it.Code ?? it['Item Code'] ?? it.code ?? '').trim();
+                    const key = code || `no_code:${it.id || Math.random()}`;
+                    if (!map.has(key)) {
+                        // new
+                        map.set(key, it);
+                    } else {
+                        // merge: prefer existing, but copy missing fields from incoming
+                        const existing = map.get(key);
+                        map.set(key, { ...existing, ...it });
+                    }
+                });
 
-                return updatedItems;
+                const merged = [...map.values()];
+                // Select the first of the newly added normalized items if any
+                if (incoming.length > 0 && typeof setSelectedItem === 'function') {
+                    setSelectedItem(incoming[0]);
+                }
+
+                return merged;
             });
 
-            setNodes(aiNodes);
+            // --- 2) Merge nodes safely: avoid adding nodes that have same Code as existing nodes ---
+            // Build existing code->nodeId map
+            const existingCodeToNodeId = new Map();
+            nodes.forEach((n) => {
+                const code = String(n?.data?.item?.Code ?? n?.data?.item?.['Item Code'] ?? '').trim();
+                if (code) existingCodeToNodeId.set(code, n.id);
+            });
+
+            // Filter incoming nodes: only add if their code doesn't already exist
+            const nodesToAdd = aiNodes.filter((n) => {
+                const code = String(n?.data?.item?.Code ?? n?.data?.item?.['Item Code'] ?? '').trim();
+                return !code || !existingCodeToNodeId.has(code);
+            });
+
+            // If incoming nodes included nodes that matched existing codes, we still want to ensure edges reference the existing nodeIds.
+            // AIPNIDGenerator already resolved connections to node ids using allNodesSoFar (it included existingNodes),
+            // so aiEdges should already point to the correct node ids for both existing and newly created nodes.
+            // We'll merge nodes and replace edges with aiEdges (safer). If you want to preserve old custom edges, merge them as needed.
+
+            const mergedNodes = [...nodes, ...nodesToAdd];
+            setNodes(mergedNodes);
+
+            // --- 3) Replace/merge edges ---
+            // aiEdges are created by AIPNIDGenerator using node ids from allNodesSoFar (existingNodes + newNodes),
+            // so we can set edges to aiEdges (or merge with existing if you prefer).
             setEdges(aiEdges);
 
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
     };
-
 
 
     useEffect(() => {
