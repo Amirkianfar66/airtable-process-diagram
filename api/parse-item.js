@@ -29,11 +29,13 @@ function isLikelyItem(obj) {
 }
 
 // Core parsing logic
+// Core parsing logic
 export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
-    // Action command check
-    const actionMatch = ACTION_COMMANDS.find((cmd) => cmd.toLowerCase() === trimmed.toLowerCase());
+    // --- Action command check ---
+    const ACTION_COMMANDS = ['Generate PNID', 'Export', 'Clear', 'Save'];
+    const actionMatch = ACTION_COMMANDS.find(cmd => cmd.toLowerCase() === trimmed.toLowerCase());
     if (actionMatch) {
         return {
             mode: 'action',
@@ -47,7 +49,7 @@ export async function parseItemLogic(description) {
         };
     }
 
-    // Extract Unit and Draw count
+    // --- Extract Unit and Draw count ---
     const unitMatch = trimmed.match(/Unit\s+(\d+)/i);
     let inputUnit = unitMatch ? parseInt(unitMatch[1], 10) : 0;
     if (Number.isNaN(inputUnit)) inputUnit = 0;
@@ -59,44 +61,33 @@ export async function parseItemLogic(description) {
     const approxPromptLen = examples.reduce((acc, e) => acc + JSON.stringify(e).length, 0);
     console.log('parseItemLogic: examples JSON roughly', Math.round(approxPromptLen / 1000), 'KB');
 
-    // Build few-shot prompt (batched)
+    // --- Build few-shot prompt ---
     const BATCH_SIZE = 10;
     const batches = [];
     for (let i = 0; i < examples.length; i += BATCH_SIZE) {
         const batch = examples
             .slice(i, i + BATCH_SIZE)
-            .map((e) => {
-                return `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`;
-            })
+            .map(e => `Input: "${e.input}"\nOutput: ${JSON.stringify(e.output)}`)
             .join('\n\n');
         batches.push(batch);
     }
     const fewShots = batches.join('\n\n');
 
-    // Prompt
     const prompt = `
 You are a PNID assistant with two modes: structured PNID mode and chat mode.
 
 Rules:
-
-1. Structured PNID mode
+1. Structured PNID mode:
 - Triggered if input starts with a command (Draw, Connect, Add, Generate, PnID) or clearly describes equipment, piping, instruments, or diagrams.
-- Output ONLY valid JSON with these fields:
-  { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
-- All fields must be non-null. Use:
-    - "" (empty string) for text fields
-    - 0 for Unit and SubUnit
-    - 1 for Sequence and Number
-    - [] for Connections
-- Wrap structured PNID JSON in a \`\`\`json ... \`\`\` code block.
-- Do NOT wrap chat mode responses in any code block or JSON.
+- Output ONLY valid JSON with fields: { mode, Name, Category, Type, Unit, SubUnit, Sequence, Number, SensorType, Explanation, Connections }
+- Use "" for text fields, 0 for Unit/SubUnit, 1 for Sequence/Number, [] for Connections
+- Wrap JSON in \`\`\`json ... \`\`\`
 
-2. Chat mode
+2. Chat mode:
 - Triggered if input is small talk, greetings, or unrelated to PNID.
-- Output plain text only.
-- Always set "mode": "chat".
+- Output plain text only, with "mode": "chat".
 
-### Few-shot examples (all):
+Few-shot examples:
 ${fewShots}
 
 User Input: """${trimmed}"""
@@ -107,7 +98,6 @@ User Input: """${trimmed}"""
         const text = result?.response?.text?.().trim() || '';
         console.log('👉 Gemini raw text:', text);
 
-        // If AI returned empty text
         if (!text) {
             return {
                 parsed: [],
@@ -120,17 +110,17 @@ User Input: """${trimmed}"""
             };
         }
 
-        // Declare parsed at top to avoid ReferenceError
+        // --- Declare parsed upfront to avoid ReferenceError ---
         let parsed = null;
 
         try {
             const cleaned = cleanAIJson(text);
 
-            // Try parsing as JSON directly
+            // Try parsing JSON
             try {
                 parsed = JSON.parse(cleaned);
-            } catch (e) {
-                // Handle concatenated JSON fragments safely
+            } catch (err) {
+                // Split concatenated JSON fragments
                 const objects = cleaned
                     .split(/}\s*{/)
                     .map((part, idx, arr) => {
@@ -140,18 +130,17 @@ User Input: """${trimmed}"""
                     });
 
                 parsed = objects
-                    .map((obj) => {
-                        try {
-                            return JSON.parse(obj);
-                        } catch (err) {
-                            console.warn('⚠️ Failed parsing fragment (ignored):', err.message, obj.slice?.(0, 200) || obj);
+                    .map(obj => {
+                        try { return JSON.parse(obj); }
+                        catch (e) {
+                            console.warn('⚠️ Failed parsing fragment (ignored):', e.message, obj.slice?.(0, 200) || obj);
                             return null;
                         }
                     })
                     .filter(Boolean);
             }
 
-            // If parsing failed or content is not structured PNID, treat as chat
+            // --- Chat fallback if not structured PNID ---
             if (!parsed || (parsed.mode && parsed.mode !== 'structured' && !parsed.items)) {
                 return {
                     parsed: [],
@@ -164,10 +153,163 @@ User Input: """${trimmed}"""
                 };
             }
 
-            // ✅ At this point, parsed is safe to use for PNID item processing
+            // --- Extract raw items and connections ---
+            let rawItems = [];
+            let rawConnections = [];
+
+            if (parsed?.items && Array.isArray(parsed.items)) {
+                rawItems.push(...parsed.items);
+                if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
+            } else if (Array.isArray(parsed)) {
+                parsed.forEach(obj => {
+                    if (!obj) return;
+                    if (obj.items) rawItems.push(...obj.items);
+                    if (Array.isArray(obj.connections)) rawConnections.push(...obj.connections);
+                    if (isLikelyItem(obj)) rawItems.push(obj);
+                });
+            } else if (isLikelyItem(parsed)) {
+                rawItems.push(parsed);
+                if (Array.isArray(parsed.connections)) rawConnections.push(...parsed.connections);
+            }
+
+            rawItems = rawItems.filter(isLikelyItem);
+
+            // --- Expand items ---
+            let seq = 1;
+            const counts = {};
+            rawItems.forEach(item => {
+                const type = item.Type || 'Generic';
+                counts[type] = Math.max(counts[type] || 0, item.Number || 1);
+            });
+
+            const expandedItems = [];
+            Object.entries(counts).forEach(([type, count]) => {
+                for (let i = 0; i < count; i++) {
+                    expandedItems.push({
+                        Name: `${type}_${i + 1}`,
+                        Category: 'Equipment',
+                        Type: type,
+                        Unit: inputUnit || 0,
+                        SubUnit: 0,
+                        Sequence: seq++,
+                        Number: 1,
+                        SensorType: '',
+                        Explanation: `Added ${type}`,
+                        Connections: [],
+                    });
+                }
+            });
+
+            // --- Pad to Draw N if needed ---
+            while (expandedItems.length < inputNumber) {
+                const last = expandedItems[expandedItems.length - 1] || {
+                    Name: 'Item',
+                    Category: 'Equipment',
+                    Type: 'Generic',
+                    Unit: inputUnit || 0,
+                    SubUnit: 0,
+                    Sequence: expandedItems.length + 1,
+                    Number: 1,
+                    SensorType: '',
+                    Explanation: 'Auto-cloned PNID item',
+                    Connections: [],
+                };
+                const clone = { ...last, Sequence: expandedItems.length + 1, Name: `${last.Name}_${expandedItems.length + 1}` };
+                expandedItems.push(clone);
+            }
+
+            // --- Generate deterministic codes ---
+            const codeSet = new Set();
+            const nameToCode = new Map();
+
+            function baseCodeFor(item, idx) {
+                const u = String(item.Unit ?? 0).padStart(1, '0');
+                const su = String(item.SubUnit ?? 0).padStart(1, '0');
+                const seq = String(item.Sequence ?? idx + 1).padStart(2, '0');
+                const num = String(item.Number ?? 1).padStart(2, '0');
+                return `${u}${su}${seq}${num}`;
+            }
+
+            expandedItems.forEach((it, idx) => {
+                let base = baseCodeFor(it, idx);
+                let code = base;
+                let suffix = 0;
+                while (codeSet.has(code)) { suffix++; code = `${base}_${suffix}`; }
+                codeSet.add(code);
+                nameToCode.set(it.Name.toLowerCase(), code);
+                it._generatedCode = code;
+            });
+
+            // --- Normalize connections ---
+            const normalizedConnections = rawConnections
+                .map(c => {
+                    if (!c) return null;
+                    if (typeof c === 'string') {
+                        const arrowMatch = c.match(/(.+?)[\s]*[→\-–>|]+[\s]*(.+)/i);
+                        if (arrowMatch) return { from: arrowMatch[1].trim(), to: arrowMatch[2].trim() };
+                        return null;
+                    }
+                    if (typeof c === 'object') {
+                        return { from: (c.from || c.fromName || '').toString().trim(), to: (c.to || c.toName || '').toString().trim() };
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+
+            const connectionResolved = normalizedConnections.map(c => ({
+                from: nameToCode.get((c.from || '').toLowerCase()) || c.from,
+                to: nameToCode.get((c.to || '').toLowerCase()) || c.to,
+            }));
+
+            // Attach connections to items
+            expandedItems.forEach(item => {
+                const itemCode = item._generatedCode;
+                item.Connections = connectionResolved.filter(c => c.from === itemCode).map(c => c.to);
+            });
+
+            // Auto-connect sequentially if requested
+            if (/\bconnect\b/i.test(trimmed) && connectionResolved.length === 0 && expandedItems.length > 1) {
+                for (let i = 0; i < expandedItems.length - 1; i++) {
+                    const fromCode = expandedItems[i]._generatedCode;
+                    const toCode = expandedItems[i + 1]._generatedCode;
+                    expandedItems[i].Connections.push(toCode);
+                    connectionResolved.push({ from: fromCode, to: toCode });
+                }
+            }
+
+            // Build final parsed items
+            const finalParsed = expandedItems.map(it => {
+                const out = { ...it, Code: it._generatedCode };
+                delete out._generatedCode;
+                return out;
+            });
+
+            // Build chat-friendly explanation
+            const typeMap = new Map();
+            finalParsed.forEach(item => {
+                const type = item.Type || 'Generic';
+                if (typeMap.has(type)) {
+                    const existing = typeMap.get(type);
+                    existing._count = (existing._count || 1) + 1;
+                    existing.Connections.push(...(item.Connections || []));
+                } else {
+                    typeMap.set(type, { ...item, Connections: [...(item.Connections || [])], _count: 1 });
+                }
+            });
+            const mergedForChat = [];
+            typeMap.forEach(item => mergedForChat.push({ ...item, Number: 1 }));
+
+            return {
+                parsed: finalParsed,
+                items: finalParsed,
+                connections: connectionResolved,
+                connectionResolved,
+                explanation: mergedForChat.map(i => `${i.Type} x${i._count}`).join(' | '),
+                mode: 'structured',
+            };
 
         } catch (errInner) {
-            console.warn('⚠️ Failed to parse AI output as PNID JSON, fallback to chat mode:', errInner.message);
+            console.warn('⚠️ Not JSON, treating as chat:', errInner.message);
             return {
                 parsed: [],
                 items: [],
@@ -191,6 +333,7 @@ User Input: """${trimmed}"""
             connections: [],
         };
     }
+}
 
 
             // Extract rawItems & rawConnections safely
