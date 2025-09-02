@@ -3,6 +3,12 @@ import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
+import { InlineValveIcon } from './IconManager';
+
+export const nodeTypes = {
+    inlineValve: InlineValveIcon, // matches categoryTypeMap['InlineValve']
+    // ...other custom node types if needed
+};
 
 // DiagramCanvas: owns full onEdgeClick behavior and a sliding Edge inspector
 // - opens a sliding panel from the right when an edge is clicked
@@ -113,20 +119,67 @@ export default function DiagramCanvas({
         updateSelectedEdge({ style: newStyle });
     };
 
-    // NEW: change category helper (e.g., InlineValve)
-    const changeEdgeCategory = (category) => {
-        // store category in edge.data.category so other parts of the app can read it
-        const newData = { ...(selectedEdge?.data || {}), category };
+    const changeEdgeCategory = () => {
+        if (!selectedEdge) return;
 
-        // If the category is InlineValve, optionally apply a visual style default
-        const stylePatch = {};
-        if (category === 'InlineValve') {
-            stylePatch.stroke = selectedEdge?.style?.stroke || '#d62728';
-            stylePatch.strokeWidth = selectedEdge?.style?.strokeWidth || 3;
-        }
+        // 1. Find source and target nodes
+        const sourceNode = nodes.find(n => n.id === selectedEdge.source);
+        const targetNode = nodes.find(n => n.id === selectedEdge.target);
+        if (!sourceNode || !targetNode) return;
 
-        updateSelectedEdge({ data: newData, style: { ...(selectedEdge?.style || {}), ...stylePatch } });
+        // 2. Midpoint of the edge
+        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+        // 3. Create the InlineValve node
+        const newItem = {
+            id: `valve-${Date.now()}`,
+            Code: "VALVE001",
+            Name: "Inline Valve",
+            Category: "InlineValve",
+            Type: "Valve",
+            Unit: "Unit 1",
+            SubUnit: "Sub 1",
+        };
+
+        const newNode = {
+            id: newItem.id,
+            position: { x: midX, y: midY },
+            data: {
+                label: `${newItem.Code} - ${newItem.Name}`,
+                item: newItem,
+                icon: getItemIcon(newItem, { width: 30, height: 30 }),
+            },
+            type: categoryTypeMap[newItem.Category] || "scalableIcon",
+            sourcePosition: "right",
+            targetPosition: "left",
+            style: { background: "transparent" },
+        };
+
+        // 4. Update state: remove old edge, add new node + two new edges
+        setNodes(nds => [...nds, newNode]);
+        setEdges(eds => [
+            ...eds.filter(e => e.id !== selectedEdge.id), // remove old edge
+            {
+                id: `${selectedEdge.source}-${newNode.id}`,
+                source: selectedEdge.source,
+                target: newNode.id,
+                style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            },
+            {
+                id: `${newNode.id}-${selectedEdge.target}`,
+                source: newNode.id,
+                target: selectedEdge.target,
+                style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            },
+        ]);
+
+        // 5. Clear inspector since the original edge is replaced
+        handleCloseInspector();
     };
+
+
+
 
     const handleCloseInspector = () => {
         setSelectedEdge(null);
