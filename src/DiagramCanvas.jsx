@@ -5,7 +5,7 @@ import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
 import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
 import InlineValveIcon from "./Icons/InlineValveIcon";
-import ScalableIcon from "./ScalableIcon"; // wrapper that renders SVG + handles
+import ScalableIconNode from './ScalableIconNode';
 
 export const nodeTypes = {
     inlineValve: ScalableIcon,
