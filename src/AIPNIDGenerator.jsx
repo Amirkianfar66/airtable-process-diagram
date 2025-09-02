@@ -147,12 +147,15 @@ export default async function AIPNIDGenerator(
                 message: `I understood that you want ${qty} items of type "${p.Name || p.Type || 'Item'}".`
             });
 
-            if (p.Connections && p.Connections.length > 0) {
+            const conns = Array.isArray(p.Connections) ? p.Connections : [];
+            if (conns.length > 0) {
                 allMessages.push({
                     sender: 'AI',
-                    message: `These items should be connected to: ${p.Connections.join(', ')}`
+                    message: `These items should be connected to: ${conns.join(', ')}`
                 });
             }
+        } // <- closes the qty>1 if correctly
+
 
 
         for (let i = 0; i < qty; i++) {
