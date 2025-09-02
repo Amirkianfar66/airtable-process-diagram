@@ -8,13 +8,6 @@ import ScalableIconNode from './ScalableIconNode';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 
-export const nodeTypes = {
-    resizable: ResizableNode,
-    custom: CustomItemNode,
-    scalableIcon: ScalableIconNode,
-    inlineValve: InlineValveIcon,
-};
-
 
 export default function DiagramCanvas({
     nodes,
@@ -27,6 +20,7 @@ export default function DiagramCanvas({
     onSelectionChange,
     onEdgeClick,
     onEdgeSelect,
+    nodeTypes,
     AddItemButton,
     aiDescription,
     setAiDescription,
