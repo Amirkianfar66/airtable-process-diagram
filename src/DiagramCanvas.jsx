@@ -3,8 +3,8 @@ import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
-import { InlineValveIcon, getItemIcon, categoryTypeMap } from './IconManager';
-
+import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
+import InlineValveIcon from './InlineValveIcon';
 export const nodeTypes = {
     inlineValve: InlineValveIcon,
 };
