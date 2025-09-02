@@ -6,7 +6,7 @@ import { ChatBox } from './AIPNIDGenerator';
 
 // DiagramCanvas: owns full onEdgeClick behavior and a sliding Edge inspector
 // - opens a sliding panel from the right when an edge is clicked
-// - lets user edit label, toggle animation, delete edge
+// - lets user edit label, toggle animation, delete edge, change color
 // - keyboard shortcuts: Delete -> delete edge (with confirm), Esc -> close inspector
 // - optionally notifies parent of selection changes via onEdgeSelect(edge|null)
 export default function DiagramCanvas({
@@ -86,7 +86,9 @@ export default function DiagramCanvas({
             console.warn('DiagramCanvas: setEdges not provided');
             return;
         }
-        setEdges((prev) => prev.map((e) => (e.id === selectedEdge.id ? { ...e, ...patch } : e)));
+        setEdges((prev) =>
+            prev.map((e) => (e.id === selectedEdge.id ? { ...e, ...patch } : e))
+        );
         setSelectedEdge((s) => (s ? { ...s, ...patch } : s));
     };
 
@@ -103,6 +105,13 @@ export default function DiagramCanvas({
 
     const toggleEdgeAnimated = () => updateSelectedEdge({ animated: !selectedEdge?.animated });
     const changeEdgeLabel = (label) => updateSelectedEdge({ label });
+
+    // NEW: change color helper
+    const changeEdgeColor = (color) => {
+        // ensure style object is merged, not replaced entirely
+        const newStyle = { ...(selectedEdge?.style || {}), stroke: color };
+        updateSelectedEdge({ style: newStyle });
+    };
 
     const handleCloseInspector = () => {
         setSelectedEdge(null);
@@ -136,6 +145,9 @@ export default function DiagramCanvas({
             console.warn('DiagramCanvas expects setEdges function prop for full edge inspector functionality.');
         }
     }, [setEdges]);
+
+    // color preset swatches
+    const colorPresets = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -216,47 +228,80 @@ export default function DiagramCanvas({
                     }}
                 >
                     {selectedEdge ? (
-                        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <strong>Edge inspector</strong>
-                                <div>
-                                    <button onClick={() => deleteSelectedEdge()} style={{ marginRight: 8 }}>Delete</button>
-                                    <button onClick={handleCloseInspector}>Close</button>
-                                </div>
-                            </div>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong>Edge inspector</strong>
+                <div>
+                  <button onClick={() => deleteSelectedEdge()} style={{ marginRight: 8 }}>Delete</button>
+                  <button onClick={handleCloseInspector}>Close</button>
+                </div>
+              </div>
 
-                            <div style={{ fontSize: 13 }}>
-                                <div><strong>ID:</strong> {selectedEdge.id}</div>
-                                <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
-                                <div><strong>Target:</strong> {selectedEdge.target}{selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}</div>
-                                <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
-                            </div>
+              <div style={{ fontSize: 13 }}>
+                <div><strong>ID:</strong> {selectedEdge.id}</div>
+                <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
+                <div><strong>Target:</strong> {selectedEdge.target}{selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}</div>
+                <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
+              </div>
 
-                            <div>
-                                <label style={{ display: 'block', fontSize: 12 }}>Label</label>
-                                <input
-                                    value={selectedEdge.label || ''}
-                                    onChange={(e) => changeEdgeLabel(e.target.value)}
-                                    style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-                                />
-                            </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12 }}>Label</label>
+                <input
+                  value={selectedEdge.label || ''}
+                  onChange={(e) => changeEdgeLabel(e.target.value)}
+                  style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
+                />
+              </div>
 
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={toggleEdgeAnimated}>
-                                    {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
-                                </button>
-                                <button onClick={() => updateSelectedEdge({ style: { ...(selectedEdge.style || {}), strokeWidth: (selectedEdge.style?.strokeWidth || 2) + 2 } })}>
-                                    Thicken
-                                </button>
-                            </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12 }}>Color</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {/* native color picker */}
+                  <input
+                    type="color"
+                    value={(selectedEdge?.style?.stroke) || '#000000'}
+                    onChange={(e) => changeEdgeColor(e.target.value)}
+                    style={{ width: 40, height: 32, padding: 0, border: 'none', background: 'transparent' }}
+                  />
 
-                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
-                                Keyboard: Esc to close · Delete to remove
-                            </div>
-                        </div>
-                    ) : null}
-                </aside>
+                  {/* hex input for precision */}
+                  <input
+                    type="text"
+                    value={(selectedEdge?.style?.stroke) || ''}
+                    onChange={(e) => changeEdgeColor(e.target.value)}
+                    style={{ padding: 8, width: 110 }}
+                  />
+
+                  {/* presets */}
+                  <div style={{ display: 'flex', gap: 6', marginLeft: 8 }}>
+                    {colorPresets.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => changeEdgeColor(c)}
+                        title={c}
+                        style={{ width: 28, height: 28, background: c, border: '1px solid #ddd', borderRadius: 4 }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={toggleEdgeAnimated}>
+                  {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
+                </button>
+                <button onClick={() => updateSelectedEdge({ style: { ...(selectedEdge.style || {}), strokeWidth: (selectedEdge.style?.strokeWidth || 2) + 2 } })}>
+                  Thicken
+                </button>
+              </div>
+
+              <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
+                Keyboard: Esc to close · Delete to remove
+              </div>
             </div>
-        </div>
-    );
+          ) : null}
+        </aside>
+      </div >
+    </div >
+  );
 }
