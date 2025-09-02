@@ -134,6 +134,42 @@ export default async function AIPNIDGenerator(
     const newEdges = [...existingEdges];
     const normalizedItems = [];
     const allMessages = [{ sender: 'User', message: description }];
+    // 1️⃣ After receiving parsed items
+    const mergedItems = [];
+    const typeMap = new Map();
+
+    finalParsed.forEach(item => {
+        const type = item.Type || 'Generic';
+        if (typeMap.has(type)) {
+            const existing = typeMap.get(type);
+            existing.Number += item.Number || 1;
+            existing.Connections.push(...(item.Connections || []));
+        } else {
+            typeMap.set(type, { ...item, Connections: [...(item.Connections || [])] });
+        }
+    });
+    mergedItems.push(...typeMap.values());
+
+    // 2️⃣ ✅ Chat feedback about quantity
+    mergedItems.forEach(p => {
+        allMessages.push({
+            sender: 'AI',
+            message: `I understood that you want ${p.Number} items of type "${p.Type}".`
+        });
+    });
+
+    // 3️⃣ Expand mergedItems into individual nodes (as before)
+    const expandedItems = [];
+    mergedItems.forEach((p) => {
+        for (let i = 0; i < p.Number; i++) {
+            expandedItems.push({
+                ...p,
+                Sequence: (p.Sequence ?? 1) + i,
+                Name: p.Number > 1 ? `${p.Type}_${i + 1}` : p.Name,
+                Number: 1, // clones are 1 each
+            });
+        }
+    });
 
     // Expand Number into multiple clones if needed
     const expandedItems = [];
@@ -155,8 +191,6 @@ export default async function AIPNIDGenerator(
                 });
             }
         } // <- closes the qty>1 if correctly
-
-
 
         for (let i = 0; i < qty; i++) {
             expandedItems.push({
