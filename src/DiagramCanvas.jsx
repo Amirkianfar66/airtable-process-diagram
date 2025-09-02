@@ -1,13 +1,14 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
 
-// DiagramCanvas: presentational, but now owns full onEdgeClick behavior
-// - shows a local Edge inspector panel when an edge is clicked
-// - allows deleting/toggling animation/editing label for the clicked edge
-// - still calls parent onEdgeClick if provided (for backwards compatibility)
+// DiagramCanvas: owns full onEdgeClick behavior and a sliding Edge inspector
+// - opens a sliding panel from the right when an edge is clicked
+// - lets user edit label, toggle animation, delete edge
+// - keyboard shortcuts: Delete -> delete edge (with confirm), Esc -> close inspector
+// - optionally notifies parent of selection changes via onEdgeSelect(edge|null)
 export default function DiagramCanvas({
     nodes,
     edges,
@@ -17,7 +18,8 @@ export default function DiagramCanvas({
     onEdgesChange,
     onConnect,
     onSelectionChange,
-    onEdgeClick, // optional parent handler (kept for compatibility)
+    onEdgeClick, // optional parent handler
+    onEdgeSelect, // optional callback to keep parent in sync
     nodeTypes,
     AddItemButton,
     aiDescription,
@@ -31,14 +33,14 @@ export default function DiagramCanvas({
     onNodeDrag,
     onNodeDragStop,
 }) {
-    // Local state to manage the currently-selected edge (inspector)
     const [selectedEdge, setSelectedEdge] = useState(null);
+    const panelRef = useRef(null);
 
     useEffect(() => {
         console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
     }, [onEdgeClick]);
 
-    // Make edges clickable and increase their clickable area
+    // Ensure edges are clickable and have a reasonable interaction area
     const enhancedEdges = useMemo(() => {
         if (!Array.isArray(edges)) return [];
         return edges.map((e) => ({
@@ -48,53 +50,90 @@ export default function DiagramCanvas({
         }));
     }, [edges]);
 
-    // Primary edge click handler now lives entirely in this component.
-    // It will open the Edge inspector and also call parent's onEdgeClick if provided.
+    // Central edge click handler (local)
     const handleEdgeClick = (event, edge) => {
         event?.stopPropagation?.();
         console.log('DiagramCanvas local edge click:', edge);
 
-        // Open local inspector
-        setSelectedEdge(edge);
+        // mirror the actual edge object from the live edges array to ensure we have current props
+        const liveEdge = (Array.isArray(edges) ? edges : []).find((e) => e.id === edge.id) || edge;
 
-        // forward to parent if they want to listen too
+        setSelectedEdge(liveEdge);
+
+        // notify parent if they want to listen for selection
+        if (typeof onEdgeSelect === 'function') {
+            try {
+                onEdgeSelect(liveEdge);
+            } catch (err) {
+                console.error('onEdgeSelect threw:', err);
+            }
+        }
+
+        // forward to parent's handler too for backwards compatibility
         if (typeof onEdgeClick === 'function') {
             try {
-                onEdgeClick(event, edge);
+                onEdgeClick(event, liveEdge);
             } catch (err) {
                 console.error('Parent onEdgeClick threw an error:', err);
             }
         }
     };
 
-    // Edge inspector helpers --- they update edges via setEdges provided by parent
+    // Helpers to update/delete the selected edge
     const updateSelectedEdge = (patch) => {
         if (!selectedEdge) return;
-        setEdges((prev) =>
-            prev.map((e) => (e.id === selectedEdge.id ? { ...e, ...patch } : e))
-        );
+        if (typeof setEdges !== 'function') {
+            console.warn('DiagramCanvas: setEdges not provided');
+            return;
+        }
+        setEdges((prev) => prev.map((e) => (e.id === selectedEdge.id ? { ...e, ...patch } : e)));
         setSelectedEdge((s) => (s ? { ...s, ...patch } : s));
     };
 
     const deleteSelectedEdge = () => {
         if (!selectedEdge) return;
+        if (!window.confirm('Delete this edge?')) return;
+        if (typeof setEdges !== 'function') {
+            console.warn('DiagramCanvas: setEdges not provided');
+            return;
+        }
         setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
+        handleCloseInspector();
+    };
+
+    const toggleEdgeAnimated = () => updateSelectedEdge({ animated: !selectedEdge?.animated });
+    const changeEdgeLabel = (label) => updateSelectedEdge({ label });
+
+    const handleCloseInspector = () => {
         setSelectedEdge(null);
+        if (typeof onEdgeSelect === 'function') {
+            try {
+                onEdgeSelect(null);
+            } catch (err) {
+                console.error('onEdgeSelect threw during close:', err);
+            }
+        }
     };
 
-    const toggleEdgeAnimated = () => {
+    // Keyboard shortcuts: Delete to delete selected edge, Esc to close inspector
+    useEffect(() => {
         if (!selectedEdge) return;
-        updateSelectedEdge({ animated: !selectedEdge.animated });
-    };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                handleCloseInspector();
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                // confirm and delete
+                deleteSelectedEdge();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [selectedEdge]);
 
-    const changeEdgeLabel = (label) => {
-        updateSelectedEdge({ label });
-    };
-
-    // Defensive: if no parent setEdges was provided, log a helpful error
+    // Defensive: ensure parent provided setEdges so inspector can function fully
     useEffect(() => {
         if (typeof setEdges !== 'function') {
-            console.warn('DiagramCanvas: expected setEdges function from parent but got', setEdges);
+            console.warn('DiagramCanvas expects setEdges function prop for full edge inspector functionality.');
         }
     }, [setEdges]);
 
@@ -155,56 +194,68 @@ export default function DiagramCanvas({
                     <Controls />
                 </ReactFlow>
 
-                {/* Edge inspector panel (floating on the right) */}
-                {selectedEdge ? (
-                    <div
-                        style={{
-                            position: 'absolute',
-                            right: 12,
-                            top: 12,
-                            width: 320,
-                            maxHeight: '60vh',
-                            overflowY: 'auto',
-                            background: 'white',
-                            border: '1px solid #ddd',
-                            borderRadius: 8,
-                            padding: 12,
-                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                            zIndex: 9999,
-                        }}
-                    >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <strong>Edge inspector</strong>
-                            <button onClick={() => setSelectedEdge(null)} style={{ marginLeft: 8 }}>Close</button>
-                        </div>
+                {/* Sliding right-hand inspector panel */}
+                <aside
+                    ref={panelRef}
+                    aria-hidden={!selectedEdge}
+                    style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: 0,
+                        height: '100%',
+                        width: selectedEdge ? 360 : 0,
+                        transform: selectedEdge ? 'translateX(0)' : 'translateX(100%)',
+                        transition: 'width 220ms ease, transform 220ms ease',
+                        background: '#fff',
+                        borderLeft: selectedEdge ? '1px solid #ddd' : 'none',
+                        boxShadow: selectedEdge ? '-8px 0 24px rgba(0,0,0,0.08)' : 'none',
+                        overflow: 'hidden',
+                        zIndex: 9999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                    }}
+                >
+                    {selectedEdge ? (
+                        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong>Edge inspector</strong>
+                                <div>
+                                    <button onClick={() => deleteSelectedEdge()} style={{ marginRight: 8 }}>Delete</button>
+                                    <button onClick={handleCloseInspector}>Close</button>
+                                </div>
+                            </div>
 
-                        <div style={{ marginTop: 8, fontSize: 13, color: '#333' }}>
-                            <div><strong>ID:</strong> {selectedEdge.id}</div>
-                            <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
-                            <div><strong>Target:</strong> {selectedEdge.target}{selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}</div>
-                            <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
+                            <div style={{ fontSize: 13 }}>
+                                <div><strong>ID:</strong> {selectedEdge.id}</div>
+                                <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
+                                <div><strong>Target:</strong> {selectedEdge.target}{selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}</div>
+                                <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
+                            </div>
 
-                            <div style={{ marginTop: 12 }}>
+                            <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Label</label>
                                 <input
                                     value={selectedEdge.label || ''}
                                     onChange={(e) => changeEdgeLabel(e.target.value)}
-                                    style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                                    style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
                                 />
                             </div>
 
-                            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                            <div style={{ display: 'flex', gap: 8 }}>
                                 <button onClick={toggleEdgeAnimated}>
                                     {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
                                 </button>
-
-                                <button onClick={deleteSelectedEdge} style={{ background: '#ffecec' }}>
-                                    Delete edge
+                                <button onClick={() => updateSelectedEdge({ style: { ...(selectedEdge.style || {}), strokeWidth: (selectedEdge.style?.strokeWidth || 2) + 2 } })}>
+                                    Thicken
                                 </button>
                             </div>
+
+                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
+                                Keyboard: Esc to close · Delete to remove
+                            </div>
                         </div>
-                    </div>
-                ) : null}
+                    ) : null}
+                </aside>
             </div>
         </div>
     );
