@@ -349,28 +349,27 @@ User Input: """${trimmed}"""
             const explanation = finalParsed.length > 0
                 ? finalParsed.map((it) => it.Explanation || `Added ${it.Name}`).join(' | ')
                 : 'Added PNID item(s)';
-
-            
-
+            // --- Merge items by Type, always Number = 1 per item ---
+            // --- Merge items by Type, always Number = 1 per item ---
+            const typeMap = new Map();
             finalParsed.forEach(item => {
                 const type = item.Type || 'Generic';
                 if (typeMap.has(type)) {
                     const existing = typeMap.get(type);
-                    existing._count = (existing._count || 1) + 1; // count total per Type
+                    existing._count = (existing._count || 1) + 1; // total count for chat
                     existing.Connections.push(...(item.Connections || []));
                 } else {
-                    typeMap.set(type, { ...item, Connections: [...(item.Connections || [])], _count: item.Number || 1 });
+                    typeMap.set(type, { ...item, Connections: [...(item.Connections || [])], _count: 1 });
                 }
-                const mergedByType = [];
-                typeMap.forEach(item => {
-                    mergedByType.push({
-                        ...item,
-                        Number: 1 // ✅ always 1 per returned item
-                    });
+            });
+
+            const mergedByType = [];
+            typeMap.forEach(item => {
+                mergedByType.push({
+                    ...item,
+                    Number: 1 // ✅ always 1 per returned item
                 });
-
-
-            mergedByType.push(...typeMap.values());
+            });
 
             // Now expose merged items
             return {
@@ -385,14 +384,6 @@ User Input: """${trimmed}"""
             console.log('parseItemLogic → parsed:', finalParsed);
             console.log('parseItemLogic → connectionResolved:', connectionResolved);
 
-            return {
-                parsed: finalParsed,
-                items: finalParsed, // ✅ expose as items[] too for consumers
-                connections: connectionResolved,
-                connectionResolved,
-                explanation,
-                mode: 'structured',
-            };
         } catch (err) {
             console.warn('⚠️ Not JSON, treating as chat:', err.message);
             return {
