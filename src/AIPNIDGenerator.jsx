@@ -130,18 +130,20 @@ export default async function AIPNIDGenerator(
     // --------------------------
     const newNodes = [];
     const newEdges = [...existingEdges];
-    const normalizedItems = [];
+    const normalizedItems = []; // items metadata we expose
     const allMessages = [{ sender: 'User', message: description }];
 
-    // Expand Number into clones if necessary
+    // Expand Number/Count into clones if necessary
     const expandedItems = [];
     parsedItems.forEach((p) => {
-        const qty = Math.max(1, parseInt(p?.Number ?? 1, 10));
+        // prefer Count (Gemini) but fall back to Number
+        const qty = Math.max(1, parseInt(p?.Count ?? p?.Number ?? 1, 10));
+        const baseName = (p.Name || p.Type || 'Item').toString().trim();
 
         if (qty > 1) {
             allMessages.push({
                 sender: 'AI',
-                message: `I understood that you want ${qty} items of type "${p.Name || p.Type || 'Item'}".`,
+                message: `I understood that you want ${qty} items of type "${baseName}".`,
             });
 
             const conns = Array.isArray(p.Connections) ? p.Connections : [];
@@ -157,12 +159,17 @@ export default async function AIPNIDGenerator(
             expandedItems.push({
                 ...p,
                 Sequence: (p.Sequence ?? 1) + i,
-                Name: p.Type || p.Name || 'Item',
+                // keep Name identical for clones per your preference
+                Name: baseName,
+                // record instance (1-based) so resolvers can map Tank2 -> instance 2
+                Instance: i + 1,
                 Number: 1,
+                Count: 1,
             });
         }
     });
 
+    // Create nodes from expanded items
     expandedItems.forEach((p, idx) => {
         const {
             Name: givenName,
@@ -171,28 +178,31 @@ export default async function AIPNIDGenerator(
             Unit = 'Default Unit',
             SubUnit = 'Default SubUnit',
             Sequence,
+            Instance,
         } = p;
 
-        // keep generateCode as the authoritative generator (frontend)
-        const code = generateCode(p, itemsLibrary, existingNodes, normalizedItems);
+        // ensure Sequence is numeric
+        const seqNum = typeof Sequence === 'number' ? Sequence : Number(Sequence ?? (idx + 1));
+
+        // generate canonical code (frontend authoritative)
+        const code = generateCode({ ...p, Sequence: seqNum }, itemsLibrary, existingNodes, normalizedItems);
 
         const nodeId =
             typeof crypto !== 'undefined' && crypto.randomUUID
                 ? crypto.randomUUID()
                 : `ai-${Date.now()}-${Math.random()}`;
 
-        const finalName = Type || givenName || 'Item';
-
         const nodeItem = {
             id: nodeId,
-            Name: finalName,
+            Name: String(givenName),
+            Instance: Instance ?? 1,
             Code: code,
             'Item Code': code,
             Category,
             Type,
             Unit,
             SubUnit,
-            Sequence,
+            Sequence: seqNum,
             Connections: Array.isArray(p?.Connections) ? [...p.Connections] : [],
         };
 
@@ -216,23 +226,28 @@ export default async function AIPNIDGenerator(
     // --------------------------
     const allNodesSoFar = [...existingNodes, ...newNodes];
 
-    const codeToNodeId = new Map(); // canonical code -> nodeId
-    const nameToNodeIds = new Map(); // normalized name -> [nodeIds]
+    const codeToNodeId = new Map(); // canonical code -> nodeId (e.g. "1101" -> nodeId)
+    const nodeIdToCode = new Map(); // nodeId -> code (reverse)
+    const nameToNodeIds = new Map(); // normalized name -> [nodeIds] (includes existing + new)
+    const newNameToNodeIds = new Map(); // normalized name -> [nodeIds] (newNodes only, preserves creation order)
     const typeToNodeIds = new Map(); // normalized type -> [nodeIds]
-    const nameToCode = new Map(); // normalized display name -> canonical code (useful when parser returns names)
+    const nameToCode = new Map(); // normalized display name -> canonical code (optional)
 
     function normalizeKey(s) {
         if (s === undefined || s === null) return '';
         return String(s).trim().toLowerCase().replace(/[_\s\-–—]+/g, ' ').replace(/[^\w\d ]+/g, '');
     }
 
-    allNodesSoFar.forEach((n) => {
+    // populate maps
+    allNodesSoFar.forEach((n, idx) => {
         const item = n?.data?.item;
         if (!item) return;
 
-        const possibleCode =
-            (item.Code ?? item['Item Code'] ?? item._generatedCode ?? item._baseCode ?? '').toString().trim();
-        if (possibleCode) codeToNodeId.set(possibleCode, n.id);
+        const possibleCode = (item.Code ?? item['Item Code'] ?? '').toString().trim();
+        if (possibleCode) {
+            codeToNodeId.set(possibleCode, n.id);
+            nodeIdToCode.set(n.id, possibleCode);
+        }
 
         const displayName = item.Name || item.Type || '';
         const nm = normalizeKey(displayName);
@@ -240,7 +255,6 @@ export default async function AIPNIDGenerator(
             if (!nameToNodeIds.has(nm)) nameToNodeIds.set(nm, []);
             nameToNodeIds.get(nm).push(n.id);
 
-            // Map normalized display name -> canonical code (prefer declared Code)
             if (possibleCode) nameToCode.set(nm, possibleCode);
         }
 
@@ -251,13 +265,50 @@ export default async function AIPNIDGenerator(
         }
     });
 
-    console.debug('lookup maps', {
-        codes: [...codeToNodeId.keys()],
-        names: [...nameToCode.keys()],
-        types: [...typeToNodeIds.keys()],
+    // newNodes-specific mapping (preserve creation order of the newly-created nodes)
+    newNodes.forEach(n => {
+        const it = n.data?.item || {};
+        const nm = normalizeKey(it.Name || it.Type || '');
+        if (!nm) return;
+        if (!newNameToNodeIds.has(nm)) newNameToNodeIds.set(nm, []);
+        newNameToNodeIds.get(nm).push(n.id);
     });
 
+    console.debug('lookup maps', {
+        codes: [...codeToNodeId.keys()].slice(0, 200),
+        names: [...nameToCode.keys()].slice(0, 200),
+        types: [...typeToNodeIds.keys()].slice(0, 200),
+    });
+
+    // --------------------------
+    // Helpers for resolving Nth instance for same-name items
+    // --------------------------
+    // parse patterns like "Tank2", "Tank_2", "Tank 2" -> { base, index }
+    function parseBaseAndIndex(ref) {
+        if (!ref) return null;
+        const s = String(ref).trim();
+        const m = s.match(/^(.+?)[_\s-]*0*([0-9]+)$/);
+        if (!m) return null;
+        return { base: m[1].trim(), index: parseInt(m[2], 10) };
+    }
+
+    // Prefer new nodes for selecting the Nth instance (so Tank2 -> second of just-created Tanks),
+    // but fall back to nameToNodeIds (which includes existing nodes)
+    function getNthNodeIdForBaseName(baseRaw, n = 1) {
+        if (!baseRaw) return null;
+        const key = normalizeKey(baseRaw);
+        // Try new nodes first (preserve creation order)
+        const newList = newNameToNodeIds.get(key) || [];
+        if (newList.length >= n) return newList[n - 1];
+        // If not enough new nodes, fall back to global list (existing + new)
+        const allList = nameToNodeIds.get(key) || [];
+        if (allList.length >= n) return allList[n - 1];
+        return null;
+    }
+
+    // --------------------------
     // Safe edge adder
+    // --------------------------
     function addEdgeSafely(sourceId, targetId, opts = {}) {
         if (!sourceId || !targetId) return false;
         const exists = newEdges.some((e) => e.source === sourceId && e.target === targetId);
@@ -300,8 +351,18 @@ export default async function AIPNIDGenerator(
         const raw = String(ref).trim();
         if (!raw) return null;
 
-        // 1) exact code
+        // 0) exact code
         if (codeToNodeId.has(raw)) return raw;
+
+        // 1) numeric-suffix pattern (Tank2 -> pick 2nd Tank)
+        const parsed = parseBaseAndIndex(raw);
+        if (parsed) {
+            const { base, index } = parsed;
+            const nodeId = getNthNodeIdForBaseName(base, index);
+            if (nodeId && nodeIdToCode.has(nodeId)) {
+                return nodeIdToCode.get(nodeId);
+            }
+        }
 
         const nKey = normalizeKey(raw);
 
@@ -332,7 +393,7 @@ export default async function AIPNIDGenerator(
             if (normalizeKey(codeKey).includes(nKey) || nKey.includes(normalizeKey(codeKey))) return codeKey;
         }
 
-        // 6) try stripping trailing two-digit groups (defensive). If you prefer NOT to map instance codes, you can remove this block.
+        // 6) try stripping trailing two-digit groups
         const candidates = stripTrailingTwoDigitsCandidates(raw);
         for (const cand of candidates) {
             if (codeToNodeId.has(cand)) return cand;
@@ -398,7 +459,14 @@ export default async function AIPNIDGenerator(
         // exact code map
         if (codeToNodeId.has(trimmed)) return codeToNodeId.get(trimmed);
 
-        // canonical code via resolver
+        // numeric-suffix pattern: try to map Tank2 -> second Tank (prefer newly-created nodes)
+        const parsed = parseBaseAndIndex(trimmed);
+        if (parsed) {
+            const nodeId = getNthNodeIdForBaseName(parsed.base, parsed.index);
+            if (nodeId) return nodeId;
+        }
+
+        // canonical code via resolver (may return a code)
         const canon = resolveCodeOrNameToCode(trimmed);
         if (canon && codeToNodeId.has(canon)) return codeToNodeId.get(canon);
 
@@ -489,6 +557,130 @@ export default async function AIPNIDGenerator(
         }
         allMessages.push({ sender: 'AI', message: `→ Auto-connected ${newNodes.length} nodes.` });
     }
+
+    // --- BEGIN: REMAP AI edges to actual node IDs (drop-in) ---
+    /**
+     * Remap any edges that use Codes/Names as endpoints into edges that
+     * use node.id (React Flow IDs). This ensures the returned edges
+     * are renderable by the canvas without modifying the React handler.
+     */
+
+    // build a quick code/name -> nodeId map (prefer map you already have if available)
+    const codeOrNameToNodeId = new Map();
+
+    // prefer codeToNodeId if defined; otherwise build from allNodesSoFar
+    for (const [k, v] of codeToNodeId.entries()) codeOrNameToNodeId.set(String(k), v);
+
+    // also map normalized names -> nodeId using nameToNodeIds (first)
+    for (const [name, ids] of nameToNodeIds.entries()) {
+        if (ids && ids.length) codeOrNameToNodeId.set(String(name), ids[0]);
+    }
+
+    // fallback: map node item.Name and item.Code from allNodesSoFar
+    allNodesSoFar.forEach(n => {
+        const it = n?.data?.item || {};
+        if (it.Code) codeOrNameToNodeId.set(String(it.Code), n.id);
+        if (it['Item Code']) codeOrNameToNodeId.set(String(it['Item Code']), n.id);
+        if (it.Name) codeOrNameToNodeId.set(String(it.Name), n.id);
+        if (it.Type) codeOrNameToNodeId.set(String(it.Type), n.id);
+        // also normalized name variants (no underscores / lowercase)
+        if (it.Name) codeOrNameToNodeId.set(String(it.Name).replace(/[_\s]+/g, '').toLowerCase(), n.id);
+        if (it.Name) codeOrNameToNodeId.set(String(it.Name).toLowerCase(), n.id);
+    });
+
+    // helper: try many variants to resolve a ref -> nodeId
+    function resolveRefToNodeIdForReturn(ref) {
+        if (!ref && ref !== 0) return null;
+        const raw = String(ref).trim();
+        if (!raw) return null;
+
+        // 1) direct node id
+        if (allNodesSoFar.some(n => n.id === raw)) return raw;
+
+        // 2) exact code/name
+        if (codeOrNameToNodeId.has(raw)) return codeOrNameToNodeId.get(raw);
+
+        // 3) normalized variants
+        const variants = [
+            raw,
+            raw.replace(/^0+/, ''),                 // strip leading zeros
+            raw.replace(/\s+/g, ''),                // concat
+            raw.replace(/\s+/g, '_'),               // underscored
+            raw.toLowerCase(),
+            raw.toLowerCase().replace(/[_\s]+/g, ''),
+        ];
+        for (const v of variants) {
+            if (!v) continue;
+            if (codeOrNameToNodeId.has(v)) return codeOrNameToNodeId.get(v);
+        }
+
+        // 4) try to match by numeric suffix base+index (Tank2 -> 2nd new Tank)
+        const parsed = parseBaseAndIndex(raw);
+        if (parsed) {
+            const nodeId = getNthNodeIdForBaseName(parsed.base, parsed.index);
+            if (nodeId) return nodeId;
+        }
+
+        // 5) try to match by normalized name tokens (best-effort)
+        const key = raw.toLowerCase().replace(/[_\s]+/g, '');
+        for (const [k, nodeId] of codeOrNameToNodeId.entries()) {
+            if (!k) continue;
+            const kk = String(k).toLowerCase().replace(/[_\s]+/g, '');
+            if (kk === key || kk.endsWith(key) || kk.includes(key) || key.includes(kk)) {
+                return nodeId;
+            }
+        }
+
+        return null;
+    }
+
+    // remap edges: create a stable set to avoid duplicates
+    const mappedEdgeSet = new Set();
+    const remappedEdges = [];
+
+    (newEdges || []).forEach(e => {
+        if (!e) return;
+        // if edge already references node ids, keep as-is
+        const srcCandidate = resolveRefToNodeIdForReturn(e.source);
+        const tgtCandidate = resolveRefToNodeIdForReturn(e.target);
+
+        const srcId = srcCandidate || (allNodesSoFar.some(n => n.id === e.source) ? e.source : null);
+        const tgtId = tgtCandidate || (allNodesSoFar.some(n => n.id === e.target) ? e.target : null);
+
+        // If either side could not be resolved to a node id, skip adding the edge (avoids dangling edges)
+        if (!srcId || !tgtId) {
+            console.warn('Unresolved AI edge endpoint', { rawSource: e.source, rawTarget: e.target, srcResolved: srcId, tgtResolved: tgtId });
+            return;
+        }
+
+        const edgeId = `edge-${srcId}-${tgtId}`;
+
+        // avoid duplicates
+        const sig = `${srcId}→${tgtId}`;
+        if (mappedEdgeSet.has(sig)) return;
+        mappedEdgeSet.add(sig);
+
+        remappedEdges.push({
+            ...e,
+            id: edgeId,
+            source: srcId,
+            target: tgtId,
+            data: { ...(e.data || {}), _rawSource: e.source, _rawTarget: e.target }
+        });
+    });
+
+    // Replace newEdges with remappedEdges for return
+    const existingSignatures = new Set((existingEdges || []).map(en => `${en.source}→${en.target}`));
+    const finalEdges = [
+        ...(existingEdges || []),
+        ...remappedEdges.filter(re => !existingSignatures.has(`${re.source}→${re.target}`))
+    ];
+
+    // assign newEdges -> finalEdges so the rest of the function returns correct edges
+    newEdges.length = 0;
+    newEdges.push(...finalEdges);
+
+    // --- END: REMAP AI edges to actual node IDs ---
 
     // final summary + chat update
     allMessages.push({ sender: 'AI', message: `→ Generated ${newNodes.length} item(s) and ${newEdges.length - existingEdges.length} connection(s).` });

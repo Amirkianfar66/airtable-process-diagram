@@ -152,13 +152,14 @@ export default function ProcessDiagram() {
         );
     }, []);
 
-    // Replace your existing handleGeneratePNID with this.
+
+       
+
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
 
         try {
-            // 1) call the generator (same signature)
-            const result = await AIPNIDGenerator(
+            const { nodes: aiNodes, edges: aiEdges } = await AIPNIDGenerator(
                 aiDescription,
                 items,
                 nodes,
@@ -167,202 +168,26 @@ export default function ProcessDiagram() {
                 setChatMessages
             );
 
-            // Defensive: unpack everything that generator returned
-            const aiNodes = result?.nodes ?? [];
-            const aiEdges = result?.edges ?? [];
-            const normalizedItems = result?.normalizedItems ?? [];
-            const aiMessages = result?.messages ?? [];
+            const newItems = aiNodes.map(n => n.data?.item).filter(Boolean);
 
-            // 2) log raw AI result for inspection
-            console.group('%cAI PNID Result', 'color: #0b5cff; font-weight: bold');
-            console.log('aiNodes:', aiNodes);
-            console.log('aiEdges:', aiEdges);
-            console.log('normalizedItems:', normalizedItems);
-            console.log('aiMessages:', aiMessages);
-            console.groupEnd();
+            setItems(prev => {
+                const existingIds = new Set(prev.map(i => i.id));
+                const filteredNew = newItems.filter(i => !existingIds.has(i.id));
+                const updatedItems = [...prev, ...filteredNew];
 
-            // 3) Build code -> nodeId map from existing nodes (current React Flow state)
-            const codeToNodeId = new Map();
-            nodes.forEach((n) => {
-                const code = (n?.data?.item?.Code ?? n?.data?.item?.['Item Code'] ?? '').toString().trim();
-                if (code) codeToNodeId.set(code, n.id);
+                if (filteredNew.length > 0) setSelectedItem(filteredNew[0]);
+
+                return updatedItems;
             });
 
-            // 4) Determine which aiNodes are truly new (by Code). If incoming node has same Code as existing, keep existing nodeId.
-            const nodesToAdd = [];
-            aiNodes.forEach((n) => {
-                const code = (n?.data?.item?.Code ?? n?.data?.item?.['Item Code'] ?? '').toString().trim();
-                if (!code) {
-                    // no code -> always add (or decide otherwise)
-                    nodesToAdd.push(n);
-                } else if (codeToNodeId.has(code)) {
-                    // incoming corresponds to existing code: do NOT add a duplicate node.
-                    // Optionally you may update the existing node's data/position here.
-                    console.debug(`AI node with code ${code} already exists as nodeId=${codeToNodeId.get(code)} — skipping add.`);
-                } else {
-                    // brand new code -> add the node and register its nodeId
-                    nodesToAdd.push(n);
-                    codeToNodeId.set(code, n.id);
-                }
-            });
+            setNodes(aiNodes);
+            setEdges(aiEdges);
 
-            // 5) Merge nodes: keep existing nodes, append nodesToAdd
-            const mergedNodes = [...nodes, ...nodesToAdd];
-
-            // 6) Prepare a set of node ids for quick existence checks
-            const nodeIdSet = new Set(mergedNodes.map((n) => n.id));
-
-            // 7) Validate/resolve aiEdges -> finalEdges (ensure source/target are node ids)
-            const finalEdges = [];
-            const unresolvedEdges = [];
-
-            // Toggle this to true only for temporary debugging: will try stripping trailing 2-digit groups from numeric codes (disabled by default)
-            const ALLOW_STRIP_INSTANCE_SUFFIX = false;
-
-            function stripTrailingTwoDigitsCandidates(code) {
-                if (!code) return [];
-                let s = String(code).trim();
-                const out = [s];
-                while (s.length > 2) {
-                    const m = s.match(/^(.*?)(\d{2})$/);
-                    if (!m) break;
-                    s = m[1];
-                    if (s) out.push(s);
-                    else break;
-                }
-                return out;
-            }
-
-            aiEdges.forEach((e) => {
-                let src = e.source;
-                let tgt = e.target;
-
-                // if they are already node ids, accept
-                const srcIsNode = nodeIdSet.has(src);
-                const tgtIsNode = nodeIdSet.has(tgt);
-
-                let resolvedSrc = srcIsNode ? src : null;
-                let resolvedTgt = tgtIsNode ? tgt : null;
-
-                // If source/target look like Codes (not node ids), try mapping via codeToNodeId
-                if (!resolvedSrc) {
-                    const maybeCode = String(src ?? '').trim();
-                    if (codeToNodeId.has(maybeCode)) resolvedSrc = codeToNodeId.get(maybeCode);
-                    else if (ALLOW_STRIP_INSTANCE_SUFFIX && /^\d+$/.test(maybeCode)) {
-                        // optional attempt: strip trailing groups
-                        const cands = stripTrailingTwoDigitsCandidates(maybeCode);
-                        for (const c of cands) {
-                            if (codeToNodeId.has(c)) {
-                                resolvedSrc = codeToNodeId.get(c);
-                                console.debug(`Resolved src ${maybeCode} -> base ${c}`);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!resolvedTgt) {
-                    const maybeCode = String(tgt ?? '').trim();
-                    if (codeToNodeId.has(maybeCode)) resolvedTgt = codeToNodeId.get(maybeCode);
-                    else if (ALLOW_STRIP_INSTANCE_SUFFIX && /^\d+$/.test(maybeCode)) {
-                        const cands = stripTrailingTwoDigitsCandidates(maybeCode);
-                        for (const c of cands) {
-                            if (codeToNodeId.has(c)) {
-                                resolvedTgt = codeToNodeId.get(c);
-                                console.debug(`Resolved tgt ${maybeCode} -> base ${c}`);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (resolvedSrc && resolvedTgt) {
-                    // create normalized edge (keep original style/animated if present)
-                    finalEdges.push({
-                        id: e.id ?? `edge-${resolvedSrc}-${resolvedTgt}`,
-                        source: resolvedSrc,
-                        target: resolvedTgt,
-                        type: e.type ?? 'smoothstep',
-                        animated: e.animated ?? true,
-                        style: e.style ?? { stroke: '#888', strokeWidth: 2 },
-                    });
-                } else {
-                    unresolvedEdges.push({ original: e, resolvedSrc, resolvedTgt });
-                }
-            });
-
-            // 8) Debug output: show unresolved edges (if any)
-            if (unresolvedEdges.length > 0) {
-                console.group('%cUnresolved edges (could not map source/target to node ids)', 'color: #d44; font-weight: bold');
-                unresolvedEdges.forEach((ue, idx) => {
-                    console.warn(`#${idx}`, ue);
-                });
-                console.groupEnd();
-
-                // push user-visible chat messages for each unresolved connection
-                if (typeof setChatMessages === 'function') {
-                    const unresolvedMsgs = unresolvedEdges.map((ue) => {
-                        const s = ue.original?.source ?? '?';
-                        const t = ue.original?.target ?? '?';
-                        return { sender: 'AI', message: `⚠️ Could not resolve connection: ${s} → ${t}` };
-                    });
-                    setChatMessages((prev) => [...prev, ...unresolvedMsgs]);
-                }
-            }
-
-            // 9) If there are no finalEdges but existingEdges exist, you may want to merge them - but here we'll prefer AI edges when present
-            //    Merge unique edges (avoid duplicates)
-            const mergedEdgeKey = (edge) => `${edge.source}>>${edge.target}`;
-            const existingEdgeMap = new Map();
-            edges.forEach((ed) => existingEdgeMap.set(mergedEdgeKey(ed), ed));
-
-            finalEdges.forEach((ed) => existingEdgeMap.set(mergedEdgeKey(ed), ed));
-
-            const mergedEdges = [...existingEdgeMap.values()];
-
-            // 10) Update items list (dedupe by Code)
-            setItems((prevItems) => {
-                const map = new Map();
-                // existing items keyed by Code (fallback to id if no code)
-                prevItems.forEach((it) => {
-                    const code = String(it.Code ?? it['Item Code'] ?? it.id ?? '').trim() || `no_code:${it.id ?? Math.random()}`;
-                    map.set(code, it);
-                });
-
-                // incoming items from aiNodes
-                const incoming = aiNodes.map((n) => n.data?.item).filter(Boolean);
-                incoming.forEach((it) => {
-                    const code = String(it.Code ?? it['Item Code'] ?? '').trim() || `no_code:${it.id ?? Math.random()}`;
-                    if (!map.has(code)) {
-                        map.set(code, it);
-                    } else {
-                        // merge: preserve existing but update missing fields from incoming
-                        const existing = map.get(code);
-                        map.set(code, { ...existing, ...it });
-                    }
-                });
-
-                const merged = [...map.values()];
-                // select first incoming item if any were added
-                if (incoming.length > 0 && typeof setSelectedItem === 'function') {
-                    setSelectedItem(incoming[0]);
-                }
-                return merged;
-            });
-
-            // 11) Set nodes and edges into state
-            setNodes(mergedNodes);
-            setEdges(mergedEdges);
-
-            // 12) Final debug prints for verification
-            console.group('%cPost-merge verification', 'color: #0a8; font-weight: bold');
-            console.table(mergedNodes.map((n) => ({ id: n.id, code: n.data?.item?.Code, name: n.data?.item?.Name })));
-            console.table(mergedEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })));
-            console.groupEnd();
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
     };
+
 
 
     useEffect(() => {
