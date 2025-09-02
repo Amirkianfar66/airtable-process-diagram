@@ -26,6 +26,7 @@ export const nodeTypes = {
     pipe: PipeItemNode,
     scalableIcon: ScalableIconNode,
     groupLabel: GroupLabelNode,
+    inlineValve: InlineValveIcon,
 };
 
 export const fetchData = async () => {
@@ -105,48 +106,58 @@ export default function ProcessDiagram() {
         },
         [edges, nodes]
     );
-    const onEdgeClick = useCallback(
-        (event, edge) => {
-            event.stopPropagation();
+    const onEdgeClick = useCallback((event, edge) => {
+        event.stopPropagation();
 
-            const newNode = {
-                id: `valve-${+new Date()}`,
-                type: 'default', // later we’ll use your IconManager to show a valve icon
-                position: {
-                    x: (event.clientX - 200), // rough positioning, can refine
-                    y: (event.clientY - 100),
-                },
-                data: { label: 'Valve' },
-            };
+        const newValveItem = {
+            id: `valve-${Date.now()}`,
+            Name: 'Valve',
+            Code: 'IV-001',
+            Category: 'Inline Valve',
+            Type: 'Inline Valve',
+        };
 
-            setNodes((nds) => nds.concat(newNode));
+        const newValveNode = {
+            id: newValveItem.id,
+            type: 'inlineValve', // ✅ use the node type for your valve
+            position: {
+                x: (event.clientX - 200),
+                y: (event.clientY - 100),
+            },
+            data: {
+                label: newValveItem.Name,
+                item: newValveItem,
+                icon: getItemIcon(newValveItem, { width: 40, height: 40 }),
+            },
+        };
 
-            // Disconnect edge → reconnect with valve node in the middle
-            setEdges((eds) =>
-                eds
-                    .filter((e) => e.id !== edge.id)
-                    .concat([
-                        {
-                            id: `${edge.source}-${newNode.id}`,
-                            source: edge.source,
-                            target: newNode.id,
-                            type: 'step',
-                            animated: true,
-                            style: { stroke: 'blue', strokeWidth: 2 },
-                        },
-                        {
-                            id: `${newNode.id}-${edge.target}`,
-                            source: newNode.id,
-                            target: edge.target,
-                            type: 'step',
-                            animated: true,
-                            style: { stroke: 'blue', strokeWidth: 2 },
-                        },
-                    ])
-            );
-        },
-        []
-    );
+        setNodes(nds => [...nds, newValveNode]);
+
+        // Split the edge through the valve node
+        setEdges(eds =>
+            eds
+                .filter(e => e.id !== edge.id)
+                .concat([
+                    {
+                        id: `${edge.source}-${newValveNode.id}`,
+                        source: edge.source,
+                        target: newValveNode.id,
+                        type: 'step',
+                        animated: true,
+                        style: { stroke: 'blue', strokeWidth: 2 },
+                    },
+                    {
+                        id: `${newValveNode.id}-${edge.target}`,
+                        source: newValveNode.id,
+                        target: edge.target,
+                        type: 'step',
+                        animated: true,
+                        style: { stroke: 'blue', strokeWidth: 2 },
+                    },
+                ])
+        );
+    }, [setNodes, setEdges]);
+
 
 
     // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
