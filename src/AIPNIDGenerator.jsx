@@ -139,6 +139,15 @@ export default async function AIPNIDGenerator(
     const expandedItems = [];
     parsedItems.forEach((p) => {
         const qty = Math.max(1, parseInt(p?.Number ?? 1, 10));
+
+        // ✅ Chat feedback about quantity
+        if (qty > 1) {
+            allMessages.push({
+                sender: 'AI',
+                message: `I understood that you want ${qty} items of type "${p.Name || p.Type || 'Item'}".`
+            });
+        }
+
         for (let i = 0; i < qty; i++) {
             expandedItems.push({
                 ...p,
@@ -236,6 +245,8 @@ export default async function AIPNIDGenerator(
     // Use parser connections if available
     // --------------------------
     if (Array.isArray(parserConnections) && parserConnections.length > 0) {
+        allMessages.push({ sender: 'AI', message: `I understood the following connections:` });
+
         parserConnections.forEach((c) => {
             const fromRef = resolveCodeOrName(c.from || c.source || c.fromCode || c.fromName);
             const toRef = resolveCodeOrName(c.to || c.target || c.toCode || c.toName);
@@ -245,7 +256,10 @@ export default async function AIPNIDGenerator(
 
             if (srcId && tgtId) {
                 const added = addEdgeByNodeIds(srcId, tgtId);
-                if (added) allMessages.push({ sender: 'AI', message: `→ Connected ${c.from} → ${c.to}` });
+                if (added) {
+                    const msg = `${c.from} → ${c.to}`;
+                    allMessages.push({ sender: 'AI', message: msg });
+                }
             }
         });
     }
@@ -261,7 +275,9 @@ export default async function AIPNIDGenerator(
                 const tgtId = codeToNodeId.get(String(targetCode));
                 if (srcId && tgtId) {
                     const added = addEdgeByNodeIds(srcId, tgtId);
-                    if (added) allMessages.push({ sender: 'AI', message: `→ Connected ${item.Code} → ${targetCode}` });
+                    if (added) {
+                        allMessages.push({ sender: 'AI', message: `→ Connected ${item.Code} → ${targetCode}` });
+                    }
                 }
             });
         });
@@ -277,7 +293,8 @@ export default async function AIPNIDGenerator(
         allMessages.push({ sender: 'AI', message: `→ Auto-connected ${newNodes.length} nodes.` });
     }
 
-    allMessages.push({ sender: 'AI', message: `→ Generated ${newNodes.length} item(s)` });
+    // ✅ Summary
+    allMessages.push({ sender: 'AI', message: `→ Generated ${newNodes.length} item(s) and ${newEdges.length - existingEdges.length} connection(s).` });
 
     if (typeof setChatMessages === 'function') {
         setChatMessages((prev) => [...prev, ...allMessages]);
