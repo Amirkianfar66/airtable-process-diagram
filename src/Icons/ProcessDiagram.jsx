@@ -91,7 +91,7 @@ export default function ProcessDiagram() {
                     ...params,
                     type: 'step',
                     animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2, cursor: 'pointer' },
+                    style: { stroke: 'blue', strokeWidth: 8, cursor: 'pointer', pointerEvents: 'all' },
                     interactionWidth: 20,   // 👈 extra clickable padding around the edge
                 },
                 edges

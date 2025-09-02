@@ -32,6 +32,7 @@ export default function DiagramCanvas({
     onNodeDrag, // <- new prop
     onNodeDragStop, // <- new prop
 }) {
+    console.log("DiagramCanvas onEdgeClick:", onEdgeClick);
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Main toolbar */}
@@ -58,6 +59,7 @@ export default function DiagramCanvas({
                     <ChatBox messages={chatMessages} />
                 </div>
             </div>
+           
 
             <div style={{ flex: 1 }}>
                 <ReactFlow
