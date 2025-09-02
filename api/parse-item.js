@@ -198,38 +198,37 @@ User Input: """${trimmed}"""
 
             // --- AFTER rawItems is built and filtered ---
             // Normalize single item -> itemsArray skeleton (one entry per raw item)
+            // 1️⃣ Parse items normally
             let itemsArray = rawItems.map((item, idx) => ({
-                mode: 'structured',
-                // prefer Name, else Type, else Item{n}
-                Name: (item.Name || item.name || item.Type || item.type || `Item${idx + 1}`).toString().trim(),
-                Category: item.Category || item.category || 'Equipment',
-                Type: item.Type || item.type || 'Generic',
-                Unit: item.Unit !== undefined ? parseInt(item.Unit, 10) : inputUnit || 0,
-                SubUnit: item.SubUnit !== undefined ? parseInt(item.SubUnit, 10) : 0,
-                Sequence: item.Sequence !== undefined ? parseInt(item.Sequence, 10) : null,
-                Number: item.Number !== undefined ? Math.max(1, parseInt(item.Number, 10)) : 1,
-                SensorType: item.SensorType || item.sensorType || '',
-                Explanation: item.Explanation || item.explanation || `Added ${item.Type || 'item'}`,
-                Connections: Array.isArray(item.Connections) ? [...item.Connections] : [],
+                ...item,
+                Number: 1,           // ✅ ignore AI's Number
             }));
 
-            // --- EXPAND items BY their Number field ---
-            {
-                const expanded = [];
-                let globalSeq = 1;
-                for (const it of itemsArray) {
-                    const qty = Math.max(1, it.Number || 1);
-                    for (let k = 0; k < qty; k++) {
-                        const clone = { ...it };
-                        clone.Sequence = globalSeq; // unique
-                        clone.Name = qty > 1 ? `${it.Name}_${k + 1}` : it.Name;
-                        clone.Number = 1; // each clone represents a single item now
-                        expanded.push(clone);
-                        globalSeq++;
-                    }
-                }
-                itemsArray = expanded;
+            // 2️⃣ Determine counts from user input
+            const userCounts = {};
+            const matches = trimmed.matchAll(/\b(\d+)\s+(\w+)/gi);
+            for (const match of matches) {
+                const count = parseInt(match[1], 10);
+                const type = match[2].trim().toLowerCase();
+                userCounts[type] = count;
             }
+
+            // 3️⃣ Expand items strictly according to userCounts
+            const expanded = [];
+            let globalSeq = 1;
+            itemsArray.forEach((it) => {
+                const count = userCounts[it.Type.toLowerCase()] || 1;
+                for (let i = 0; i < count; i++) {
+                    const clone = { ...it };
+                    clone.Sequence = globalSeq;
+                    clone.Name = count > 1 ? `${it.Type}_${i + 1}` : it.Type;
+                    clone.Number = 1;
+                    expanded.push(clone);
+                    globalSeq++;
+                }
+            });
+            itemsArray = expanded;
+
 
             // --- ENSURE sequences are contiguous & deterministic ---
             itemsArray = itemsArray.map((it, idx) => ({ ...it, Sequence: idx + 1 }));
