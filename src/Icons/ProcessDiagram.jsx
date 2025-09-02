@@ -106,57 +106,10 @@ export default function ProcessDiagram() {
         },
         [edges, nodes]
     );
-    const onEdgeClick = useCallback((event, edge) => {
+    const onEdgeClick = (event, edge) => {
         event.stopPropagation();
-
-        const newValveItem = {
-            id: `valve-${Date.now()}`,
-            Name: 'Valve',
-            Code: 'IV-001',
-            Category: 'Inline Valve',
-            Type: 'Inline Valve',
-        };
-
-        const newValveNode = {
-            id: newValveItem.id,
-            type: 'inlineValve', // ✅ use the node type for your valve
-            position: {
-                x: (event.clientX - 200),
-                y: (event.clientY - 100),
-            },
-            data: {
-                label: newValveItem.Name,
-                item: newValveItem,
-                icon: getItemIcon(newValveItem, { width: 40, height: 40 }),
-            },
-        };
-
-        setNodes(nds => [...nds, newValveNode]);
-
-        // Split the edge through the valve node
-        setEdges(eds =>
-            eds
-                .filter(e => e.id !== edge.id)
-                .concat([
-                    {
-                        id: `${edge.source}-${newValveNode.id}`,
-                        source: edge.source,
-                        target: newValveNode.id,
-                        type: 'step',
-                        animated: true,
-                        style: { stroke: 'blue', strokeWidth: 2 },
-                    },
-                    {
-                        id: `${newValveNode.id}-${edge.target}`,
-                        source: newValveNode.id,
-                        target: edge.target,
-                        type: 'step',
-                        animated: true,
-                        style: { stroke: 'blue', strokeWidth: 2 },
-                    },
-                ])
-        );
-    }, [setNodes, setEdges]);
+        alert(`Edge clicked: ${edge.id}`);
+    };
 
 
 
