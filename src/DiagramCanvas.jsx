@@ -3,7 +3,7 @@ import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
-import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
+import { getItemIcon, categoryTypeMap } from "./IconManager";
 import InlineValveIcon from "./Icons/InlineValveIcon";
 import ScalableIconNode from './ScalableIconNode';
 
@@ -27,7 +27,6 @@ export default function DiagramCanvas({
     onSelectionChange,
     onEdgeClick, // optional parent handler
     onEdgeSelect, // optional callback to keep parent in sync
-    nodeTypes,
     AddItemButton,
     aiDescription,
     setAiDescription,
@@ -121,36 +120,36 @@ export default function DiagramCanvas({
     };
 
     const changeEdgeCategory = (category) => {
-        if (!selectedEdge || category !== "InlineValve") return;
+        if (!selectedEdge || category !== "Inline Valve") return;
 
         // 1. Find source and target nodes
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
         if (!sourceNode || !targetNode) return;
 
-        // 2. Calculate midpoint for the new node
+        // 2. Calculate midpoint for new node
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-        // 3. Create InlineValve item
+        // 3. Create Inline Valve item
         const newItem = {
             id: `valve-${Date.now()}`,
             Code: "VALVE001",
             Name: "Inline Valve",
-            Category: "InlineValve",
+            Category: "Inline Valve", // must match categoryTypeMap & CATEGORY_COMPONENTS
             Type: "Valve",
         };
 
-        // 4. Create node with scalableIcon wrapper so handles are included
+        // 4. Create node with scalableIcon wrapper
         const newNode = {
             id: newItem.id,
             position: { x: midX, y: midY },
             data: {
                 label: `${newItem.Code} - ${newItem.Name}`,
                 item: newItem,
-                icon: getItemIcon(newItem), // renders your InlineValve SVG
+                icon: getItemIcon(newItem), // InlineValveIcon renders
             },
-            type: categoryTypeMap[newItem.Category] || "scalableIcon", // ensures handles
+            type: categoryTypeMap[newItem.Category] || "scalableIcon",
             sourcePosition: "right",
             targetPosition: "left",
             style: { background: "transparent" },
@@ -173,7 +172,7 @@ export default function DiagramCanvas({
                 style: { stroke: selectedEdge?.style?.stroke || "#000" },
             },
         ]);
-    }; // <-- FIX: close changeEdgeCategory
+
 
     const handleCloseInspector = () => {
         setSelectedEdge(null);
@@ -211,7 +210,8 @@ export default function DiagramCanvas({
     // color preset swatches
     const colorPresets = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
 
-    const edgeCategories = ['None', 'InlineValve'];
+        const edgeCategories = ['None', 'Inline Valve'];
+
 
 
     return (
