@@ -180,8 +180,25 @@ export default function ProcessDiagram() {
                 return updatedItems;
             });
 
-            setNodes(aiNodes);
-            setEdges(aiEdges);
+            // ✅ Merge nodes
+            setNodes(prevNodes => {
+                const existingIds = new Set(prevNodes.map(n => n.id));
+                const merged = [
+                    ...prevNodes,
+                    ...aiNodes.filter(n => !existingIds.has(n.id)),
+                ];
+                return merged;
+            });
+
+            // ✅ Merge edges
+            setEdges(prevEdges => {
+                const existingIds = new Set(prevEdges.map(e => e.id));
+                const merged = [
+                    ...prevEdges,
+                    ...aiEdges.filter(e => !existingIds.has(e.id)),
+                ];
+                return merged;
+            });
 
         } catch (err) {
             console.error('AI PNID generation failed:', err);
