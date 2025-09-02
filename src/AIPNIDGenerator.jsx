@@ -495,15 +495,50 @@ export default async function AIPNIDGenerator(
     if (Array.isArray(parserConnections) && parserConnections.length > 0) {
         allMessages.push({ sender: 'AI', message: `I understood the following connections:` });
 
+        // Build a small helper map that maps base name/type -> first new node id (prefer new nodes)
+        const baseNameToFirstNewNodeId = new Map();
+        newNodes.forEach(n => {
+            const it = n?.data?.item || {};
+            const key = (it.Name || it.Type || '').toString().trim().toLowerCase();
+            if (!key) return;
+            if (!baseNameToFirstNewNodeId.has(key)) baseNameToFirstNewNodeId.set(key, n.id);
+        });
+
         parserConnections.forEach((c) => {
             const rawFrom = (c.from ?? c.source ?? c.fromName ?? c.fromCode ?? '').toString().trim();
             const rawTo = (c.to ?? c.target ?? c.toName ?? c.toCode ?? '').toString().trim();
 
-            const fromCode = resolveCodeOrNameToCode(rawFrom); // canonical code (e.g. "1101")
+            // try to resolve to canonical code first (if parser gave actual codes)
+            const fromCode = resolveCodeOrNameToCode(rawFrom);
             const toCode = resolveCodeOrNameToCode(rawTo);
 
-            const srcId = fromCode ? codeToNodeId.get(fromCode) : getNodeIdForRef(rawFrom);
-            const tgtId = toCode ? codeToNodeId.get(toCode) : getNodeIdForRef(rawTo);
+            // Prefer direct code -> nodeId mapping
+            let srcId = fromCode ? codeToNodeId.get(fromCode) : null;
+            let tgtId = toCode ? codeToNodeId.get(toCode) : null;
+
+            // fallback to node id resolvers
+            if (!srcId) srcId = getNodeIdForRef(rawFrom);
+            if (!tgtId) tgtId = getNodeIdForRef(rawTo);
+
+            // IMPORTANT FIX: if still unresolved and parser used base names (e.g. "Tank" -> "Pump"),
+            // prefer any newly-created node with that base name (so Draw 2 Tank + Connect Tank -> Pump resolves to those new nodes)
+            if (!srcId) {
+                const k = rawFrom.toLowerCase();
+                if (baseNameToFirstNewNodeId.has(k)) srcId = baseNameToFirstNewNodeId.get(k);
+                else {
+                    // also try nth=1 fallback
+                    const nth = getNthNodeIdForBaseName(rawFrom, 1);
+                    if (nth) srcId = nth;
+                }
+            }
+            if (!tgtId) {
+                const k = rawTo.toLowerCase();
+                if (baseNameToFirstNewNodeId.has(k)) tgtId = baseNameToFirstNewNodeId.get(k);
+                else {
+                    const nth = getNthNodeIdForBaseName(rawTo, 1);
+                    if (nth) tgtId = nth;
+                }
+            }
 
             if (srcId && tgtId) {
                 const added = addEdgeSafely(srcId, tgtId);
