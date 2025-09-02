@@ -370,6 +370,7 @@ export default function ProcessDiagram() {
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
+                    onEdgeClick={onEdgeClick}
                     nodeTypes={nodeTypes}
                     AddItemButton={(props) => (
                         <AddItemButton {...props} addItem={handleAddItem} />
@@ -379,7 +380,7 @@ export default function ProcessDiagram() {
                     deleteNode={deleteNode}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
-                    onEdgeClick={onEdgeClick}
+                    
                 />
             </div>
 
