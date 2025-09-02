@@ -34,7 +34,6 @@ export async function parseItemLogic(description) {
     const trimmed = description.trim();
 
     // --- Action command check ---
-    const ACTION_COMMANDS = ['Generate PNID', 'Export', 'Clear', 'Save'];
     const actionMatch = ACTION_COMMANDS.find(cmd => cmd.toLowerCase() === trimmed.toLowerCase());
     if (actionMatch) {
         return {
