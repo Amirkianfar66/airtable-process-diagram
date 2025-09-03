@@ -131,15 +131,16 @@ export default function ProcessDiagram() {
         (params) => {
             const newEdge = {
                 ...params,
-                id: `edge-${params.source}-${params.target}-${nanoid(6)}`, // unique every time
-                type: 'smoothstep', // more reliable
+                id: `edge-${params.source}-${params.target}-${nanoid(6)}`,
+                type: 'smoothstep',
                 animated: true,
                 style: { stroke: 'blue', strokeWidth: 2 },
             };
 
+            // Use functional update to avoid stale closure
             setEdges((eds) => addEdge(newEdge, eds));
 
-            // Sync into items if needed
+            // Optionally sync into items safely
             setItems((prev) =>
                 prev.map((it) => {
                     if (it.id === params.source || it.id === params.target) {
@@ -149,13 +150,20 @@ export default function ProcessDiagram() {
                 })
             );
 
-            // Save layout after a slight delay to ensure nodes exist
+            // Save layout (also use functional updates if needed)
             setTimeout(() => {
-                localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: [...edges, newEdge] }));
+                setEdges((eds) => {
+                    localStorage.setItem(
+                        'diagram-layout',
+                        JSON.stringify({ nodes: nodes, edges: [...eds, newEdge] })
+                    );
+                    return eds;
+                });
             }, 50);
         },
-        [edges, nodes]
+        [nodes] // remove `edges` from dependencies
     );
+
 
 
     // When a group node is moved, shift its children by the same delta (live while dragging)

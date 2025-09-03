@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
+import { nanoid } from 'nanoid';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
