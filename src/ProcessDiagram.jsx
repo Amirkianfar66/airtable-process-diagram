@@ -399,14 +399,17 @@ export default function ProcessDiagram() {
 
         setNodes((nds) => [...nds, newNode]);
 
-        // --- generate edges from Connections ---
+        // --- ✅ generate edges from Connections immediately ---
+        let generatedEdges = [];
         if (normalizedItem.Connections.length) {
-            const newEdges = normalizedItem.Connections.map((conn) => {
-                const fromNode = normalizedItem.id;
+            generatedEdges = normalizedItem.Connections.map((conn) => {
+                const fromNode = normalizedItem.id; // this node
                 const targetNode = nodes.find((n) => n.data?.item?.Name === conn.to);
                 if (!targetNode) return null;
 
                 const edgeId = `edge-${fromNode}-${targetNode.id}`;
+
+                // 🔑 sync edge info into the item
                 normalizedItem.edgeId = edgeId;
                 normalizedItem.from = fromNode;
                 normalizedItem.to = targetNode.id;
@@ -419,15 +422,15 @@ export default function ProcessDiagram() {
                     animated: true,
                     style: { stroke: '#888', strokeWidth: 2 },
                 };
-            }).filter(e => e != null);
+            }).filter((e) => e != null);
 
-            setEdges((eds) => [...eds, ...newEdges]);
+            setEdges((eds) => [...eds, ...generatedEdges]);
         }
 
-        // Add item after edges
+        // 🔑 Add item AFTER edges are resolved
         setItems((prev) => [...prev, normalizedItem]);
 
-        // Auto-select new node
+        // Auto-select new node so ItemDetailCard opens
         setSelectedNodes([newNode]);
         setSelectedItem(normalizedItem);
     };
