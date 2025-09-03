@@ -131,31 +131,28 @@ export default function ProcessDiagram() {
         (params) => {
             const newEdge = {
                 ...params,
-                type: 'step',
+                id: `edge-${params.source}-${params.target}-${nanoid(6)}`, // unique every time
+                type: 'smoothstep', // more reliable
                 animated: true,
                 style: { stroke: 'blue', strokeWidth: 2 },
-                id: `edge-${params.source}-${params.target}-${nanoid(6)}`, // ✅ unique
             };
 
             setEdges((eds) => addEdge(newEdge, eds));
 
-            // Sync into items (so ItemDetailCard can read edgeId/from/to)
+            // Sync into items if needed
             setItems((prev) =>
                 prev.map((it) => {
-                    if (it.id === params.source) {
-                        return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
-                    }
-                    if (it.id === params.target) {
+                    if (it.id === params.source || it.id === params.target) {
                         return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
                     }
                     return it;
                 })
             );
 
-            localStorage.setItem(
-                'diagram-layout',
-                JSON.stringify({ nodes, edges: [...edges, newEdge] })
-            );
+            // Save layout after a slight delay to ensure nodes exist
+            setTimeout(() => {
+                localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: [...edges, newEdge] }));
+            }, 50);
         },
         [edges, nodes]
     );
