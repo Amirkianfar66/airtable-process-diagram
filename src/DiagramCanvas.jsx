@@ -105,7 +105,7 @@ export default function DiagramCanvas({
                 item: newItem,
                 icon: getItemIcon(newItem),
             },
-            type: "scalableIcon", // <-- force scalableIcon here
+            type: "ScalableIcon", // <-- force scalableIcon here
             sourcePosition: "right",
             targetPosition: "left",
             style: { background: "transparent" },
