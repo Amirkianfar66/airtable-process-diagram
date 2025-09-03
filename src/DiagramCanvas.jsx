@@ -81,18 +81,7 @@ export default function DiagramCanvas({
         updateSelectedEdge({ style: newStyle });
     };
 
-    // inside DiagramCanvas props list add these (if not present):
-    // setItems, setSelectedItem
-
-    // --- hoisted function declaration (always available) ---
-    function handleCloseInspector() {
-        setSelectedEdge(null);
-        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
-    }
-
-    // --- changeEdgeCategory (uses handleCloseInspector safely) ---
     const changeEdgeCategory = (category) => {
-        // only act for Inline Valve selection
         if (!selectedEdge || category !== "Inline Valve") return;
 
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
@@ -108,12 +97,12 @@ export default function DiagramCanvas({
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
-            Type: [], // ItemDetailCard expects arrays
+            Type: [],
             Unit: sourceNode.data?.item?.Unit || "",
             SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
-            edgeId: selectedEdge.id,
+            edgeId: selectedEdge.id, // track the parent edge
         };
 
         const newNode = {
@@ -130,53 +119,30 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        // Add node (avoid duplicates)
-        setNodes((nds) => {
-            if (nds.some((n) => n.id === newNode.id)) return nds;
-            return [...nds, newNode];
-        });
+        setNodes((nds) => [...nds, newNode]);
 
-        // Add to items list in parent (if function provided)
-        if (typeof setItems === "function") {
-            setItems((prev) => {
-                if (prev.some((it) => it.id === newItem.id)) return prev;
-                return [...prev, newItem];
-            });
-        }
-
-        // Replace original edge with two edges that go through valve
-        setEdges((eds) => {
-            const filtered = eds.filter((e) => e.id !== selectedEdge.id);
-            return [
-                ...filtered,
-                {
-                    id: `${selectedEdge.source}-${newNode.id}`,
-                    source: selectedEdge.source,
-                    target: newNode.id,
-                    style: { stroke: selectedEdge?.style?.stroke || "#000" },
-                },
-                {
-                    id: `${newNode.id}-${selectedEdge.target}`,
-                    source: newNode.id,
-                    target: targetNode.id,
-                    style: { stroke: selectedEdge?.style?.stroke || "#000" },
-                },
-            ];
-        });
-
-        // Tell parent to show ItemDetailCard immediately
-        if (typeof setSelectedItem === "function") {
-            setSelectedItem(newItem);
-        }
-        if (typeof onSelectionChange === "function") {
-            // parent expects an object like { nodes: [...] }
-            onSelectionChange({ nodes: [{ id: newNode.id }] });
-        }
-
-        // close inspector (safe: function declaration exists)
-        handleCloseInspector();
+        setEdges((eds) => [
+            ...eds.filter((e) => e.id !== selectedEdge.id),
+            {
+                id: `${selectedEdge.source}-${newNode.id}`,
+                source: selectedEdge.source,
+                target: newNode.id,
+                style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            },
+            {
+                id: `${newNode.id}-${selectedEdge.target}`,
+                source: newNode.id,
+                target: targetNode.id,
+                style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            },
+        ]);
     };
 
+
+    const handleCloseInspector = () => {
+        setSelectedEdge(null);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+    };
 
     useEffect(() => {
         if (!selectedEdge) return;
