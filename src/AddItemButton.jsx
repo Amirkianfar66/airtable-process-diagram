@@ -1,9 +1,14 @@
-﻿// ===================== File: src/components/AddItemButton.jsx =====================
+﻿// src/components/AddItemButton.jsx
 import React from 'react';
 
 export default function AddItemButton({ addItem }) {
     const handleAdd = () => {
-        // call parent handler which normalizes fields and auto-selects
+        console.log('[AddItemButton] clicked. addItem prop:', addItem);
+        if (typeof addItem !== 'function') {
+            console.error('[AddItemButton] addItem is not a function - cannot add item');
+            return;
+        }
+
         addItem({
             Name: 'New Item',
             'Item Code': `CODE-${Date.now()}`,

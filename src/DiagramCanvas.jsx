@@ -165,7 +165,7 @@ export default function DiagramCanvas({
             />
 
             <div style={{ padding: 10 }}>
-                {AddItemButton && <AddItemButton setNodes={setNodes} setEdges={setEdges} />}
+                {AddItemButton && <AddItemButton />}
             </div>
 
             <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
