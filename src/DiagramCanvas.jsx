@@ -89,16 +89,16 @@ export default function DiagramCanvas({
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-        // Match schema used everywhere else (ItemDetailCard etc.)
+        // Must match ItemDetailCard schema
         const newItem = {
             id: `valve-${Date.now()}`,
             "Item Code": "VALVE001",
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
-            Type: [],      // empty array (not string) so dropdowns/logic won’t break
-            Unit: "",
-            SubUnit: "",
+            Type: [],         // keep as array, not string
+            Unit: sourceNode.data?.item?.Unit || "",
+            SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
         };
@@ -109,9 +109,9 @@ export default function DiagramCanvas({
             data: {
                 label: `${newItem["Item Code"]} - ${newItem.Name}`,
                 item: newItem,
-                icon: getItemIcon(newItem),
+                icon: getItemIcon(newItem), // important for SVG rendering
             },
-            type: "scalableIcon",  // always use scalableIcon
+            type: "scalableIcon",
             sourcePosition: "right",
             targetPosition: "left",
             style: { background: "transparent" },
