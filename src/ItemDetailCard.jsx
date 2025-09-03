@@ -5,7 +5,7 @@ const typeCache = new Map();
 /**
  * ItemDetailCard (default export)
  */
-export default function ItemDetailCard({ item, onChange, items = [], edges = [] }) {
+export default function ItemDetailCard({ item, onChange, items = [], edges = [], onDeleteEdge }) {
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);

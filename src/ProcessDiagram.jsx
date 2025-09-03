@@ -197,6 +197,52 @@ export default function ProcessDiagram() {
             )
         );
     }, []);
+    // --- Add in ProcessDiagram.jsx near other callbacks ---
+    const handleEdgeSelect = useCallback(
+        (edge) => {
+            if (!edge) {
+                setSelectedItem(null);
+                return;
+            }
+
+            // Try to find linked items in items[]
+            const fromItem = items.find(it => it.id === edge.source) || null;
+            const toItem = items.find(it => it.id === edge.target) || null;
+
+            // Build a lightweight item-like object for ItemDetailCard
+            const edgeAsItem = {
+                id: edge.id,
+                Name: 'Edge inspector',
+                'Item Code': edge.id,
+                edgeId: edge.id,
+                from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
+                to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+                // try to approximate mid position if source/target nodes have positions
+                x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
+                y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
+                // keep original edge for reference (optional)
+                _edge: edge,
+            };
+
+            setSelectedItem(edgeAsItem);
+        },
+        [items, setSelectedItem]
+    );
+
+    // Delete edge (used by ItemDetailCard delete button)
+    const handleDeleteEdge = useCallback((edgeId) => {
+        if (!edgeId) return;
+        if (!window.confirm('Delete this edge?')) return;
+
+        // remove edge
+        setEdges((eds) => eds.filter(e => e.id !== edgeId));
+
+        // remove any inline valve node that references this edge (if you create valve nodes with item.edgeId)
+        setNodes((nds) => nds.filter(n => !(n?.data?.item?.edgeId && n.data.item.edgeId === edgeId)));
+
+        // clear selected item if it was the edge
+        setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
+    }, [setEdges, setNodes, setSelectedItem]);
 
 
 
@@ -447,6 +493,9 @@ export default function ProcessDiagram() {
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
+                    nodeTypes={nodeTypes}
+                    onEdgeSelect={handleEdgeSelect}           // <--- add this
+                    showInlineEdgeInspector={false}           // <--- hide inline inspector
                     nodeTypes={nodeTypes}
                     AddItemButton={(props) => (
                         <AddItemButton {...props} addItem={handleAddItem} />
