@@ -10,7 +10,7 @@ export const categoryTypeMap = {
     Pipe: "pipe",
     Equipment: "scalableIcon",
     Instrument: "scalableIcon",
-    "Inline Valve": "inlineValve",
+    "Inline Valve": "scalableIcon",
     Electrical: "scalableIcon",
 };
 
