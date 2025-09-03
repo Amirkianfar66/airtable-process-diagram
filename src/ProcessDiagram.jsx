@@ -70,29 +70,61 @@ export default function ProcessDiagram() {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
 
+    // Replace your existing onSelectionChange with this
     const onSelectionChange = useCallback(
         ({ nodes: selNodes, edges: selEdges }) => {
-            setSelectedNodes(selNodes);
+            setSelectedNodes(selNodes || []);
 
-            if (selNodes.length === 1) {
-                const nodeData = items.find((item) => item.id === selNodes[0].id);
-                setSelectedItem(nodeData || null);
-            } else if (selEdges.length === 1) {
-                // ✅ find valve(s) attached to this edge
-                const edgeValves = items.filter((item) => item.edgeId === selEdges[0].id);
-                if (edgeValves.length === 1) {
-                    setSelectedItem(edgeValves[0]);
-                } else if (edgeValves.length > 1) {
-                    // you could later allow multiple selection, but for now pick the first
-                    setSelectedItem(edgeValves[0]);
-                } else {
-                    setSelectedItem(null);
+            // --- Single node selected ---
+            if (Array.isArray(selNodes) && selNodes.length === 1) {
+                const selNode = selNodes[0];
+
+                // Prefer authoritative item stored in items[] (keeps data consistent)
+                const itemFromItems = items.find((it) => it.id === selNode.id);
+                if (itemFromItems) {
+                    setSelectedItem(itemFromItems);
+                    return;
                 }
-            } else {
+
+                // Fallback to node.data.item (useful for newly created valve nodes)
+                if (selNode?.data?.item) {
+                    setSelectedItem(selNode.data.item);
+                    return;
+                }
+
+                // Nothing found for this node
                 setSelectedItem(null);
+                return;
             }
+
+            // --- Single edge selected: try to surface an inline valve attached to that edge ---
+            if (Array.isArray(selEdges) && selEdges.length === 1) {
+                const edge = selEdges[0];
+
+                // 1) Look for valve items in items[] that reference edgeId
+                const edgeValves = items.filter((it) => it.edgeId === edge.id);
+                if (edgeValves.length > 0) {
+                    // If multiple valves found, pick the first for now
+                    setSelectedItem(edgeValves[0]);
+                    return;
+                }
+
+                // 2) Fallback: maybe there's a valve node present whose data.item.edgeId === edge.id
+                const valveNode = nodes.find((n) => n?.data?.item?.edgeId === edge.id);
+                if (valveNode?.data?.item) {
+                    setSelectedItem(valveNode.data.item);
+                    return;
+                }
+
+                // nothing connected to this edge
+                setSelectedItem(null);
+                return;
+            }
+
+            // --- Multiple selection or nothing selected ---
+            setSelectedItem(null);
         },
-        [items]
+        [items, nodes]
     );
 
 

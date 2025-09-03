@@ -136,12 +136,21 @@ export default function DiagramCanvas({
                 style: { stroke: selectedEdge?.style?.stroke || "#000" },
             },
         ]);
-    };
 
+        // 🔑 Register valve in items list so ItemDetailCard can see it
+        if (typeof setItems === "function") {
+            setItems((prev) => [...prev, newItem]);
+        }
+
+        // 🔑 Optionally auto-open its detail card
+        if (typeof setSelectedItem === "function") {
+            setSelectedItem(newItem);
+        }
+    };
 
     const handleCloseInspector = () => {
         setSelectedEdge(null);
-        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+        if (typeof onEdgeSelect === "function") onEdgeSelect(null);
     };
 
     useEffect(() => {
