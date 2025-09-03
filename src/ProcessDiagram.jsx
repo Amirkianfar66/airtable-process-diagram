@@ -71,17 +71,31 @@ export default function ProcessDiagram() {
     };
 
     const onSelectionChange = useCallback(
-        ({ nodes: selNodes }) => {
+        ({ nodes: selNodes, edges: selEdges }) => {
             setSelectedNodes(selNodes);
+
             if (selNodes.length === 1) {
                 const nodeData = items.find((item) => item.id === selNodes[0].id);
                 setSelectedItem(nodeData || null);
+            } else if (selEdges.length === 1) {
+                // ✅ find valve(s) attached to this edge
+                const edgeValves = items.filter((item) => item.edgeId === selEdges[0].id);
+                if (edgeValves.length === 1) {
+                    setSelectedItem(edgeValves[0]);
+                } else if (edgeValves.length > 1) {
+                    // you could later allow multiple selection, but for now pick the first
+                    setSelectedItem(edgeValves[0]);
+                } else {
+                    setSelectedItem(null);
+                }
             } else {
                 setSelectedItem(null);
             }
         },
         [items]
     );
+
+
 
     const onConnect = useCallback(
         (params) => {
@@ -395,6 +409,7 @@ export default function ProcessDiagram() {
                     edges={edges}
                     setNodes={setNodes}
                     setEdges={setEdges}
+                    setItems={setItems} 
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
