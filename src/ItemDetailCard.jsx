@@ -173,6 +173,39 @@ export default function ItemDetailCard({ item, onChange }) {
                     <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={e => handleFieldChange('SubUnit', e.target.value)} />
                 </div>
 
+                <div style={rowStyle}>
+                    <label style={labelStyle}>From Item:</label>
+                    <input
+                        style={inputStyle}
+                        type="text"
+                        value={localItem['from'] || ''}
+                        onChange={e => handleFieldChange('from', e.target.value)}
+                        placeholder="Source item ID / name"
+                    />
+                </div>
+
+                <div style={rowStyle}>
+                    <label style={labelStyle}>To Item:</label>
+                    <input
+                        style={inputStyle}
+                        type="text"
+                        value={localItem['to'] || ''}
+                        onChange={e => handleFieldChange('to', e.target.value)}
+                        placeholder="Target item ID / name"
+                    />
+                </div>
+
+                <div style={rowStyle}>
+                    <label style={labelStyle}>Edge ID:</label>
+                    <input
+                        style={inputStyle}
+                        type="text"
+                        value={localItem['edgeId'] || ''}
+                        onChange={e => handleFieldChange('edgeId', e.target.value)}
+                        placeholder="edge-xxx"
+                    />
+                </div>
+
                 {/* Add X Position */}
                 <div style={rowStyle}>
                     <label style={labelStyle}>X Position:</label>
