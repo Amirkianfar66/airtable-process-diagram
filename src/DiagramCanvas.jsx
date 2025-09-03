@@ -101,7 +101,7 @@ export default function DiagramCanvas({
             SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
-+ edgeId: selectedEdge.id,   // ✅ keep track of parent edge
+            edgeId: selectedEdge.id,   // ✅ keep track of parent edge
     };
 
     const newNode = {
@@ -119,9 +119,9 @@ export default function DiagramCanvas({
     };
 
     setNodes((nds) => [...nds, newNode]);
-    +   if (typeof setItems === "function") {
-        +       setItems((prev) => [...prev, newItem]);
-        +   }
+        if (typeof setItems === "function") {
+                setItems((prev) => [...prev, newItem]);
+            }
 
     setEdges((eds) => [
         ...eds.filter((e) => e.id !== selectedEdge.id),
