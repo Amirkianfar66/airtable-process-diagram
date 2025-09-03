@@ -12,7 +12,7 @@ export default function ItemDetailCard({
     edges = [],
     onDeleteEdge,
     onUpdateEdge,
-    onCreateInlineValve,
+    onCreateInlineValve, // left in signature in case you use it elsewhere
 }) {
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
@@ -260,7 +260,7 @@ export default function ItemDetailCard({
                 <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
                     <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
 
-                    {/* label */}
+                    {/* label + animated toggle */}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <input
                             style={{ flex: 1, padding: 8 }}
@@ -287,31 +287,11 @@ export default function ItemDetailCard({
                             onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
                             style={{ flex: 1, padding: 8 }}
                         />
-                    </div>
-
-                    {/* category / inline valve */}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <select
-                            value={liveEdge?.data?.category || 'None'}
-                            onChange={(e) => {
-                                const cat = e.target.value;
-                                if (cat === 'Inline Valve') {
-                                    onCreateInlineValve && onCreateInlineValve(item.edgeId);
-                                } else {
-                                    onUpdateEdge && onUpdateEdge(item.edgeId, { data: { ...(liveEdge.data || {}), category: cat } });
-                                }
-                            }}
-                        >
-                            <option>None</option>
-                            <option>Inline Valve</option>
-                        </select>
-                        <div style={{ color: '#666', fontSize: 12, alignSelf: 'center' }}>Pick category (Inline Valve adds a valve node)</div>
-
-                        {/* optional delete button */}
+                        {/* Delete Edge button */}
                         {item?.edgeId && onDeleteEdge && (
                             <button
                                 onClick={() => onDeleteEdge(item.edgeId)}
-                                style={{ marginLeft: 'auto', background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}
+                                style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}
                             >
                                 Delete Edge
                             </button>
