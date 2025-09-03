@@ -127,69 +127,66 @@ export default function ProcessDiagram() {
         [items, nodes]
     );
 
-    const onConnect = useCallback((params) => {
-        // deterministic id (change to uuid if you need parallel edges)
-        const edgeId = `edge-${params.source}-${params.target}`;
+    const onConnect = useCallback(
+        (params) => {
+            const newEdge = {
+                ...params,
+                type: 'step',
+                animated: true,
+                style: { stroke: 'blue', strokeWidth: 2 },
+                id: `edge-${params.source}-${params.target}`,
+            };
 
-        // 1) update items: append to Connections on source and set edgeId/from/to on both
-        setItems((prevItems) =>
-            prevItems.map((it) => {
-                if (it.id === params.source) {
-                    const prevConns = Array.isArray(it.Connections) ? it.Connections.slice() : [];
-                    // avoid duplicate
-                    if (!prevConns.find(c => c.id === edgeId)) {
-                        prevConns.push({ id: edgeId, from: params.source, to: params.target });
+            const updatedEdges = addEdge(newEdge, edges);
+            setEdges(updatedEdges);
+
+            // Sync into items (so ItemDetailCard can read edgeId/from/to)
+            setItems((prev) =>
+                prev.map((it) => {
+                    if (it.id === params.source) {
+                        return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
                     }
-                    return {
-                        ...it,
-                        Connections: prevConns,
-                        edgeId,
-                        from: params.source,
-                        to: params.target,
-                    };
-                }
-                if (it.id === params.target) {
-                    return { ...it, edgeId, from: params.source, to: params.target };
-                }
-                return it;
-            })
-        );
+                    if (it.id === params.target) {
+                        return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
+                    }
+                    return it;
+                })
+            );
 
-        // 2) update nodes' data.item so UI (detail card) sees changes immediately
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
+        },
+        [edges, nodes]
+    );
+
+    // When a group node is moved, shift its children by the same delta (live while dragging)
+    const onNodeDrag = useCallback((event, draggedNode) => {
+        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
+
         setNodes((nds) =>
             nds.map((n) => {
-                if (n.id === params.source) {
-                    const prevItem = n.data?.item || {};
-                    const prevConns = Array.isArray(prevItem.Connections) ? prevItem.Connections.slice() : [];
-                    if (!prevConns.find(c => c.id === edgeId)) {
-                        prevConns.push({ id: edgeId, from: params.source, to: params.target });
-                    }
-                    return {
-                        ...n,
-                        data: {
-                            ...n.data,
-                            item: { ...prevItem, Connections: prevConns, edgeId, from: params.source, to: params.target },
-                        },
-                    };
-                }
-                if (n.id === params.target) {
-                    const prevItem = n.data?.item || {};
-                    return {
-                        ...n,
-                        data: {
-                            ...n.data,
-                            item: { ...prevItem, edgeId, from: params.source, to: params.target },
-                        },
-                    };
-                }
-                return n;
+                if (!n?.data) return n;
+
+                // group membership check
+                const isChild =
+                    (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
+                    n.data.groupId === draggedNode.id ||
+                    n.data.parentId === draggedNode.id;
+
+                if (!isChild) return n;
+
+                // shift children by the same delta as the group’s drag
+                const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
+                const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
+
+                return {
+                    ...n,
+                    position: {
+                        x: n.position.x + deltaX,
+                        y: n.position.y + deltaY,
+                    },
+                };
             })
         );
-
-        // optional: persist layout after buildDiagram runs
-        // localStorage update should happen after rebuild (so skip here)
-    }, [setItems, setNodes]);
-
 
         // update prev position for next drag tick
         setNodes((nds) =>
