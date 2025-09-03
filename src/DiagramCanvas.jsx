@@ -89,28 +89,33 @@ export default function DiagramCanvas({
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
+        // Match schema used everywhere else (ItemDetailCard etc.)
         const newItem = {
             id: `valve-${Date.now()}`,
-            Code: "VALVE001",
+            "Item Code": "VALVE001",
             Name: "Inline Valve",
             Category: "Inline Valve",
-            Type: "Valve",
+            "Category Item Type": "Inline Valve",
+            Type: [],      // empty array (not string) so dropdowns/logic won’t break
+            Unit: "",
+            SubUnit: "",
+            x: midX,
+            y: midY,
         };
 
         const newNode = {
             id: newItem.id,
             position: { x: midX, y: midY },
             data: {
-                label: `${newItem.Code} - ${newItem.Name}`,
+                label: `${newItem["Item Code"]} - ${newItem.Name}`,
                 item: newItem,
                 icon: getItemIcon(newItem),
             },
-            type: "scalableIcon", // <-- force scalableIcon here
+            type: "scalableIcon",  // always use scalableIcon
             sourcePosition: "right",
             targetPosition: "left",
             style: { background: "transparent" },
         };
-
 
         setNodes((nds) => [...nds, newNode]);
         setEdges((eds) => [
@@ -129,6 +134,7 @@ export default function DiagramCanvas({
             },
         ]);
     };
+
 
     const handleCloseInspector = () => {
         setSelectedEdge(null);
