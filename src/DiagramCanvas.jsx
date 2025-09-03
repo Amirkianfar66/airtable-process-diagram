@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
-import { nanoid } from 'nanoid';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
@@ -76,12 +75,6 @@ export default function DiagramCanvas({
     };
 
     const toggleEdgeAnimated = () => updateSelectedEdge({ animated: !selectedEdge?.animated });
-    const changeEdgeLabel = (label) => updateSelectedEdge({ label });
-
-    const changeEdgeColor = (color) => {
-        const newStyle = { ...(selectedEdge?.style || {}), stroke: color };
-        updateSelectedEdge({ style: newStyle });
-    };
 
     const changeEdgeCategory = (category) => {
         if (!selectedEdge || category !== "Inline Valve") return;
@@ -157,7 +150,6 @@ export default function DiagramCanvas({
         return () => window.removeEventListener('keydown', onKey);
     }, [selectedEdge]);
 
-    const colorPresets = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
     const edgeCategories = ['None', 'Inline Valve'];
 
     return (
@@ -253,14 +245,7 @@ export default function DiagramCanvas({
                                 <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
                             </div>
 
-                            <div>
-                                <label style={{ display: 'block', fontSize: 12 }}>Label</label>
-                                <input
-                                    value={selectedEdge.label || ''}
-                                    onChange={(e) => changeEdgeLabel(e.target.value)}
-                                    style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-                                />
-                            </div>
+                            {/* NOTE: Label, Color and Thicken controls removed as requested */}
 
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Category</label>
@@ -275,40 +260,9 @@ export default function DiagramCanvas({
                                 </select>
                             </div>
 
-                            <div>
-                                <label style={{ display: 'block', fontSize: 12 }}>Color</label>
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                    <input
-                                        type="color"
-                                        value={selectedEdge?.style?.stroke || '#000000'}
-                                        onChange={(e) => changeEdgeColor(e.target.value)}
-                                        style={{ width: 40, height: 32, padding: 0, border: 'none', background: 'transparent' }}
-                                    />
-                                    <input
-                                        type="text"
-                                        value={selectedEdge?.style?.stroke || ''}
-                                        onChange={(e) => changeEdgeColor(e.target.value)}
-                                        style={{ padding: 8, width: 110 }}
-                                    />
-                                    <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
-                                        {colorPresets.map((c) => (
-                                            <button
-                                                key={c}
-                                                onClick={() => changeEdgeColor(c)}
-                                                title={c}
-                                                style={{ width: 28, height: 28, background: c, border: '1px solid #ddd', borderRadius: 4 }}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <button onClick={toggleEdgeAnimated}>
                                     {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
-                                </button>
-                                <button onClick={() => updateSelectedEdge({ style: { ...(selectedEdge.style || {}), strokeWidth: (selectedEdge.style?.strokeWidth || 2) + 2 } })}>
-                                    Thicken
                                 </button>
                             </div>
 
