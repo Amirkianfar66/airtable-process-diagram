@@ -5,7 +5,7 @@ const typeCache = new Map();
 /**
  * ItemDetailCard (default export)
  */
-export default function ItemDetailCard({ item, onChange }) {
+export default function ItemDetailCard({ item, onChange, items = [], edges = [] }) {
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
@@ -20,7 +20,11 @@ export default function ItemDetailCard({ item, onChange }) {
         : (localItem.Type ?? '');
 
     // Update local state when item changes
-    useEffect(() => setLocalItem(item || {}), [item]);
+    useEffect(() => {
+        console.log('ItemDetailCard | incoming item:', item);
+        setLocalItem(item || {});
+    }, [item]);
+
 
     // Fetch all types from Airtable for dropdown
     useEffect(() => {
@@ -82,6 +86,24 @@ export default function ItemDetailCard({ item, onChange }) {
             setResolvedType(item.Type);
         }
     }, [item]);
+    useEffect(() => {
+        if (!item || !item.edgeId || !edges || !items) return;
+
+        const edge = edges.find(e => e.id === item.edgeId);
+        if (!edge) return;
+
+        const fromItem = items.find(it => it.id === edge.source) || {};
+        const toItem = items.find(it => it.id === edge.target) || {};
+
+        const updated = {
+            ...item,
+            from: item.from ?? (fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source),
+            to: item.to ?? (toItem.Name ? `${toItem.Name} (${edge.target})` : edge.target)
+        };
+
+        // update local state but DO NOT blindly call onChange (we just prefill)
+        setLocalItem(prev => ({ ...prev, ...updated }));
+    }, [item, edges, items]);
 
     const handleFieldChange = (fieldName, value) => {
         const updated = { ...localItem, [fieldName]: value };
@@ -91,7 +113,14 @@ export default function ItemDetailCard({ item, onChange }) {
 
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
 
-    if (!item) return null;
+    if (!item) {
+        return (
+            <div style={{ padding: 20, color: '#888' }}>
+                No item selected. Select a node or edge to view details.
+            </div>
+        );
+    }
+
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
     const filteredTypes = allTypes.filter(t => t.category === (localItem['Category Item Type'] || 'Equipment'));

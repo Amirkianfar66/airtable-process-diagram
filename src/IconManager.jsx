@@ -133,17 +133,26 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 /** Update an item and its node (category/type changes reflected) */
 /** Update an item and its node (category/type changes reflected) */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem, nodes = []) {
-    // Keep normalized mirrors in sync
+    // Shallow copy everything so we preserve extra fields like from/to/edgeId
     const next = { ...updatedItem };
-    if (!next.Category && next["Category Item Type"]) next.Category = next["Category Item Type"];
-    if (!next["Category Item Type"] && next.Category) next["Category Item Type"] = next.Category;
-    if (!next.Code && next["Item Code"]) next.Code = next["Item Code"];
-    if (!next["Item Code"] && next.Code) next["Item Code"] = next.Code;
 
-    // Update items array
+    // --- Normalize Category to a clean string (support arrays from Airtable) ---
+    const rawCategory = next.Category ?? next['Category Item Type'] ?? '';
+    next.Category = Array.isArray(rawCategory) ? (rawCategory[0] ?? '') : String(rawCategory);
+    next['Category Item Type'] = next.Category;
+
+    // --- Normalize Type to a string (Airtable sometimes gives arrays) ---
+    if (Array.isArray(next.Type)) next.Type = next.Type[0] ?? '';
+    next.Type = String(next.Type ?? '');
+
+    // --- Normalize code fields (keep both Code and Item Code in sync) ---
+    if (!next.Code && next['Item Code']) next.Code = next['Item Code'];
+    if (!next['Item Code'] && next.Code) next['Item Code'] = next.Code;
+
+    // Update items array (preserve all fields)
     setItems((prev) => prev.map((it) => (it.id === next.id ? next : it)));
 
-    // Helper: calculate new position in Unit/SubUnit
+    // Helper: calculate new position in Unit/SubUnit (same logic as before)
     function getUnitSubunitPosition(unit, subUnit, nodesArr) {
         const unitNode = nodesArr.find(n => n.id === `unit-${unit}`);
         const subUnitNode = nodesArr.find(n => n.id === `sub-${unit}-${subUnit}`);
@@ -165,13 +174,13 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         return { x, y };
     }
 
-    // Update nodes array
+    // Update nodes array (ensure node.type is a string)
     setNodes((nds) =>
         nds.map((node) =>
             node.id === next.id
                 ? {
                     ...node,
-                    type: categoryTypeMap[next.Category] || "scalableIcon",
+                    type: String(categoryTypeMap[next.Category] || "scalableIcon"),
                     position: getUnitSubunitPosition(next.Unit, next.SubUnit, nds),
                     data: {
                         ...node.data,

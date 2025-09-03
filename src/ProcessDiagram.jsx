@@ -496,17 +496,20 @@ export default function ProcessDiagram() {
                             onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                        <ItemDetailCard
-                            item={selectedItem}
-                            onChange={(updatedItem) =>
-                                handleItemChangeNode(
-                                    updatedItem,
-                                    setItems,
-                                    setNodes,
-                                    setSelectedItem
-                                )
-                            }
-                        />
+                            <ItemDetailCard
+                                item={selectedItem}
+                                items={items}
+                                edges={edges}
+                                onChange={(updatedItem) =>
+                                    handleItemChangeNode(
+                                        updatedItem,
+                                        setItems,
+                                        setNodes,
+                                        setSelectedItem
+                                    )
+                                }
+                            />
+
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
                             Select an item or group to see details
