@@ -1,6 +1,8 @@
 ﻿// diagramBuilder.js
 import { getItemIcon, categoryTypeMap } from './IconManager';
+import { nanoid } from 'nanoid';
 
+const edgeId = `edge-${sourceNode.id}-${targetNode.id}-${nanoid(6)}`;
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     // 0) Build Name → Code lookup from *incoming items*
     const nameToCode = {};
@@ -149,31 +151,30 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         });
     });
 
-    // 5) Build edges (now Connections are **Codes**)
+    // 5) Build edges
     normalized.forEach(item => {
-        (item.Connections || []).forEach(connCodeOrName => {
-            // Prefer code, but fallback to name→code if any slipped through
-            const targetCode = nameToCode[connCodeOrName] || connCodeOrName;
+        (item.Connections || []).forEach(conn => {
+            const targetCode = nameToCode[conn] || conn;
 
             const sourceNode = newNodes.find(n => n.data?.item?.Code === item.Code);
-            const targetNode = newNodes.find(n => n.data?.item?.Code === targetCode
-                || n.data?.item?.Name === connCodeOrName); // extra safety
+            const targetNode = newNodes.find(n => n.data?.item?.Code === targetCode);
 
-            if (sourceNode && targetNode) {
-                const edgeId = `edge-${sourceNode.id}-${targetNode.id}`;
-                if (!newEdges.some(e => e.id === edgeId)) {
-                    newEdges.push({
-                        id: edgeId,
-                        source: sourceNode.id,
-                        target: targetNode.id,
-                        type: "smoothstep",
-                        animated: true,
-                        style: { stroke: "#888", strokeWidth: 2 },
-                    });
-                }
+            if (!sourceNode || !targetNode) {
+                console.warn('Skipping edge, missing node:', item, conn);
+                return;
             }
+
+            newEdges.push({
+                id: `edge-${sourceNode.id}-${targetNode.id}-${nanoid(6)}`,
+                source: sourceNode.id,
+                target: targetNode.id,
+                type: "smoothstep",
+                animated: true,
+                style: { stroke: "#888", strokeWidth: 2 },
+            });
         });
     });
+
 
     return {
         nodes: newNodes,
