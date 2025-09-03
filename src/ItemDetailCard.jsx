@@ -10,6 +10,15 @@ export default function ItemDetailCard({ item, onChange }) {
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
 
+    // Derive safe select values (handles arrays)
+    const categoryValue = Array.isArray(localItem['Category Item Type'])
+        ? localItem['Category Item Type'][0]
+        : (localItem['Category Item Type'] || localItem.Category || 'Equipment');
+
+    const typeValue = Array.isArray(localItem.Type)
+        ? (localItem.Type[0] ?? '')
+        : (localItem.Type ?? '');
+
     // Update local state when item changes
     useEffect(() => setLocalItem(item || {}), [item]);
 

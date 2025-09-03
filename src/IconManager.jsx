@@ -24,18 +24,57 @@ const CATEGORY_COMPONENTS = {
 };
 
 /** Return a React element for an item icon */
+// IconManager.jsx (replace getItemIcon)
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
-    // Normalize category text
-    const category = (item.Category || item["Category Item Type"] || "").trim();
+    // Normalize category into a string (support arrays & other types)
+    const rawCategory = item?.Category ?? item?.['Category Item Type'] ?? '';
+    const category =
+        typeof rawCategory === 'string'
+            ? rawCategory.trim()
+            : Array.isArray(rawCategory)
+                ? (rawCategory[0] ? String(rawCategory[0]).trim() : '')
+                : String(rawCategory || '');
+
     const CategoryComponent = CATEGORY_COMPONENTS[category];
 
     if (CategoryComponent) {
-        return <CategoryComponent id={item.id} data={item} {...props} />;
+        try {
+            return <CategoryComponent id={item.id} data={item} {...props} />;
+        } catch (err) {
+            console.error('Icon render failed for', category, err);
+            // fallback visual so render won't crash
+            return (
+                <div
+                    style={{
+                        width: props.width || 40,
+                        height: props.height || 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: '#eee',
+                        borderRadius: 6,
+                        fontSize: 10,
+                        color: '#444',
+                    }}
+                >
+                    {category.slice(0, 3) || 'N/A'}
+                </div>
+            );
+        }
     }
 
-    return <div style={{ width: props.width || 40, height: props.height || 100, background: "#ccc" }} />;
+    return (
+        <div
+            style={{
+                width: props.width || 40,
+                height: props.height || 40,
+                background: '#ccc',
+                borderRadius: 6,
+            }}
+        />
+    );
 }
 
 
