@@ -90,56 +90,51 @@ export default function DiagramCanvas({
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
+        // Must match ItemDetailCard schema
         const newItem = {
             id: `valve-${Date.now()}`,
             "Item Code": "VALVE001",
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
-            Type: [],
+            Type: [],         // keep as array, not string
             Unit: sourceNode.data?.item?.Unit || "",
             SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
-            edgeId: selectedEdge.id,   // ✅ keep track of parent edge
+        };
+
+        const newNode = {
+            id: newItem.id,
+            position: { x: midX, y: midY },
+            data: {
+                label: `${newItem["Item Code"]} - ${newItem.Name}`,
+                item: newItem,
+                icon: getItemIcon(newItem), // important for SVG rendering
+            },
+            type: "scalableIcon",
+            sourcePosition: "right",
+            targetPosition: "left",
+            style: { background: "transparent" },
+        };
+
+        setNodes((nds) => [...nds, newNode]);
+        setEdges((eds) => [
+            ...eds.filter((e) => e.id !== selectedEdge.id),
+            {
+                id: `${selectedEdge.source}-${newNode.id}`,
+                source: selectedEdge.source,
+                target: newNode.id,
+                style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            },
+            {
+                id: `${newNode.id}-${selectedEdge.target}`,
+                source: newNode.id,
+                target: selectedEdge.target,
+                style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            },
+        ]);
     };
-
-    const newNode = {
-        id: newItem.id,
-        position: { x: midX, y: midY },
-        data: {
-            label: `${newItem["Item Code"]} - ${newItem.Name}`,
-            item: newItem,
-            icon: getItemIcon(newItem),
-        },
-        type: "scalableIcon",
-        sourcePosition: "right",
-        targetPosition: "left",
-        style: { background: "transparent" },
-    };
-
-    setNodes((nds) => [...nds, newNode]);
-        if (typeof setItems === "function") {
-                setItems((prev) => [...prev, newItem]);
-            }
-
-    setEdges((eds) => [
-        ...eds.filter((e) => e.id !== selectedEdge.id),
-        {
-            id: `${selectedEdge.source}-${newNode.id}`,
-            source: selectedEdge.source,
-            target: newNode.id,
-            style: { stroke: selectedEdge?.style?.stroke || "#000" },
-        },
-        {
-            id: `${newNode.id}-${selectedEdge.target}`,
-            source: newNode.id,
-            target: targetNode.id,
-            style: { stroke: selectedEdge?.style?.stroke || "#000" },
-        },
-    ]);
-};
-
 
 
     const handleCloseInspector = () => {
