@@ -2,7 +2,7 @@
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
-
+import { nanoid } from 'nanoid'; // install with `npm i nanoid`
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
@@ -134,11 +134,10 @@ export default function ProcessDiagram() {
                 type: 'step',
                 animated: true,
                 style: { stroke: 'blue', strokeWidth: 2 },
-                id: `edge-${params.source}-${params.target}`,
+                id: `edge-${params.source}-${params.target}-${nanoid(6)}`, // ✅ unique
             };
 
-            const updatedEdges = addEdge(newEdge, edges);
-            setEdges(updatedEdges);
+            setEdges((eds) => addEdge(newEdge, eds));
 
             // Sync into items (so ItemDetailCard can read edgeId/from/to)
             setItems((prev) =>
@@ -153,10 +152,14 @@ export default function ProcessDiagram() {
                 })
             );
 
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
+            localStorage.setItem(
+                'diagram-layout',
+                JSON.stringify({ nodes, edges: [...edges, newEdge] })
+            );
         },
         [edges, nodes]
     );
+
 
     // When a group node is moved, shift its children by the same delta (live while dragging)
     const onNodeDrag = useCallback((event, draggedNode) => {
