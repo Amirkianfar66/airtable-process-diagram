@@ -206,14 +206,27 @@ export default async function AIPNIDGenerator(
             Connections: Array.isArray(p?.Connections) ? [...p.Connections] : [],
         };
 
+        // 🔑 Attach edge references directly on the item
+        if (nodeItem.Connections.length > 0) {
+            const conn = nodeItem.Connections[0];
+            nodeItem.edgeId = conn.id || `edge-${conn.from}-${conn.to}`;
+            nodeItem.from = conn.from;
+            nodeItem.to = conn.to;
+        }
+
         newNodes.push({
             id: nodeId,
             position: { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100 },
-            data: { label: `${nodeItem.Code} - ${nodeItem.Name}`, item: nodeItem, icon: getItemIcon(nodeItem) },
+            data: {
+                label: `${nodeItem.Code} - ${nodeItem.Name}`,
+                item: nodeItem,
+                icon: getItemIcon(nodeItem),
+            },
             type: categoryTypeMap[Category] || 'scalableIcon',
         });
 
         normalizedItems.push(nodeItem);
+
         if (code) allMessages.push({ sender: 'AI', message: `Generated code: ${code}` });
 
         if (explanation && idx === 0) {
