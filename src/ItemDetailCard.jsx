@@ -136,7 +136,7 @@ export default function ItemDetailCard({ item, onChange }) {
                                 ...localItem,
                                 'Category Item Type': newCategory,
                                 Category: newCategory,
-                                Type: [] // reset Type to an empty array instead of a string
+                                Type: ''
                             };
                             setLocalItem(updated);
                             if (onChange) onChange(updated);
