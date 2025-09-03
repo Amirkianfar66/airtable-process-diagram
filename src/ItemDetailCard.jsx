@@ -87,23 +87,51 @@ export default function ItemDetailCard({ item, onChange, items = [], edges = [] 
         }
     }, [item]);
     useEffect(() => {
-        if (!item || !item.edgeId || !edges || !items) return;
+        // Guard: need an item and lists to look up from/to
+        if (!item || (!edges || !Array.isArray(edges)) || (!items || !Array.isArray(items))) return;
 
-        const edge = edges.find(e => e.id === item.edgeId);
-        if (!edge) return;
+        // support either item.edgeId or item.edge (sometimes different code paths)
+        const edgeId = item.edgeId ?? (item.edge && item.edge.id) ?? '';
+        if (!edgeId) return;
 
-        const fromItem = items.find(it => it.id === edge.source) || {};
-        const toItem = items.find(it => it.id === edge.target) || {};
+        const edge = edges.find(e => e.id === edgeId);
+        if (!edge) {
+            console.warn(`ItemDetailCard: edge not found for edgeId=${edgeId}`);
+            return;
+        }
 
-        const updated = {
-            ...item,
-            from: item.from ?? (fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source),
-            to: item.to ?? (toItem.Name ? `${toItem.Name} (${edge.target})` : edge.target)
+        // helper that tries to find an item by id OR by Name OR by Item Code
+        const findItemByIdOrName = (val) => {
+            if (!val) return undefined;
+            return items.find(it =>
+                it.id === val ||
+                it.Name === val ||
+                it['Item Code'] === val ||
+                it.Code === val
+            );
         };
 
-        // update local state but DO NOT blindly call onChange (we just prefill)
-        setLocalItem(prev => ({ ...prev, ...updated }));
-    }, [item, edges, items]);
+        const fromItem = findItemByIdOrName(edge.source) || {};
+        const toItem = findItemByIdOrName(edge.target) || {};
+
+        const prefills = {
+            edgeId: edgeId,
+            from: item.from ?? (fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source),
+            to: item.to ?? (toItem.Name ? `${toItem.Name}   (${edge.target})` : edge.target),
+        };
+
+        console.debug('ItemDetailCard: auto-fill from/to/edgeId', { edgeId, edge, fromItem, toItem, prefills });
+
+        // Only update local state (so the inputs show values). If you want to persist immediately,
+        // call onChange(prefillsMerged) below (see commented line).
+        setLocalItem(prev => ({ ...prev, ...prefills }));
+
+        // If you want these prefilled values written back into the global state immediately,
+        // uncomment the next line (will call parent onChange):
+        // if (onChange) onChange({ ...item, ...prefills });
+
+    }, [item, edges, items, onChange]);
+
 
     const handleFieldChange = (fieldName, value) => {
         const updated = { ...localItem, [fieldName]: value };
