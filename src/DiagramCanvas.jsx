@@ -90,18 +90,18 @@ export default function DiagramCanvas({
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-        // Must match ItemDetailCard schema
         const newItem = {
             id: `valve-${Date.now()}`,
             "Item Code": "VALVE001",
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
-            Type: [],         // keep as array, not string
+            Type: [],
             Unit: sourceNode.data?.item?.Unit || "",
             SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
+            edgeId: selectedEdge.id,   // ✅ keep track of parent edge
         };
 
         const newNode = {
@@ -110,7 +110,7 @@ export default function DiagramCanvas({
             data: {
                 label: `${newItem["Item Code"]} - ${newItem.Name}`,
                 item: newItem,
-                icon: getItemIcon(newItem), // important for SVG rendering
+                icon: getItemIcon(newItem),
             },
             type: "scalableIcon",
             sourcePosition: "right",
@@ -119,6 +119,11 @@ export default function DiagramCanvas({
         };
 
         setNodes((nds) => [...nds, newNode]);
+
+        if (typeof setItems === "function") {
+            setItems((prev) => [...prev, newItem]);
+        }
+
         setEdges((eds) => [
             ...eds.filter((e) => e.id !== selectedEdge.id),
             {
@@ -130,7 +135,7 @@ export default function DiagramCanvas({
             {
                 id: `${newNode.id}-${selectedEdge.target}`,
                 source: newNode.id,
-                target: selectedEdge.target,
+                target: targetNode.id,
                 style: { stroke: selectedEdge?.style?.stroke || "#000" },
             },
         ]);
