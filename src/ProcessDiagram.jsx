@@ -131,35 +131,20 @@ export default function ProcessDiagram() {
 
     const onConnect = useCallback(
         (params) => {
-            const newEdge = {
-                ...params,
-                type: 'step',
-                animated: true,
-                style: { stroke: 'blue', strokeWidth: 2 },
-                id: `edge-${params.source}-${params.target}`,
-            };
-
-            const updatedEdges = addEdge(newEdge, edges);
-            setEdges(updatedEdges);
-
-            // 🔑 Sync into items
-            setItems((prev) =>
-                prev.map((it) => {
-                    if (it.id === params.source) {
-                        return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
-                    }
-                    if (it.id === params.target) {
-                        return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
-                    }
-                    return it;
-                })
+            const updatedEdges = addEdge(
+                {
+                    ...params,
+                    type: 'step',
+                    animated: true,
+                    style: { stroke: 'blue', strokeWidth: 2 },
+                },
+                edges
             );
-
+            setEdges(updatedEdges);
             localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
         },
         [edges, nodes]
     );
-
 
     // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
     const onNodeDrag = useCallback((event, draggedNode) => {
@@ -511,20 +496,17 @@ export default function ProcessDiagram() {
                             onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                            <ItemDetailCard
-                                item={selectedItem}
-                                items={items}
-                                edges={edges}
-                                onChange={(updatedItem) =>
-                                    handleItemChangeNode(
-                                        updatedItem,
-                                        setItems,
-                                        setNodes,
-                                        setSelectedItem
-                                    )
-                                }
-                            />
-
+                        <ItemDetailCard
+                            item={selectedItem}
+                            onChange={(updatedItem) =>
+                                handleItemChangeNode(
+                                    updatedItem,
+                                    setItems,
+                                    setNodes,
+                                    setSelectedItem
+                                )
+                            }
+                        />
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
                             Select an item or group to see details
