@@ -8,7 +8,6 @@ import ScalableIconNode from './ScalableIconNode';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 
-
 export default function DiagramCanvas({
     nodes,
     edges,
