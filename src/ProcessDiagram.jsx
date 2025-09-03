@@ -127,66 +127,85 @@ export default function ProcessDiagram() {
         [items, nodes]
     );
 
-    const onConnect = useCallback(
-        (params) => {
-            const newEdge = {
-                ...params,
-                type: 'step',
-                animated: true,
-                style: { stroke: 'blue', strokeWidth: 2 },
-                id: `edge-${params.source}-${params.target}`,
-            };
+    const onConnect = useCallback((params) => {
+        // build a deterministic id for the edge
+        const edgeId = `edge-${params.source}-${params.target}`;
 
-            const updatedEdges = addEdge(newEdge, edges);
-            setEdges(updatedEdges);
+        const newEdge = {
+            ...params,
+            id: edgeId,
+            type: 'step',
+            animated: true,
+            style: { stroke: 'blue', strokeWidth: 2 },
+        };
 
-            // Sync into items (so ItemDetailCard can read edgeId/from/to)
-            setItems((prev) =>
-                prev.map((it) => {
-                    if (it.id === params.source) {
-                        return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
-                    }
-                    if (it.id === params.target) {
-                        return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
-                    }
-                    return it;
-                })
-            );
+        // 1) add edge to react-flow edges state (functional update to avoid staleness)
+        setEdges((prevEdges) => {
+            const updated = addEdge(newEdge, prevEdges || []);
+            // persist layout if you want (nodes is captured from closure; you can also use functional setNodes)
+            try {
+                localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updated }));
+            } catch (err) {
+                // ignore storage errors
+            }
+            return updated;
+        });
 
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
-        },
-        [edges, nodes]
-    );
-
-    // When a group node is moved, shift its children by the same delta (live while dragging)
-    const onNodeDrag = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
-
-        setNodes((nds) =>
-            nds.map((n) => {
-                if (!n?.data) return n;
-
-                // group membership check
-                const isChild =
-                    (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
-                    n.data.groupId === draggedNode.id ||
-                    n.data.parentId === draggedNode.id;
-
-                if (!isChild) return n;
-
-                // shift children by the same delta as the group’s drag
-                const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
-                const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
-
-                return {
-                    ...n,
-                    position: {
-                        x: n.position.x + deltaX,
-                        y: n.position.y + deltaY,
-                    },
-                };
+        // 2) update items: append to Connections on source, and set edgeId/from/to on both
+        setItems((prevItems) =>
+            prevItems.map((it) => {
+                if (it.id === params.source) {
+                    const prevConns = Array.isArray(it.Connections) ? it.Connections.slice() : [];
+                    // push a small connection object (id + from/to) so buildDiagram can pick it up later
+                    prevConns.push({ id: edgeId, from: params.source, to: params.target });
+                    return {
+                        ...it,
+                        Connections: prevConns,
+                        edgeId,
+                        from: params.source,
+                        to: params.target,
+                    };
+                }
+                if (it.id === params.target) {
+                    return { ...it, edgeId, from: params.source, to: params.target };
+                }
+                return it;
             })
         );
+
+        // 3) update nodes' data.item so UI sees up-to-date item metadata immediately
+        setNodes((nds) =>
+            nds.map((n) => {
+                if (n.id === params.source) {
+                    const prevItem = n.data?.item || {};
+                    const prevConns = Array.isArray(prevItem.Connections) ? prevItem.Connections.slice() : [];
+                    // avoid duplicate conn if already present
+                    if (!prevConns.find(c => c.id === edgeId)) {
+                        prevConns.push({ id: edgeId, from: params.source, to: params.target });
+                    }
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            item: { ...prevItem, Connections: prevConns, edgeId, from: params.source, to: params.target },
+                        },
+                    };
+                }
+                if (n.id === params.target) {
+                    const prevItem = n.data?.item || {};
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            item: { ...prevItem, edgeId, from: params.source, to: params.target },
+                        },
+                    };
+                }
+                return n;
+            })
+        );
+    }, [/* no edges/nodes in deps to avoid stale-setProblems; if your lint requires deps, include setEdges,setItems,setNodes */]);
+
 
         // update prev position for next drag tick
         setNodes((nds) =>
