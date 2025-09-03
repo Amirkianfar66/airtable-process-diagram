@@ -90,7 +90,12 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         Type: "Tank",
         Unit: "Unit 1",
         SubUnit: "Sub 1",
+        // 🔑 add placeholders
+        edgeId: "",
+        from: "",
+        to: "",
     };
+
 
     const newNode = {
         id: newItem.id,
@@ -134,7 +139,18 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 /** Update an item and its node (category/type changes reflected) */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem, nodes = []) {
     // Shallow copy everything so we preserve extra fields like from/to/edgeId
-    const next = { ...updatedItem };
+    setItems((prev) => {
+        const prevItem = prev.find((it) => it.id === updatedItem.id) || {};
+        const next = {
+            ...prevItem,     // preserve from/to/edgeId and anything else
+            ...updatedItem,  // overwrite with new values
+        };
+
+        // normalize category/type/code (your existing logic)...
+
+        return prev.map((it) => (it.id === next.id ? next : it));
+    });
+
 
     // --- Normalize Category to a clean string (support arrays from Airtable) ---
     const rawCategory = next.Category ?? next['Category Item Type'] ?? '';
