@@ -363,6 +363,7 @@ export default function ProcessDiagram() {
     };
 
     // --- ✅ FIX: Add Item wiring (normalize fields + auto-select) ---
+    // --- ✅ FIXED handleAddItem: normalize fields, auto-select, and sync edge info ---
     const handleAddItem = (rawItem) => {
         const normalizedItem = {
             id: rawItem.id || `item-${Date.now()}`,
@@ -379,7 +380,7 @@ export default function ProcessDiagram() {
                 : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
             Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
             Sequence: rawItem.Sequence ?? 0,
-            Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [], // ✅ include connections
+            Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
         };
 
         const newNode = {
@@ -396,8 +397,43 @@ export default function ProcessDiagram() {
             style: { background: 'transparent', boxShadow: 'none' },
         };
 
-        setNodes(nds => [...nds, newNode]);
-        setItems(prev => [...prev, normalizedItem]);
+        setNodes((nds) => [...nds, newNode]);
+
+        // --- ✅ generate edges from Connections immediately ---
+        let generatedEdges = [];
+        if (normalizedItem.Connections.length) {
+            generatedEdges = normalizedItem.Connections.map((conn) => {
+                const fromNode = normalizedItem.id; // this node
+                const targetNode = nodes.find((n) => n.data?.item?.Name === conn.to);
+                if (!targetNode) return null;
+
+                const edgeId = `edge-${fromNode}-${targetNode.id}`;
+
+                // 🔑 sync edge info into the item
+                normalizedItem.edgeId = edgeId;
+                normalizedItem.from = fromNode;
+                normalizedItem.to = targetNode.id;
+
+                return {
+                    id: edgeId,
+                    source: fromNode,
+                    target: targetNode.id,
+                    type: 'smoothstep',
+                    animated: true,
+                    style: { stroke: '#888', strokeWidth: 2 },
+                };
+            }).filter((e) => e != null);
+
+            setEdges((eds) => [...eds, ...generatedEdges]);
+        }
+
+        // 🔑 Add item AFTER edges are resolved
+        setItems((prev) => [...prev, normalizedItem]);
+
+        // Auto-select new node so ItemDetailCard opens
+        setSelectedNodes([newNode]);
+        setSelectedItem(normalizedItem);
+    };
 
         // --- ✅ generate edges from Connections immediately ---
         if (normalizedItem.Connections.length) {
