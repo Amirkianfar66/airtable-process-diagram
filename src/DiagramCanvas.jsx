@@ -14,6 +14,7 @@ export default function DiagramCanvas({
     setNodes,
     setEdges,
     setItems,
+    setSelectedItem,
     onNodesChange,
     onEdgesChange,
     onConnect,
@@ -81,36 +82,41 @@ export default function DiagramCanvas({
     };
 
     const changeEdgeCategory = (category) => {
+        // only act for Inline Valve selection
         if (!selectedEdge || category !== "Inline Valve") return;
 
+        // find source/target nodes
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
         if (!sourceNode || !targetNode) return;
 
+        // midpoint for the new valve node
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
+        // build the new item (match ItemDetailCard shape)
         const newItem = {
             id: `valve-${Date.now()}`,
             "Item Code": "VALVE001",
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
-            Type: [],
+            Type: [], // ItemDetailCard expects arrays for linked Type
             Unit: sourceNode.data?.item?.Unit || "",
             SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
-            edgeId: selectedEdge.id, // track the parent edge
+            edgeId: selectedEdge.id, // keep reference to parent edge
         };
 
+        // create a node that uses scalableIcon so handlers show
         const newNode = {
             id: newItem.id,
             position: { x: midX, y: midY },
             data: {
                 label: `${newItem["Item Code"]} - ${newItem.Name}`,
                 item: newItem,
-                icon: getItemIcon(newItem),
+                icon: getItemIcon(newItem), // returns InlineValve SVG if configured
             },
             type: "scalableIcon",
             sourcePosition: "right",
@@ -118,30 +124,56 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        setNodes((nds) => [...nds, newNode]);
+        // Add the new node (avoid duplicates)
+        setNodes((nds) => {
+            if (nds.some((n) => n.id === newNode.id)) return nds;
+            return [...nds, newNode];
+        });
 
-        setEdges((eds) => [
-            ...eds.filter((e) => e.id !== selectedEdge.id),
-            {
-                id: `${selectedEdge.source}-${newNode.id}`,
-                source: selectedEdge.source,
-                target: newNode.id,
-                style: { stroke: selectedEdge?.style?.stroke || "#000" },
-            },
-            {
-                id: `${newNode.id}-${selectedEdge.target}`,
-                source: newNode.id,
-                target: targetNode.id,
-                style: { stroke: selectedEdge?.style?.stroke || "#000" },
-            },
-        ]);
+        // Add to parent items list (if available)
+        if (typeof setItems === "function") {
+            setItems((prev) => {
+                if (prev.some((it) => it.id === newItem.id)) return prev;
+                return [...prev, newItem];
+            });
+        }
+
+        // Replace the original edge with two edges that go through the new valve node
+        setEdges((eds) => {
+            const filtered = eds.filter((e) => e.id !== selectedEdge.id);
+            return [
+                ...filtered,
+                {
+                    id: `${selectedEdge.source}-${newNode.id}`,
+                    source: selectedEdge.source,
+                    target: newNode.id,
+                    style: { stroke: selectedEdge?.style?.stroke || "#000" },
+                },
+                {
+                    id: `${newNode.id}-${selectedEdge.target}`,
+                    source: newNode.id,
+                    target: targetNode.id,
+                    style: { stroke: selectedEdge?.style?.stroke || "#000" },
+                },
+            ];
+        });
+
+        // Ensure parent shows the ItemDetailCard:
+        // 1) setSelectedItem immediately (if provided)
+        if (typeof setSelectedItem === "function") {
+            setSelectedItem(newItem);
+        }
+
+        // 2) also tell the parent selection handler (its onSelectionChange expects { nodes })
+        if (typeof onSelectionChange === "function") {
+            // pass minimal node-like object with id — parent uses id to find item
+            onSelectionChange({ nodes: [{ id: newNode.id }] });
+        }
+
+        // Close the edge inspector
+        handleCloseInspector();
     };
 
-
-    const handleCloseInspector = () => {
-        setSelectedEdge(null);
-        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
-    };
 
     useEffect(() => {
         if (!selectedEdge) return;

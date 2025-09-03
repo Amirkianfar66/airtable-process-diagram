@@ -409,7 +409,8 @@ export default function ProcessDiagram() {
                     edges={edges}
                     setNodes={setNodes}
                     setEdges={setEdges}
-                    setItems={setItems} 
+                    setItems={setItems}
+                    setSelectedItem={setSelectedItem}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
