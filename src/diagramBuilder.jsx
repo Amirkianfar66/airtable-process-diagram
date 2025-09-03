@@ -2,7 +2,6 @@
 import { getItemIcon, categoryTypeMap } from './IconManager';
 import { nanoid } from 'nanoid';
 
-const edgeId = `edge-${sourceNode.id}-${targetNode.id}-${nanoid(6)}`;
 export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
     // 0) Build Name → Code lookup from *incoming items*
     const nameToCode = {};
