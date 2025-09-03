@@ -81,42 +81,48 @@ export default function DiagramCanvas({
         updateSelectedEdge({ style: newStyle });
     };
 
+    // inside DiagramCanvas props list add these (if not present):
+    // setItems, setSelectedItem
+
+    // --- hoisted function declaration (always available) ---
+    function handleCloseInspector() {
+        setSelectedEdge(null);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+    }
+
+    // --- changeEdgeCategory (uses handleCloseInspector safely) ---
     const changeEdgeCategory = (category) => {
         // only act for Inline Valve selection
         if (!selectedEdge || category !== "Inline Valve") return;
 
-        // find source/target nodes
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
         if (!sourceNode || !targetNode) return;
 
-        // midpoint for the new valve node
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-        // build the new item (match ItemDetailCard shape)
         const newItem = {
             id: `valve-${Date.now()}`,
             "Item Code": "VALVE001",
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
-            Type: [], // ItemDetailCard expects arrays for linked Type
+            Type: [], // ItemDetailCard expects arrays
             Unit: sourceNode.data?.item?.Unit || "",
             SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
-            edgeId: selectedEdge.id, // keep reference to parent edge
+            edgeId: selectedEdge.id,
         };
 
-        // create a node that uses scalableIcon so handlers show
         const newNode = {
             id: newItem.id,
             position: { x: midX, y: midY },
             data: {
                 label: `${newItem["Item Code"]} - ${newItem.Name}`,
                 item: newItem,
-                icon: getItemIcon(newItem), // returns InlineValve SVG if configured
+                icon: getItemIcon(newItem),
             },
             type: "scalableIcon",
             sourcePosition: "right",
@@ -124,13 +130,13 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        // Add the new node (avoid duplicates)
+        // Add node (avoid duplicates)
         setNodes((nds) => {
             if (nds.some((n) => n.id === newNode.id)) return nds;
             return [...nds, newNode];
         });
 
-        // Add to parent items list (if available)
+        // Add to items list in parent (if function provided)
         if (typeof setItems === "function") {
             setItems((prev) => {
                 if (prev.some((it) => it.id === newItem.id)) return prev;
@@ -138,7 +144,7 @@ export default function DiagramCanvas({
             });
         }
 
-        // Replace the original edge with two edges that go through the new valve node
+        // Replace original edge with two edges that go through valve
         setEdges((eds) => {
             const filtered = eds.filter((e) => e.id !== selectedEdge.id);
             return [
@@ -158,19 +164,16 @@ export default function DiagramCanvas({
             ];
         });
 
-        // Ensure parent shows the ItemDetailCard:
-        // 1) setSelectedItem immediately (if provided)
+        // Tell parent to show ItemDetailCard immediately
         if (typeof setSelectedItem === "function") {
             setSelectedItem(newItem);
         }
-
-        // 2) also tell the parent selection handler (its onSelectionChange expects { nodes })
         if (typeof onSelectionChange === "function") {
-            // pass minimal node-like object with id — parent uses id to find item
+            // parent expects an object like { nodes: [...] }
             onSelectionChange({ nodes: [{ id: newNode.id }] });
         }
 
-        // Close the edge inspector
+        // close inspector (safe: function declaration exists)
         handleCloseInspector();
     };
 
