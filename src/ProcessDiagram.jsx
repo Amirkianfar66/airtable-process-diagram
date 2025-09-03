@@ -2,6 +2,7 @@
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
+import { nanoid } from 'nanoid';
 
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
@@ -70,7 +71,7 @@ export default function ProcessDiagram() {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
 
-    // Replace your existing onSelectionChange with this
+    // Selection handler
     const onSelectionChange = useCallback(
         ({ nodes: selNodes, edges: selEdges }) => {
             setSelectedNodes(selNodes || []);
@@ -127,26 +128,44 @@ export default function ProcessDiagram() {
         [items, nodes]
     );
 
-
-
+    // onConnect: use functional setEdges and unique id
     const onConnect = useCallback(
         (params) => {
-            const updatedEdges = addEdge(
-                {
-                    ...params,
-                    type: 'step',
-                    animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2 },
-                },
-                edges
+            const newEdge = {
+                ...params,
+                id: `edge-${params.source}-${params.target}-${nanoid(6)}`,
+                type: 'smoothstep',
+                animated: true,
+                style: { stroke: 'blue', strokeWidth: 2 },
+            };
+
+            // functional update prevents stale edges closure
+            setEdges((eds) => {
+                const next = addEdge(newEdge, eds);
+                // persist layout immediately with the new edges
+                try {
+                    localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: next }));
+                } catch (err) {
+                    // ignore localStorage errors
+                }
+                return next;
+            });
+
+            // sync into items (so ItemDetailCard can read edgeId/from/to)
+            setItems((prev) =>
+                prev.map((it) => {
+                    if (it.id === params.source || it.id === params.target) {
+                        return { ...it, edgeId: newEdge.id, from: params.source, to: params.target };
+                    }
+                    return it;
+                })
             );
-            setEdges(updatedEdges);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
         },
-        [edges, nodes]
+        // note: don't include edges in deps to avoid stale closure issues
+        [nodes, setEdges, setItems]
     );
 
-    // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
+    // When a group node is moved, shift its children by the same delta (live while dragging)
     const onNodeDrag = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
@@ -186,7 +205,7 @@ export default function ProcessDiagram() {
         );
     }, []);
 
-    // --- Reset prevX/prevY once drag stops ---
+    // Reset prevX/prevY once drag stops
     const onNodeDragStop = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
         setNodes((nds) =>
@@ -197,7 +216,8 @@ export default function ProcessDiagram() {
             )
         );
     }, []);
-    // --- Add in ProcessDiagram.jsx near other callbacks ---
+
+    // handleEdgeSelect: convert clicked edge into an item-like object for ItemDetailCard
     const handleEdgeSelect = useCallback(
         (edge) => {
             if (!edge) {
@@ -244,8 +264,87 @@ export default function ProcessDiagram() {
         setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
     }, [setEdges, setNodes, setSelectedItem]);
 
+    // update a live edge by id (label, style, animated, data, etc)
+    const handleUpdateEdge = useCallback((edgeId, patch) => {
+        setEdges((eds) => eds.map(e => e.id === edgeId ? { ...e, ...patch } : e));
+        // keep selectedItem in sync if it was the opened edge
+        setSelectedItem((cur) => {
+            if (!cur || cur.edgeId !== edgeId) return cur;
+            return { ...cur, _edge: { ...cur._edge, ...patch } };
+        });
+    }, [setEdges, setSelectedItem]);
 
+    // create an inline valve on an existing edge (replicates DiagramCanvas.changeEdgeCategory)
+    const handleCreateInlineValve = useCallback((edgeId) => {
+        const edge = edges.find(e => e.id === edgeId);
+        if (!edge) return;
 
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+        if (!sourceNode || !targetNode) return;
+
+        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+        // new valve item
+        const newItem = {
+            id: `valve-${Date.now()}`,
+            "Item Code": `VALVE-${Date.now()}`,
+            Name: "Inline Valve",
+            Category: "Inline Valve",
+            "Category Item Type": "Inline Valve",
+            Type: [],
+            Unit: sourceNode.data?.item?.Unit || "",
+            SubUnit: sourceNode.data?.item?.SubUnit || "",
+            x: midX,
+            y: midY,
+            edgeId: edge.id, // track parent edge
+        };
+
+        const newNode = {
+            id: newItem.id,
+            position: { x: midX, y: midY },
+            data: {
+                label: `${newItem["Item Code"]} - ${newItem.Name}`,
+                item: newItem,
+                icon: getItemIcon(newItem),
+            },
+            type: "scalableIcon",
+            sourcePosition: "right",
+            targetPosition: "left",
+            style: { background: "transparent" },
+        };
+
+        setNodes((nds) => [...nds, newNode]);
+
+        const baseStyle = edge.style || {};
+        setEdges((eds) => {
+            const filtered = eds.filter(e => e.id !== edge.id);
+            const e1 = {
+                id: `edge-${edge.source}-${newNode.id}-${nanoid(6)}`,
+                source: edge.source,
+                target: newNode.id,
+                type: edge.type || "smoothstep",
+                animated: edge.animated ?? true,
+                style: { ...baseStyle },
+            };
+            const e2 = {
+                id: `edge-${newNode.id}-${edge.target}-${nanoid(6)}`,
+                source: newNode.id,
+                target: edge.target,
+                type: edge.type || "smoothstep",
+                animated: edge.animated ?? true,
+                style: { ...baseStyle },
+            };
+            return [...filtered, e1, e2];
+        });
+
+        // add the valve item to items list (so ItemDetailCard can find it later)
+        setItems((prev) => [...prev, newItem]);
+
+        // open the newly created node in the details panel
+        setSelectedItem(newItem);
+    }, [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]);
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
@@ -291,7 +390,6 @@ export default function ProcessDiagram() {
             console.error("AI PNID generation failed:", err);
         }
     };
-
 
     useEffect(() => {
         const loadItems = async () => {
@@ -361,11 +459,8 @@ export default function ProcessDiagram() {
         })
         : [];
 
-
-
-    // --- Group detail wiring ---
+    // Group detail wiring
     const [addingToGroup, setAddingToGroup] = useState(null);
-
 
     const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
 
@@ -393,7 +488,7 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
 
-    // --- ✅ FIX: Add Item wiring (normalize fields + auto-select) ---
+    // handleAddItem: normalize fields, auto-select, and sync edge info
     const handleAddItem = (rawItem) => {
         const normalizedItem = {
             id: rawItem.id || `item-${Date.now()}`,
@@ -427,18 +522,23 @@ export default function ProcessDiagram() {
             style: { background: 'transparent', boxShadow: 'none' },
         };
 
-        setNodes(nds => [...nds, newNode]);
-        setItems(prev => [...prev, normalizedItem]);
+        setNodes((nds) => [...nds, newNode]);
+        setItems((prev) => [...prev, normalizedItem]);
 
-        // --- ✅ generate edges from Connections immediately ---
+        // generate edges from Connections
         if (normalizedItem.Connections.length) {
-            const newEdges = normalizedItem.Connections.map(conn => {
-                const fromNode = normalizedItem.id; // this node
-                // Find target node by name or id
-                const targetNode = nodes.find(n => n.data?.item?.Name === conn.to);
-                if (!targetNode) return null; // skip if target not found
+            const newEdges = normalizedItem.Connections.map((conn) => {
+                const fromNode = normalizedItem.id;
+                const targetNode = nodes.find((n) => n.data?.item?.Name === conn.to);
+                if (!targetNode) return null;
+
+                const edgeId = `edge-${fromNode}-${targetNode.id}`;
+                normalizedItem.edgeId = edgeId;
+                normalizedItem.from = fromNode;
+                normalizedItem.to = targetNode.id;
+
                 return {
-                    id: `edge-${fromNode}-${targetNode.id}`,
+                    id: edgeId,
                     source: fromNode,
                     target: targetNode.id,
                     type: 'smoothstep',
@@ -447,10 +547,10 @@ export default function ProcessDiagram() {
                 };
             }).filter(e => e != null);
 
-            setEdges(eds => [...eds, ...newEdges]);
+            setEdges((eds) => [...eds, ...newEdges]);
         }
 
-        // Auto-select new node so ItemDetailCard opens
+        // Auto-select new node
         setSelectedNodes([newNode]);
         setSelectedItem(normalizedItem);
     };
@@ -493,9 +593,8 @@ export default function ProcessDiagram() {
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
-                    nodeTypes={nodeTypes}
-                    onEdgeSelect={handleEdgeSelect}           // <--- add this
-                    showInlineEdgeInspector={false}           // <--- hide inline inspector
+                    onEdgeSelect={handleEdgeSelect}           // handle edge clicks here
+                    showInlineEdgeInspector={false}           // hide inline inspector
                     nodeTypes={nodeTypes}
                     AddItemButton={(props) => (
                         <AddItemButton {...props} addItem={handleAddItem} />
@@ -547,6 +646,8 @@ export default function ProcessDiagram() {
                     ) : selectedItem ? (
                         <ItemDetailCard
                             item={selectedItem}
+                            items={items}
+                            edges={edges}
                             onChange={(updatedItem) =>
                                 handleItemChangeNode(
                                     updatedItem,
@@ -555,6 +656,9 @@ export default function ProcessDiagram() {
                                     setSelectedItem
                                 )
                             }
+                            onDeleteEdge={handleDeleteEdge}
+                            onUpdateEdge={handleUpdateEdge}
+                            onCreateInlineValve={handleCreateInlineValve}
                         />
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
@@ -565,5 +669,4 @@ export default function ProcessDiagram() {
             </div>
         </div>
     );
-
 }
