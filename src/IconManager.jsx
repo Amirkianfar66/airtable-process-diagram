@@ -136,35 +136,40 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 
 /** Update an item and its node (category/type changes reflected) */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem, nodes = []) {
-    // merge with existing item
+    // Capture prevItem and atomically update items in a single updater
     let prevItem = {};
     setItems((prev) => {
         prevItem = prev.find((it) => it.id === updatedItem.id) || {};
-        return prev;
+        // Merge updated fields into the matched item while preserving x/y when not explicitly set
+        return prev.map((it) => {
+            if (it.id !== updatedItem.id) return it;
+            return {
+                ...it,
+                ...updatedItem,
+                x: ('x' in updatedItem) ? updatedItem.x : it.x,
+                y: ('y' in updatedItem) ? updatedItem.y : it.y,
+            };
+        });
     });
 
+    // Build the "next" merged item (based on prevItem we just captured)
     const next = {
         ...prevItem,
         ...updatedItem,
     };
 
-    // --- Normalize Category to a clean string ---
+    // Normalize Category / Type / Code fields
     const rawCategory = next.Category ?? next['Category Item Type'] ?? '';
-    next.Category = Array.isArray(rawCategory) ? (rawCategory[0] ?? '') : String(rawCategory);
+    next.Category = Array.isArray(rawCategory) ? (rawCategory[0] ?? '') : String(rawCategory || '');
     next['Category Item Type'] = next.Category;
 
-    // --- Normalize Type ---
     if (Array.isArray(next.Type)) next.Type = next.Type[0] ?? '';
     next.Type = String(next.Type ?? '');
 
-    // --- Normalize code fields ---
     if (!next.Code && next['Item Code']) next.Code = next['Item Code'];
     if (!next['Item Code'] && next.Code) next['Item Code'] = next.Code;
 
-    // ✅ Update items array
-    setItems((prev) => prev.map((it) => (it.id === next.id ? next : it)));
-
-    // Helper for positioning if Unit/SubUnit changed
+    // Helper for repositioning only when Unit/SubUnit changes
     function getUnitSubunitPosition(unit, subUnit, nodesArr) {
         const subUnitNode = nodesArr.find((n) => n.id === `sub-${unit}-${subUnit}`);
         if (!subUnitNode) return { x: 100, y: 100 };
@@ -182,15 +187,25 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         };
     }
 
-    // ✅ Update nodes safely
+    // Update nodes: preserve position unless Unit/SubUnit changed.
     setNodes((nds) =>
         nds.map((node) => {
             if (node.id !== next.id) return node;
 
-            // keep old position unless Unit/SubUnit changed
+            // previous position (may be undefined in edge cases) — prefer actual node.position if present
             const oldPos = node.position;
-            const shouldReposition = next.Unit !== prevItem.Unit || next.SubUnit !== prevItem.SubUnit;
-            const newPos = shouldReposition ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds) : oldPos;
+
+            // compute whether we should reposition
+            const shouldReposition = (next.Unit !== prevItem.Unit) || (next.SubUnit !== prevItem.SubUnit);
+
+            // If node.position undefined, try to fall back to any saved coordinates (node.data.x/y or node.data.item.x/y or next.x/next.y)
+            const fallbackPos = oldPos ?? node.data?.x && node.data?.y
+                ? { x: node.data.x, y: node.data.y }
+                : (node.data?.item && typeof node.data.item.x === 'number' && typeof node.data.item.y === 'number'
+                    ? { x: node.data.item.x, y: node.data.item.y }
+                    : (typeof next.x === 'number' && typeof next.y === 'number' ? { x: next.x, y: next.y } : undefined));
+
+            const newPos = shouldReposition ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds) : (fallbackPos ?? { x: 100, y: 100 });
 
             return {
                 ...node,
@@ -205,6 +220,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         })
     );
 
-
+    // Keep selection updated
     setSelectedItem(next);
 }
+

@@ -493,7 +493,8 @@ export default function ProcessDiagram() {
             });
 
         if (needFullRebuild) {
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder);
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder, { prevNodes: nodes });
+
             setNodes(rebuiltNodes);
             setEdges(rebuiltEdges);
         } else {
