@@ -19,6 +19,21 @@ export default function ItemDetailCard({
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
 
+    // ✅ Add this safe wrapper for onChange
+    const safeOnChange = (payload, options) => {
+        if (typeof onChange !== "function") return;
+        try {
+            onChange(payload, options);
+        } catch (err) {
+            console.error("[safeOnChange] onChange threw:", err);
+            try {
+                console.log("[safeOnChange] payload:", payload);
+                console.log("[safeOnChange] options:", options);
+            } catch (e) { }
+        }
+    };
+
+
     // Update local state when item changes
     useEffect(() => {
         console.log('ItemDetailCard | incoming item:', item);
@@ -185,7 +200,7 @@ export default function ItemDetailCard({
         setLocalItem((prev) => ({ ...prev, ...updatedObj }));
 
         // call parent onChange
-        if (onChange) onChange(payload, options);
+        safeOnChange(payload, options);
     };
 
     const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
