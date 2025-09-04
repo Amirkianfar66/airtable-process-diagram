@@ -5,6 +5,9 @@ import { nanoid } from 'nanoid';
 /**
  * buildDiagram(items, unitLayoutOrder, options)
  * options.prevNodes: optional array of existing nodes (from ReactFlow) whose positions we should reuse
+ *
+ * NOTE: This version preserves existing node positions. It will NOT auto-spread siblings.
+ * New nodes without a saved position fall back to { x: 100, y: 100 }.
  */
 export function buildDiagram(items = [], unitLayoutOrder = [[]], options = {}) {
     // 0) Build Name → Code lookup from *incoming items*
@@ -131,21 +134,27 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], options = {}) {
                 });
 
                 // Items
-                let itemX = colIndex * (unitWidth + 100) + 40;
+                // NOTE: we no longer auto-increment itemX for siblings.
+                // We prefer: prev position (from prevNodes) -> item.x/item.y -> static default.
                 itemsArr.sort((a, b) => (a.Sequence || 0) - (b.Sequence || 0));
                 itemsArr.forEach(item => {
                     const safeCategory = (item.Category || 'Equipment').toString();
                     const safeType = (item.Type || 'Generic').toString();
 
                     // If a previous node exists for this item id, reuse its position
-                    // inside diagramBuilder when deciding finalPos for each item:
                     const prevPos = prevPosMap.get(String(item.id));
+                    // itemPosFromData: if the incoming item (from your raw data) had explicit x/y coordinates
                     const itemPosFromData = (item && typeof item.x === 'number' && typeof item.y === 'number')
                         ? { x: Number(item.x), y: Number(item.y) }
                         : null;
-                    const defaultPos = { x: itemX, y: subUnitY + 20 };
-                    const finalPos = prevPos ? { x: Number(prevPos.x), y: Number(prevPos.y) } : (itemPosFromData ? itemPosFromData : defaultPos);
 
+                    // Static fallback default position (for truly new items without previous position)
+                    const defaultPos = { x: 100, y: 100 };
+
+                    // finalPos preference: prevPos (from current ReactFlow) -> itemPosFromData -> defaultPos
+                    const finalPos = prevPos
+                        ? { x: Number(prevPos.x), y: Number(prevPos.y) }
+                        : (itemPosFromData ? itemPosFromData : defaultPos);
 
                     newNodes.push({
                         id: item.id,
@@ -161,8 +170,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], options = {}) {
                         style: { background: 'transparent', boxShadow: 'none' },
                     });
 
-                    // Only increment itemX if we used the default pos (so we don't stack using prev positions)
-                    if (!prevPos) itemX += itemWidth + itemGap;
+                    // NOTE: no itemX increment — siblings won't be auto-spread
                 });
             });
         });
