@@ -481,69 +481,48 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
 
-    // --- ✅ FIX: Add Item wiring (normalize fields + auto-select) ---
+    // inside ProcessDiagram, near your other callbacks (before the return)
     const handleAddItem = (rawItem) => {
         const normalizedItem = {
             id: rawItem.id || `item-${Date.now()}`,
-            Name: rawItem.Name || '',
-            Code: rawItem.Code ?? rawItem['Item Code'] ?? '',
+            Name: rawItem.Name || 'New Item',
+            Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
             'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
-            Unit: rawItem.Unit || '',
-            SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? '',
+            Unit: rawItem.Unit || 'No Unit',                          // default for buildDiagram
+            SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? 'No SubUnit',
             Category: Array.isArray(rawItem['Category Item Type'])
                 ? rawItem['Category Item Type'][0]
-                : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
+                : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
             'Category Item Type': Array.isArray(rawItem['Category Item Type'])
                 ? rawItem['Category Item Type'][0]
-                : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
+                : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
             Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
             Sequence: rawItem.Sequence ?? 0,
             Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
         };
 
-        const newNode = {
-            id: normalizedItem.id,
-            position: getUnitSubunitPosition(normalizedItem.Unit, normalizedItem.SubUnit, nodes),
-            data: {
-                label: `${normalizedItem.Code || ''} - ${normalizedItem.Name || ''}`,
-                item: normalizedItem,
-                icon: getItemIcon(normalizedItem),
-            },
-            type: categoryTypeMap[normalizedItem.Category] || 'scalableIcon',
-            sourcePosition: 'right',
-            targetPosition: 'left',
-            style: { background: 'transparent', boxShadow: 'none' },
-        };
+        // Add to items and immediately rebuild diagram from authoritative items list
+        setItems(prevItems => {
+            const nextItems = [...prevItems, normalizedItem];
 
-        setNodes(nds => [...nds, newNode]);
-        setItems(prev => [...prev, normalizedItem]);
+            // use current layout (fallback to safe layout)
+            const layout = (Array.isArray(unitLayoutOrder) && unitLayoutOrder.length) ? unitLayoutOrder : [[]];
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, layout);
 
-        if (normalizedItem.Connections.length) {
-            const newEdges = normalizedItem.Connections.map(conn => {
-                // conn is often a string (name/code/id)
-                const targetNode = nodes.find(n =>
-                    n.id === conn ||
-                    n.data?.item?.Name === conn ||
-                    n.data?.item?.Code === conn
-                );
-                if (!targetNode) return null;
-                const edgeId = `edge-${normalizedItem.id}-${targetNode.id}-${Date.now()}`;
-                return {
-                    id: edgeId,
-                    source: normalizedItem.id,
-                    target: targetNode.id,
-                    type: 'smoothstep',
-                    animated: true,
-                    style: { stroke: '#888', strokeWidth: 2 },
-                };
-            }).filter(Boolean);
+            setNodes(rebuiltNodes);
+            setEdges(rebuiltEdges);
 
-            if (newEdges.length) setEdges(eds => [...eds, ...newEdges]);
-        }
+            // auto-select the newly-added item in sidebar
+            const addedNode = rebuiltNodes.find(n => n.id === normalizedItem.id);
+            if (addedNode) {
+                setSelectedNodes([addedNode]);
+            }
+            setSelectedItem(normalizedItem);
 
-        setSelectedNodes([newNode]);
-        setSelectedItem(normalizedItem);
+            return nextItems;
+        });
     };
+
 
 
     function getUnitSubunitPosition(unit, subUnit, nodes) {
