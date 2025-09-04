@@ -23,6 +23,7 @@ export default function DiagramCanvas({
     onEdgeSelect,
     nodeTypes,
     AddItemButton,
+    addItem,
     aiDescription,
     setAiDescription,
     handleGeneratePNID,
@@ -165,8 +166,12 @@ export default function DiagramCanvas({
             />
 
             <div style={{ padding: 10 }}>
-                {AddItemButton && AddItemButton({ setNodes, setEdges, addItem: handleAddItem })}
+                {AddItemButton && (
+                    // Render the component and forward the handler + useful setters
+                    <AddItemButton addItem={addItem} setNodes={setNodes} setEdges={setEdges} setItems={setItems} />
+                )}
             </div>
+
 
 
 
