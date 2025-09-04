@@ -165,8 +165,12 @@ export default function DiagramCanvas({
             />
 
             <div style={{ padding: 10 }}>
-                {AddItemButton && <AddItemButton />}
+                {/* If ProcessDiagram passed a wrapper function (props=> <AddItemButton addItem=.../>),
+        call it directly so it receives the props you supply. */}
+                {AddItemButton && AddItemButton({ setNodes, setEdges })}
             </div>
+
+
 
             <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
