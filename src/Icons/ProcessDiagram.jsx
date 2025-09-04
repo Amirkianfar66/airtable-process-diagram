@@ -443,7 +443,8 @@ export default function ProcessDiagram() {
                 setUnitLayoutOrder(unitLayout2D);
 
                 // Build diagram nodes and edges
-                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
+                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D, { prevNodes: nodes });
+
 
                 setNodes(builtNodes);
                 setEdges(builtEdges);
