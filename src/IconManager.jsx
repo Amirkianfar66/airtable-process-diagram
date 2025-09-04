@@ -138,44 +138,38 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 /** Update an item and its node (category/type changes reflected) */
 /** Update an item and its node (category/type changes reflected) */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem, nodes = []) {
-    // Shallow copy everything so we preserve extra fields like from/to/edgeId
+    // build the merged item first
+    let prevItem = {};
     setItems((prev) => {
-        const prevItem = prev.find((it) => it.id === updatedItem.id) || {};
-        const next = {
-            ...prevItem,     // preserve from/to/edgeId and anything else
-            ...updatedItem,  // overwrite with new values
-        };
-
-        // normalize category/type/code (your existing logic)...
-
-        return prev.map((it) => (it.id === next.id ? next : it));
+        prevItem = prev.find((it) => it.id === updatedItem.id) || {};
+        return prev;
     });
 
+    const next = {
+        ...prevItem,
+        ...updatedItem,
+    };
 
-    // --- Normalize Category to a clean string (support arrays from Airtable) ---
+    // --- Normalize Category to a clean string ---
     const rawCategory = next.Category ?? next['Category Item Type'] ?? '';
     next.Category = Array.isArray(rawCategory) ? (rawCategory[0] ?? '') : String(rawCategory);
     next['Category Item Type'] = next.Category;
 
-    // --- Normalize Type to a string (Airtable sometimes gives arrays) ---
+    // --- Normalize Type ---
     if (Array.isArray(next.Type)) next.Type = next.Type[0] ?? '';
     next.Type = String(next.Type ?? '');
 
-    // --- Normalize code fields (keep both Code and Item Code in sync) ---
+    // --- Normalize code fields ---
     if (!next.Code && next['Item Code']) next.Code = next['Item Code'];
     if (!next['Item Code'] && next.Code) next['Item Code'] = next.Code;
 
-    // Update items array (preserve all fields)
+    // ✅ Now update items
     setItems((prev) => prev.map((it) => (it.id === next.id ? next : it)));
 
-    // Helper: calculate new position in Unit/SubUnit (same logic as before)
+    // Helper for positioning
     function getUnitSubunitPosition(unit, subUnit, nodesArr) {
-        const unitNode = nodesArr.find(n => n.id === `unit-${unit}`);
         const subUnitNode = nodesArr.find(n => n.id === `sub-${unit}-${subUnit}`);
-
-        if (!subUnitNode) {
-            return { x: 100, y: 100 }; // fallback
-        }
+        if (!subUnitNode) return { x: 100, y: 100 };
 
         const siblings = nodesArr.filter(n =>
             n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit && n.id !== next.id
@@ -184,13 +178,13 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         const itemWidth = 160;
         const itemGap = 30;
 
-        const x = subUnitNode.position.x + 40 + siblings.length * (itemWidth + itemGap);
-        const y = subUnitNode.position.y + 40;
-
-        return { x, y };
+        return {
+            x: subUnitNode.position.x + 40 + siblings.length * (itemWidth + itemGap),
+            y: subUnitNode.position.y + 40,
+        };
     }
 
-    // Update nodes array (ensure node.type is a string)
+    // ✅ Update nodes
     setNodes((nds) =>
         nds.map((node) =>
             node.id === next.id
@@ -209,7 +203,6 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         )
     );
 
-    // Update selected item
     setSelectedItem(next);
 }
 
