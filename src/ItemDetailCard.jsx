@@ -166,18 +166,54 @@ export default function ItemDetailCard({
     }, [item, edges, items]);
 
     const handleFieldChange = (fieldName, value) => {
-        const updated = { ...localItem, [fieldName]: value };
-        setLocalItem(updated);
+        // Keep id stable. prefer existing localItem.id or item.id
+        const id = localItem?.id || item?.id;
+        let updated = { ...(localItem || {}), [fieldName]: value, id };
 
-        if (['Unit', 'SubUnit', 'x', 'y'].includes(fieldName)) {
-            // Geometry change → move node
-            if (onChange) onChange(updated);
-        } else {
-            // Visual change → update node data only
-            if (onDataChange) onDataChange(updated);
+        // Special handling when category changes: reset Type/TypeKey
+        if (fieldName === 'Category' || fieldName === 'Category Item Type') {
+            const newCategory = value;
+            updated['Category Item Type'] = newCategory;
+            updated.Category = newCategory;
+            updated.Type = '';      // clear chosen type
+            updated.TypeKey = '';   // clear key
+            // call onDataChange to update node data & node type (but don't move node)
+            if (typeof onDataChange === 'function') onDataChange(updated);
+            setLocalItem(updated);
+            return;
         }
-    };
 
+        // Special handling when Type changes: also set TypeKey (try to find from filteredTypes)
+        if (fieldName === 'Type') {
+            const chosenName = value;
+            const chosen = Array.isArray(filteredTypes) ? filteredTypes.find((t) => t.name === chosenName) : null;
+            if (chosen) {
+                updated.Type = chosen.name;
+                updated.TypeKey = chosen.key ?? normalizeKey(chosen.name);
+                updated.TypeId = chosen.id ?? updated.TypeId;
+            } else {
+                // fallback: compute key from name
+                updated.Type = chosenName;
+                updated.TypeKey = normalizeKey(chosenName);
+            }
+
+            // call data update to refresh SVG/icon
+            if (typeof onDataChange === 'function') onDataChange(updated);
+            setLocalItem(updated);
+            return;
+        }
+
+        // For geometry fields (move the node)
+        if (['Unit', 'SubUnit', 'x', 'y'].includes(fieldName)) {
+            setLocalItem(updated);
+            if (typeof onChange === 'function') onChange(updated);
+            return;
+        }
+
+        // For all other visual edits (Name, Code, Model Number, etc.), update data only
+        setLocalItem(updated);
+        if (typeof onDataChange === 'function') onDataChange(updated);
+    };
 
 
 
