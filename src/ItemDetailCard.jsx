@@ -9,11 +9,12 @@ const typeCache = new Map();
 export default function ItemDetailCard({
     item,
     onChange,
+    onDataChange,
     items = [],
     edges = [],
     onDeleteEdge,
     onUpdateEdge,
-    onCreateInlineValve, // left in signature in case you use it elsewhere
+    onCreateInlineValve,
 }) {
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');

@@ -636,9 +636,7 @@ export default function ProcessDiagram() {
                                 item={selectedItem}
                                 items={items}
                                 edges={edges}
-                                onChange={(updatedItem) =>
-                                    handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) // geometry changes
-                                }
+                                onChange={handleItemChangeNode}       // for Unit/SubUnit/x/y
                                 onDataChange={(updatedItem) =>
                                     setNodes((nds) =>
                                         nds.map((n) =>
@@ -650,6 +648,7 @@ export default function ProcessDiagram() {
                                 onUpdateEdge={handleUpdateEdge}
                                 onCreateInlineValve={handleCreateInlineValve}
                             />
+
 
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
