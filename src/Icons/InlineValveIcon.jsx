@@ -7,49 +7,23 @@ const modules = import.meta.glob('./InlineValveIcon/*.svg', { eager: true });
 
 const valveIcons = {};
 for (const path in modules) {
-    const fileBase = path.split('/').pop().replace('.svg', '');
-    const name = fileBase.toLowerCase();
+    const name = path.split('/').pop().replace('.svg', '').toLowerCase();
     const mod = modules[path];
 
-    // support SVGR (component) or plain url
     if (typeof mod === 'object' && 'default' in mod && typeof mod.default === 'function') {
-        valveIcons[name] = mod.default;
+        valveIcons[name] = mod.default; // SVGR component
     } else {
-        valveIcons[name] = mod.default || mod;
+        valveIcons[name] = mod.default || mod; // URL fallback
     }
 }
-
-// Normalizer used when fallback to data.Type is needed
-const normalizeKey = (s) =>
-    (s || '')
-        .toString()
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '_') // map spaces -> underscores
-        .replace(/[^a-z0-9_-]/g, ''); // remove other chars
 
 export default function InlineValveIcon({ data }) {
     const [hovered, setHovered] = useState(false);
     const label = data?.label || '';
 
-    // Prefer explicit TypeKey (saved from ItemDetailCard). Fallback to normalized Type name.
-    const primaryKey = (data?.TypeKey || normalizeKey(data?.Type || '')).toString().toLowerCase();
-
-    // Try a few variants to be tolerant to filename conventions:
-    const keysToTry = [
-        primaryKey,
-        primaryKey.replace(/[_-]/g, ''),   // no separators
-        primaryKey.replace(/_/g, '-'),     // underscores -> dashes
-        primaryKey.replace(/-/g, '_'),     // dashes -> underscores
-    ];
-
-    let Icon = null;
-    for (const k of keysToTry) {
-        if (k && valveIcons[k]) {
-            Icon = valveIcons[k];
-            break;
-        }
-    }
+    // normalize type name
+    const key = data?.Type?.toLowerCase();
+    const Icon = key && valveIcons[key] ? valveIcons[key] : null;
 
     return (
         <div
@@ -68,25 +42,29 @@ export default function InlineValveIcon({ data }) {
                 justifyContent: 'center',
             }}
         >
-            <div style={{ width: 60, height: 60 }}>
-                {Icon ? (
-                    typeof Icon === 'string' ? (
-                        <img src={Icon} alt={data?.Type || 'valve'} style={{ width: '100%', height: '100%' }} />
-                    ) : (
-                        // SVGR component
-                        <Icon style={{ width: '100%', height: '100%' }} />
-                    )
+            {Icon ? (
+                typeof Icon === 'string' ? (
+                    <img src={Icon} alt={data?.Type || 'valve'} style={{ width: 60, height: 60 }} />
                 ) : (
-                    // fallback if no SVG found
-                    <svg width="60" height="60" viewBox="0 0 200 200">
-                        <polygon points="60,80 100,100 60,120" fill="orange" stroke="orange" strokeWidth="1" />
-                        <polygon points="140,80 100,100 140,120" fill="orange" stroke="orange" strokeWidth="1" />
-                        <text x="100" y="108" fontSize="16" textAnchor="middle" fill="black" fontFamily="sans-serif">
-                            IV
-                        </text>
-                    </svg>
-                )}
-            </div>
+                    <Icon style={{ width: 60, height: 60 }} />
+                )
+            ) : (
+                // fallback if no SVG found
+                <svg width="60" height="60" viewBox="0 0 200 200">
+                    <polygon points="60,80 100,100 60,120" fill="orange" stroke="orange" strokeWidth="1" />
+                    <polygon points="140,80 100,100 140,120" fill="orange" stroke="orange" strokeWidth="1" />
+                    <text
+                        x="100"
+                        y="108"
+                        fontSize="16"
+                        textAnchor="middle"
+                        fill="black"
+                        fontFamily="sans-serif"
+                    >
+                        IV
+                    </text>
+                </svg>
+            )}
 
             {/* Label */}
             <div
@@ -113,8 +91,8 @@ export default function InlineValveIcon({ data }) {
                 style={{
                     top: 60,
                     left: -1,
-                    width: 8,
-                    height: 8,
+                    width: 2,
+                    height: 2,
                     borderRadius: '50%',
                     background: 'red',
                     border: '1px solid white',
@@ -129,8 +107,8 @@ export default function InlineValveIcon({ data }) {
                 style={{
                     top: 60,
                     right: -1,
-                    width: 8,
-                    height: 8,
+                    width: 2,
+                    height: 2,
                     borderRadius: '50%',
                     background: 'blue',
                     border: '1px solid white',
