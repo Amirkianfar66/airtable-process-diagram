@@ -165,10 +165,15 @@ export default function DiagramCanvas({
             />
 
             <div style={{ padding: 10 }}>
-                {/* If ProcessDiagram passed a wrapper function (props=> <AddItemButton addItem=.../>),
-        call it directly so it receives the props you supply. */}
-                {AddItemButton && AddItemButton({ setNodes, setEdges })}
+                {AddItemButton && (
+                    typeof AddItemButton === 'function'
+                        // parent passed a wrapper function (your current case): call it to receive the element
+                        ? AddItemButton({ setNodes, setEdges })
+                        // parent passed a component: render it normally
+                        : <AddItemButton setNodes={setNodes} setEdges={setEdges} />
+                )}
             </div>
+
 
 
 
