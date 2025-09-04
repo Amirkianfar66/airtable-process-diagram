@@ -199,11 +199,26 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
             const shouldReposition = (next.Unit !== prevItem.Unit) || (next.SubUnit !== prevItem.SubUnit);
 
             // If node.position undefined, try to fall back to any saved coordinates (node.data.x/y or node.data.item.x/y or next.x/next.y)
-            const fallbackPos = oldPos ?? node.data?.x && node.data?.y
-                ? { x: node.data.x, y: node.data.y }
-                : (node.data?.item && typeof node.data.item.x === 'number' && typeof node.data.item.y === 'number'
-                    ? { x: node.data.item.x, y: node.data.item.y }
-                    : (typeof next.x === 'number' && typeof next.y === 'number' ? { x: next.x, y: next.y } : undefined));
+            // If node.position undefined, try to fall back to any saved coordinates
+            const fallbackPos = (() => {
+                if (oldPos && typeof oldPos.x === 'number' && typeof oldPos.y === 'number') {
+                    return oldPos;
+                }
+
+                if (node.data && typeof node.data.x === 'number' && typeof node.data.y === 'number') {
+                    return { x: node.data.x, y: node.data.y };
+                }
+
+                if (node.data?.item && typeof node.data.item.x === 'number' && typeof node.data.item.y === 'number') {
+                    return { x: node.data.item.x, y: node.data.item.y };
+                }
+
+                if (typeof next.x === 'number' && typeof next.y === 'number') {
+                    return { x: next.x, y: next.y };
+                }
+
+                return undefined;
+            })();
 
             const newPos = shouldReposition ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds) : (fallbackPos ?? { x: 100, y: 100 });
 
