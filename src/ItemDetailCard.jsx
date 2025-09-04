@@ -61,7 +61,7 @@ export default function ItemDetailCard({
                         (data.records || []).map((r) => ({
                             id: r.id,
                             // adjust this field name to match your valve table column
-                            name: r.fields['Valve Type'] || r.fields['Name'] || '',
+                            name: r.fields['Still Pipe'] || r.fields['Name'] || '',
                             category: 'Inline Valve',
                         }))
                     );
@@ -90,7 +90,7 @@ export default function ItemDetailCard({
 
         if (category === 'Inline Valve') {
             tableId = valveTypesTableId;
-            fieldName = 'Valve Type';
+            fieldName = 'Still Pipe';
         }
 
         if (!tableId) return 'Unknown';
