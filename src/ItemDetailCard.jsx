@@ -1,11 +1,9 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿// ItemDetailCard.jsx (patched)
+import React, { useEffect, useState } from 'react';
 
 // simple runtime cache for resolved type names by record id
 const typeCache = new Map();
 
-/**
- * ItemDetailCard (default export)
- */
 export default function ItemDetailCard({
     item,
     onChange,
@@ -13,13 +11,12 @@ export default function ItemDetailCard({
     edges = [],
     onDeleteEdge,
     onUpdateEdge,
-    onCreateInlineValve, // left in signature in case you use it elsewhere
+    onCreateInlineValve,
 }) {
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
 
-    // ✅ Add this safe wrapper for onChange
     const safeOnChange = (payload, options) => {
         if (typeof onChange !== "function") return;
         try {
@@ -33,14 +30,12 @@ export default function ItemDetailCard({
         }
     };
 
-
-    // Update local state when item changes
+    // ---- PATCH 1: only update localItem when the selected item's id changes ----
     useEffect(() => {
-        console.log('ItemDetailCard | incoming item:', item);
+        console.log('ItemDetailCard | incoming item id:', item?.id);
         setLocalItem(item || {});
-    }, [item]);
+    }, [item?.id]);
 
-    // Fetch all types from Airtable for dropdown (includes valve types)
     useEffect(() => {
         const fetchTypes = async () => {
             try {
@@ -51,7 +46,6 @@ export default function ItemDetailCard({
 
                 let typesList = [];
 
-                // Fetch Equipment/Instrument/etc types
                 if (equipTypesTableId) {
                     const res = await fetch(`https://api.airtable.com/v0/${baseId}/${equipTypesTableId}`, {
                         headers: { Authorization: `Bearer ${token}` },
@@ -66,7 +60,6 @@ export default function ItemDetailCard({
                     );
                 }
 
-                // Fetch Inline Valve types (from separate table)
                 if (valveTypesTableId) {
                     const res = await fetch(`https://api.airtable.com/v0/${baseId}/${valveTypesTableId}`, {
                         headers: { Authorization: `Bearer ${token}` },
@@ -75,7 +68,6 @@ export default function ItemDetailCard({
                     typesList = typesList.concat(
                         (data.records || []).map((r) => ({
                             id: r.id,
-                            // adjust this field name to match your valve table column
                             name: r.fields['Still Pipe'] || r.fields['Name'] || '',
                             category: 'Inline Valve',
                         }))
@@ -90,9 +82,7 @@ export default function ItemDetailCard({
         fetchTypes();
     }, []);
 
-    // Helper: fetch a single type record by record ID and category (returns display name)
     const fetchTypeNameById = async (typeId, category) => {
-        // check cache first
         if (typeCache.has(typeId)) return typeCache.get(typeId);
 
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -101,7 +91,7 @@ export default function ItemDetailCard({
         const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
 
         let tableId = equipTypesTableId;
-        let fieldName = 'Still Pipe'; // default display field for main table
+        let fieldName = 'Still Pipe';
 
         if (category === 'Inline Valve') {
             tableId = valveTypesTableId;
@@ -123,18 +113,14 @@ export default function ItemDetailCard({
         }
     };
 
-    // Resolve linked "Type" name for display (handles both record ID and plain name)
     useEffect(() => {
         if (!item || !item.Type) {
             setResolvedType('-');
             return;
         }
 
-        // if Type is an array (typical Airtable linked record), inspect first element
         if (Array.isArray(item.Type) && item.Type.length > 0) {
             const typeIdOrName = item.Type[0];
-
-            // If it looks like an Airtable record ID (starts with "rec"), fetch the record
             if (typeof typeIdOrName === 'string' && typeIdOrName.startsWith('rec')) {
                 if (typeCache.has(typeIdOrName)) {
                     setResolvedType(typeCache.get(typeIdOrName));
@@ -147,16 +133,13 @@ export default function ItemDetailCard({
                     setResolvedType(name);
                 })();
             } else {
-                // Not a record ID — assume it's already the readable name
                 setResolvedType(typeIdOrName);
             }
         } else {
-            // Type is not an array — might be plain string
             setResolvedType(item.Type);
         }
     }, [item]);
 
-    // Sync first connection into localItem (unchanged)
     useEffect(() => {
         if (!item || !edges || !Array.isArray(edges) || !items || !Array.isArray(items)) return;
 
@@ -179,16 +162,10 @@ export default function ItemDetailCard({
         }));
     }, [item, edges, items]);
 
-    // ---- CHANGED: handleFieldChange accepts options and preserves x/y when reposition:false ----
-    // small helper to consistently commit multi-field updates (preserves x/y and includes id)
-    // Robust commitUpdate — always include a reliable x/y unless reposition:true
-    // --- ItemDetailCard: robust commit + simple handleFieldChange ---
-    // put these inside ItemDetailCard (replace older commitUpdate & handleFieldChange)
-
+    // ---- PATCH 3: small debug flag and explicit reposition marker ----
     const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {
         const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
 
-        // pick x/y from updatedObj -> localItem -> incoming item (so we always send them unless reposition requested)
         const chosenX = (typeof updatedObj?.x === 'number') ? updatedObj.x
             : (typeof localItem?.x === 'number') ? localItem.x
                 : (typeof item?.x === 'number') ? item.x
@@ -206,25 +183,24 @@ export default function ItemDetailCard({
             if (typeof chosenY === 'number') payload.y = Number(chosenY);
         }
 
-        // update local UI state once
+        // local UI update
         setLocalItem(prev => ({ ...prev, ...updatedObj }));
 
-        // call parent
+        // include explicit marker if requesting reposition
+        if (options.reposition) payload._repositionRequest = true;
+
         safeOnChange(payload, options);
     };
 
+    // ---- PATCH 2: do NOT auto-force reposition for Unit/SubUnit ----
     const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
-        // if Unit or SubUnit, force reposition to true only for those fields
-        const repositionFlag =
-            fieldName === 'Unit' || fieldName === 'SubUnit' ? true : options.reposition || false;
+        const repositionFlag = options.reposition === true;
 
         const updated = { ...(localItem || {}), [fieldName]: value };
         if (!updated.id && item?.id) updated.id = item.id;
 
         commitUpdate(updated, { reposition: repositionFlag });
     };
-
-    // ---- end change ----
 
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
 
@@ -245,22 +221,11 @@ export default function ItemDetailCard({
     const sectionStyle = { marginBottom: '24px' };
     const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
 
-    // small helper for edge UI
     const liveEdge = item._edge || {};
 
     return (
         <>
-            <div
-                style={{
-                    background: '#fff',
-                    borderRadius: '10px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    padding: '20px',
-                    margin: '16px',
-                    maxWidth: '350px',
-                    fontFamily: 'sans-serif',
-                }}
-            >
+            <div style={{ background: '#fff', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '20px', margin: '16px', maxWidth: '350px', fontFamily: 'sans-serif' }}>
                 <section style={sectionStyle}>
                     <h3 style={headerStyle}>General Info</h3>
 
@@ -276,26 +241,12 @@ export default function ItemDetailCard({
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Category:</label>
-                        <select
-                            style={inputStyle}
-                            value={localItem['Category Item Type'] || 'Equipment'}
-                            onChange={(e) => {
-                                const newCategory = e.target.value;
-                                const updated = {
-                                    ...localItem,
-                                    'Category Item Type': newCategory,
-                                    Category: newCategory,
-                                    Type: '',
-                                };
-                                // use commitUpdate so x/y preservation + id inclusion are handled uniformly
-                                commitUpdate(updated, { reposition: false });
-                            }}
-                        >
-                            {categories.map((cat) => (
-                                <option key={cat} value={cat}>
-                                    {cat}
-                                </option>
-                            ))}
+                        <select style={inputStyle} value={localItem['Category Item Type'] || 'Equipment'} onChange={(e) => {
+                            const newCategory = e.target.value;
+                            const updated = { ...localItem, 'Category Item Type': newCategory, Category: newCategory, Type: '' };
+                            commitUpdate(updated, { reposition: false });
+                        }}>
+                            {categories.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
                         </select>
                     </div>
 
@@ -303,23 +254,18 @@ export default function ItemDetailCard({
                         <label style={labelStyle}>Type:</label>
                         <select style={inputStyle} value={localItem.Type || ''} onChange={(e) => handleFieldChange('Type', e.target.value)}>
                             <option value="">Select Type</option>
-                            {filteredTypes.map((t) => (
-                                <option key={t.id} value={t.name}>
-                                    {t.name}
-                                </option>
-                            ))}
+                            {filteredTypes.map((t) => (<option key={t.id} value={t.name}>{t.name}</option>))}
                         </select>
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Unit:</label>
-                        {/* Unit/SubUnit should request reposition */}
-                        <input style={inputStyle} type="text" value={localItem['Unit'] || ''} onChange={(e) => handleFieldChange('Unit', e.target.value, { reposition: true })} />
+                        <input style={inputStyle} type="text" value={localItem['Unit'] || ''} onChange={(e) => handleFieldChange('Unit', e.target.value)} />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Sub Unit:</label>
-                        <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={(e) => handleFieldChange('SubUnit', e.target.value, { reposition: true })} />
+                        <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={(e) => handleFieldChange('SubUnit', e.target.value)} />
                     </div>
 
                     <div style={rowStyle}>
@@ -346,6 +292,8 @@ export default function ItemDetailCard({
                         <label style={labelStyle}>Y Position:</label>
                         <input style={inputStyle} type="number" value={localItem['y'] ?? ''} onChange={(e) => handleFieldChange('y', parseFloat(e.target.value))} />
                     </div>
+
+                    {/* explicit save / reposition controls could be added here if you want */}
                 </section>
 
                 <section style={sectionStyle}>
@@ -368,44 +316,22 @@ export default function ItemDetailCard({
                 </section>
             </div>
 
-            {/* EDGE controls (when an edge is selected) */}
             {item?._edge && (
                 <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
                     <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
-
-                    {/* label + animated toggle */}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                        <input
-                            style={{ flex: 1, padding: 8 }}
-                            value={liveEdge.label ?? ''}
-                            placeholder="Edge label"
-                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })}
-                        />
+                        <input style={{ flex: 1, padding: 8 }} value={liveEdge.label ?? ''} placeholder="Edge label" onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })} />
                         <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !(liveEdge.animated) })}>
                             {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
 
-                    {/* color */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <label style={{ width: 70 }}>Color</label>
-                        <input
-                            type="color"
-                            value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
-                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
-                        />
-                        <input
-                            type="text"
-                            value={(liveEdge.style && liveEdge.style.stroke) || ''}
-                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
-                            style={{ flex: 1, padding: 8 }}
-                        />
-                        {/* Delete Edge button */}
+                        <input type="color" value={(liveEdge.style && liveEdge.style.stroke) || '#000000'} onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })} />
+                        <input type="text" value={(liveEdge.style && liveEdge.style.stroke) || ''} onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })} style={{ flex: 1, padding: 8 }} />
                         {item?.edgeId && onDeleteEdge && (
-                            <button
-                                onClick={() => onDeleteEdge(item.edgeId)}
-                                style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}
-                            >
+                            <button onClick={() => onDeleteEdge(item.edgeId)} style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}>
                                 Delete Edge
                             </button>
                         )}

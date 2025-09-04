@@ -728,14 +728,15 @@ export default function ProcessDiagram() {
                                 item={selectedItem}
                                 items={items}
                                 edges={edges}
-                                onChange={(updatedItem) => {
-                                    // do not auto-reposition when Unit/SubUnit changes
-                                    handleItemDetailChange(updatedItem, { reposition: false });
+                                onChange={(updatedItem, options = {}) => {
+                                    // By default, don't reposition (explicit button will request it)
+                                    handleItemDetailChange(updatedItem, { reposition: options.reposition === true });
                                 }}
                                 onDeleteEdge={handleDeleteEdge}
                                 onUpdateEdge={handleUpdateEdge}
                                 onCreateInlineValve={handleCreateInlineValve}
                             />
+
 
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
