@@ -168,11 +168,16 @@ export default function ItemDetailCard({
         const updated = { ...localItem, [fieldName]: value };
         setLocalItem(updated);
 
-        // Only sync back to canvas if certain fields change
         if (['Unit', 'SubUnit', 'x', 'y'].includes(fieldName)) {
+            // Geometry change → move node
             if (onChange) onChange(updated);
+        } else {
+            // Visual change → update node data only
+            if (onDataChange) onDataChange(updated);
         }
     };
+
+
 
 
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
@@ -237,7 +242,9 @@ export default function ItemDetailCard({
                                     Type: '',
                                 };
                                 setLocalItem(updated);
+                                if (onDataChange) onDataChange(updated); // refresh SVG
                             }}
+
                         >
                             {categories.map((cat) => (
                                 <option key={cat} value={cat}>

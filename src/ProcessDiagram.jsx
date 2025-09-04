@@ -637,17 +637,20 @@ export default function ProcessDiagram() {
                                 items={items}
                                 edges={edges}
                                 onChange={(updatedItem) =>
-                                    handleItemChangeNode(
-                                        updatedItem,
-                                        setItems,
-                                        setNodes,
-                                        setSelectedItem
+                                    handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) // geometry changes
+                                }
+                                onDataChange={(updatedItem) =>
+                                    setNodes((nds) =>
+                                        nds.map((n) =>
+                                            n.id === updatedItem.id ? { ...n, data: updatedItem } : n
+                                        )
                                     )
                                 }
                                 onDeleteEdge={handleDeleteEdge}
                                 onUpdateEdge={handleUpdateEdge}
                                 onCreateInlineValve={handleCreateInlineValve}
                             />
+
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
                             Select an item or group to see details
