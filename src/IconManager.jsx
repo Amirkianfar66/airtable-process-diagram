@@ -138,7 +138,7 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
 /** Update an item and its node (category/type changes reflected) */
 /** Update an item and its node (category/type changes reflected) */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem, nodes = []) {
-    // build the merged item first
+    // merge with existing item
     let prevItem = {};
     setItems((prev) => {
         prevItem = prev.find((it) => it.id === updatedItem.id) || {};
@@ -163,16 +163,16 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     if (!next.Code && next['Item Code']) next.Code = next['Item Code'];
     if (!next['Item Code'] && next.Code) next['Item Code'] = next.Code;
 
-    // ✅ Now update items
+    // ✅ Update items array
     setItems((prev) => prev.map((it) => (it.id === next.id ? next : it)));
 
-    // Helper for positioning
+    // Helper for positioning if Unit/SubUnit changed
     function getUnitSubunitPosition(unit, subUnit, nodesArr) {
-        const subUnitNode = nodesArr.find(n => n.id === `sub-${unit}-${subUnit}`);
+        const subUnitNode = nodesArr.find((n) => n.id === `sub-${unit}-${subUnit}`);
         if (!subUnitNode) return { x: 100, y: 100 };
 
-        const siblings = nodesArr.filter(n =>
-            n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit && n.id !== next.id
+        const siblings = nodesArr.filter(
+            (n) => n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit && n.id !== next.id
         );
 
         const itemWidth = 160;
@@ -184,25 +184,33 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         };
     }
 
-    // ✅ Update nodes
+    // ✅ Update nodes safely
     setNodes((nds) =>
-        nds.map((node) =>
-            node.id === next.id
-                ? {
-                    ...node,
-                    type: String(categoryTypeMap[next.Category] || "scalableIcon"),
-                    position: getUnitSubunitPosition(next.Unit, next.SubUnit, nds),
-                    data: {
-                        ...node.data,
-                        label: `${next.Code || ""} - ${next.Name || ""}`,
-                        item: next,
-                        icon: getItemIcon(next, { width: 40, height: 40 }),
-                    },
-                }
-                : node
-        )
+        nds.map((node) => {
+            if (node.id !== next.id) return node;
+
+            // 🔎 Detect whether we should recalc position
+            const unitChanged = next.Unit !== prevItem.Unit;
+            const subUnitChanged = next.SubUnit !== prevItem.SubUnit;
+
+            let newPosition = node.position; // default: keep old position
+            if (unitChanged || subUnitChanged) {
+                newPosition = getUnitSubunitPosition(next.Unit, next.SubUnit, nds);
+            }
+
+            return {
+                ...node,
+                type: String(categoryTypeMap[next.Category] || "scalableIcon"),
+                position: newPosition,
+                data: {
+                    ...node.data,
+                    label: `${next.Code || ""} - ${next.Name || ""}`,
+                    item: next,
+                    icon: getItemIcon(next, { width: 40, height: 40 }),
+                },
+            };
+        })
     );
 
     setSelectedItem(next);
 }
-
