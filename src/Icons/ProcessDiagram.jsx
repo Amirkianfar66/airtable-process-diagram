@@ -298,6 +298,14 @@ export default function ProcessDiagram() {
         });
     }, [setEdges, setSelectedItem]);
 
+    const handleDeleteItem = useCallback((id) => {
+        setNodes((nds) => nds.filter((n) => n.id !== id));
+        setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+        setItems((its) => its.filter((it) => it.id !== id));
+        setSelectedItem(null);
+    }, []);
+
+
     // create an inline valve on an existing edge and split the edge into two
     const handleCreateInlineValve = useCallback((edgeId) => {
         const edge = edges.find(e => e.id === edgeId);

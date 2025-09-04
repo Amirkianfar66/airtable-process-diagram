@@ -316,6 +316,30 @@ export default function ItemDetailCard({
                     </div>
                 </section>
             </div>
+            {/* Always show Delete Item button (not just for edges) */}
+            {onDeleteItem && (
+                <div style={{ margin: '16px', maxWidth: 350, textAlign: 'center' }}>
+                    <button
+                        onClick={() => {
+                            if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
+                                onDeleteItem(item.id);
+                            }
+                        }}
+                        style={{
+                            background: '#f44336',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '10px 16px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                        }}
+                    >
+                        Delete Item
+                    </button>
+                </div>
+            )}
+
 
             {item?._edge && (
                 <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
@@ -326,29 +350,6 @@ export default function ItemDetailCard({
                             {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
-                    {/* Delete Item Button */}
-                    {onDeleteItem && (
-                        <div style={{ marginTop: 16, textAlign: 'center' }}>
-                            <button
-                                onClick={() => {
-                                    if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
-                                        onDeleteItem(item.id);
-                                    }
-                                }}
-                                style={{
-                                    background: '#f44336',
-                                    color: '#fff',
-                                    border: 'none',
-                                    padding: '10px 16px',
-                                    borderRadius: 6,
-                                    cursor: 'pointer',
-                                    fontWeight: 600,
-                                }}
-                            >
-                                Delete Item
-                            </button>
-                        </div>
-                    )}
 
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
