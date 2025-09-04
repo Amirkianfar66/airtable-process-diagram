@@ -164,11 +164,24 @@ export default function ItemDetailCard({
         }));
     }, [item, edges, items]);
 
-    const handleFieldChange = (fieldName, value) => {
+    // ---- CHANGED: handleFieldChange accepts options and preserves x/y when reposition:false ----
+    const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
         const updated = { ...localItem, [fieldName]: value };
         setLocalItem(updated);
-        if (onChange) onChange(updated);
+
+        if (onChange) {
+            // If caller doesn't want reposition, preserve current x/y so parent won't reset position.
+            if (!options.reposition) {
+                const preservedX = localItem?.x ?? item?.x;
+                const preservedY = localItem?.y ?? item?.y;
+                onChange({ ...updated, x: preservedX, y: preservedY }, options);
+            } else {
+                // let parent reposition based on Unit/SubUnit etc.
+                onChange(updated, options);
+            }
+        }
     };
+    // ---- end change ----
 
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
 
@@ -232,7 +245,8 @@ export default function ItemDetailCard({
                                     Type: '',
                                 };
                                 setLocalItem(updated);
-                                if (onChange) onChange(updated);
+                                // explicitly signal "no reposition" when category changes (icon update only)
+                                if (onChange) onChange({ ...updated, x: localItem?.x ?? item?.x, y: localItem?.y ?? item?.y }, { reposition: false });
                             }}
                         >
                             {categories.map((cat) => (
@@ -257,12 +271,13 @@ export default function ItemDetailCard({
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Unit:</label>
-                        <input style={inputStyle} type="text" value={localItem['Unit'] || ''} onChange={(e) => handleFieldChange('Unit', e.target.value)} />
+                        {/* Unit/SubUnit should request reposition */}
+                        <input style={inputStyle} type="text" value={localItem['Unit'] || ''} onChange={(e) => handleFieldChange('Unit', e.target.value, { reposition: true })} />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Sub Unit:</label>
-                        <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={(e) => handleFieldChange('SubUnit', e.target.value)} />
+                        <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={(e) => handleFieldChange('SubUnit', e.target.value, { reposition: true })} />
                     </div>
 
                     <div style={rowStyle}>
