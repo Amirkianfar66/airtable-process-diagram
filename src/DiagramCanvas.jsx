@@ -68,17 +68,16 @@ export default function DiagramCanvas({
         setSelectedEdge((s) => (s ? { ...s, ...patch } : s));
     };
 
-    const deleteSelectedEdge = () => {
-        if (!selectedEdge || typeof setEdges !== 'function') return;
-        if (!window.confirm('Delete this edge?')) return;
-        setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
-        handleCloseInspector();
-    };
-
-    const toggleEdgeAnimated = () => updateSelectedEdge({ animated: !selectedEdge?.animated });
-
     const changeEdgeCategory = (category) => {
-        if (!selectedEdge || category !== "Inline Valve") return;
+        if (!selectedEdge) return;
+
+        // If it's not Inline Valve → just update category
+        if (category !== "Inline Valve") {
+            updateSelectedEdge({
+                data: { ...(selectedEdge.data || {}), category },
+            });
+            return;
+        }
 
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
@@ -93,12 +92,12 @@ export default function DiagramCanvas({
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
-            Type: [],
+            Type: "",
             Unit: sourceNode.data?.item?.Unit || "",
             SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
-            edgeId: selectedEdge.id, // track the parent edge
+            edgeId: selectedEdge.id,
         };
 
         const newNode = {
@@ -117,25 +116,28 @@ export default function DiagramCanvas({
 
         setNodes((nds) => [...nds, newNode]);
 
+        // ✅ Notice: add "data" to new edges
         setEdges((eds) => [
             ...eds.filter((e) => e.id !== selectedEdge.id),
             {
                 id: `${selectedEdge.source}-${newNode.id}`,
                 source: selectedEdge.source,
                 target: newNode.id,
-                type: 'step',
+                type: "step",
                 style: { stroke: selectedEdge?.style?.stroke || "#000" },
+                data: { category: "Inline Valve", Type: "" },
             },
             {
                 id: `${newNode.id}-${selectedEdge.target}`,
                 source: newNode.id,
                 target: targetNode.id,
-                type: 'step',
+                type: "step",
                 style: { stroke: selectedEdge?.style?.stroke || "#000" },
+                data: { category: "Inline Valve", Type: "" },
             },
         ]);
-
     };
+
 
 
     const handleCloseInspector = () => {
@@ -274,7 +276,7 @@ export default function DiagramCanvas({
                                 </select>
                             </div>
 
-                            {/* Type selector (same as ItemDetailCard) */}
+                            {/* ✅ Type selector (only shows for Inline Valve) */}
                             {selectedEdge?.data?.category === 'Inline Valve' && (
                                 <div>
                                     <label style={{ display: 'block', fontSize: 12 }}>Type</label>
@@ -305,6 +307,7 @@ export default function DiagramCanvas({
                         </div>
                     )}
                 </aside>
+
 
 
             </div>
