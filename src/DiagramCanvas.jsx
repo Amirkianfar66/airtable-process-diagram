@@ -274,29 +274,26 @@ export default function DiagramCanvas({
                                 </select>
                             </div>
 
-                            {/* Inline Valve type selector */}
+                            {/* Type selector (same as ItemDetailCard) */}
                             {selectedEdge?.data?.category === 'Inline Valve' && (
                                 <div>
-                                    <label style={{ display: 'block', fontSize: 12 }}>Inline Valve Type</label>
+                                    <label style={{ display: 'block', fontSize: 12 }}>Type</label>
                                     <select
-                                        value={selectedEdge?.data?.valveType || ''}
+                                        value={selectedEdge?.data?.Type || ''}
                                         onChange={(e) =>
                                             updateSelectedEdge({
                                                 data: {
                                                     ...selectedEdge.data,
-                                                    category: 'Inline Valve',
-                                                    valveType: e.target.value,
+                                                    Type: e.target.value,
                                                 },
                                             })
                                         }
                                         style={{ padding: 8, width: '100%' }}
                                     >
                                         <option value="">Select type...</option>
-                                        <option value="Gate Valve">Gate Valve</option>
-                                        <option value="Globe Valve">Globe Valve</option>
-                                        <option value="Ball Valve">Ball Valve</option>
-                                        <option value="Butterfly Valve">Butterfly Valve</option>
-                                        <option value="Check Valve">Check Valve</option>
+                                        {(categoryTypeMap['Inline Valve'] || []).map((type) => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
                                     </select>
                                 </div>
                             )}
@@ -308,6 +305,7 @@ export default function DiagramCanvas({
                         </div>
                     )}
                 </aside>
+
 
             </div>
         </div>
