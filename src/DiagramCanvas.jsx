@@ -261,6 +261,18 @@ export default function DiagramCanvas({
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     onEdgeClick={handleEdgeClickLocal}
+                    onNodeClick={(event, node) => {
+                        event?.stopPropagation?.();
+                        if (typeof setSelectedItem === 'function') {
+                            // prefer canonical item if provided on node.data, otherwise synthesize
+                            const itemFromNode = node?.data?.item || { id: node.id, ...node.data };
+                            setSelectedItem(itemFromNode);
+                            // also close any selected edge inspector
+                            setSelectedEdge(null);
+                            if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+                        }
+                    }}
+
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     fitView
