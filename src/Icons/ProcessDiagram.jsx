@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
@@ -61,6 +61,9 @@ export default function ProcessDiagram() {
     const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
     const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
 
+    // keep previous items snapshot to avoid unnecessary full rebuilds
+    const prevItemsRef = useRef([]);
+
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
@@ -69,6 +72,37 @@ export default function ProcessDiagram() {
         setNodes((nds) => nds.filter((node) => node.id !== id));
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
+
+    // wrap ItemDetailCard onChange so we can preserve positions unless reposition requested
+    const handleItemDetailChange = useCallback((updatedItem, options = {}) => {
+        // update items array first
+        setItems((prev) => prev.map((it) => (String(it.id) === String(updatedItem.id) ? { ...it, ...updatedItem } : it)));
+
+        // update nodes: preserve position unless reposition requested
+        setNodes((prevNodes) =>
+            prevNodes.map((node) => {
+                if (String(node.id) !== String(updatedItem.id)) return node;
+
+                const currentPos = node.position || { x: node.data?.x ?? updatedItem.x ?? 0, y: node.data?.y ?? updatedItem.y ?? 0 };
+
+                if (options && options.reposition === true) {
+                    // compute new position using your helper (fallback to currentPos)
+                    try {
+                        const newPos = getUnitSubunitPosition(updatedItem.Unit, updatedItem.SubUnit, prevNodes) || currentPos;
+                        return { ...node, position: { x: newPos.x, y: newPos.y }, data: { ...node.data, ...updatedItem } };
+                    } catch (err) {
+                        return { ...node, position: currentPos, data: { ...node.data, ...updatedItem } };
+                    }
+                }
+
+                // otherwise preserve position and only update data so icon/type changes without moving
+                return { ...node, position: currentPos, data: { ...node.data, ...updatedItem } };
+            })
+        );
+
+        // also keep selectedItem in sync if the details panel is showing this item
+        setSelectedItem((cur) => (cur && String(cur.id) === String(updatedItem.id) ? { ...cur, ...updatedItem } : cur));
+    }, []);
 
     // Replace your existing onSelectionChange with this
     const onSelectionChange = useCallback(
@@ -419,6 +453,9 @@ export default function ProcessDiagram() {
                 const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
                 setAvailableUnitsForConfig(uniqueUnitsObjects);
 
+                // snapshot
+                prevItemsRef.current = normalizedItems;
+
             } catch (err) {
                 console.error('Error loading items:', err);
             }
@@ -427,13 +464,36 @@ export default function ProcessDiagram() {
         loadItems();
     }, []);
 
-    // rebuild diagram whenever user updates unitLayoutOrder
+    // rebuild diagram whenever user updates unitLayoutOrder or when items change in a layout-relevant way
     useEffect(() => {
-        if (items.length && unitLayoutOrder.length) {
+        if (!items.length || !unitLayoutOrder.length) return;
+
+        const prevItems = prevItemsRef.current || [];
+        const prevMap = Object.fromEntries(prevItems.map(i => [String(i.id), i]));
+
+        // decide whether we need a full rebuild: new item added, item removed, or Unit/SubUnit changed
+        const needFullRebuild = items.length !== prevItems.length || items.some(i => {
+            const p = prevMap[String(i.id)];
+            if (!p) return true; // new item
+            return p.Unit !== i.Unit || p.SubUnit !== i.SubUnit;
+        });
+
+        if (needFullRebuild) {
             const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder);
             setNodes(rebuiltNodes);
             setEdges(rebuiltEdges);
+        } else {
+            // Otherwise merge updated item data into existing nodes so we don't reset positions
+            setNodes((prevNodes) => prevNodes.map((n) => {
+                const item = items.find(it => String(it.id) === String(n.id));
+                if (!item) return n;
+                return { ...n, data: { ...n.data, ...item } };
+            }));
         }
+
+        // snapshot for next comparison
+        prevItemsRef.current = items;
+
     }, [unitLayoutOrder, items]);
 
     const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
@@ -542,7 +602,6 @@ export default function ProcessDiagram() {
 
 
 
-
     function getUnitSubunitPosition(unit, subUnit, nodes) {
         const unitNode = nodes.find(n => n.id === `unit-${unit}`);
         const subUnitNode = nodes.find(n => n.id === `sub-${unit}-${subUnit}`);
@@ -636,14 +695,7 @@ export default function ProcessDiagram() {
                             item={selectedItem}
                             items={items}
                             edges={edges}
-                            onChange={(updatedItem) =>
-                                handleItemChangeNode(
-                                    updatedItem,
-                                    setItems,
-                                    setNodes,
-                                    setSelectedItem
-                                )
-                            }
+                            onChange={handleItemDetailChange} // <-- use wrapper that preserves positions
                             onDeleteEdge={handleDeleteEdge}
                             onUpdateEdge={handleUpdateEdge}
                             onCreateInlineValve={handleCreateInlineValve}
