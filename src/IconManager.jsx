@@ -77,7 +77,6 @@ export function getItemIcon(item, props = {}) {
     );
 }
 
-
 /** Create a new item node */
 export function createNewItemNode(setNodes, setItems, setSelectedItem) {
     const newItem = {
@@ -135,7 +134,6 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
     );
 }
 
-/** Update an item and its node (category/type changes reflected) */
 /** Update an item and its node (category/type changes reflected) */
 export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem, nodes = []) {
     // merge with existing item
