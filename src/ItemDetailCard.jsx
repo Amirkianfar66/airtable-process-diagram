@@ -181,37 +181,43 @@ export default function ItemDetailCard({
 
     // ---- CHANGED: handleFieldChange accepts options and preserves x/y when reposition:false ----
     // small helper to consistently commit multi-field updates (preserves x/y and includes id)
-    const commitUpdate = (updatedObj, options = { reposition: false }) => {
+    // Robust commitUpdate — always include a reliable x/y unless reposition:true
+    const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {
         const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
-        // prefer item.x (authoritative) then localItem.x, else undefined
-        const preservedX = typeof item?.x === 'number' ? item.x : (typeof localItem?.x === 'number' ? localItem.x : updatedObj.x);
-        const preservedY = typeof item?.y === 'number' ? item.y : (typeof localItem?.y === 'number' ? localItem.y : updatedObj.y);
 
-        // build payload — include id and numeric x/y if available
-        const payload = {
-            ...updatedObj,
-            id: authoritativeId,
-        };
+        // choose positions in this order: updatedObj -> localItem -> incoming item
+        const chosenX = (typeof updatedObj?.x === 'number') ? updatedObj.x
+            : (typeof localItem?.x === 'number') ? localItem.x
+                : (typeof item?.x === 'number') ? item.x
+                    : undefined;
 
-        if (!options.reposition && preservedX !== undefined) payload.x = Number(preservedX);
-        if (!options.reposition && preservedY !== undefined) payload.y = Number(preservedY);
+        const chosenY = (typeof updatedObj?.y === 'number') ? updatedObj.y
+            : (typeof localItem?.y === 'number') ? localItem.y
+                : (typeof item?.y === 'number') ? item.y
+                    : undefined;
 
-        // update local state immediately for UI responsiveness
+        // Build payload including id and positions unless reposition requested
+        const payload = { ...updatedObj, id: authoritativeId };
+        if (!options.reposition) {
+            if (typeof chosenX === 'number') payload.x = Number(chosenX);
+            if (typeof chosenY === 'number') payload.y = Number(chosenY);
+        }
+
+        // update local state once (keep it responsive)
         setLocalItem((prev) => ({ ...prev, ...updatedObj }));
 
-        // call parent onChange
+        // call parent
         safeOnChange(payload, options);
     };
 
-    const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
-        const updated = { ...localItem, [fieldName]: value };
-        // ensure id remains present
-        if (!updated.id && item?.id) updated.id = item.id;
-        setLocalItem(updated);
 
-        // commit via helper so we keep consistent x/y behavior
+    const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
+        const updated = { ...(localItem || {}), [fieldName]: value };
+        if (!updated.id && item?.id) updated.id = item.id;
+        // DO NOT call setLocalItem here — commitUpdate will set it
         commitUpdate(updated, options);
     };
+
     // ---- end change ----
 
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
