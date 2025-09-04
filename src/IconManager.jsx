@@ -187,19 +187,14 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         nds.map((node) => {
             if (node.id !== next.id) return node;
 
-            // 🔎 Detect whether we should recalc position
-            const unitChanged = next.Unit !== prevItem.Unit;
-            const subUnitChanged = next.SubUnit !== prevItem.SubUnit;
-
-            let newPosition = node.position; // default: keep old position
-            if (unitChanged || subUnitChanged) {
-                newPosition = getUnitSubunitPosition(next.Unit, next.SubUnit, nds);
-            }
+            // keep old position unless Unit/SubUnit changed
+            const oldPos = node.position;
+            const shouldReposition = next.Unit !== prevItem.Unit || next.SubUnit !== prevItem.SubUnit;
+            const newPos = shouldReposition ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds) : oldPos;
 
             return {
                 ...node,
-                type: String(categoryTypeMap[next.Category] || "scalableIcon"),
-                position: newPosition,
+                position: newPos,
                 data: {
                     ...node.data,
                     label: `${next.Code || ""} - ${next.Name || ""}`,
@@ -209,6 +204,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
             };
         })
     );
+
 
     setSelectedItem(next);
 }

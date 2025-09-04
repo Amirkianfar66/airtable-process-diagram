@@ -473,29 +473,47 @@ export default function ProcessDiagram() {
         const prevMap = Object.fromEntries(prevItems.map(i => [String(i.id), i]));
 
         // decide whether we need a full rebuild: new item added, item removed, or Unit/SubUnit changed
-        const needFullRebuild = items.length !== prevItems.length || items.some(i => {
-            const p = prevMap[String(i.id)];
-            if (!p) return true; // new item
-            return p.Unit !== i.Unit || p.SubUnit !== i.SubUnit;
-        });
+        const needFullRebuild =
+            items.length !== prevItems.length ||
+            items.some((i) => {
+                const p = prevMap[String(i.id)];
+                if (!p) return true; // new item
+                return p.Unit !== i.Unit || p.SubUnit !== i.SubUnit;
+            });
 
         if (needFullRebuild) {
             const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder);
             setNodes(rebuiltNodes);
             setEdges(rebuiltEdges);
         } else {
-            // Otherwise merge updated item data into existing nodes so we don't reset positions
-            setNodes((prevNodes) => prevNodes.map((n) => {
-                const item = items.find(it => String(it.id) === String(n.id));
-                if (!item) return n;
-                return { ...n, data: { ...n.data, ...item } };
-            }));
+            // Merge updated item data into existing nodes, but preserve positions
+            setNodes((prevNodes) =>
+                prevNodes.map((n) => {
+                    const item = items.find((it) => String(it.id) === String(n.id));
+                    if (!item) return n;
+
+                    const prevItem = prevMap[String(n.id)] || {};
+                    const shouldReposition = item.Unit !== prevItem.Unit || item.SubUnit !== prevItem.SubUnit;
+
+                    return {
+                        ...n,
+                        position: shouldReposition
+                            ? getUnitSubunitPosition(item.Unit, item.SubUnit, prevNodes)
+                            : n.position,
+                        data: {
+                            ...n.data,
+                            ...item,
+                            icon: getItemIcon(item, { width: 40, height: 40 }),
+                        },
+                    };
+                })
+            );
         }
 
         // snapshot for next comparison
         prevItemsRef.current = items;
-
     }, [unitLayoutOrder, items]);
+
 
     const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
     const selectedGroupNode =
