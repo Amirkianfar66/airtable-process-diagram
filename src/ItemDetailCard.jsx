@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 
+// simple runtime cache for resolved type names by record id
 const typeCache = new Map();
 
 /**
@@ -24,7 +25,7 @@ export default function ItemDetailCard({
         setLocalItem(item || {});
     }, [item]);
 
-    // Fetch all types from Airtable for dropdown (unchanged)
+    // Fetch all types from Airtable for dropdown (includes valve types)
     useEffect(() => {
         const fetchTypes = async () => {
             try {
@@ -35,7 +36,7 @@ export default function ItemDetailCard({
 
                 let typesList = [];
 
-                // Fetch Equipment/Instrument types
+                // Fetch Equipment/Instrument/etc types
                 if (equipTypesTableId) {
                     const res = await fetch(`https://api.airtable.com/v0/${baseId}/${equipTypesTableId}`, {
                         headers: { Authorization: `Bearer ${token}` },
@@ -44,13 +45,13 @@ export default function ItemDetailCard({
                     typesList = typesList.concat(
                         (data.records || []).map((r) => ({
                             id: r.id,
-                            name: r.fields['Still Pipe'],
+                            name: r.fields['Still Pipe'] || r.fields['Name'] || '',
                             category: r.fields['Category'] || 'Equipment',
                         }))
                     );
                 }
 
-                // Fetch Inline Valve types
+                // Fetch Inline Valve types (from separate table)
                 if (valveTypesTableId) {
                     const res = await fetch(`https://api.airtable.com/v0/${baseId}/${valveTypesTableId}`, {
                         headers: { Authorization: `Bearer ${token}` },
@@ -59,7 +60,8 @@ export default function ItemDetailCard({
                     typesList = typesList.concat(
                         (data.records || []).map((r) => ({
                             id: r.id,
-                            name: r.fields['Valve Type'],   // 👈 make sure this matches your Airtable column name
+                            // adjust this field name to match your valve table column
+                            name: r.fields['Valve Type'] || r.fields['Name'] || '',
                             category: 'Inline Valve',
                         }))
                     );
@@ -70,42 +72,71 @@ export default function ItemDetailCard({
                 console.error('Error fetching types:', err);
             }
         };
-
         fetchTypes();
     }, []);
 
+    // Helper: fetch a single type record by record ID and category (returns display name)
+    const fetchTypeNameById = async (typeId, category) => {
+        // check cache first
+        if (typeCache.has(typeId)) return typeCache.get(typeId);
 
-    // Resolve linked "Type" name for display (unchanged)
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+        const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+        const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+
+        let tableId = equipTypesTableId;
+        let fieldName = 'Still Pipe'; // default display field for main table
+
+        if (category === 'Inline Valve') {
+            tableId = valveTypesTableId;
+            fieldName = 'Valve Type';
+        }
+
+        if (!tableId) return 'Unknown';
+
+        try {
+            const url = `https://api.airtable.com/v0/${baseId}/${tableId}/${typeId}`;
+            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+            const record = await res.json();
+            const name = (record?.fields && (record.fields[fieldName] || record.fields['Name'])) || 'Unknown Type';
+            typeCache.set(typeId, name);
+            return name;
+        } catch (err) {
+            console.error('Error fetching type by id', err);
+            return 'Unknown Type';
+        }
+    };
+
+    // Resolve linked "Type" name for display (handles both record ID and plain name)
     useEffect(() => {
         if (!item || !item.Type) {
             setResolvedType('-');
             return;
         }
+
+        // if Type is an array (typical Airtable linked record), inspect first element
         if (Array.isArray(item.Type) && item.Type.length > 0) {
-            const typeId = item.Type[0];
-            if (typeCache.has(typeId)) {
-                setResolvedType(typeCache.get(typeId));
-                return;
-            }
-            setResolvedType('Loading...');
-            const fetchTypeName = async () => {
-                try {
-                    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-                    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                    const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-                    const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`;
-                    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-                    const record = await res.json();
-                    const typeName = record.fields['Still Pipe'] || 'Unknown Type';
-                    setResolvedType(typeName);
-                    typeCache.set(typeId, typeName);
-                } catch (err) {
-                    console.error(err);
-                    setResolvedType(item.Type);
+            const typeIdOrName = item.Type[0];
+
+            // If it looks like an Airtable record ID (starts with "rec"), fetch the record
+            if (typeof typeIdOrName === 'string' && typeIdOrName.startsWith('rec')) {
+                if (typeCache.has(typeIdOrName)) {
+                    setResolvedType(typeCache.get(typeIdOrName));
+                    return;
                 }
-            };
-            fetchTypeName();
+                setResolvedType('Loading...');
+                (async () => {
+                    const category = item['Category Item Type'] || item.Category || 'Equipment';
+                    const name = await fetchTypeNameById(typeIdOrName, category);
+                    setResolvedType(name);
+                })();
+            } else {
+                // Not a record ID — assume it's already the readable name
+                setResolvedType(typeIdOrName);
+            }
         } else {
+            // Type is not an array — might be plain string
             setResolvedType(item.Type);
         }
     }, [item]);
