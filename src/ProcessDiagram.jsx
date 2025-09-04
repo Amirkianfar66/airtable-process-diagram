@@ -481,47 +481,66 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
 
-    // inside ProcessDiagram, near your other callbacks (before the return)
     const handleAddItem = (rawItem) => {
-        const normalizedItem = {
-            id: rawItem.id || `item-${Date.now()}`,
-            Name: rawItem.Name || 'New Item',
-            Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
-            'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
-            Unit: rawItem.Unit || 'No Unit',                          // default for buildDiagram
-            SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? 'No SubUnit',
-            Category: Array.isArray(rawItem['Category Item Type'])
-                ? rawItem['Category Item Type'][0]
-                : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
-            'Category Item Type': Array.isArray(rawItem['Category Item Type'])
-                ? rawItem['Category Item Type'][0]
-                : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
-            Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
-            Sequence: rawItem.Sequence ?? 0,
-            Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
-        };
-
-        // Add to items and immediately rebuild diagram from authoritative items list
         setItems(prevItems => {
+            // determine sensible Unit/SubUnit
+            const firstKnownUnit = Array.isArray(unitLayoutOrder) && unitLayoutOrder.length && unitLayoutOrder[0].length
+                ? unitLayoutOrder[0][0]
+                : (prevItems[0]?.Unit || 'Default Unit');
+
+            const fallbacks = {
+                unit: (selectedItem?.Unit || rawItem.Unit || firstKnownUnit || 'Default Unit'),
+                subUnit: (selectedItem?.SubUnit || rawItem.SubUnit || rawItem['Sub Unit'] || 'Default SubUnit'),
+            };
+
+            const normalizedItem = {
+                id: rawItem.id || `item-${Date.now()}`,
+                Name: rawItem.Name || 'New Item',
+                Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
+                'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
+                Unit: fallbacks.unit,
+                SubUnit: fallbacks.subUnit,
+                Category: Array.isArray(rawItem['Category Item Type'])
+                    ? rawItem['Category Item Type'][0]
+                    : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
+                'Category Item Type': Array.isArray(rawItem['Category Item Type'])
+                    ? rawItem['Category Item Type'][0]
+                    : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
+                Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
+                Sequence: rawItem.Sequence ?? 0,
+                Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
+            };
+
             const nextItems = [...prevItems, normalizedItem];
 
-            // use current layout (fallback to safe layout)
-            const layout = (Array.isArray(unitLayoutOrder) && unitLayoutOrder.length) ? unitLayoutOrder : [[]];
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, layout);
+            // ensure the unit exists in the layout
+            const ensureUnitInLayout = (layout, unit) => {
+                if (!Array.isArray(layout) || !layout.length) return [[unit]];
+                const flat = new Set(layout.flat());
+                if (!flat.has(unit)) {
+                    const copy = layout.map(row => [...row]);
+                    copy[0].push(unit); // add to first row
+                    return copy;
+                }
+                return layout;
+            };
 
+            const currentLayout = (Array.isArray(unitLayoutOrder) && unitLayoutOrder.length) ? unitLayoutOrder : [[]];
+            const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
+            if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
+
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, patchedLayout);
             setNodes(rebuiltNodes);
             setEdges(rebuiltEdges);
 
-            // auto-select the newly-added item in sidebar
             const addedNode = rebuiltNodes.find(n => n.id === normalizedItem.id);
-            if (addedNode) {
-                setSelectedNodes([addedNode]);
-            }
+            if (addedNode) setSelectedNodes([addedNode]);
             setSelectedItem(normalizedItem);
 
             return nextItems;
         });
     };
+
 
 
 
@@ -566,10 +585,8 @@ export default function ProcessDiagram() {
                     nodeTypes={nodeTypes}
                     onEdgeSelect={handleEdgeSelect}           // <--- add this
                     showInlineEdgeInspector={false}           // <--- hide inline inspector
-                    nodeTypes={nodeTypes}
-                    AddItemButton={(props) => (
-                        <AddItemButton {...props} addItem={handleAddItem} />
-                    )}
+                    AddItemButton={AddItemButton} // 👈 pass the component
+                    addItem={handleAddItem}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
                     handleGeneratePNID={handleGeneratePNID}

@@ -166,13 +166,10 @@ export default function DiagramCanvas({
 
             <div style={{ padding: 10 }}>
                 {AddItemButton && (
-                    typeof AddItemButton === 'function'
-                        // parent passed a wrapper function (your current case): call it to receive the element
-                        ? AddItemButton({ setNodes, setEdges })
-                        // parent passed a component: render it normally
-                        : <AddItemButton setNodes={setNodes} setEdges={setEdges} />
+                    <AddItemButton addItem={props.addItem} />
                 )}
             </div>
+
 
 
 
