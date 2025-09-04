@@ -25,7 +25,6 @@ export const nodeTypes = {
     groupLabel: GroupLabelNode,
     inlineValve: InlineValveIcon,
 };
-
 export const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
