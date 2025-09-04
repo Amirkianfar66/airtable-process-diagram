@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
+﻿// DiagramCanvas.jsx (patched)
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
@@ -7,6 +8,7 @@ import { getItemIcon, categoryTypeMap } from "./IconManager";
 import ScalableIconNode from './ScalableIconNode';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
+import ItemDetailCard from './ItemDetailCard';
 
 export default function DiagramCanvas({
     nodes,
@@ -15,12 +17,18 @@ export default function DiagramCanvas({
     setEdges,
     setItems,
     setSelectedItem,
+    selectedItem,         // NEW - current selected item (object)
+    onItemChange,         // NEW - handler when ItemDetailCard calls onChange
+    onDeleteItem,         // NEW - delete handler for items
     onNodesChange,
     onEdgesChange,
     onConnect,
     onSelectionChange,
     onEdgeClick,
     onEdgeSelect,
+    onDeleteEdge,         // forward parent's edge delete
+    onUpdateEdge,
+    onCreateInlineValve,
     nodeTypes,
     AddItemButton,
     addItem,
@@ -52,7 +60,6 @@ export default function DiagramCanvas({
         }));
     }, [edges]);
 
-    // <-- PUT THE DEBUG + MEMO HERE (right after enhancedEdges) -->
     useEffect(() => {
         console.log("categoryTypeMap['Inline Valve'] — raw:", categoryTypeMap?.['Inline Valve']);
     }, [categoryTypeMap]);
@@ -64,15 +71,17 @@ export default function DiagramCanvas({
         if (typeof val === 'object') return Object.keys(val);
         return [String(val)];
     }, [categoryTypeMap]);
-    // <-- END INSERT -->
 
     const deleteSelectedEdge = () => {
         if (!selectedEdge || typeof setEdges !== 'function') return;
         if (!window.confirm('Delete this edge?')) return;
-        setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
+        // call parent's handler if present
+        if (typeof onDeleteEdge === 'function') onDeleteEdge(selectedEdge.id);
+        else setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
         handleCloseInspector();
     };
-    const handleEdgeClick = (event, edge) => {
+
+    const handleEdgeClickLocal = (event, edge) => {
         event?.stopPropagation?.();
         const liveEdge = edges?.find((e) => e.id === edge.id) || edge;
         setSelectedEdge(liveEdge);
@@ -80,21 +89,17 @@ export default function DiagramCanvas({
         if (typeof onEdgeClick === 'function') onEdgeClick(event, liveEdge);
     };
 
-    // safer update that merges nested data
     const updateSelectedEdge = (patch) => {
         if (typeof setEdges !== 'function') return;
 
         setEdges((prev) =>
             prev.map((e) => {
                 if (e.id !== selectedEdge?.id) return e;
-                // merge data deeply-ish: keep existing e.data and merge patch.data
                 const mergedData = { ...(e.data || {}), ...(patch.data || {}) };
-                // copy everything else shallowly
                 return { ...e, ...patch, data: mergedData };
             })
         );
 
-        // update the selectedEdge in local state too
         setSelectedEdge((s) => {
             if (!s) return s;
             const mergedData = { ...(s.data || {}), ...(patch.data || {}) };
@@ -102,11 +107,9 @@ export default function DiagramCanvas({
         });
     };
 
-
     const changeEdgeCategory = (category) => {
         if (!selectedEdge) return;
 
-        // non-inline: just patch the edge's data
         if (category !== "Inline Valve") {
             updateSelectedEdge({
                 data: { ...(selectedEdge.data || {}), category },
@@ -114,7 +117,6 @@ export default function DiagramCanvas({
             return;
         }
 
-        // Inline Valve -> create valve node and split edges
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
         if (!sourceNode || !targetNode) return;
@@ -167,34 +169,50 @@ export default function DiagramCanvas({
             data: { category: "Inline Valve", Type: "" },
         };
 
-        // push new node and replace edges
         setNodes((nds) => [...nds, newNode]);
         setEdges((eds) => {
             const next = [...eds.filter((e) => e.id !== selectedEdge.id), newEdgeA, newEdgeB];
             return next;
         });
 
-        // IMPORTANT: set the inspector to the new edge (so the inspector shows data and Type dropdown)
         setSelectedEdge(newEdgeA);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(newEdgeA);
     };
-
-
 
     const handleCloseInspector = () => {
         setSelectedEdge(null);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
     };
 
+    const handleCloseItemInspector = () => {
+        if (typeof setSelectedItem === 'function') setSelectedItem(null);
+    };
+
     useEffect(() => {
-        if (!selectedEdge) return;
+        if (!selectedEdge && !selectedItem) return;
         const onKey = (e) => {
-            if (e.key === 'Escape') handleCloseInspector();
-            else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelectedEdge();
+            if (e.key === 'Escape') {
+                if (selectedEdge) handleCloseInspector();
+                else handleCloseItemInspector();
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedEdge) deleteSelectedEdge();
+                else if (selectedItem) {
+                    if (!window.confirm(`Delete item "${selectedItem?.Name || selectedItem?.id}"?`)) return;
+                    if (typeof onDeleteItem === 'function') onDeleteItem(selectedItem.id);
+                    // fallback local deletes if parent didn't provide handler:
+                    else {
+                        setNodes((nds) => nds.filter(n => n.id !== selectedItem.id));
+                        setEdges((eds) => eds.filter(e => e.source !== selectedItem.id && e.target !== selectedItem.id));
+                        setItems((its) => (Array.isArray(its) ? its.filter(it => it.id !== selectedItem.id) : its));
+                        if (typeof setSelectedItem === 'function') setSelectedItem(null);
+                    }
+                    handleCloseItemInspector();
+                }
+            }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [selectedEdge]);
+    }, [selectedEdge, selectedItem, onDeleteItem, setSelectedItem, setNodes, setEdges, setItems]);
 
     const edgeCategories = ['None', 'Inline Valve'];
 
@@ -212,7 +230,6 @@ export default function DiagramCanvas({
 
             <div style={{ padding: 10 }}>
                 {AddItemButton && (
-                    // Render the component and forward the handler + useful setters
                     <AddItemButton addItem={addItem} setNodes={setNodes} setEdges={setEdges} setItems={setItems} />
                 )}
             </div>
@@ -243,7 +260,7 @@ export default function DiagramCanvas({
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
-                    onEdgeClick={handleEdgeClick}
+                    onEdgeClick={handleEdgeClickLocal}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     fitView
@@ -257,20 +274,21 @@ export default function DiagramCanvas({
                     <Controls />
                 </ReactFlow>
 
+                {/* Inspector aside: shows edge inspector if selectedEdge, otherwise item inspector when selectedItem */}
                 <aside
                     ref={panelRef}
-                    aria-hidden={!selectedEdge}
+                    aria-hidden={!selectedEdge && !selectedItem}
                     style={{
                         position: 'absolute',
                         right: 0,
                         top: 0,
                         height: '100%',
-                        width: selectedEdge ? 360 : 0,
-                        transform: selectedEdge ? 'translateX(0)' : 'translateX(100%)',
+                        width: (selectedEdge || selectedItem) ? 360 : 0,
+                        transform: (selectedEdge || selectedItem) ? 'translateX(0)' : 'translateX(100%)',
                         transition: 'width 220ms ease, transform 220ms ease',
                         background: '#fff',
-                        borderLeft: selectedEdge ? '1px solid #ddd' : 'none',
-                        boxShadow: selectedEdge ? '-8px 0 24px rgba(0,0,0,0.08)' : 'none',
+                        borderLeft: (selectedEdge || selectedItem) ? '1px solid #ddd' : 'none',
+                        boxShadow: (selectedEdge || selectedItem) ? '-8px 0 24px rgba(0,0,0,0.08)' : 'none',
                         overflow: 'hidden',
                         zIndex: 9999,
                         display: 'flex',
@@ -279,7 +297,6 @@ export default function DiagramCanvas({
                 >
                     {selectedEdge && (
                         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {/* Header */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <strong>Edge inspector</strong>
                                 <div>
@@ -288,7 +305,6 @@ export default function DiagramCanvas({
                                 </div>
                             </div>
 
-                            {/* Edge details */}
                             <div style={{ fontSize: 13 }}>
                                 <div><strong>ID:</strong> {selectedEdge.id}</div>
                                 <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
@@ -296,7 +312,6 @@ export default function DiagramCanvas({
                                 <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
                             </div>
 
-                            {/* Category selector */}
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Category</label>
                                 <select
@@ -310,7 +325,6 @@ export default function DiagramCanvas({
                                 </select>
                             </div>
 
-                            {/* ✅ Type selector (only shows for Inline Valve) */}
                             {selectedEdge?.data?.category === 'Inline Valve' && (
                                 <div>
                                     <label style={{ display: 'block', fontSize: 12 }}>Type</label>
@@ -333,20 +347,70 @@ export default function DiagramCanvas({
                                             <option value="" disabled>No types defined</option>
                                         )}
                                     </select>
-
                                 </div>
                             )}
 
-                            {/* Footer hint */}
+                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
+                                Keyboard: Esc to close · Delete to remove
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Item inspector (shows when no selectedEdge and selectedItem present) */}
+                    {!selectedEdge && selectedItem && (
+                        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong>Item inspector</strong>
+                                <div>
+                                    <button
+                                        onClick={() => {
+                                            if (!window.confirm(`Delete item "${selectedItem?.Name || selectedItem?.id}"?`)) return;
+                                            if (typeof onDeleteItem === 'function') onDeleteItem(selectedItem.id);
+                                            else {
+                                                // fallback local delete
+                                                setNodes((nds) => nds.filter(n => n.id !== selectedItem.id));
+                                                setEdges((eds) => eds.filter(e => e.source !== selectedItem.id && e.target !== selectedItem.id));
+                                                setItems((its) => (Array.isArray(its) ? its.filter(it => it.id !== selectedItem.id) : its));
+                                            }
+                                            handleCloseItemInspector();
+                                        }}
+                                        style={{ marginRight: 8 }}
+                                    >
+                                        Delete
+                                    </button>
+                                    <button onClick={handleCloseItemInspector}>Close</button>
+                                </div>
+                            </div>
+
+                            <div style={{ overflowY: 'auto' }}>
+                                <ItemDetailCard
+                                    item={selectedItem}
+                                    items={nodes?.map(n => n.data?.item).filter(Boolean) || []}
+                                    edges={edges}
+                                    onChange={(updatedItem, options) => {
+                                        if (typeof onItemChange === 'function') onItemChange(updatedItem, options);
+                                    }}
+                                    onDeleteItem={(id) => {
+                                        if (typeof onDeleteItem === 'function') onDeleteItem(id);
+                                        else {
+                                            setNodes((nds) => nds.filter(n => n.id !== id));
+                                            setEdges((eds) => eds.filter(e => e.source !== id && e.target !== id));
+                                            setItems((its) => (Array.isArray(its) ? its.filter(it => it.id !== id) : its));
+                                        }
+                                        handleCloseItemInspector();
+                                    }}
+                                    onDeleteEdge={onDeleteEdge}
+                                    onUpdateEdge={onUpdateEdge}
+                                    onCreateInlineValve={onCreateInlineValve}
+                                />
+                            </div>
+
                             <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
                                 Keyboard: Esc to close · Delete to remove
                             </div>
                         </div>
                     )}
                 </aside>
-
-
-
             </div>
         </div>
     );

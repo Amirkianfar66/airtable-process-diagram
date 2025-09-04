@@ -711,6 +711,10 @@ export default function ProcessDiagram() {
                     showInlineEdgeInspector={false}           // <--- hide inline inspector
                     AddItemButton={AddItemButton}             // <--- pass component directly
                     addItem={handleAddItem}                   // <--- pass handler separately
+                    setSelectedItem={setSelectedItem}
+                    selectedItem={selectedItem}                     // pass selected item
+                    onItemChange={handleItemDetailChange}           // pass changes back
+                    onDeleteItem={handleDeleteItem}                 // pass delete handler
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
                     handleGeneratePNID={handleGeneratePNID}
