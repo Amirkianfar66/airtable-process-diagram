@@ -729,11 +729,8 @@ export default function ProcessDiagram() {
                                 items={items}
                                 edges={edges}
                                 onChange={(updatedItem) => {
-                                    const prev = items.find(it => it.id === updatedItem.id) || {};
-
-                                    handleItemDetailChange(updatedItem, {
-                                        reposition: updatedItem.Unit !== prev.Unit || updatedItem.SubUnit !== prev.SubUnit
-                                    });
+                                    // do not auto-reposition when Unit/SubUnit changes
+                                    handleItemDetailChange(updatedItem, { reposition: false });
                                 }}
                                 onDeleteEdge={handleDeleteEdge}
                                 onUpdateEdge={handleUpdateEdge}
