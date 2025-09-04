@@ -498,7 +498,7 @@ export default function ProcessDiagram() {
                 : (rawItem['Category Item Type'] ?? rawItem.Category ?? ''),
             Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
             Sequence: rawItem.Sequence ?? 0,
-            Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [], // ✅ include connections
+            Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
         };
 
         const newNode = {
@@ -518,30 +518,33 @@ export default function ProcessDiagram() {
         setNodes(nds => [...nds, newNode]);
         setItems(prev => [...prev, normalizedItem]);
 
-        // --- ✅ generate edges from Connections immediately ---
         if (normalizedItem.Connections.length) {
             const newEdges = normalizedItem.Connections.map(conn => {
-                const fromNode = normalizedItem.id; // this node
-                // Find target node by name or id
-                const targetNode = nodes.find(n => n.data?.item?.Name === conn.to);
-                if (!targetNode) return null; // skip if target not found
+                // conn is often a string (name/code/id)
+                const targetNode = nodes.find(n =>
+                    n.id === conn ||
+                    n.data?.item?.Name === conn ||
+                    n.data?.item?.Code === conn
+                );
+                if (!targetNode) return null;
+                const edgeId = `edge-${normalizedItem.id}-${targetNode.id}-${Date.now()}`;
                 return {
-                    id: `edge-${fromNode}-${targetNode.id}`,
-                    source: fromNode,
+                    id: edgeId,
+                    source: normalizedItem.id,
                     target: targetNode.id,
                     type: 'smoothstep',
                     animated: true,
                     style: { stroke: '#888', strokeWidth: 2 },
                 };
-            }).filter(e => e != null);
+            }).filter(Boolean);
 
-            setEdges(eds => [...eds, ...newEdges]);
+            if (newEdges.length) setEdges(eds => [...eds, ...newEdges]);
         }
 
-        // Auto-select new node so ItemDetailCard opens
         setSelectedNodes([newNode]);
         setSelectedItem(normalizedItem);
     };
+
 
     function getUnitSubunitPosition(unit, subUnit, nodes) {
         const unitNode = nodes.find(n => n.id === `unit-${unit}`);
