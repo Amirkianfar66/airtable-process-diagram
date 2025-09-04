@@ -30,25 +30,50 @@ export default function ItemDetailCard({
             try {
                 const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
                 const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-                if (!typesTableId) return;
+                const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+                const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
 
-                const res = await fetch(`https://api.airtable.com/v0/${baseId}/${typesTableId}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                const data = await res.json();
-                const typesList = (data.records || []).map((r) => ({
-                    id: r.id,
-                    name: r.fields['Still Pipe'],
-                    category: r.fields['Category'] || 'Equipment',
-                }));
+                let typesList = [];
+
+                // Fetch Equipment/Instrument types
+                if (equipTypesTableId) {
+                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${equipTypesTableId}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json();
+                    typesList = typesList.concat(
+                        (data.records || []).map((r) => ({
+                            id: r.id,
+                            name: r.fields['Still Pipe'],
+                            category: r.fields['Category'] || 'Equipment',
+                        }))
+                    );
+                }
+
+                // Fetch Inline Valve types
+                if (valveTypesTableId) {
+                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${valveTypesTableId}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json();
+                    typesList = typesList.concat(
+                        (data.records || []).map((r) => ({
+                            id: r.id,
+                            name: r.fields['Valve Type'],   // 👈 make sure this matches your Airtable column name
+                            category: 'Inline Valve',
+                        }))
+                    );
+                }
+
                 setAllTypes(typesList);
             } catch (err) {
                 console.error('Error fetching types:', err);
             }
         };
+
         fetchTypes();
     }, []);
+
 
     // Resolve linked "Type" name for display (unchanged)
     useEffect(() => {
