@@ -481,25 +481,22 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
 
+    // inside ProcessDiagram.jsx
     const handleAddItem = (rawItem) => {
         setItems(prevItems => {
-            // determine sensible Unit/SubUnit
-            const firstKnownUnit = Array.isArray(unitLayoutOrder) && unitLayoutOrder.length && unitLayoutOrder[0].length
-                ? unitLayoutOrder[0][0]
-                : (prevItems[0]?.Unit || 'Default Unit');
-
-            const fallbacks = {
-                unit: (selectedItem?.Unit || rawItem.Unit || firstKnownUnit || 'Default Unit'),
-                subUnit: (selectedItem?.SubUnit || rawItem.SubUnit || rawItem['Sub Unit'] || 'Default SubUnit'),
-            };
+            const firstKnownUnit =
+                Array.isArray(unitLayoutOrder) && unitLayoutOrder.length && unitLayoutOrder[0].length
+                    ? unitLayoutOrder[0][0]
+                    : (prevItems[0]?.Unit || 'Unit 1');
 
             const normalizedItem = {
                 id: rawItem.id || `item-${Date.now()}`,
                 Name: rawItem.Name || 'New Item',
                 Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
                 'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
-                Unit: fallbacks.unit,
-                SubUnit: fallbacks.subUnit,
+                // <-- default Unit is Unit 1 unless something else is present
+                Unit: rawItem.Unit || selectedItem?.Unit || firstKnownUnit || 'Unit 1',
+                SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? 'Default SubUnit',
                 Category: Array.isArray(rawItem['Category Item Type'])
                     ? rawItem['Category Item Type'][0]
                     : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
@@ -536,6 +533,8 @@ export default function ProcessDiagram() {
             const addedNode = rebuiltNodes.find(n => n.id === normalizedItem.id);
             if (addedNode) setSelectedNodes([addedNode]);
             setSelectedItem(normalizedItem);
+
+            console.log('handleAddItem added:', normalizedItem, 'rebuiltNodes contains:', !!addedNode);
 
             return nextItems;
         });
