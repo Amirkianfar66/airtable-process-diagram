@@ -710,15 +710,22 @@ export default function ProcessDiagram() {
                             onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                        <ItemDetailCard
-                            item={selectedItem}
-                            items={items}
-                            edges={edges}
-                            onChange={handleItemDetailChange} // <-- use wrapper that preserves positions
-                            onDeleteEdge={handleDeleteEdge}
-                            onUpdateEdge={handleUpdateEdge}
-                            onCreateInlineValve={handleCreateInlineValve}
-                        />
+                            <ItemDetailCard
+                                item={selectedItem}
+                                items={items}
+                                edges={edges}
+                                onChange={(updatedItem) => {
+                                    const prev = items.find(it => it.id === updatedItem.id) || {};
+
+                                    handleItemDetailChange(updatedItem, {
+                                        reposition: updatedItem.Unit !== prev.Unit || updatedItem.SubUnit !== prev.SubUnit
+                                    });
+                                }}
+                                onDeleteEdge={handleDeleteEdge}
+                                onUpdateEdge={handleUpdateEdge}
+                                onCreateInlineValve={handleCreateInlineValve}
+                            />
+
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
                             Select an item or group to see details
