@@ -317,12 +317,12 @@ export default function ItemDetailCard({
                 </section>
             </div>
             {/* Always show Delete Item button (not just for edges) */}
-            {onDeleteItem && (
+            {onDeleteItem && (   // 👈 only renders if parent passes a handler
                 <div style={{ margin: '16px', maxWidth: 350, textAlign: 'center' }}>
                     <button
                         onClick={() => {
                             if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
-                                onDeleteItem(item.id);
+                                onDeleteItem(item.id);   // 👈 calls parent delete function
                             }
                         }}
                         style={{
