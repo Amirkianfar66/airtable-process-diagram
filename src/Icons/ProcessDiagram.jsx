@@ -89,8 +89,6 @@ export default function ProcessDiagram() {
             })
         );
 
-
-
         // update nodes: preserve position unless reposition requested
         setNodes((prevNodes) =>
             prevNodes.map((node) => {
@@ -173,8 +171,6 @@ export default function ProcessDiagram() {
         },
         [items, nodes]
     );
-
-
 
     const onConnect = useCallback(
         (params) => {
@@ -380,8 +376,6 @@ export default function ProcessDiagram() {
         setSelectedItem(newItem);
     }, [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]);
 
-
-
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
 
@@ -410,8 +404,20 @@ export default function ProcessDiagram() {
             });
             setItems(updatedItems);
 
-            // Merge nodes + edges directly (instead of discarding AI edges)
-            setNodes(aiNodes);
+            // --- MERGE AI nodes with existing positions instead of replacing ---
+            setNodes((prevNodes) => {
+                const prevById = new Map(prevNodes.map(n => [String(n.id), n]));
+                const merged = (aiNodes || []).map(n => {
+                    const prev = prevById.get(String(n.id));
+                    return prev ? { ...n, position: prev.position } : n;
+                });
+                // keep any previous nodes that AI didn't return
+                prevNodes.forEach(p => {
+                    if (!merged.some(m => String(m.id) === String(p.id))) merged.push(p);
+                });
+                return merged;
+            });
+
             setEdges(aiEdges);
 
             // Auto-select first new node
@@ -426,7 +432,6 @@ export default function ProcessDiagram() {
             console.error("AI PNID generation failed:", err);
         }
     };
-
 
     useEffect(() => {
         const loadItems = async () => {
@@ -458,8 +463,16 @@ export default function ProcessDiagram() {
                 // Build diagram nodes and edges
                 const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D, { prevNodes: nodes });
 
-
-                setNodes(builtNodes);
+                // --- MERGE builtNodes with existing node positions instead of overwriting ---
+                setNodes((prevNodes) => {
+                    const merged = (builtNodes || []).map((n) => {
+                        const prev = prevNodes.find(p => String(p.id) === String(n.id));
+                        return prev ? { ...n, position: prev.position } : n;
+                    });
+                    // include previous nodes that builder didn't return (keep them)
+                    const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
+                    return [...merged, ...missingPrev];
+                });
                 setEdges(builtEdges);
                 setItems(normalizedItems);
 
@@ -497,7 +510,15 @@ export default function ProcessDiagram() {
         if (needFullRebuild) {
             const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder, { prevNodes: nodes });
 
-            setNodes(rebuiltNodes);
+            // --- MERGE instead of overwrite ---
+            setNodes((prevNodes) => {
+                const merged = (rebuiltNodes || []).map((n) => {
+                    const prev = prevNodes.find(p => String(p.id) === String(n.id));
+                    return prev ? { ...n, position: prev.position } : n;
+                });
+                const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
+                return [...merged, ...missingPrev];
+            });
             setEdges(rebuiltEdges);
         } else {
             // Merge updated item data into existing nodes, but preserve positions
@@ -528,7 +549,6 @@ export default function ProcessDiagram() {
         prevItemsRef.current = items;
     }, [unitLayoutOrder, items]);
 
-
     const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
     const selectedGroupNode =
         selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
@@ -542,11 +562,8 @@ export default function ProcessDiagram() {
         })
         : [];
 
-
-
     // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
-
 
     const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
 
@@ -619,8 +636,18 @@ export default function ProcessDiagram() {
             const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
             if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
 
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, patchedLayout);
-            setNodes(rebuiltNodes);
+            // Pass prevNodes option and merge positions when applying rebuilt nodes
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, patchedLayout, { prevNodes: nodes });
+
+            setNodes((prevNodes) => {
+                const merged = (rebuiltNodes || []).map((n) => {
+                    const prev = prevNodes.find(p => String(p.id) === String(n.id));
+                    return prev ? { ...n, position: prev.position } : n;
+                });
+                const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
+                return [...merged, ...missingPrev];
+            });
+
             setEdges(rebuiltEdges);
 
             const addedNode = rebuiltNodes.find(n => n.id === normalizedItem.id);
@@ -632,8 +659,6 @@ export default function ProcessDiagram() {
             return nextItems;
         });
     };
-
-
 
     function getUnitSubunitPosition(unit, subUnit, nodes) {
         const unitNode = nodes.find(n => n.id === `unit-${unit}`);
@@ -724,18 +749,18 @@ export default function ProcessDiagram() {
                             onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                            <ItemDetailCard
-                                item={selectedItem}
-                                items={items}
-                                edges={edges}
-                                onChange={(updatedItem, options = {}) => {
-                                    // By default, don't reposition (explicit button will request it)
-                                    handleItemDetailChange(updatedItem, { reposition: options.reposition === true });
-                                }}
-                                onDeleteEdge={handleDeleteEdge}
-                                onUpdateEdge={handleUpdateEdge}
-                                onCreateInlineValve={handleCreateInlineValve}
-                            />
+                        <ItemDetailCard
+                            item={selectedItem}
+                            items={items}
+                            edges={edges}
+                            onChange={(updatedItem, options = {}) => {
+                                // By default, don't reposition (explicit button will request it)
+                                handleItemDetailChange(updatedItem, { reposition: options.reposition === true });
+                            }}
+                            onDeleteEdge={handleDeleteEdge}
+                            onUpdateEdge={handleUpdateEdge}
+                            onCreateInlineValve={handleCreateInlineValve}
+                        />
 
 
                     ) : (
