@@ -61,14 +61,6 @@ export default function ProcessDiagram() {
     const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
     const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
 
-    const handleDeleteItem = (id) => {
-        setNodes((prev) => prev.filter((n) => n.id !== id));
-        setItems((prev) => prev.filter((it) => it.id !== id));
-        setEdges((prev) => prev.filter((e) => e.source !== id && e.target !== id));
-        setSelectedItem(null);
-    };
-
-
     // keep previous items snapshot to avoid unnecessary full rebuilds
     const prevItemsRef = useRef([]);
 
