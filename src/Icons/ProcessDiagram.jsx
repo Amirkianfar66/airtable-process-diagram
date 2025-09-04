@@ -61,6 +61,14 @@ export default function ProcessDiagram() {
     const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
     const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
 
+    const handleDeleteItem = (id) => {
+        setNodes((prev) => prev.filter((n) => n.id !== id));
+        setItems((prev) => prev.filter((it) => it.id !== id));
+        setEdges((prev) => prev.filter((e) => e.source !== id && e.target !== id));
+        setSelectedItem(null);
+    };
+
+
     // keep previous items snapshot to avoid unnecessary full rebuilds
     const prevItemsRef = useRef([]);
 
@@ -757,19 +765,22 @@ export default function ProcessDiagram() {
                             onDelete={onDeleteGroup}
                         />
                     ) : selectedItem ? (
-                        <ItemDetailCard
-                            item={selectedItem}
-                            items={items}
-                            edges={edges}
-                            onChange={(updatedItem, options = {}) => {
-                                // By default, don't reposition (explicit button will request it)
-                                handleItemDetailChange(updatedItem, { reposition: options.reposition === true });
-                            }}
-                            onDeleteEdge={handleDeleteEdge}
-                            onUpdateEdge={handleUpdateEdge}
+                            <ItemDetailCard
+                                item={selectedItem}
+                                items={items}
+                                edges={edges}
+                                onChange={(updatedItem) => {
+                                    const prev = items.find(it => it.id === updatedItem.id) || {};
+                                    handleItemDetailChange(updatedItem, {
+                                        reposition: updatedItem.Unit !== prev.Unit || updatedItem.SubUnit !== prev.SubUnit
+                                    });
+                                }}
+                                onDeleteItem={handleDeleteItem}   // ✅ add this
+                                onDeleteEdge={handleDeleteEdge}
+                                onUpdateEdge={handleUpdateEdge}
                                 onCreateInlineValve={handleCreateInlineValve}
-                                onDeleteItem={handleDeleteItem}
-                        />
+                            />
+
 
 
                     ) : (
