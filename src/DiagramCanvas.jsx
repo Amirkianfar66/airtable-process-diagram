@@ -165,8 +165,9 @@ export default function DiagramCanvas({
             />
 
             <div style={{ padding: 10 }}>
-                {AddItemButton && <AddItemButton addItem={addItem} />}
+                {AddItemButton && AddItemButton({ setNodes, setEdges, addItem: handleAddItem })}
             </div>
+
 
 
 
