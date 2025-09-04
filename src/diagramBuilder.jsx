@@ -2,7 +2,11 @@
 import { getItemIcon, categoryTypeMap } from './IconManager';
 import { nanoid } from 'nanoid';
 
-export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
+/**
+ * buildDiagram(items, unitLayoutOrder, options)
+ * options.prevNodes: optional array of existing nodes (from ReactFlow) whose positions we should reuse
+ */
+export function buildDiagram(items = [], unitLayoutOrder = [[]], options = {}) {
     // 0) Build Name → Code lookup from *incoming items*
     const nameToCode = {};
     items.forEach(i => {
@@ -19,20 +23,18 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         Category: item.Category != null ? String(item.Category) : "Equipment",
         Type: item.Type != null ? String(item.Type) : "Generic",
 
-        // Stable id
-        id: item.id || `${item.Category}-${item.Type}-${item.Name || 'Unnamed'}-${item.Sequence}-${item.Number}`,
+        // Stable id: prefer provided id; fallback to name-based stable key (avoid Date.now here)
+        id: item.id || `${item.Category || 'cat'}-${item.Type || 'type'}-${(item.Name || 'Unnamed').replace(/\s+/g, '_')}-${item.Sequence || 1}-${item.Number || 1}`,
 
-        // 🔑 Normalize connections to **Codes**
+        // Normalize connections to Codes (unchanged)
         Connections: Array.isArray(item.Connections)
             ? item.Connections.map(conn => {
                 if (typeof conn === "string") {
-                    // could be a Name or already a Code
-                    return nameToCode[conn] || conn; // map Name→Code, else keep as-is
+                    return nameToCode[conn] || conn;
                 }
                 if (conn && typeof conn === "object") {
-                    // supports {from,to} or {fromId,toId} forms from AI
-                    if (conn.to) return nameToCode[conn.to] || conn.to;      // map Name→Code when possible
-                    if (conn.toId) return conn.toId;                         // already a Code/id
+                    if (conn.to) return nameToCode[conn.to] || conn.to;
+                    if (conn.toId) return conn.toId;
                 }
                 return null;
             }).filter(Boolean)
@@ -60,6 +62,10 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
         grouped[Unit][SubUnit].push({ Category, Type, Sequence, Name, Code, id });
     });
 
+    // Build a map of previous positions if provided (prevNodes: array)
+    const prevNodes = Array.isArray(options.prevNodes) ? options.prevNodes : [];
+    const prevPosMap = new Map(prevNodes.map(n => [String(n.id), n.position]));
+
     const newNodes = [];
     const newEdges = [];
     const unitWidth = 5000;
@@ -74,7 +80,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             const groupedUnitName = String(unitName || "No Unit");
             if (!grouped[groupedUnitName]) return;
 
-            // Unit
+            // Unit node (unchanged)
             newNodes.push({
                 id: `unit-${groupedUnitName}`,
                 type: 'custom',
@@ -103,7 +109,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             Object.entries(subUnits).forEach(([subUnit, itemsArr], subIndex) => {
                 const subUnitY = rowIndex * (unitHeight + 100) + subIndex * subUnitHeight;
 
-                // SubUnit
+                // SubUnit node (unchanged)
                 newNodes.push({
                     id: `sub-${groupedUnitName}-${subUnit}`,
                     position: { x: colIndex * (unitWidth + 100) + 10, y: subUnitY + 10 },
@@ -131,9 +137,14 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                     const safeCategory = (item.Category || 'Equipment').toString();
                     const safeType = (item.Type || 'Generic').toString();
 
+                    // If a previous node exists for this item id, reuse its position
+                    const prevPos = prevPosMap.get(String(item.id));
+                    const defaultPos = { x: itemX, y: subUnitY + 20 };
+                    const finalPos = prevPos ? { x: Number(prevPos.x), y: Number(prevPos.y) } : defaultPos;
+
                     newNodes.push({
                         id: item.id,
-                        position: { x: itemX, y: subUnitY + 20 },
+                        position: finalPos,
                         data: {
                             label: `${item.Code || ''} - ${item.Name || ''}`,
                             item,
@@ -144,13 +155,15 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
                         targetPosition: 'left',
                         style: { background: 'transparent', boxShadow: 'none' },
                     });
-                    itemX += itemWidth + itemGap;
+
+                    // Only increment itemX if we used the default pos (so we don't stack using prev positions)
+                    if (!prevPos) itemX += itemWidth + itemGap;
                 });
             });
         });
     });
 
-    // 5) Build edges
+    // 5) Build edges (unchanged)
     normalized.forEach(item => {
         (item.Connections || []).forEach(conn => {
             const targetCode = nameToCode[conn] || conn;
@@ -173,7 +186,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]]) {
             });
         });
     });
-
 
     return {
         nodes: newNodes,

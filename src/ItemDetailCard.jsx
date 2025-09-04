@@ -165,21 +165,37 @@ export default function ItemDetailCard({
     }, [item, edges, items]);
 
     // ---- CHANGED: handleFieldChange accepts options and preserves x/y when reposition:false ----
+    // small helper to consistently commit multi-field updates (preserves x/y and includes id)
+    const commitUpdate = (updatedObj, options = { reposition: false }) => {
+        const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
+        // prefer item.x (authoritative) then localItem.x, else undefined
+        const preservedX = typeof item?.x === 'number' ? item.x : (typeof localItem?.x === 'number' ? localItem.x : updatedObj.x);
+        const preservedY = typeof item?.y === 'number' ? item.y : (typeof localItem?.y === 'number' ? localItem.y : updatedObj.y);
+
+        // build payload — include id and numeric x/y if available
+        const payload = {
+            ...updatedObj,
+            id: authoritativeId,
+        };
+
+        if (!options.reposition && preservedX !== undefined) payload.x = Number(preservedX);
+        if (!options.reposition && preservedY !== undefined) payload.y = Number(preservedY);
+
+        // update local state immediately for UI responsiveness
+        setLocalItem((prev) => ({ ...prev, ...updatedObj }));
+
+        // call parent onChange
+        if (onChange) onChange(payload, options);
+    };
+
     const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
         const updated = { ...localItem, [fieldName]: value };
+        // ensure id remains present
+        if (!updated.id && item?.id) updated.id = item.id;
         setLocalItem(updated);
 
-        if (onChange) {
-            // If caller doesn't want reposition, preserve current x/y so parent won't reset position.
-            if (!options.reposition) {
-                const preservedX = localItem?.x ?? item?.x;
-                const preservedY = localItem?.y ?? item?.y;
-                onChange({ ...updated, x: preservedX, y: preservedY }, options);
-            } else {
-                // let parent reposition based on Unit/SubUnit etc.
-                onChange(updated, options);
-            }
-        }
+        // commit via helper so we keep consistent x/y behavior
+        commitUpdate(updated, options);
     };
     // ---- end change ----
 
@@ -244,9 +260,8 @@ export default function ItemDetailCard({
                                     Category: newCategory,
                                     Type: '',
                                 };
-                                setLocalItem(updated);
-                                // explicitly signal "no reposition" when category changes (icon update only)
-                                if (onChange) onChange({ ...updated, x: localItem?.x ?? item?.x, y: localItem?.y ?? item?.y }, { reposition: false });
+                                // use commitUpdate so x/y preservation + id inclusion are handled uniformly
+                                commitUpdate(updated, { reposition: false });
                             }}
                         >
                             {categories.map((cat) => (
