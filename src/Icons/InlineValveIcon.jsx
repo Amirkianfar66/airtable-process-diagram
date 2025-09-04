@@ -1,9 +1,29 @@
+// File: InlineValveIcon.jsx
 import React, { useState } from 'react';
 import { Handle, Position } from 'reactflow';
+
+// Auto-import all SVGs from InlineValveIcon folder
+const modules = import.meta.glob('./InlineValveIcon/*.svg', { eager: true });
+
+const valveIcons = {};
+for (const path in modules) {
+    const name = path.split('/').pop().replace('.svg', '').toLowerCase();
+    const mod = modules[path];
+
+    if (typeof mod === 'object' && 'default' in mod && typeof mod.default === 'function') {
+        valveIcons[name] = mod.default; // SVGR component
+    } else {
+        valveIcons[name] = mod.default || mod; // URL fallback
+    }
+}
 
 export default function InlineValveIcon({ data }) {
     const [hovered, setHovered] = useState(false);
     const label = data?.label || '';
+
+    // normalize type name
+    const key = data?.Type?.toLowerCase();
+    const Icon = key && valveIcons[key] ? valveIcons[key] : null;
 
     return (
         <div
@@ -12,7 +32,7 @@ export default function InlineValveIcon({ data }) {
             style={{
                 position: 'relative',
                 width: 60,
-                height: 110, // container height
+                height: 110,
                 background: 'none',
                 border: 'none',
                 borderRadius: 8,
@@ -22,7 +42,14 @@ export default function InlineValveIcon({ data }) {
                 justifyContent: 'center',
             }}
         >
-            <>
+            {Icon ? (
+                typeof Icon === 'string' ? (
+                    <img src={Icon} alt={data?.Type || 'valve'} style={{ width: 60, height: 60 }} />
+                ) : (
+                    <Icon style={{ width: 60, height: 60 }} />
+                )
+            ) : (
+                // fallback if no SVG found
                 <svg width="60" height="60" viewBox="0 0 200 200">
                     <polygon points="60,80 100,100 60,120" fill="orange" stroke="orange" strokeWidth="1" />
                     <polygon points="140,80 100,100 140,120" fill="orange" stroke="orange" strokeWidth="1" />
@@ -31,29 +58,30 @@ export default function InlineValveIcon({ data }) {
                         y="108"
                         fontSize="16"
                         textAnchor="middle"
-                        fill="Black"
+                        fill="black"
                         fontFamily="sans-serif"
                     >
                         IV
                     </text>
                 </svg>
+            )}
 
-                <div
-                    style={{
-                        fontSize: 13,
-                        marginTop: -15,       // negative margin to move label up closer to SVG
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        color: '#333',
-                        width: '100%',
-                        textAlign: 'left',
-                        paddingLeft: 5,
-                    }}
-                >
-                    {label.substring(0, 5)}
-                </div>
-            </>
+            {/* Label */}
+            <div
+                style={{
+                    fontSize: 13,
+                    marginTop: -15,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: '#333',
+                    width: '100%',
+                    textAlign: 'left',
+                    paddingLeft: 5,
+                }}
+            >
+                {label.substring(0, 5)}
+            </div>
 
             {/* Handles */}
             <Handle
