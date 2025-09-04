@@ -182,10 +182,13 @@ export default function ItemDetailCard({
     // ---- CHANGED: handleFieldChange accepts options and preserves x/y when reposition:false ----
     // small helper to consistently commit multi-field updates (preserves x/y and includes id)
     // Robust commitUpdate — always include a reliable x/y unless reposition:true
+    // --- ItemDetailCard: robust commit + simple handleFieldChange ---
+    // put these inside ItemDetailCard (replace older commitUpdate & handleFieldChange)
+
     const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {
         const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
 
-        // choose positions in this order: updatedObj -> localItem -> incoming item
+        // pick x/y from updatedObj -> localItem -> incoming item (so we always send them unless reposition requested)
         const chosenX = (typeof updatedObj?.x === 'number') ? updatedObj.x
             : (typeof localItem?.x === 'number') ? localItem.x
                 : (typeof item?.x === 'number') ? item.x
@@ -196,26 +199,29 @@ export default function ItemDetailCard({
                 : (typeof item?.y === 'number') ? item.y
                     : undefined;
 
-        // Build payload including id and positions unless reposition requested
         const payload = { ...updatedObj, id: authoritativeId };
+
         if (!options.reposition) {
             if (typeof chosenX === 'number') payload.x = Number(chosenX);
             if (typeof chosenY === 'number') payload.y = Number(chosenY);
         }
 
-        // update local state once (keep it responsive)
-        setLocalItem((prev) => ({ ...prev, ...updatedObj }));
+        // update local UI state once
+        setLocalItem(prev => ({ ...prev, ...updatedObj }));
 
         // call parent
         safeOnChange(payload, options);
     };
 
-
     const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
+        // if Unit or SubUnit, force reposition to true only for those fields
+        const repositionFlag =
+            fieldName === 'Unit' || fieldName === 'SubUnit' ? true : options.reposition || false;
+
         const updated = { ...(localItem || {}), [fieldName]: value };
         if (!updated.id && item?.id) updated.id = item.id;
-        // DO NOT call setLocalItem here — commitUpdate will set it
-        commitUpdate(updated, options);
+
+        commitUpdate(updated, { reposition: repositionFlag });
     };
 
     // ---- end change ----

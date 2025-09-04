@@ -138,9 +138,14 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], options = {}) {
                     const safeType = (item.Type || 'Generic').toString();
 
                     // If a previous node exists for this item id, reuse its position
+                    // inside diagramBuilder when deciding finalPos for each item:
                     const prevPos = prevPosMap.get(String(item.id));
+                    const itemPosFromData = (item && typeof item.x === 'number' && typeof item.y === 'number')
+                        ? { x: Number(item.x), y: Number(item.y) }
+                        : null;
                     const defaultPos = { x: itemX, y: subUnitY + 20 };
-                    const finalPos = prevPos ? { x: Number(prevPos.x), y: Number(prevPos.y) } : defaultPos;
+                    const finalPos = prevPos ? { x: Number(prevPos.x), y: Number(prevPos.y) } : (itemPosFromData ? itemPosFromData : defaultPos);
+
 
                     newNodes.push({
                         id: item.id,

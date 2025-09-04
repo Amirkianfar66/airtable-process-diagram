@@ -75,18 +75,20 @@ export default function ProcessDiagram() {
 
     // wrap ItemDetailCard onChange so we can preserve positions unless reposition requested
     const handleItemDetailChange = useCallback((updatedItem, options = {}) => {
-        // update items array first
+        // inside handleItemDetailChange, replace previous setItems(...) with:
         setItems((prev) =>
             prev.map((it) => {
                 if (String(it.id) !== String(updatedItem.id)) return it;
                 return {
                     ...it,
                     ...updatedItem,
-                    x: ('x' in updatedItem) ? updatedItem.x : it.x,
-                    y: ('y' in updatedItem) ? updatedItem.y : it.y,
+                    // preserve x/y unless reposition requested or payload contains them explicitly
+                    x: options.reposition ? (('x' in updatedItem) ? updatedItem.x : it.x) : (('x' in updatedItem) ? updatedItem.x : it.x),
+                    y: options.reposition ? (('y' in updatedItem) ? updatedItem.y : it.y) : (('y' in updatedItem) ? updatedItem.y : it.y),
                 };
             })
         );
+
 
 
         // update nodes: preserve position unless reposition requested
