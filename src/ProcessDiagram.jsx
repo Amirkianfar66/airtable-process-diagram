@@ -585,8 +585,8 @@ export default function ProcessDiagram() {
                     nodeTypes={nodeTypes}
                     onEdgeSelect={handleEdgeSelect}           // <--- add this
                     showInlineEdgeInspector={false}           // <--- hide inline inspector
-                    AddItemButton={AddItemButton} // 👈 pass the component
-                    addItem={handleAddItem}
+                    AddItemButton={AddItemButton}             // <--- pass component directly
+                    addItem={handleAddItem}                   // <--- pass handler separately
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
                     handleGeneratePNID={handleGeneratePNID}
@@ -599,6 +599,7 @@ export default function ProcessDiagram() {
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
+
             </div>
 
             {/* RIGHT: Sidebar */}
