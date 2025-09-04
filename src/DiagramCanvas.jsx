@@ -165,10 +165,9 @@ export default function DiagramCanvas({
             />
 
             <div style={{ padding: 10 }}>
-                {AddItemButton && (
-                    <AddItemButton addItem={props.addItem} />
-                )}
+                {AddItemButton && <AddItemButton addItem={addItem} />}
             </div>
+
 
 
 
