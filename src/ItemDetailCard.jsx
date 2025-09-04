@@ -165,15 +165,10 @@ export default function ItemDetailCard({
     }, [item, edges, items]);
 
     const handleFieldChange = (fieldName, value) => {
-    const updated = { ...localItem, [fieldName]: value };
-    setLocalItem(updated);
-
-    // Only sync back to canvas if certain fields change
-    if (['Unit', 'SubUnit', 'x', 'y'].includes(fieldName)) {
+        const updated = { ...localItem, [fieldName]: value };
+        setLocalItem(updated);
         if (onChange) onChange(updated);
-    }
-};
-
+    };
 
     const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
 
