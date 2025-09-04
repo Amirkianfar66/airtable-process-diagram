@@ -65,18 +65,33 @@ export default function DiagramCanvas({
         if (typeof onEdgeClick === 'function') onEdgeClick(event, liveEdge);
     };
 
+    // safer update that merges nested data
     const updateSelectedEdge = (patch) => {
-        if (!selectedEdge || typeof setEdges !== 'function') return;
+        if (typeof setEdges !== 'function') return;
+
         setEdges((prev) =>
-            prev.map((e) => (e.id === selectedEdge.id ? { ...e, ...patch } : e))
+            prev.map((e) => {
+                if (e.id !== selectedEdge?.id) return e;
+                // merge data deeply-ish: keep existing e.data and merge patch.data
+                const mergedData = { ...(e.data || {}), ...(patch.data || {}) };
+                // copy everything else shallowly
+                return { ...e, ...patch, data: mergedData };
+            })
         );
-        setSelectedEdge((s) => (s ? { ...s, ...patch } : s));
+
+        // update the selectedEdge in local state too
+        setSelectedEdge((s) => {
+            if (!s) return s;
+            const mergedData = { ...(s.data || {}), ...(patch.data || {}) };
+            return { ...s, ...patch, data: mergedData };
+        });
     };
+
 
     const changeEdgeCategory = (category) => {
         if (!selectedEdge) return;
 
-        // If it's not Inline Valve → just update category
+        // non-inline: just patch the edge's data
         if (category !== "Inline Valve") {
             updateSelectedEdge({
                 data: { ...(selectedEdge.data || {}), category },
@@ -84,6 +99,7 @@ export default function DiagramCanvas({
             return;
         }
 
+        // Inline Valve -> create valve node and split edges
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
         if (!sourceNode || !targetNode) return;
@@ -119,28 +135,33 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        setNodes((nds) => [...nds, newNode]);
+        const newEdgeA = {
+            id: `${selectedEdge.source}-${newNode.id}`,
+            source: selectedEdge.source,
+            target: newNode.id,
+            type: "step",
+            style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            data: { category: "Inline Valve", Type: "" },
+        };
+        const newEdgeB = {
+            id: `${newNode.id}-${selectedEdge.target}`,
+            source: newNode.id,
+            target: targetNode.id,
+            type: "step",
+            style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            data: { category: "Inline Valve", Type: "" },
+        };
 
-        // ✅ Notice: add "data" to new edges
-        setEdges((eds) => [
-            ...eds.filter((e) => e.id !== selectedEdge.id),
-            {
-                id: `${selectedEdge.source}-${newNode.id}`,
-                source: selectedEdge.source,
-                target: newNode.id,
-                type: "step",
-                style: { stroke: selectedEdge?.style?.stroke || "#000" },
-                data: { category: "Inline Valve", Type: "" },
-            },
-            {
-                id: `${newNode.id}-${selectedEdge.target}`,
-                source: newNode.id,
-                target: targetNode.id,
-                type: "step",
-                style: { stroke: selectedEdge?.style?.stroke || "#000" },
-                data: { category: "Inline Valve", Type: "" },
-            },
-        ]);
+        // push new node and replace edges
+        setNodes((nds) => [...nds, newNode]);
+        setEdges((eds) => {
+            const next = [...eds.filter((e) => e.id !== selectedEdge.id), newEdgeA, newEdgeB];
+            return next;
+        });
+
+        // IMPORTANT: set the inspector to the new edge (so the inspector shows data and Type dropdown)
+        setSelectedEdge(newEdgeA);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(newEdgeA);
     };
 
 
