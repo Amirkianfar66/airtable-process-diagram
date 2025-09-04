@@ -12,6 +12,7 @@ export default function ItemDetailCard({
     onDeleteEdge,
     onUpdateEdge,
     onCreateInlineValve,
+    onDeleteItem,
 }) {
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
@@ -325,6 +326,30 @@ export default function ItemDetailCard({
                             {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
+                    {/* Delete Item Button */}
+                    {onDeleteItem && (
+                        <div style={{ marginTop: 16, textAlign: 'center' }}>
+                            <button
+                                onClick={() => {
+                                    if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
+                                        onDeleteItem(item.id);
+                                    }
+                                }}
+                                style={{
+                                    background: '#f44336',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '10px 16px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                Delete Item
+                            </button>
+                        </div>
+                    )}
+
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <label style={{ width: 70 }}>Color</label>

@@ -759,7 +759,8 @@ export default function ProcessDiagram() {
                             }}
                             onDeleteEdge={handleDeleteEdge}
                             onUpdateEdge={handleUpdateEdge}
-                            onCreateInlineValve={handleCreateInlineValve}
+                                onCreateInlineValve={handleCreateInlineValve}
+                                onDeleteItem={handleDeleteItem}
                         />
 
 
