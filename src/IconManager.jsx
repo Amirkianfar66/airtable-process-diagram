@@ -189,12 +189,10 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
 
             // keep old position unless Unit/SubUnit changed
             const oldPos = node.position;
-            const shouldReposition = next.Unit !== prevItem.Unit || next.SubUnit !== prevItem.SubUnit;
-            const newPos = shouldReposition ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds) : oldPos;
-
             return {
                 ...node,
-                position: newPos,
+                // ❌ stop repositioning, always keep old position
+                position: node.position,
                 data: {
                     ...node.data,
                     label: `${next.Code || ""} - ${next.Name || ""}`,
@@ -202,6 +200,8 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
                     icon: getItemIcon(next, { width: 40, height: 40 }),
                 },
             };
+ 
+            
         })
     );
 
