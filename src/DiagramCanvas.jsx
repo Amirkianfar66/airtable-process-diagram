@@ -51,7 +51,12 @@ export default function DiagramCanvas({
             interactionWidth: e.interactionWidth ?? 20,
         }));
     }, [edges]);
-
+    const deleteSelectedEdge = () => {
+        if (!selectedEdge || typeof setEdges !== 'function') return;
+        if (!window.confirm('Delete this edge?')) return;
+        setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
+        handleCloseInspector();
+    };
     const handleEdgeClick = (event, edge) => {
         event?.stopPropagation?.();
         const liveEdge = edges?.find((e) => e.id === edge.id) || edge;
@@ -175,13 +180,6 @@ export default function DiagramCanvas({
                     <AddItemButton addItem={addItem} setNodes={setNodes} setEdges={setEdges} setItems={setItems} />
                 )}
             </div>
-
-
-
-
-
-
-
 
             <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
