@@ -123,12 +123,14 @@ export default function DiagramCanvas({
                 id: `${selectedEdge.source}-${newNode.id}`,
                 source: selectedEdge.source,
                 target: newNode.id,
+                type: 'step',
                 style: { stroke: selectedEdge?.style?.stroke || "#000" },
             },
             {
                 id: `${newNode.id}-${selectedEdge.target}`,
                 source: newNode.id,
                 target: targetNode.id,
+                type: 'step',
                 style: { stroke: selectedEdge?.style?.stroke || "#000" },
             },
         ]);
