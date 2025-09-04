@@ -243,6 +243,7 @@ export default function DiagramCanvas({
                 >
                     {selectedEdge && (
                         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {/* Header */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <strong>Edge inspector</strong>
                                 <div>
@@ -251,6 +252,7 @@ export default function DiagramCanvas({
                                 </div>
                             </div>
 
+                            {/* Edge details */}
                             <div style={{ fontSize: 13 }}>
                                 <div><strong>ID:</strong> {selectedEdge.id}</div>
                                 <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
@@ -258,8 +260,7 @@ export default function DiagramCanvas({
                                 <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
                             </div>
 
-                            {/* NOTE: Label, Color and Thicken controls removed as requested */}
-
+                            {/* Category selector */}
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Category</label>
                                 <select
@@ -273,18 +274,41 @@ export default function DiagramCanvas({
                                 </select>
                             </div>
 
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={toggleEdgeAnimated}>
-                                    {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
-                                </button>
-                            </div>
+                            {/* Inline Valve type selector */}
+                            {selectedEdge?.data?.category === 'Inline Valve' && (
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 12 }}>Inline Valve Type</label>
+                                    <select
+                                        value={selectedEdge?.data?.valveType || ''}
+                                        onChange={(e) =>
+                                            updateSelectedEdge({
+                                                data: {
+                                                    ...selectedEdge.data,
+                                                    category: 'Inline Valve',
+                                                    valveType: e.target.value,
+                                                },
+                                            })
+                                        }
+                                        style={{ padding: 8, width: '100%' }}
+                                    >
+                                        <option value="">Select type...</option>
+                                        <option value="Gate Valve">Gate Valve</option>
+                                        <option value="Globe Valve">Globe Valve</option>
+                                        <option value="Ball Valve">Ball Valve</option>
+                                        <option value="Butterfly Valve">Butterfly Valve</option>
+                                        <option value="Check Valve">Check Valve</option>
+                                    </select>
+                                </div>
+                            )}
 
+                            {/* Footer hint */}
                             <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
                                 Keyboard: Esc to close · Delete to remove
                             </div>
                         </div>
                     )}
                 </aside>
+
             </div>
         </div>
     );
