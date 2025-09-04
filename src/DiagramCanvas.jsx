@@ -51,6 +51,21 @@ export default function DiagramCanvas({
             interactionWidth: e.interactionWidth ?? 20,
         }));
     }, [edges]);
+
+    // <-- PUT THE DEBUG + MEMO HERE (right after enhancedEdges) -->
+    useEffect(() => {
+        console.log("categoryTypeMap['Inline Valve'] — raw:", categoryTypeMap?.['Inline Valve']);
+    }, [categoryTypeMap]);
+
+    const inlineValveTypes = useMemo(() => {
+        const val = categoryTypeMap?.['Inline Valve'];
+        if (!val) return [];
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'object') return Object.keys(val);
+        return [String(val)];
+    }, [categoryTypeMap]);
+    // <-- END INSERT -->
+
     const deleteSelectedEdge = () => {
         if (!selectedEdge || typeof setEdges !== 'function') return;
         if (!window.confirm('Delete this edge?')) return;
@@ -303,19 +318,22 @@ export default function DiagramCanvas({
                                         value={selectedEdge?.data?.Type || ''}
                                         onChange={(e) =>
                                             updateSelectedEdge({
-                                                data: {
-                                                    ...selectedEdge.data,
-                                                    Type: e.target.value,
-                                                },
+                                                data: { ...(selectedEdge.data || {}), Type: e.target.value },
                                             })
                                         }
                                         style={{ padding: 8, width: '100%' }}
                                     >
                                         <option value="">Select type...</option>
-                                        {(categoryTypeMap['Inline Valve'] || []).map((type) => (
-                                            <option key={type} value={type}>{type}</option>
-                                        ))}
+
+                                        {inlineValveTypes.length > 0 ? (
+                                            inlineValveTypes.map((type) => (
+                                                <option key={type} value={type}>{type}</option>
+                                            ))
+                                        ) : (
+                                            <option value="" disabled>No types defined</option>
+                                        )}
                                     </select>
+
                                 </div>
                             )}
 
