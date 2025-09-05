@@ -475,10 +475,7 @@ export default function ProcessDiagram() {
         });
     };
 
-    const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
-    const selectedGroupNode =
-        selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
-
+    
     return (
         <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
             {/* LEFT: Diagram */}
