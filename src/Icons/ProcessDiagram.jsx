@@ -17,6 +17,24 @@ import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import UnitLayoutConfig from "./UnitLayoutConfig";
+import AirtableGrid from "./AirtableGrid";
+
+function ProcessDiagram() {
+    return (
+        <div className="flex">
+            {/* Left: Airtable table */}
+            <div style={{ flex: 1 }}>
+                <AirtableGrid />
+            </div>
+
+            {/* Right: React Flow canvas */}
+            <div style={{ flex: 2 }}>
+                {/* your <DiagramCanvas /> or nodes */}
+            </div>
+        </div>
+    );
+}
+
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -72,8 +90,6 @@ export default function ProcessDiagram() {
         setNodes((nds) => nds.filter((node) => node.id !== id));
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
-    // inside ProcessDiagram.jsx
-    const { items, loading, fetchItems, addItem, updateItem, deleteItem } = useAirtableItems();
 
     // when loading initial state:
     useEffect(() => {
