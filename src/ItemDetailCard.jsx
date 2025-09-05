@@ -1,7 +1,6 @@
 ﻿// src/components/ItemDetailCard.jsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-// tiny cache for single-record lookups (fallbacks)
 const typeNameCache = new Map();
 
 export default function ItemDetailCard({
@@ -11,7 +10,7 @@ export default function ItemDetailCard({
     edges = [],
     onDeleteEdge,
     onUpdateEdge,
-    onCreateInlineValve,  // retained in case you call it elsewhere
+    onCreateInlineValve,
     onDeleteItem,
 }) {
     const [localItem, setLocalItem] = useState(item || {});
@@ -19,41 +18,36 @@ export default function ItemDetailCard({
     const [isLoadingTypes, setIsLoadingTypes] = useState(false);
     const debounceRef = useRef(null);
 
-    // keep local state in sync when selection changes
     useEffect(() => {
         setLocalItem(item || {});
     }, [item?.id]);
 
-    // ---------- LOAD TYPES (READ-ONLY; NO WRITES) ----------
-    // This pulls type records from your Types table so we can show names instead of rec IDs.
+    // Read-only: fetch Types (names) so UI shows labels
     useEffect(() => {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-        const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID; // <- IMPORTANT
+        const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
 
         if (!baseId || !token || !typesTableId) {
-            console.warn(
-                '[ItemDetailCard] Missing env vars. Set VITE_AIRTABLE_BASE_ID, VITE_AIRTABLE_TOKEN, VITE_AIRTABLE_TYPES_TABLE_ID.'
-            );
+            console.warn('[ItemDetailCard] Missing env vars for types table.');
             return;
         }
 
-        let isMounted = true;
-        const load = async () => {
+        let mounted = true;
+        (async () => {
             try {
                 setIsLoadingTypes(true);
-                const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}?pageSize=100`;
-                const res = await fetch(url, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const res = await fetch(
+                    `https://api.airtable.com/v0/${baseId}/${typesTableId}?pageSize=100`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
                 if (!res.ok) {
-                    console.error('[ItemDetailCard] Failed to fetch types:', res.status, res.statusText);
+                    console.error('Failed to fetch types:', res.status, res.statusText);
                     return;
                 }
                 const data = await res.json();
                 const list = (data.records || []).map((r) => ({
                     id: r.id,
-                    // Use your real name field; your example used "Still Pipe"
                     name:
                         r.fields['Still Pipe'] ||
                         r.fields['Name'] ||
@@ -61,41 +55,39 @@ export default function ItemDetailCard({
                         `Type ${r.id}`,
                     category: r.fields['Category'] || 'Equipment',
                 }));
-                if (isMounted) setAllTypes(list);
-            } catch (err) {
-                console.error('[ItemDetailCard] Error loading types:', err);
+                if (mounted) setAllTypes(list);
+            } catch (e) {
+                console.error('Error fetching types:', e);
             } finally {
-                if (isMounted) setIsLoadingTypes(false);
+                if (mounted) setIsLoadingTypes(false);
             }
-        };
-
-        load();
+        })();
         return () => {
-            isMounted = false;
+            mounted = false;
         };
     }, []);
 
-    // ---------- FALLBACK: resolve a type id -> name if not in allTypes ----------
+    // Fallback single-record fetch to resolve id -> name (when needed)
     const fetchTypeNameById = async (typeId) => {
         if (!typeId) return '';
         if (typeNameCache.has(typeId)) return typeNameCache.get(typeId);
 
-        // try list first
-        const found = allTypes.find((t) => t.id === typeId);
-        if (found) {
-            typeNameCache.set(typeId, found.name);
-            return found.name;
+        const fromList = allTypes.find((t) => t.id === typeId)?.name;
+        if (fromList) {
+            typeNameCache.set(typeId, fromList);
+            return fromList;
         }
 
-        // fallback: fetch single record (read-only)
         try {
             const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
             const token = import.meta.env.VITE_AIRTABLE_TOKEN;
             const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
             if (!baseId || !token || !typesTableId) return '';
 
-            const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`;
-            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+            const res = await fetch(
+                `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
             if (!res.ok) return '';
             const record = await res.json();
             const name =
@@ -106,102 +98,72 @@ export default function ItemDetailCard({
             if (name) typeNameCache.set(typeId, name);
             return name;
         } catch (e) {
-            console.error('[ItemDetailCard] fetchTypeNameById error', e);
+            console.error('fetchTypeNameById error', e);
             return '';
         }
     };
 
-    // Build a category -> list of type objects map for the dropdown
+    // --------- derive id currently selected ----------
+    const activeCategory =
+        localItem['Category Item Type'] || localItem.Category || 'Equipment';
+
     const typesByCategory = useMemo(() => {
         const map = new Map();
         allTypes.forEach((t) => {
             if (!map.has(t.category)) map.set(t.category, []);
             map.get(t.category).push(t);
         });
-        for (const [cat, arr] of map.entries()) {
+        for (const [, arr] of map.entries()) {
             arr.sort((a, b) => a.name.localeCompare(b.name));
         }
         return map;
     }, [allTypes]);
 
-    // Derive the currently selected category
-    const activeCategory =
-        localItem['Category Item Type'] ||
-        localItem.Category ||
-        'Equipment';
-
-    // Types for the current category
     const typeOptions = typesByCategory.get(activeCategory) || [];
 
-    // Normalize a value that could be "recXXX" (id), array of ids, or a plain name -> to an id
     const currentTypeId = useMemo(() => {
         const t = localItem?.Type;
         if (!t) return '';
-
-        // If it's an array (Airtable linked format), take the first id
-        if (Array.isArray(t) && t.length > 0) {
-            return typeof t[0] === 'string' ? t[0] : '';
-        }
-
-        // If it's already a rec id
-        if (typeof t === 'string' && t.startsWith('rec')) {
-            return t;
-        }
-
-        // Otherwise it's probably a name; resolve name -> id from current options
+        if (Array.isArray(t) && t.length > 0) return typeof t[0] === 'string' ? t[0] : '';
+        if (typeof t === 'string' && t.startsWith('rec')) return t;
         if (typeof t === 'string') {
+            // legacy string name -> map to id if possible
             const found = typeOptions.find((opt) => opt.name === t) || allTypes.find((opt) => opt.name === t);
             return found ? found.id : '';
         }
-
         return '';
     }, [localItem?.Type, typeOptions, allTypes]);
 
-    // For read-only display of the current type name (optional)
-    const [resolvedTypeName, setResolvedTypeName] = useState('');
+    // Ensure we also keep a readable TypeName alongside the id array
     useEffect(() => {
         let mounted = true;
         (async () => {
             if (!currentTypeId) {
-                setResolvedTypeName('');
+                if (!localItem?.TypeName) return;
+                // if type cleared, clear the name too
+                setLocalItem((prev) => ({ ...prev, TypeName: '' }));
+                if (onChange) onChange({ ...(item || {}), TypeName: '' });
                 return;
             }
-            const fromList = allTypes.find((t) => t.id === currentTypeId)?.name;
-            if (fromList) {
-                setResolvedTypeName(fromList);
-                return;
+            // if we already have the name and it matches the id, skip
+            const already = localItem?.TypeName;
+            const known = allTypes.find((t) => t.id === currentTypeId)?.name;
+            const name = known || (await fetchTypeNameById(currentTypeId));
+            if (!mounted) return;
+
+            if (name && already !== name) {
+                const patch = { TypeName: name };
+                setLocalItem((prev) => ({ ...prev, ...patch }));
+                if (onChange) onChange({ ...(item || {}), ...patch });
             }
-            const name = await fetchTypeNameById(currentTypeId);
-            if (mounted) setResolvedTypeName(name);
         })();
         return () => {
             mounted = false;
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTypeId, allTypes]);
 
-    // sync first connection into localItem (for from/to display)
-    useEffect(() => {
-        if (!item || !edges || !Array.isArray(edges) || !items || !Array.isArray(items)) return;
-        const firstConnId = item.Connections?.[0];
-        if (!firstConnId) return;
-
-        const edge = edges.find((e) => e.id === firstConnId);
-        if (!edge) return;
-
-        const findItemById = (id) => items.find((it) => it.id === id) || {};
-
-        const fromItem = findItemById(edge.source);
-        const toItem = findItemById(edge.target);
-
-        setLocalItem((prev) => ({
-            ...prev,
-            edgeId: edge.id,
-            from: fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
-            to: toItem.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-        }));
-    }, [item, edges, items]);
-
-    // ---------- change plumbing (local only; no network writes) ----------
+    // --------- LOCAL-ONLY CHANGE PLUMBING (no writes) ----------
     const safeOnChange = (payload) => {
         if (typeof onChange !== 'function') return;
         try {
@@ -217,29 +179,32 @@ export default function ItemDetailCard({
         debounceRef.current = setTimeout(() => {
             safeOnChange({ ...(item || {}), ...(updated || {}) });
             debounceRef.current = null;
-        }, 300);
+        }, 200);
     };
 
     const handleFieldChange = (fieldName, value) => {
-        // x/y inputs: keep empty string when cleared
         if ((fieldName === 'x' || fieldName === 'y') && value === '') {
             commitUpdate({ [fieldName]: '' });
             return;
         }
 
-        // Type selection: store as an array of ids to match Airtable schema (even though we don't write)
         if (fieldName === 'Type') {
-            const next = value ? [value] : [];
-            commitUpdate({ Type: next });
+            // value is the selected rec id; also include TypeName so icons can update immediately
+            const selected = allTypes.find((t) => t.id === value);
+            commitUpdate({
+                Type: value ? [value] : [],
+                TypeName: selected?.name || '',
+            });
             return;
         }
 
-        // Category change -> also clear Type
         if (fieldName === 'Category Item Type' || fieldName === 'Category') {
+            // reset type when category changes
             commitUpdate({
                 'Category Item Type': value,
                 Category: value,
                 Type: [],
+                TypeName: '',
             });
             return;
         }
@@ -336,11 +301,11 @@ export default function ItemDetailCard({
                         </select>
                     </div>
 
-                    {/* Optional read-only resolved name display */}
-                    {currentTypeId && (
+                    {/* Optional read-only resolved name */}
+                    {!!localItem.TypeName && (
                         <div style={{ ...rowStyle, color: '#666', fontSize: 12 }}>
                             <label style={labelStyle}>Type name:</label>
-                            <div style={{ flex: 1 }}>{resolvedTypeName || '—'}</div>
+                            <div style={{ flex: 1 }}>{localItem.TypeName}</div>
                         </div>
                     )}
 
@@ -490,16 +455,18 @@ export default function ItemDetailCard({
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <input
                             style={{ flex: 1, padding: 8 }}
-                            value={liveEdge.label ?? ''}
+                            value={(item._edge?.label ?? '')}
                             placeholder="Edge label"
-                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })}
+                            onChange={(e) =>
+                                onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })
+                            }
                         />
                         <button
                             onClick={() =>
-                                onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !liveEdge.animated })
+                                onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !item._edge?.animated })
                             }
                         >
-                            {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
+                            {item._edge?.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
 
@@ -507,21 +474,21 @@ export default function ItemDetailCard({
                         <label style={{ width: 70 }}>Color</label>
                         <input
                             type="color"
-                            value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
+                            value={(item._edge?.style && item._edge.style.stroke) || '#000000'}
                             onChange={(e) =>
                                 onUpdateEdge &&
                                 onUpdateEdge(item.edgeId, {
-                                    style: { ...(liveEdge.style || {}), stroke: e.target.value },
+                                    style: { ...(item._edge?.style || {}), stroke: e.target.value },
                                 })
                             }
                         />
                         <input
                             type="text"
-                            value={(liveEdge.style && liveEdge.style.stroke) || ''}
+                            value={(item._edge?.style && item._edge.style.stroke) || ''}
                             onChange={(e) =>
                                 onUpdateEdge &&
                                 onUpdateEdge(item.edgeId, {
-                                    style: { ...(liveEdge.style || {}), stroke: e.target.value },
+                                    style: { ...(item._edge?.style || {}), stroke: e.target.value },
                                 })
                             }
                             style={{ flex: 1, padding: 8 }}
