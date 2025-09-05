@@ -17,8 +17,8 @@ export default function DiagramCanvas({
     onEdgesChange,
     onConnect,
     onSelectionChange,
-    onEdgeClick,     // optional parent callback
-    onEdgeSelect,    // optional parent selection callback
+    onEdgeClick, // optional parent callback
+    onEdgeSelect, // optional parent selection callback
     nodeTypes,
     AddItemButton,
     addItem,
@@ -42,7 +42,7 @@ export default function DiagramCanvas({
         console.log('DiagramCanvas mounted / props onEdgeClick:', !!onEdgeClick);
     }, [onEdgeClick]);
 
-    // ensure edges are clickable (pointerEvents) and have interactionWidth
+    // make sure edges are clickable and wide enough to click easily
     const enhancedEdges = useMemo(() => {
         if (!Array.isArray(edges)) return [];
         return edges.map((e) => ({
@@ -52,7 +52,6 @@ export default function DiagramCanvas({
         }));
     }, [edges]);
 
-    // inline valve types helper
     const inlineValveTypes = useMemo(() => {
         const val = categoryTypeMap?.['Inline Valve'];
         if (!val) return [];
@@ -61,9 +60,7 @@ export default function DiagramCanvas({
         return [String(val)];
     }, [categoryTypeMap]);
 
-    // ----------------------
-    // Edge handlers
-    // ----------------------
+    // ---------- Edge handlers ----------
     function handleEdgeClickLocal(event, edge) {
         event?.stopPropagation?.();
         console.log('edge clicked:', edge?.id);
@@ -78,7 +75,6 @@ export default function DiagramCanvas({
         if (!selectedEdge) return;
         if (!window.confirm('Delete this edge?')) return;
         setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
-        // clear inspector
         setSelectedEdge(null);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
     }
@@ -106,7 +102,6 @@ export default function DiagramCanvas({
             return;
         }
 
-        // create valve node in middle and split edge (step)
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
         if (!sourceNode || !targetNode) return;
@@ -163,14 +158,11 @@ export default function DiagramCanvas({
             return next;
         });
 
-        // show inspector on newEdgeA
         setSelectedEdge(newEdgeA);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(newEdgeA);
     }
 
-    // ----------------------
-    // Node handlers
-    // ----------------------
+    // ---------- Node handlers ----------
     function handleNodeClickLocal(event, node) {
         event?.stopPropagation?.();
         console.log('node clicked:', node?.id);
@@ -186,7 +178,7 @@ export default function DiagramCanvas({
         setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id));
         setEdges((prev) => prev.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
         if (typeof setItems === 'function') {
-            setItems((prev) => Array.isArray(prev) ? prev.filter((it) => it.id !== selectedNode.id) : prev);
+            setItems((prev) => (Array.isArray(prev) ? prev.filter((it) => it.id !== selectedNode.id) : prev));
         }
         setSelectedNode(null);
         if (typeof setSelectedItem === 'function') setSelectedItem(null);
@@ -215,14 +207,13 @@ export default function DiagramCanvas({
     }
 
     // ----------------------
-    // Selection glue: forward selection changes & keep local inspectors in sync
+    // Selection glue (CAREFUL: do NOT aggressively clear local inspector on empty selection)
     // ----------------------
     function handleSelectionChangeLocal(selection) {
-        // selection is { nodes: [{id}], edges: [{id}] }
         const selNodes = Array.isArray(selection?.nodes) ? selection.nodes : [];
         const selEdges = Array.isArray(selection?.edges) ? selection.edges : [];
 
-        // prefer single-edge selection
+        // If exactly one edge selected => show edge inspector
         if (selEdges.length === 1 && selNodes.length === 0) {
             const e = selEdges[0];
             const liveEdge = (edges || []).find((ed) => ed.id === e.id) || e;
@@ -233,7 +224,7 @@ export default function DiagramCanvas({
             return;
         }
 
-        // single node
+        // If exactly one node selected => show node inspector
         if (selNodes.length === 1 && selEdges.length === 0) {
             const n = selNodes[0];
             const liveNode = (nodes || []).find((nd) => nd.id === n.id) || n;
@@ -244,13 +235,12 @@ export default function DiagramCanvas({
             return;
         }
 
-        // multiple or none -> clear local inspectors but still forward
-        setSelectedEdge(null);
-        setSelectedNode(null);
+        // IMPORTANT: if selection is empty or multi-select, DO NOT clear the local inspectors.
+        // Clearing here caused race conditions where selection-change blanked state before edge click.
+        // We *only* forward the selection to the parent so it can react.
         if (typeof onSelectionChange === 'function') onSelectionChange(selection);
     }
 
-    // close inspector helper
     function handleCloseInspector() {
         setSelectedEdge(null);
         setSelectedNode(null);
@@ -258,7 +248,7 @@ export default function DiagramCanvas({
         if (typeof setSelectedItem === 'function') setSelectedItem(null);
     }
 
-    // keyboard shortcuts (Delete, Esc) at canvas level
+    // keyboard shortcuts (Delete, Esc)
     useEffect(() => {
         if (!selectedEdge && !selectedNode) return;
         const onKey = (e) => {
@@ -270,7 +260,7 @@ export default function DiagramCanvas({
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [selectedEdge, selectedNode]); // intentionally small deps
+    }, [selectedEdge, selectedNode]); // small deps on purpose
 
     const edgeCategories = ['None', 'Inline Valve'];
 
@@ -351,7 +341,6 @@ export default function DiagramCanvas({
                         flexDirection: 'column',
                     }}
                 >
-                    {/* Edge inspector */}
                     {selectedEdge && (
                         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -365,10 +354,20 @@ export default function DiagramCanvas({
                             </div>
 
                             <div style={{ fontSize: 13 }}>
-                                <div><strong>ID:</strong> {selectedEdge.id}</div>
-                                <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
-                                <div><strong>Target:</strong> {selectedEdge.target}{selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}</div>
-                                <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
+                                <div>
+                                    <strong>ID:</strong> {selectedEdge.id}
+                                </div>
+                                <div>
+                                    <strong>Source:</strong> {selectedEdge.source}
+                                    {selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}
+                                </div>
+                                <div>
+                                    <strong>Target:</strong> {selectedEdge.target}
+                                    {selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}
+                                </div>
+                                <div style={{ marginTop: 8 }}>
+                                    <strong>Type:</strong> {selectedEdge.type || 'default'}
+                                </div>
                             </div>
 
                             <div>
@@ -379,7 +378,9 @@ export default function DiagramCanvas({
                                     style={{ padding: 8, width: '100%' }}
                                 >
                                     {edgeCategories.map((cat) => (
-                                        <option key={cat} value={cat}>{cat}</option>
+                                        <option key={cat} value={cat}>
+                                            {cat}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
@@ -402,31 +403,55 @@ export default function DiagramCanvas({
                         </div>
                     )}
 
-                    {/* Node / Item inspector */}
                     {selectedNode && (
                         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <strong>Item inspector</strong>
                                 <div>
-                                    <button onClick={deleteSelectedNode} style={{ marginRight: 8 }}>Delete</button>
-                                    <button onClick={() => { setSelectedNode(null); if (typeof setSelectedItem === 'function') setSelectedItem(null); }}>Close</button>
+                                    <button onClick={deleteSelectedNode} style={{ marginRight: 8 }}>
+                                        Delete
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedNode(null);
+                                            if (typeof setSelectedItem === 'function') setSelectedItem(null);
+                                        }}
+                                    >
+                                        Close
+                                    </button>
                                 </div>
                             </div>
 
                             <div style={{ fontSize: 13 }}>
-                                <div><strong>ID:</strong> {selectedNode.id}</div>
-                                <div><strong>Label:</strong> {selectedNode.data?.label}</div>
-                                <div><strong>Category:</strong> {selectedNode.data?.item?.Category}</div>
+                                <div>
+                                    <strong>ID:</strong> {selectedNode.id}
+                                </div>
+                                <div>
+                                    <strong>Label:</strong> {selectedNode.data?.label}
+                                </div>
+                                <div>
+                                    <strong>Category:</strong> {selectedNode.data?.item?.Category}
+                                </div>
                             </div>
 
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Name</label>
-                                <input type='text' value={selectedNode.data?.item?.Name || ''} onChange={(e) => updateSelectedNode({ data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), Name: e.target.value } } })} style={{ padding: 6, width: '100%' }} />
+                                <input
+                                    type='text'
+                                    value={selectedNode.data?.item?.Name || ''}
+                                    onChange={(e) => updateSelectedNode({ data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), Name: e.target.value } } })}
+                                    style={{ padding: 6, width: '100%' }}
+                                />
                             </div>
 
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Item Code</label>
-                                <input type='text' value={selectedNode.data?.item?.['Item Code'] || selectedNode.data?.item?.Code || ''} onChange={(e) => updateSelectedNode({ data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), 'Item Code': e.target.value, Code: e.target.value } } })} style={{ padding: 6, width: '100%' }} />
+                                <input
+                                    type='text'
+                                    value={selectedNode.data?.item?.['Item Code'] || selectedNode.data?.item?.Code || ''}
+                                    onChange={(e) => updateSelectedNode({ data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), 'Item Code': e.target.value, Code: e.target.value } } })}
+                                    style={{ padding: 6, width: '100%' }}
+                                />
                             </div>
 
                             <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>Keyboard: Esc to close · Delete to remove</div>
