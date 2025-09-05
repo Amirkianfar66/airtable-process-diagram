@@ -309,51 +309,7 @@ export default function ProcessDiagram() {
         setSelectedItem(null);
     }, []);
 
-   
-
-            const newNode = {
-                id: newItem.id,
-                position: { x: midX, y: midY },
-                data: {
-                    label: `${newItem['Item Code']} - ${newItem.Name}`,
-                    item: newItem,
-                    icon: getItemIcon ? getItemIcon(newItem) : undefined,
-                },
-                type: 'scalableIcon',
-                sourcePosition: 'right',
-                targetPosition: 'left',
-                style: { background: 'transparent' },
-            };
-
-            setNodes((nds) => [...nds, newNode]);
-
-            const baseStyle = edge.style || {};
-            setEdges((eds) => {
-                const filtered = eds.filter((e) => e.id !== edge.id);
-                const e1 = {
-                    id: `edge-${edge.source}-${newNode.id}-${Date.now()}`,
-                    source: edge.source,
-                    target: newNode.id,
-                    type: edge.type || 'smoothstep',
-                    animated: edge.animated ?? true,
-                    style: { ...baseStyle },
-                };
-                const e2 = {
-                    id: `edge-${newNode.id}-${edge.target}-${Date.now()}`,
-                    source: newNode.id,
-                    target: edge.target,
-                    type: edge.type || 'smoothstep',
-                    animated: edge.animated ?? true,
-                    style: { ...baseStyle },
-                };
-                return [...filtered, e1, e2];
-            });
-
-            setItems((prev) => [...prev, newItem]);
-            setSelectedItem(newItem);
-        },
-        [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]
-    );
+    
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
