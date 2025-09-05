@@ -118,14 +118,21 @@ export default function ProcessDiagram() {
     // Replace your existing onSelectionChange with this
     const onSelectionChange = useCallback(
         ({ nodes: selNodes, edges: selEdges }) => {
+            // always keep visual selection state
             setSelectedNodes(selNodes || []);
 
-            // --- Single node selected ---
+            // If a single node is selected and it is already the currently shown selectedItem,
+            // don't overwrite selectedItem (prevents a race where onNodeClick sets it and
+            // onSelectionChange immediately clears it).
             if (Array.isArray(selNodes) && selNodes.length === 1) {
                 const selNode = selNodes[0];
+                if (selectedItem && String(selectedItem.id) === String(selNode.id)) {
+                    // nothing to change for selectedItem — keep the inspector open
+                    return;
+                }
 
                 // Prefer authoritative item stored in items[] (keeps data consistent)
-                const itemFromItems = items.find((it) => it.id === selNode.id);
+                const itemFromItems = items.find((it) => String(it.id) === String(selNode.id));
                 if (itemFromItems) {
                     setSelectedItem(itemFromItems);
                     return;
@@ -169,8 +176,10 @@ export default function ProcessDiagram() {
             // --- Multiple selection or nothing selected ---
             setSelectedItem(null);
         },
-        [items, nodes]
+        // IMPORTANT: include selectedItem in deps so the early-guard can read the latest value
+        [items, nodes, selectedItem]
     );
+
 
     const onConnect = useCallback(
         (params) => {

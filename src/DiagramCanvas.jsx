@@ -187,6 +187,20 @@ export default function DiagramCanvas({
     const handleCloseItemInspector = () => {
         if (typeof setSelectedItem === 'function') setSelectedItem(null);
     };
+    // add near the top of the component
+    const handleNodeClickLocal = (event, node) => {
+        console.log('handleNodeClickLocal:', { nodeId: node?.id, eventType: event?.type });
+        // DO NOT stop propagation here — that can interfere with React Flow selection behavior
+        const itemFromNode = node?.data?.item || { id: node.id, ...node.data };
+
+        if (typeof setSelectedItem === 'function') {
+            setSelectedItem(itemFromNode); // show item inspector
+        }
+
+        // close any edge inspector
+        setSelectedEdge(null);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+    };
 
     useEffect(() => {
         if (!selectedEdge && !selectedItem) return;
@@ -261,18 +275,8 @@ export default function DiagramCanvas({
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     onEdgeClick={handleEdgeClickLocal}
-                    onNodeClick={(event, node) => {
-                        event?.stopPropagation?.();
-                        if (typeof setSelectedItem === 'function') {
-                            // prefer canonical item if provided on node.data, otherwise synthesize
-                            const itemFromNode = node?.data?.item || { id: node.id, ...node.data };
-                            setSelectedItem(itemFromNode);
-                            // also close any selected edge inspector
-                            setSelectedEdge(null);
-                            if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
-                        }
-                    }}
-
+                    onNodeClick={handleNodeClickLocal}
+                  
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     fitView
