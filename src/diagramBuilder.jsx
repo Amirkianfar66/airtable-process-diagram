@@ -59,7 +59,10 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], options = {}) {
         const { Unit, SubUnit, Category, Sequence, Name, Code, id, Type } = item;
         if (!grouped[Unit]) grouped[Unit] = {};
         if (!grouped[Unit][SubUnit]) grouped[Unit][SubUnit] = [];
-        grouped[Unit][SubUnit].push({ Category, Type, Sequence, Name, Code, id });
+        // Preserve x/y if they exist on the normalized item
+        const { x, y } = item;
+        grouped[Unit][SubUnit].push({ Category, Type, Sequence, Name, Code, id, x, y });
+
     });
 
     // Build a map of previous positions if provided (prevNodes: array)
