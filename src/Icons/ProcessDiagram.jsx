@@ -9,7 +9,6 @@ import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
-import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon } from './IconManager';
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
@@ -806,19 +805,7 @@ export default function ProcessDiagram() {
                                 onDelete={onDeleteGroup}
                             />
                         ) : selectedItem ? (
-                            <ItemDetailCard
-                                item={selectedItem}
-                                items={items}
-                                edges={edges}
-                                onChange={(updatedItem) => {
-                                    // 🚫 never request reposition from here either
-                                    handleItemDetailChange(updatedItem /*, { reposition: false }*/);
-                                }}
-                                onDeleteItem={handleDeleteItem}
-                                onDeleteEdge={handleDeleteEdge}
-                                onUpdateEdge={handleUpdateEdge}
-                                onCreateInlineValve={handleCreateInlineValve}
-                            />
+                           
                         ) : (
                             <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                         )}
