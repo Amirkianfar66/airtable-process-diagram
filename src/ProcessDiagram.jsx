@@ -688,7 +688,7 @@ export default function ProcessDiagram() {
                         onDeleteItem={handleDeleteItem}
                         onDeleteEdge={handleDeleteEdge}
                         onUpdateEdge={handleUpdateEdge}
-                        onCreateInlineValve={handleCreateInlineValve}
+                   
                         aiDescription={aiDescription}
                         setAiDescription={setAiDescription}
                         handleGeneratePNID={handleGeneratePNID}
@@ -742,7 +742,7 @@ export default function ProcessDiagram() {
                                 onDeleteItem={handleDeleteItem}
                                 onDeleteEdge={handleDeleteEdge}
                                 onUpdateEdge={handleUpdateEdge}
-                                onCreateInlineValve={handleCreateInlineValve}
+                               
                             />
                         ) : (
                             <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
