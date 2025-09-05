@@ -8,9 +8,9 @@ import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
-import ItemDetailCard from './ItemDetailCard';
+// import ItemDetailCard from './ItemDetailCard'; // ⛔️ removed
 import GroupDetailCard from './GroupDetailCard';
-import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
+import { getItemIcon, categoryTypeMap } from './IconManager'; // ⛔️ no handleItemChangeNode
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
@@ -70,64 +70,43 @@ export default function ProcessDiagram() {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
 
-    // Replace your existing onSelectionChange with this
+    // Selection change
     const onSelectionChange = useCallback(
         ({ nodes: selNodes, edges: selEdges }) => {
             setSelectedNodes(selNodes || []);
 
-            // --- Single node selected ---
             if (Array.isArray(selNodes) && selNodes.length === 1) {
                 const selNode = selNodes[0];
-
-                // Prefer authoritative item stored in items[] (keeps data consistent)
                 const itemFromItems = items.find((it) => it.id === selNode.id);
-                if (itemFromItems) {
-                    setSelectedItem(itemFromItems);
-                    return;
-                }
-
-                // Fallback to node.data.item (useful for newly created valve nodes)
-                if (selNode?.data?.item) {
-                    setSelectedItem(selNode.data.item);
-                    return;
-                }
-
-                // Nothing found for this node
+                if (itemFromItems) { setSelectedItem(itemFromItems); return; }
+                if (selNode?.data?.item) { setSelectedItem(selNode.data.item); return; }
                 setSelectedItem(null);
                 return;
             }
 
-            // --- Single edge selected: try to surface an inline valve attached to that edge ---
             if (Array.isArray(selEdges) && selEdges.length === 1) {
                 const edge = selEdges[0];
-
-                // 1) Look for valve items in items[] that reference edgeId
-                const edgeValves = items.filter((it) => it.edgeId === edge.id);
-                if (edgeValves.length > 0) {
-                    // If multiple valves found, pick the first for now
-                    setSelectedItem(edgeValves[0]);
-                    return;
-                }
-
-                // 2) Fallback: maybe there's a valve node present whose data.item.edgeId === edge.id
-                const valveNode = nodes.find((n) => n?.data?.item?.edgeId === edge.id);
-                if (valveNode?.data?.item) {
-                    setSelectedItem(valveNode.data.item);
-                    return;
-                }
-
-                // nothing connected to this edge
-                setSelectedItem(null);
+                const fromItem = items.find(it => it.id === edge.source) || null;
+                const toItem = items.find(it => it.id === edge.target) || null;
+                const edgeAsItem = {
+                    id: edge.id,
+                    Name: 'Edge inspector',
+                    'Item Code': edge.id,
+                    edgeId: edge.id,
+                    from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
+                    to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+                    x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
+                    y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
+                    _edge: edge,
+                };
+                setSelectedItem(edgeAsItem);
                 return;
             }
 
-            // --- Multiple selection or nothing selected ---
             setSelectedItem(null);
         },
         [items, nodes]
     );
-
-
 
     const onConnect = useCallback(
         (params) => {
@@ -146,15 +125,12 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
 
-    // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
     const onNodeDrag = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
         setNodes((nds) =>
             nds.map((n) => {
                 if (!n?.data) return n;
-
-                // group membership check
                 const isChild =
                     (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
                     n.data.groupId === draggedNode.id ||
@@ -162,7 +138,6 @@ export default function ProcessDiagram() {
 
                 if (!isChild) return n;
 
-                // shift children by the same delta as the group’s drag
                 const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
                 const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
 
@@ -176,7 +151,6 @@ export default function ProcessDiagram() {
             })
         );
 
-        // update prev position for next drag tick
         setNodes((nds) =>
             nds.map((n) =>
                 n.id === draggedNode.id
@@ -186,7 +160,6 @@ export default function ProcessDiagram() {
         );
     }, []);
 
-    // --- Reset prevX/prevY once drag stops ---
     const onNodeDragStop = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
         setNodes((nds) =>
@@ -197,19 +170,12 @@ export default function ProcessDiagram() {
             )
         );
     }, []);
-    // --- Add in ProcessDiagram.jsx near other callbacks ---
+
     const handleEdgeSelect = useCallback(
         (edge) => {
-            if (!edge) {
-                setSelectedItem(null);
-                return;
-            }
-
-            // Try to find linked items in items[]
+            if (!edge) { setSelectedItem(null); return; }
             const fromItem = items.find(it => it.id === edge.source) || null;
             const toItem = items.find(it => it.id === edge.target) || null;
-
-            // Build a lightweight item-like object for ItemDetailCard
             const edgeAsItem = {
                 id: edge.id,
                 Name: 'Edge inspector',
@@ -217,50 +183,35 @@ export default function ProcessDiagram() {
                 edgeId: edge.id,
                 from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
                 to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-                // try to approximate mid position if source/target nodes have positions
                 x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
                 y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
-                // keep original edge for reference (optional)
                 _edge: edge,
             };
-
             setSelectedItem(edgeAsItem);
         },
         [items, setSelectedItem]
     );
 
-    // Delete edge (used by ItemDetailCard delete button)
     const handleDeleteEdge = useCallback((edgeId) => {
         if (!edgeId) return;
         if (!window.confirm('Delete this edge?')) return;
-
-        // remove edge
         setEdges((eds) => eds.filter(e => e.id !== edgeId));
-
-        // remove any inline valve node that references this edge (if you create valve nodes with item.edgeId)
         setNodes((nds) => nds.filter(n => !(n?.data?.item?.edgeId && n.data.item.edgeId === edgeId)));
-
-        // clear selected item if it was the edge
         setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
     }, [setEdges, setNodes, setSelectedItem]);
 
-    // update a live edge (label, style, animated, data, etc.)
     const handleUpdateEdge = useCallback((edgeId, patch) => {
         setEdges((eds) => eds.map(e => e.id === edgeId ? { ...e, ...patch } : e));
-
-        // keep selectedItem in sync when we're inspecting an edge
         setSelectedItem((cur) => {
             if (!cur || cur.edgeId !== edgeId) return cur;
             return { ...cur, _edge: { ...cur._edge, ...patch } };
         });
     }, [setEdges, setSelectedItem]);
 
-    // create an inline valve on an existing edge and split the edge into two
     const handleCreateInlineValve = useCallback((edgeId) => {
         const edge = edges.find(e => e.id === edgeId);
         if (!edge) return;
 
-        // find the nodes for midpoint calculation
         const sourceNode = nodes.find(n => n.id === edge.source);
         const targetNode = nodes.find(n => n.id === edge.target);
         if (!sourceNode || !targetNode) return;
@@ -268,10 +219,8 @@ export default function ProcessDiagram() {
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-        // small unique id using timestamp (no extra imports)
         const newValveId = `valve-${Date.now()}`;
 
-        // new valve item (keeps shape similar to other items)
         const newItem = {
             id: newValveId,
             "Item Code": `VALVE-${Date.now()}`,
@@ -283,7 +232,7 @@ export default function ProcessDiagram() {
             SubUnit: sourceNode?.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
-            edgeId: edge.id, // track the parent edge
+            edgeId: edge.id,
         };
 
         const newNode = {
@@ -300,10 +249,8 @@ export default function ProcessDiagram() {
             style: { background: "transparent" },
         };
 
-        // insert node
         setNodes((nds) => [...nds, newNode]);
 
-        // replace original edge with two edges going through the valve node
         const baseStyle = edge.style || {};
         setEdges((eds) => {
             const filtered = eds.filter(e => e.id !== edge.id);
@@ -326,48 +273,27 @@ export default function ProcessDiagram() {
             return [...filtered, e1, e2];
         });
 
-        // add the valve to your items so ItemDetailCard and other code can find it
         setItems((prev) => [...prev, newItem]);
-
-        // select the new valve item in the details panel
         setSelectedItem(newItem);
     }, [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]);
-
-
 
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
 
         try {
             const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(
-                aiDescription,
-                items,
-                nodes,
-                edges,
-                setSelectedItem,
-                setChatMessages
+                aiDescription, items, nodes, edges, setSelectedItem, setChatMessages
             );
 
-            // Extract AI items
             const aiItems = normalizedItems || (aiNodes || []).map(n => n.data?.item).filter(Boolean);
-            console.log("AI Items:", aiItems);
-            aiItems.forEach(i => console.log(i.Name, i.Code, i.Connections));
-
-            // Merge into items
             const updatedItems = [...items];
             const existingIds = new Set(updatedItems.map(i => i.id));
-            aiItems.forEach(item => {
-                if (item.id && !existingIds.has(item.id)) {
-                    updatedItems.push(item);
-                }
-            });
+            aiItems.forEach(item => { if (item.id && !existingIds.has(item.id)) updatedItems.push(item); });
             setItems(updatedItems);
 
-            // Merge nodes + edges directly (instead of discarding AI edges)
             setNodes(aiNodes);
             setEdges(aiEdges);
 
-            // Auto-select first new node
             if (aiNodes?.length) {
                 const newNodesList = aiNodes.filter(n => !nodes.some(old => old.id === n.id));
                 if (newNodesList.length > 0) {
@@ -380,13 +306,11 @@ export default function ProcessDiagram() {
         }
     };
 
-
     useEffect(() => {
         const loadItems = async () => {
             try {
                 const itemsRaw = await fetchData();
 
-                // Normalize fields including Connections
                 const normalizedItems = itemsRaw.map(item => ({
                     id: item.id || `${item.Name}-${Date.now()}`,
                     Name: item.Name || '',
@@ -398,24 +322,19 @@ export default function ProcessDiagram() {
                         : item['Category Item Type'] || '',
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Sequence: item.Sequence || 0,
-                    Connections: Array.isArray(item.Connections) ? item.Connections : [], // ✅ include connections
+                    Connections: Array.isArray(item.Connections) ? item.Connections : [],
                 }));
 
-                // Build unique units array
                 const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
-
-                // Wrap in array for buildDiagram
                 const unitLayout2D = [uniqueUnits];
                 setUnitLayoutOrder(unitLayout2D);
 
-                // Build diagram nodes and edges
                 const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
 
                 setNodes(builtNodes);
                 setEdges(builtEdges);
                 setItems(normalizedItems);
 
-                // Pass units to UnitLayoutConfig
                 const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
                 setAvailableUnitsForConfig(uniqueUnitsObjects);
 
@@ -427,7 +346,6 @@ export default function ProcessDiagram() {
         loadItems();
     }, []);
 
-    // rebuild diagram whenever user updates unitLayoutOrder
     useEffect(() => {
         if (items.length && unitLayoutOrder.length) {
             const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder);
@@ -449,12 +367,7 @@ export default function ProcessDiagram() {
         })
         : [];
 
-
-
-    // --- Group detail wiring ---
     const [addingToGroup, setAddingToGroup] = useState(null);
-
-
     const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
 
     const onAddItem = (nodeIdToAdd) => {
@@ -481,7 +394,6 @@ export default function ProcessDiagram() {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
 
-    // inside ProcessDiagram.jsx
     const handleAddItem = (rawItem) => {
         setItems(prevItems => {
             const firstKnownUnit =
@@ -494,7 +406,6 @@ export default function ProcessDiagram() {
                 Name: rawItem.Name || 'New Item',
                 Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
                 'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
-                // <-- default Unit is Unit 1 unless something else is present
                 Unit: rawItem.Unit || selectedItem?.Unit || firstKnownUnit || 'Unit 1',
                 SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? 'Default SubUnit',
                 Category: Array.isArray(rawItem['Category Item Type'])
@@ -510,13 +421,12 @@ export default function ProcessDiagram() {
 
             const nextItems = [...prevItems, normalizedItem];
 
-            // ensure the unit exists in the layout
             const ensureUnitInLayout = (layout, unit) => {
                 if (!Array.isArray(layout) || !layout.length) return [[unit]];
                 const flat = new Set(layout.flat());
                 if (!flat.has(unit)) {
                     const copy = layout.map(row => [...row]);
-                    copy[0].push(unit); // add to first row
+                    copy[0].push(unit);
                     return copy;
                 }
                 return layout;
@@ -534,25 +444,18 @@ export default function ProcessDiagram() {
             if (addedNode) setSelectedNodes([addedNode]);
             setSelectedItem(normalizedItem);
 
-            console.log('handleAddItem added:', normalizedItem, 'rebuiltNodes contains:', !!addedNode);
-
             return nextItems;
         });
     };
-
-
-
 
     function getUnitSubunitPosition(unit, subUnit, nodes) {
         const unitNode = nodes.find(n => n.id === `unit-${unit}`);
         const subUnitNode = nodes.find(n => n.id === `sub-${unit}-${subUnit}`);
 
         if (!subUnitNode) {
-            // fallback if SubUnit not found
             return { x: 100, y: 100 };
         }
 
-        // Get all items already in this subUnit
         const siblings = nodes.filter(n =>
             n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit
         );
@@ -582,10 +485,10 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    onEdgeSelect={handleEdgeSelect}           // <--- add this
-                    showInlineEdgeInspector={false}           // <--- hide inline inspector
-                    AddItemButton={AddItemButton}             // <--- pass component directly
-                    addItem={handleAddItem}                   // <--- pass handler separately
+                    onEdgeSelect={handleEdgeSelect}
+                    showInlineEdgeInspector={false}
+                    AddItemButton={AddItemButton}
+                    addItem={handleAddItem}
                     aiDescription={aiDescription}
                     setAiDescription={setAiDescription}
                     handleGeneratePNID={handleGeneratePNID}
@@ -598,7 +501,6 @@ export default function ProcessDiagram() {
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                 />
-
             </div>
 
             {/* RIGHT: Sidebar */}
@@ -611,14 +513,13 @@ export default function ProcessDiagram() {
                     background: "transparent",
                 }}
             >
-
                 <div>
                     <UnitLayoutConfig
                         availableUnits={availableUnitsForConfig}
                         onChange={setUnitLayoutOrder}
                     />
                 </div>
-                {/* detail panel */}
+
                 <div style={{ flex: 1, overflowY: "auto" }}>
                     {selectedGroupNode ? (
                         <GroupDetailCard
@@ -631,34 +532,13 @@ export default function ProcessDiagram() {
                             onRemoveItem={onRemoveItem}
                             onDelete={onDeleteGroup}
                         />
-                    ) : selectedItem ? (
-                            <ItemDetailCard
-                                item={selectedItem}
-                                items={items}
-                                edges={edges}
-                                onChange={(updatedItem) =>
-                                    handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem) // geometry changes
-                                }
-                                onDataChange={(updatedItem) =>
-                                    setNodes((nds) =>
-                                        nds.map((n) =>
-                                            n.id === updatedItem.id ? { ...n, data: updatedItem } : n
-                                        )
-                                    )
-                                }
-                                onDeleteEdge={handleDeleteEdge}
-                                onUpdateEdge={handleUpdateEdge}
-                                onCreateInlineValve={handleCreateInlineValve}
-                            />
-
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
-                            Select an item or group to see details
+                            Item detail panel is disabled for this test.
                         </div>
                     )}
                 </div>
             </div>
         </div>
     );
-
 }
