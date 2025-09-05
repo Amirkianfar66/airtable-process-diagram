@@ -72,117 +72,103 @@ export default function ProcessDiagram() {
         setNodes((nds) => nds.filter((node) => node.id !== id));
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
+    // inside ProcessDiagram.jsx
+    const { items, loading, fetchItems, addItem, updateItem, deleteItem } = useAirtableItems();
 
-    // wrap ItemDetailCard onChange so we can preserve positions unless reposition requested
-    const handleItemDetailChange = useCallback((updatedItem, options = {}) => {
-        // inside handleItemDetailChange, replace previous setItems(...) with:
-        setItems((prev) =>
-            prev.map((it) => {
-                if (String(it.id) !== String(updatedItem.id)) return it;
-                return {
-                    ...it,
-                    ...updatedItem,
-                    // preserve x/y unless reposition requested or payload contains them explicitly
-                    x: options.reposition ? (('x' in updatedItem) ? updatedItem.x : it.x) : (('x' in updatedItem) ? updatedItem.x : it.x),
-                    y: options.reposition ? (('y' in updatedItem) ? updatedItem.y : it.y) : (('y' in updatedItem) ? updatedItem.y : it.y),
-                };
-            })
-        );
-        await fetch("/api/airtable", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: updatedItem.id, fields: updatedItem }),
-        });
-    };
-        // update nodes: preserve position unless reposition requested
-        setNodes((prevNodes) =>
-            prevNodes.map((node) => {
-                if (String(node.id) !== String(updatedItem.id)) return node;
-
-                const currentPos = node.position || { x: node.data?.x ?? updatedItem.x ?? 0, y: node.data?.y ?? updatedItem.y ?? 0 };
-
-                if (options && options.reposition === true) {
-                    // compute new position using your helper (fallback to currentPos)
-                    try {
-                        const newPos = getUnitSubunitPosition(updatedItem.Unit, updatedItem.SubUnit, prevNodes) || currentPos;
-                        return { ...node, position: { x: newPos.x, y: newPos.y }, data: { ...node.data, ...updatedItem } };
-                    } catch (err) {
-                        return { ...node, position: currentPos, data: { ...node.data, ...updatedItem } };
-                    }
-                }
-
-                // otherwise preserve position and only update data so icon/type changes without moving
-                return { ...node, position: currentPos, data: { ...node.data, ...updatedItem } };
-            })
-        );
-
-        // also keep selectedItem in sync if the details panel is showing this item
-        setSelectedItem((cur) => (cur && String(cur.id) === String(updatedItem.id) ? { ...cur, ...updatedItem } : cur));
+    // when loading initial state:
+    useEffect(() => {
+        // items will be populated automatically by the hook
     }, []);
+    // wrap ItemDetailCard onChange so we can preserve positions unless reposition requested
+    // REPLACE your existing handleItemDetailChange with this:
+    const handleItemDetailChange = useCallback(
+        async (updatedItem, options = {}) => {
+            if (!updatedItem || !updatedItem.id) return;
 
-    // Replace your existing onSelectionChange with this
-    const onSelectionChange = useCallback(
-        ({ nodes: selNodes, edges: selEdges }) => {
-            // always keep visual selection state
-            setSelectedNodes(selNodes || []);
+            const idStr = String(updatedItem.id);
 
-            // If a single node is selected and it is already the currently shown selectedItem,
-            // don't overwrite selectedItem (prevents a race where onNodeClick sets it and
-            // onSelectionChange immediately clears it).
-            if (Array.isArray(selNodes) && selNodes.length === 1) {
-                const selNode = selNodes[0];
-                if (selectedItem && String(selectedItem.id) === String(selNode.id)) {
-                    // nothing to change for selectedItem — keep the inspector open
-                    return;
+            // --- optimistic update: update items immediately ---
+            let previousItemsSnapshot;
+            setItems(prev => {
+                previousItemsSnapshot = prev;
+                return prev.map(it => (String(it.id) === idStr ? { ...it, ...updatedItem } : it));
+            });
+
+            // --- update nodes: preserve position unless reposition requested ---
+            setNodes(prevNodes =>
+                prevNodes.map(node => {
+                    if (String(node.id) !== idStr) return node;
+
+                    // current position (fallback)
+                    const currentPos = node.position || { x: node.data?.x ?? 0, y: node.data?.y ?? 0 };
+
+                    // if reposition requested, compute new position (try to use your helper)
+                    if (options && options.reposition === true) {
+                        try {
+                            const newPos = getUnitSubunitPosition(updatedItem.Unit, updatedItem.SubUnit, prevNodes) || currentPos;
+                            return { ...node, position: { x: newPos.x, y: newPos.y }, data: { ...node.data, ...updatedItem } };
+                        } catch (err) {
+                            console.warn('reposition compute failed, preserving pos', err);
+                            return { ...node, position: currentPos, data: { ...node.data, ...updatedItem } };
+                        }
+                    }
+
+                    // preserve existing position, but merge data
+                    return { ...node, position: currentPos, data: { ...node.data, ...updatedItem } };
+                })
+            );
+
+            // keep selectedItem in sync if it's the inspected one
+            setSelectedItem(cur => (cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur));
+
+            // --- prepare payload for server (strip id out of fields) ---
+            const payloadFields = { ...updatedItem };
+            delete payloadFields.id;
+
+            try {
+                const res = await fetch('/api/airtable', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: updatedItem.id, fields: payloadFields }),
+                });
+
+                if (!res.ok) {
+                    const txt = await res.text().catch(() => '');
+                    throw new Error(`Server returned ${res.status} ${res.statusText} ${txt}`);
                 }
 
-                // Prefer authoritative item stored in items[] (keeps data consistent)
-                const itemFromItems = items.find((it) => String(it.id) === String(selNode.id));
-                if (itemFromItems) {
-                    setSelectedItem(itemFromItems);
-                    return;
+                // optional: use returned record to reconcile (if API returns canonical fields)
+                const json = await res.json().catch(() => null);
+                if (json && json.id) {
+                    // update items/nodes with authoritative response (no position overwrite)
+                    setItems(prev => prev.map(it => (String(it.id) === idStr ? { ...it, ...json.fields, id: json.id } : it)));
+                    setNodes(prevNodes =>
+                        prevNodes.map(node => (String(node.id) === idStr ? { ...node, data: { ...node.data, ...(json.fields || {}) } } : node))
+                    );
                 }
+            } catch (err) {
+                console.error('Failed to persist item to Airtable:', err);
+                // rollback optimistic update to previous snapshot
+                if (previousItemsSnapshot) setItems(previousItemsSnapshot);
 
-                // Fallback to node.data.item (useful for newly created valve nodes)
-                if (selNode?.data?.item) {
-                    setSelectedItem(selNode.data.item);
-                    return;
+                // attempt to restore node data from the restored items snapshot
+                setNodes(prevNodes =>
+                    prevNodes.map(node => {
+                        if (String(node.id) !== idStr) return node;
+                        const restored = (previousItemsSnapshot || []).find(p => String(p.id) === idStr);
+                        const pos = node.position || { x: node.data?.x ?? 0, y: node.data?.y ?? 0 };
+                        return restored ? { ...node, position: pos, data: { ...node.data, ...restored } } : node;
+                    })
+                );
+
+                // surface a minimal user-visible alert (optional)
+                if (typeof window !== 'undefined') {
+                    window.alert('Failed saving changes to Airtable — changes were not saved.');
                 }
-
-                // Nothing found for this node
-                setSelectedItem(null);
-                return;
             }
-
-            // --- Single edge selected: try to surface an inline valve attached to that edge ---
-            if (Array.isArray(selEdges) && selEdges.length === 1) {
-                const edge = selEdges[0];
-
-                // 1) Look for valve items in items[] that reference edgeId
-                const edgeValves = items.filter((it) => it.edgeId === edge.id);
-                if (edgeValves.length > 0) {
-                    // If multiple valves found, pick the first for now
-                    setSelectedItem(edgeValves[0]);
-                    return;
-                }
-
-                // 2) Fallback: maybe there's a valve node present whose data.item.edgeId === edge.id
-                const valveNode = nodes.find((n) => n?.data?.item?.edgeId === edge.id);
-                if (valveNode?.data?.item) {
-                    setSelectedItem(valveNode.data.item);
-                    return;
-                }
-
-                // nothing connected to this edge
-                setSelectedItem(null);
-                return;
-            }
-
-            // --- Multiple selection or nothing selected ---
-            setSelectedItem(null);
         },
-        // IMPORTANT: include selectedItem in deps so the early-guard can read the latest value
-        [items, nodes, selectedItem]
+        // dependencies: include anything used inside
+        [setItems, setNodes, setSelectedItem, getUnitSubunitPosition]
     );
 
 
