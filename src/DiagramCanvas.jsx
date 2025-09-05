@@ -295,10 +295,10 @@ export default function DiagramCanvas({
                     onEdgeClick={handleEdgeClick}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
-                    fitView
+                    onInit={onInit}
+                    fitView={false}                 // ✅ fit once via onInit, not every render
                     selectionOnDrag
                     minZoom={0.02}
-                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={nodeTypes}
                     style={{ background: 'transparent' }}
                 >
