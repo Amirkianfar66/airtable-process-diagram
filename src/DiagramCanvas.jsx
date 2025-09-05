@@ -37,17 +37,14 @@ export default function DiagramCanvas({
     onNodeDragStop,
     showInlineEdgeInspector = true,
 }) {
-    // local inspector state
     const [selectedEdge, setSelectedEdge] = useState(null);
     const [selectedNode, setSelectedNode] = useState(null);
     const panelRef = useRef(null);
 
-    // debug
     useEffect(() => {
         console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
     }, [onEdgeClick]);
 
-    // normalized edges for pointer events and interaction width
     const enhancedEdges = useMemo(() => {
         if (!Array.isArray(edges)) return [];
         return edges.map((e) => ({
@@ -57,7 +54,6 @@ export default function DiagramCanvas({
         }));
     }, [edges]);
 
-    // Inline valve types helper (for the Type dropdown)
     const inlineValveTypes = useMemo(() => {
         const val = categoryTypeMap?.['Inline Valve'];
         if (!val) return [];
@@ -66,12 +62,11 @@ export default function DiagramCanvas({
         return [String(val)];
     }, [categoryTypeMap]);
 
-    // --------------------
-    // Edge handlers
-    // --------------------
+    // ---------- Edge handlers ----------
     const handleEdgeClick = useCallback(
         (event, edge) => {
             event?.stopPropagation?.();
+            console.log('handleEdgeClick fired for edge:', edge?.id);
             const liveEdge = edges?.find((e) => e.id === edge.id) || edge;
             setSelectedEdge(liveEdge);
             setSelectedNode(null);
@@ -107,20 +102,18 @@ export default function DiagramCanvas({
         [selectedEdge, setEdges]
     );
 
-    // If category changes to Inline Valve, create valve node and split edge
     const changeEdgeCategory = useCallback(
         (category) => {
             if (!selectedEdge) return;
 
             if (category !== 'Inline Valve') {
-                // simple category patch
                 updateSelectedEdge({
                     data: { ...(selectedEdge.data || {}), category },
                 });
                 return;
             }
 
-            // Inline Valve: split into two edges and insert valve node in middle
+            // create valve node in the middle and split edge into two step edges
             const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
             const targetNode = nodes.find((n) => n.id === selectedEdge.target);
             if (!sourceNode || !targetNode) return;
@@ -156,7 +149,6 @@ export default function DiagramCanvas({
                 style: { background: 'transparent' },
             };
 
-            // Compose the two new edges as 'step' (as requested)
             const newEdgeA = {
                 id: `edge-${selectedEdge.source}-${newNode.id}-${Date.now()}`,
                 source: selectedEdge.source,
@@ -176,30 +168,25 @@ export default function DiagramCanvas({
                 data: { category: 'Inline Valve', Type: '' },
             };
 
-            // Add node and replace edge
             setNodes((nds) => [...nds, newNode]);
             setEdges((eds) => {
                 const next = [...eds.filter((e) => e.id !== selectedEdge.id), newEdgeA, newEdgeB];
                 return next;
             });
 
-            // focus inspector on the newly-created first edge
             setSelectedEdge(newEdgeA);
             if (typeof onEdgeSelect === 'function') onEdgeSelect(newEdgeA);
         },
         [selectedEdge, nodes, setNodes, setEdges, updateSelectedEdge, onEdgeSelect]
     );
 
-    // --------------------
-    // Node handlers
-    // --------------------
+    // ---------- Node handlers ----------
     const handleNodeClick = useCallback(
         (event, node) => {
             event?.stopPropagation?.();
             const liveNode = nodes?.find((n) => n.id === node.id) || node;
             setSelectedNode(liveNode);
             setSelectedEdge(null);
-            // surface the authoritative item if available
             if (typeof setSelectedItem === 'function') setSelectedItem(liveNode?.data?.item ?? null);
         },
         [nodes, setSelectedItem]
@@ -209,16 +196,13 @@ export default function DiagramCanvas({
         if (!selectedNode || typeof setNodes !== 'function') return;
         if (!window.confirm('Delete this item?')) return;
 
-        // remove node and all connected edges
         setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id));
         setEdges((prev) => prev.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
 
-        // also remove from items (if that setter exists)
         if (typeof setItems === 'function') {
-            setItems((prevItems) => Array.isArray(prevItems) ? prevItems.filter((it) => it.id !== selectedNode.id) : prevItems);
+            setItems((prevItems) => (Array.isArray(prevItems) ? prevItems.filter((it) => it.id !== selectedNode.id) : prevItems));
         }
 
-        // clear inspector & selectedItem
         setSelectedNode(null);
         if (typeof setSelectedItem === 'function') setSelectedItem(null);
     }, [selectedNode, setNodes, setEdges, setItems, setSelectedItem]);
@@ -240,17 +224,50 @@ export default function DiagramCanvas({
                 return { ...s, ...patch, data: mergedData };
             });
 
-            // Also update canonical items list if present
             if (typeof setItems === 'function') {
                 setItems((prevItems) => {
                     if (!Array.isArray(prevItems)) return prevItems;
-                    return prevItems.map((it) =>
-                        it.id === selectedNode?.id ? { ...it, ...(patch.data?.item || {}) } : it
-                    );
+                    return prevItems.map((it) => (it.id === selectedNode?.id ? { ...it, ...(patch.data?.item || {}) } : it));
                 });
             }
         },
         [selectedNode, setNodes, setItems]
+    );
+
+    // ---------- Selection handler (centralized) ----------
+    const handleSelectionChangeLocal = useCallback(
+        (sel) => {
+            const selNodes = Array.isArray(sel?.nodes) ? sel.nodes : [];
+            const selEdges = Array.isArray(sel?.edges) ? sel.edges : [];
+
+            // Prefer single-edge selection
+            if (selEdges.length === 1 && selNodes.length === 0) {
+                const e = selEdges[0];
+                const liveEdge = edges?.find((ed) => ed.id === e.id) || e;
+                setSelectedEdge(liveEdge);
+                setSelectedNode(null);
+                if (typeof onEdgeSelect === 'function') onEdgeSelect(liveEdge);
+                if (typeof onSelectionChange === 'function') onSelectionChange(sel);
+                return;
+            }
+
+            // Single-node selection
+            if (selNodes.length === 1 && selEdges.length === 0) {
+                const n = selNodes[0];
+                const liveNode = nodes?.find((nd) => nd.id === n.id) || n;
+                setSelectedNode(liveNode);
+                setSelectedEdge(null);
+                if (typeof setSelectedItem === 'function') setSelectedItem(liveNode?.data?.item ?? null);
+                if (typeof onSelectionChange === 'function') onSelectionChange(sel);
+                return;
+            }
+
+            // multiple or none -> clear local inspectors, but forward event
+            setSelectedEdge(null);
+            setSelectedNode(null);
+            if (typeof onSelectionChange === 'function') onSelectionChange(sel);
+        },
+        [edges, nodes, onEdgeSelect, onSelectionChange, setSelectedItem]
     );
 
     // single close handler
@@ -261,10 +278,9 @@ export default function DiagramCanvas({
         if (typeof setSelectedItem === 'function') setSelectedItem(null);
     }, [onEdgeSelect, setSelectedItem]);
 
-    // Keyboard shortcuts for both inspectors
+    // keyboard shortcuts
     useEffect(() => {
         if (!selectedEdge && !selectedNode) return;
-
         const onKey = (e) => {
             if (e.key === 'Escape') {
                 handleCloseInspector();
@@ -273,16 +289,13 @@ export default function DiagramCanvas({
                 else if (selectedNode) deleteSelectedNode();
             }
         };
-
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [selectedEdge, selectedNode, handleCloseInspector, deleteSelectedEdge, deleteSelectedNode]);
 
     const edgeCategories = ['None', 'Inline Valve'];
 
-    // --------------------
-    // Render
-    // --------------------
+    // ---------- Render ----------
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <MainToolbar
@@ -296,7 +309,6 @@ export default function DiagramCanvas({
             />
 
             <div style={{ padding: 10 }}>
-                {/* Render AddItemButton component and forward handlers */}
                 {AddItemButton && <AddItemButton addItem={addItem} setNodes={setNodes} setEdges={setEdges} setItems={setItems} />}
             </div>
 
@@ -325,7 +337,7 @@ export default function DiagramCanvas({
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
+                    onSelectionChange={handleSelectionChangeLocal}
                     onEdgeClick={handleEdgeClick}
                     onNodeClick={handleNodeClick}
                     onNodeDrag={onNodeDrag}
@@ -435,9 +447,7 @@ export default function DiagramCanvas({
                                 </div>
                             )}
 
-                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
-                                Keyboard: Esc to close · Delete to remove
-                            </div>
+                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>Keyboard: Esc to close · Delete to remove</div>
                         </div>
                     )}
 
@@ -461,7 +471,6 @@ export default function DiagramCanvas({
                                 </div>
                             </div>
 
-                            {/* Basic item info */}
                             <div style={{ fontSize: 13 }}>
                                 <div>
                                     <strong>ID:</strong> {selectedNode.id}
@@ -474,7 +483,6 @@ export default function DiagramCanvas({
                                 </div>
                             </div>
 
-                            {/* Editable Name field */}
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Name</label>
                                 <input
@@ -482,7 +490,6 @@ export default function DiagramCanvas({
                                     value={selectedNode.data?.item?.Name || ''}
                                     onChange={(e) => {
                                         const newName = e.target.value;
-                                        // patch node data
                                         updateSelectedNode({
                                             data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), Name: newName } },
                                         });
@@ -491,7 +498,6 @@ export default function DiagramCanvas({
                                 />
                             </div>
 
-                            {/* Editable Code field */}
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Item Code</label>
                                 <input
@@ -507,9 +513,7 @@ export default function DiagramCanvas({
                                 />
                             </div>
 
-                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
-                                Keyboard: Esc to close · Delete to remove
-                            </div>
+                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>Keyboard: Esc to close · Delete to remove</div>
                         </div>
                     )}
                 </aside>
