@@ -411,8 +411,12 @@ export default function ProcessDiagram() {
                 prevNodes.forEach(p => {
                     if (!merged.some(m => String(m.id) === String(p.id))) merged.push(p);
                 });
-                return merged;
+
+                const rePos = applyPositions(merged); // ✅ reapply cached drags
+                capturePositions(rePos);
+                return rePos;
             });
+
 
             setEdges(aiEdges);
 
@@ -540,9 +544,11 @@ export default function ProcessDiagram() {
                 capturePositions(rePos);
                 return rePos;
             });
+        }
 
         prevItemsRef.current = items;
     }, [unitLayoutOrder, items]);
+
 
     const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
 
@@ -637,8 +643,13 @@ export default function ProcessDiagram() {
                     return prev ? { ...n, position: prev.position } : n;
                 });
                 const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
-                return [...merged, ...missingPrev];
+                const next = [...merged, ...missingPrev];
+
+                const rePos = applyPositions(next);   // ✅ keep user positions
+                capturePositions(rePos);              // ✅ refresh cache
+                return rePos;
             });
+
 
             setEdges(rebuiltEdges);
 
@@ -733,7 +744,7 @@ export default function ProcessDiagram() {
                         setEdges={setEdges}
                         setItems={setItems}
                         setSelectedItem={setSelectedItem}
-                        onNodesChange={onNodesChange}
+                        oNodesChange={onNodesChangeWrapped}
                         onEdgesChange={onEdgesChange}
                         onConnect={onConnect}
                         onSelectionChange={onSelectionChange}
