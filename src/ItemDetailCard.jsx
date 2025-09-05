@@ -1,7 +1,8 @@
-﻿import React, { useEffect, useState, useRef, useMemo } from 'react';
+﻿// src/ItemDetailCard.jsx
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 
-// simple runtime cache for resolved type names by record id
-const typeCache = new Map();
+// simple runtime cache for type id -> name
+const typeNameCache = new Map();
 
 export default function ItemDetailCard({
     item,
@@ -14,180 +15,117 @@ export default function ItemDetailCard({
     onDeleteItem,
 }) {
     const [localItem, setLocalItem] = useState(item || {});
-    const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
     const debounceRef = useRef(null);
 
-    // safe wrapper
-    const safeOnChange = (payload, options) => {
-        if (typeof onChange !== 'function') return;
-        try {
-            onChange(payload, options);
-        } catch (err) {
-            console.error('[safeOnChange] onChange threw:', err);
-            try {
-                console.log('[safeOnChange] payload:', payload, 'options:', options);
-            } catch (e) { }
-        }
-    };
-
-    // sync local when selected item id changes (PATCH 1)
+    // sync local when selected item id changes
     useEffect(() => {
         setLocalItem(item || {});
     }, [item?.id]);
 
-    // fetch types via your serverless endpoint (do not call Airtable directly from client)
+    // fetch types (via your server endpoint)
     useEffect(() => {
         let mounted = true;
         (async () => {
             try {
-                const res = await fetch('/api/airtable/types'); // server endpoint returns { types: [...] }
+                const res = await fetch('/api/airtable/types');
                 if (!mounted) return;
                 if (!res.ok) {
                     console.error('Failed to fetch types', res.statusText);
                     return;
                 }
                 const json = await res.json();
-                setAllTypes(json.types || []);
+                const types = Array.isArray(json?.types) ? json.types : [];
+                setAllTypes(types);
+                // warm cache
+                types.forEach((t) => {
+                    if (t?.id && t?.name) typeNameCache.set(t.id, t.name);
+                });
             } catch (err) {
                 console.error('Error fetching types:', err);
             }
         })();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+        };
     }, []);
 
-    // helper to fetch a single type name by id (keeps cache)
-    const fetchTypeNameById = async (typeId) => {
-        if (!typeId) return 'Unknown';
-        if (typeCache.has(typeId)) return typeCache.get(typeId);
-        // try from allTypes first
-        const found = allTypes.find(t => t.id === typeId);
-        if (found) {
-            typeCache.set(typeId, found.name);
-            return found.name;
-        }
+    // derive type name
+    const resolvedTypeName = useMemo(() => {
+        const typeId = localItem?.Type;
+        if (!typeId) return '-';
+        return typeNameCache.get(typeId) || (allTypes.find((t) => t.id === typeId)?.name || 'Unknown');
+    }, [localItem?.Type, allTypes]);
 
-        // fallback: try server endpoint to fetch single record (optional)
-        try {
-            const res = await fetch(`/api/airtable/types/${typeId}`);
-            if (!res.ok) return 'Unknown';
-            const json = await res.json();
-            const name = json?.name || 'Unknown';
-            typeCache.set(typeId, name);
-            return name;
-        } catch (err) {
-            console.error('fetchTypeNameById error', err);
-            return 'Unknown';
-        }
-    };
-
-    // resolve item.Type to a readable label
-    useEffect(() => {
-        if (!item || !item.Type) {
-            setResolvedType('-');
-            return;
-        }
-        if (Array.isArray(item.Type) && item.Type.length > 0) {
-            const typeRef = item.Type[0];
-            if (typeof typeRef === 'string' && typeRef.startsWith('rec')) {
-                if (typeCache.has(typeRef)) {
-                    setResolvedType(typeCache.get(typeRef));
-                    return;
-                }
-                setResolvedType('Loading...');
-                (async () => {
-                    const name = await fetchTypeNameById(typeRef);
-                    setResolvedType(name);
-                })();
-            } else {
-                setResolvedType(typeRef);
-            }
-        } else {
-            setResolvedType(item.Type || '-');
-        }
-    }, [item, allTypes]);
-
-    // infer first connected edge and resolve "from" "to" display
+    // best-effort: infer edge/from/to for display (does not call onChange)
     useEffect(() => {
         if (!item || !edges || !items) return;
-        const firstConnId = item.Connections?.[0];
-        if (!firstConnId) return;
-        const edge = edges.find(e => e.id === firstConnId);
+
+        const edgeId = item.edgeId || item._edge?.id;
+        const edge =
+            (edgeId && edges.find((e) => e.id === edgeId)) ||
+            edges.find((e) => e.source === item.id || e.target === item.id);
+
         if (!edge) return;
 
-        const findItemById = (id) => items.find(it => it.id === id) || {};
-
+        const findItemById = (id) => items.find((it) => String(it.id) === String(id)) || {};
         const fromItem = findItemById(edge.source);
         const toItem = findItemById(edge.target);
 
-        setLocalItem(prev => ({
+        setLocalItem((prev) => ({
             ...prev,
             edgeId: edge.id,
             from: fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
             to: toItem.Name ? `${toItem.Name} (${edge.target})` : edge.target,
         }));
-    }, [item, edges, items]);
+    }, [item?.id, edges, items]);
 
-    // commitUpdate with debounce to reduce write frequency
-    const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {
-        const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
+    // safe debounce -> onChange (and never send x/y)
+    const commitUpdate = (delta = {}) => {
+        if (!localItem?.id && !item?.id) return;
+        const id = item?.id ?? localItem?.id;
 
-        const pickNumber = (v) => (typeof v === 'number' && !Number.isNaN(v) ? Number(v) : undefined);
+        // never include x/y from the detail card
+        const { x, y, ...rest } = delta || {};
+        const payload = { id, ...rest };
 
-        const chosenX = (typeof updatedObj?.x === 'number') ? updatedObj.x
-            : (typeof localItem?.x === 'number') ? localItem.x
-                : (typeof item?.x === 'number') ? item.x
-                    : undefined;
+        // optimistic local
+        setLocalItem((prev) => ({ ...prev, ...rest }));
 
-        const chosenY = (typeof updatedObj?.y === 'number') ? updatedObj.y
-            : (typeof localItem?.y === 'number') ? localItem.y
-                : (typeof item?.y === 'number') ? item.y
-                    : undefined;
-
-        const payload = { ...updatedObj, id: authoritativeId };
-
-        if (!options.reposition) {
-            const px = pickNumber(chosenX);
-            const py = pickNumber(chosenY);
-            if (typeof px === 'number') payload.x = Number(px);
-            if (typeof py === 'number') payload.y = Number(py);
-        }
-
-        // local state update immediately for snappy UI
-        setLocalItem(prev => ({ ...prev, ...updatedObj }));
-
-        if (options.reposition) payload._repositionRequest = true;
-
-        // debounce writes to parent
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
-            safeOnChange(payload, options);
-            debounceRef.current = null;
-        }, 600);
+            try {
+                if (typeof onChange === 'function') onChange(payload);
+            } catch (err) {
+                console.error('[ItemDetailCard] onChange threw:', err, payload);
+            } finally {
+                debounceRef.current = null;
+            }
+        }, 400);
     };
 
-    // handler used by inputs
-    const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
-        // sanitize numeric fields
-        if ((fieldName === 'x' || fieldName === 'y') && (value === '' || Number.isNaN(value))) {
-            // set to empty string locally but don't send NaN
-            setLocalItem(prev => ({ ...prev, [fieldName]: '' }));
+    const handleFieldChange = (field, value) => {
+        // ignore any attempts to set x/y from the panel
+        if (field === 'x' || field === 'y') return;
+
+        // Type is a single record id (string)
+        if (field === 'Type') {
+            commitUpdate({ Type: value || '' });
             return;
         }
 
-        // When updating Type from dropdown: store as array of record ids
-        if (fieldName === 'Type') {
-            const newType = value ? [value] : [];
-            commitUpdate({ ...localItem, Type: newType }, options);
+        // Category updates both fields and clears Type
+        if (field === 'Category') {
+            commitUpdate({
+                Category: value || '',
+                'Category Item Type': value || '',
+                Type: '', // reset Type so the user picks a valid one for the new category
+            });
             return;
         }
 
-        const updated = { ...(localItem || {}), [fieldName]: value };
-        if (!updated.id && item?.id) updated.id = item.id;
-        commitUpdate(updated, options);
+        commitUpdate({ [field]: value });
     };
-
-    const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '' : field || '');
 
     if (!item) {
         return (
@@ -198,115 +136,217 @@ export default function ItemDetailCard({
     }
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
+    const activeCategory =
+        localItem['Category Item Type'] || localItem.Category || 'Equipment';
 
-    // filter types by category - prefer localItem's chosen category fallback to Equipment
-    const activeCategory = localItem['Category Item Type'] || localItem.Category || 'Equipment';
-    const filteredTypes = useMemo(() => allTypes.filter(t => t.category === activeCategory), [allTypes, activeCategory]);
+    const filteredTypes = useMemo(
+        () => allTypes.filter((t) => t?.category === activeCategory),
+        [allTypes, activeCategory]
+    );
 
-    const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
-    const labelStyle = { width: '130px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
-    const inputStyle = { flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', outline: 'none', background: '#fafafa' };
-    const sectionStyle = { marginBottom: '24px' };
-    const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
+    const row = { display: 'flex', alignItems: 'center', marginBottom: 12 };
+    const label = {
+        width: 130,
+        fontWeight: 600,
+        color: '#444',
+        textAlign: 'right',
+        marginRight: 12,
+    };
+    const input = {
+        flex: 1,
+        padding: '6px 10px',
+        borderRadius: 6,
+        border: '1px solid #ccc',
+        fontSize: 14,
+        outline: 'none',
+        background: '#fafafa',
+    };
+    const section = { marginBottom: 24 };
+    const header = {
+        borderBottom: '1px solid #eee',
+        paddingBottom: 6,
+        marginBottom: 12,
+        marginTop: 0,
+        color: '#222',
+    };
 
     const liveEdge = item._edge || {};
 
     return (
         <>
-            <div style={{ background: '#fff', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '20px', margin: '16px', maxWidth: '350px', fontFamily: 'sans-serif' }}>
-                <section style={sectionStyle}>
-                    <h3 style={headerStyle}>General Info</h3>
+            <div
+                style={{
+                    background: '#fff',
+                    borderRadius: 10,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    padding: 20,
+                    margin: 16,
+                    maxWidth: 380,
+                    fontFamily: 'ui-sans-serif, system-ui',
+                }}
+            >
+                <section style={section}>
+                    <h3 style={header}>General Info</h3>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Code:</label>
-                        <input style={inputStyle} type="text" value={localItem['Item Code'] || ''} onChange={(e) => handleFieldChange('Item Code', e.target.value)} />
+                    <div style={row}>
+                        <span style={label}>Code:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['Item Code'] || ''}
+                            onChange={(e) => handleFieldChange('Item Code', e.target.value)}
+                        />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Name:</label>
-                        <input style={inputStyle} type="text" value={localItem['Name'] || ''} onChange={(e) => handleFieldChange('Name', e.target.value)} />
+                    <div style={row}>
+                        <span style={label}>Name:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['Name'] || ''}
+                            onChange={(e) => handleFieldChange('Name', e.target.value)}
+                        />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Category:</label>
-                        <select style={inputStyle} value={activeCategory} onChange={(e) => {
-                            const newCategory = e.target.value;
-                            const updated = { ...localItem, 'Category Item Type': newCategory, Category: newCategory };
-                            // when category changes, clear Type so user picks a valid one
-                            updated.Type = [];
-                            commitUpdate(updated, { reposition: false });
-                        }}>
-                            {categories.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
+                    <div style={row}>
+                        <span style={label}>Category:</span>
+                        <select
+                            style={input}
+                            value={activeCategory}
+                            onChange={(e) => handleFieldChange('Category', e.target.value)}
+                        >
+                            {categories.map((cat) => (
+                                <option key={cat} value={cat}>
+                                    {cat}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Type:</label>
-                        <select style={inputStyle} value={(Array.isArray(localItem.Type) && localItem.Type[0]) || ''} onChange={(e) => handleFieldChange('Type', e.target.value)}>
+                    <div style={row}>
+                        <span style={label}>Type:</span>
+                        <select
+                            style={input}
+                            value={localItem.Type || ''}
+                            onChange={(e) => handleFieldChange('Type', e.target.value)}
+                        >
                             <option value="">Select Type</option>
-                            {filteredTypes.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
+                            {filteredTypes.map((t) => (
+                                <option key={t.id} value={t.id}>
+                                    {t.name}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Unit:</label>
-                        <input style={inputStyle} type="text" value={localItem['Unit'] || ''} onChange={(e) => handleFieldChange('Unit', e.target.value)} />
+                    <div style={{ ...row, fontSize: 12, color: '#666' }}>
+                        <span style={{ ...label, width: 130, color: '#777' }}>Type label:</span>
+                        <span style={{ flex: 1 }}>{resolvedTypeName}</span>
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Sub Unit:</label>
-                        <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={(e) => handleFieldChange('SubUnit', e.target.value)} />
+                    <div style={row}>
+                        <span style={label}>Unit:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['Unit'] || ''}
+                            onChange={(e) => handleFieldChange('Unit', e.target.value)}
+                        />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>From Item:</label>
-                        <input style={inputStyle} type="text" value={localItem['from'] || ''} onChange={(e) => handleFieldChange('from', e.target.value)} placeholder="Source item ID / name" />
+                    <div style={row}>
+                        <span style={label}>Sub Unit:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['SubUnit'] || ''}
+                            onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
+                        />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>To Item:</label>
-                        <input style={inputStyle} type="text" value={localItem['to'] || ''} onChange={(e) => handleFieldChange('to', e.target.value)} placeholder="Target item ID / name" />
+                    <div style={row}>
+                        <span style={label}>From Item:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['from'] || ''}
+                            onChange={(e) => handleFieldChange('from', e.target.value)}
+                            placeholder="Source item ID / name"
+                        />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Edge ID:</label>
-                        <input style={inputStyle} type="text" value={localItem['edgeId'] || ''} onChange={(e) => handleFieldChange('edgeId', e.target.value)} placeholder="edge-xxx" />
+                    <div style={row}>
+                        <span style={label}>To Item:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['to'] || ''}
+                            onChange={(e) => handleFieldChange('to', e.target.value)}
+                            placeholder="Target item ID / name"
+                        />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>X Position:</label>
-                        <input style={inputStyle} type="number" value={localItem['x'] ?? ''} onChange={(e) => handleFieldChange('x', e.target.value === '' ? '' : parseFloat(e.target.value))} />
+                    <div style={row}>
+                        <span style={label}>Edge ID:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['edgeId'] || ''}
+                            onChange={(e) => handleFieldChange('edgeId', e.target.value)}
+                            placeholder="edge-xxx"
+                        />
                     </div>
-
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Y Position:</label>
-                        <input style={inputStyle} type="number" value={localItem['y'] ?? ''} onChange={(e) => handleFieldChange('y', e.target.value === '' ? '' : parseFloat(e.target.value))} />
-                    </div>
-
                 </section>
 
-                <section style={sectionStyle}>
-                    <h3 style={headerStyle}>Procurement Info</h3>
+                <section style={section}>
+                    <h3 style={header}>Procurement Info</h3>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Model Number:</label>
-                        <input style={inputStyle} type="text" value={localItem['Model Number'] || ''} onChange={(e) => handleFieldChange('Model Number', e.target.value)} />
+                    <div style={row}>
+                        <span style={label}>Model Number:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['Model Number'] || ''}
+                            onChange={(e) => handleFieldChange('Model Number', e.target.value)}
+                        />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Manufacturer:</label>
-                        <input style={inputStyle} type="text" value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])} onChange={(e) => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)} />
+                    <div style={row}>
+                        <span style={label}>Manufacturer:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={
+                                Array.isArray(localItem['Manufacturer (from Technical Spec)'])
+                                    ? localItem['Manufacturer (from Technical Spec)'].join(', ')
+                                    : localItem['Manufacturer (from Technical Spec)'] || ''
+                            }
+                            onChange={(e) =>
+                                handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)
+                            }
+                        />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Supplier:</label>
-                        <input style={inputStyle} type="text" value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])} onChange={(e) => handleFieldChange('Supplier (from Technical Spec)', e.target.value)} />
+                    <div style={row}>
+                        <span style={label}>Supplier:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={
+                                Array.isArray(localItem['Supplier (from Technical Spec)'])
+                                    ? localItem['Supplier (from Technical Spec)'].join(', ')
+                                    : localItem['Supplier (from Technical Spec)'] || ''
+                            }
+                            onChange={(e) =>
+                                handleFieldChange('Supplier (from Technical Spec)', e.target.value)
+                            }
+                        />
                     </div>
                 </section>
             </div>
 
             {onDeleteItem && (
-                <div style={{ margin: '16px', maxWidth: 350, textAlign: 'center' }}>
+                <div style={{ margin: '0 16px 16px 16px', maxWidth: 380, textAlign: 'center' }}>
                     <button
                         onClick={() => {
                             if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
@@ -328,26 +368,88 @@ export default function ItemDetailCard({
                 </div>
             )}
 
+            {/* Edge Controls (only if inspecting an edge) */}
             {item?._edge && (
-                <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
-                    <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
+                <div style={{ margin: '0 16px 16px 16px', maxWidth: 380 }}>
+                    <h4 style={{ margin: '8px 0' }}>Edge Controls</h4>
+
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                        <input style={{ flex: 1, padding: 8 }} value={liveEdge.label ?? ''} placeholder="Edge label" onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })} />
-                        <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !(liveEdge.animated) })}>
-                            {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
+                        <input
+                            style={{ flex: 1, padding: 8 }}
+                            value={item._edge.label ?? ''}
+                            placeholder="Edge label"
+                            onChange={(e) =>
+                                onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })
+                            }
+                        />
+                        <button
+                            onClick={() =>
+                                onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !item._edge.animated })
+                            }
+                        >
+                            {item._edge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <label style={{ width: 70 }}>Color</label>
-                        <input type="color" value={(liveEdge.style && liveEdge.style.stroke) || '#000000'} onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })} />
-                        <input type="text" value={(liveEdge.style && liveEdge.style.stroke) || ''} onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })} style={{ flex: 1, padding: 8 }} />
+                        <span style={{ width: 70 }}>Color</span>
+                        <input
+                            type="color"
+                            value={(item._edge.style && item._edge.style.stroke) || '#000000'}
+                            onChange={(e) =>
+                                onUpdateEdge &&
+                                onUpdateEdge(item.edgeId, {
+                                    style: { ...(item._edge.style || {}), stroke: e.target.value },
+                                })
+                            }
+                        />
+                        <input
+                            type="text"
+                            value={(item._edge.style && item._edge.style.stroke) || ''}
+                            onChange={(e) =>
+                                onUpdateEdge &&
+                                onUpdateEdge(item.edgeId, {
+                                    style: { ...(item._edge.style || {}), stroke: e.target.value },
+                                })
+                            }
+                            style={{ flex: 1, padding: 8 }}
+                        />
                         {item?.edgeId && onDeleteEdge && (
-                            <button onClick={() => onDeleteEdge(item.edgeId)} style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}>
+                            <button
+                                onClick={() => onDeleteEdge(item.edgeId)}
+                                style={{
+                                    marginLeft: 8,
+                                    background: '#f44336',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '6px 10px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                }}
+                            >
                                 Delete Edge
                             </button>
                         )}
                     </div>
+
+                    {onCreateInlineValve && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => onCreateInlineValve(item.edgeId)}
+                                style={{
+                                    background: '#1976d2',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '8px 12px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                Create Inline Valve
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </>
