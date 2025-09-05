@@ -88,7 +88,12 @@ export default function ProcessDiagram() {
                 };
             })
         );
-
+        await fetch("/api/airtable", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: updatedItem.id, fields: updatedItem }),
+        });
+    };
         // update nodes: preserve position unless reposition requested
         setNodes((prevNodes) =>
             prevNodes.map((node) => {
