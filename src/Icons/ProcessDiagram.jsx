@@ -17,7 +17,6 @@ import DiagramCanvas from './DiagramCanvas';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import UnitLayoutConfig from './UnitLayoutConfig';
-import AirtableGrid from './Airtable/AirtableGrid';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -669,10 +668,7 @@ export default function ProcessDiagram() {
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            {/* LEFT: Airtable table (read-only) */}
-            <div style={{ flex: 1, minWidth: 0, borderRight: '1px solid #ddd' }}>
-                <AirtableGrid />
-            </div>
+         
 
             {/* RIGHT: Diagram + Sidebar */}
             <div style={{ flex: 3, display: 'flex', minWidth: 0 }}>
