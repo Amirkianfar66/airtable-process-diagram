@@ -288,7 +288,7 @@ export default function DiagramCanvas({
                 <ReactFlow
                     nodes={Array.isArray(nodes) ? nodes : []}
                     edges={enhancedEdges}
-                    onNodesChange={onNodesChangeWrapped}
+                    onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}

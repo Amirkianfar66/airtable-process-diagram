@@ -540,7 +540,7 @@ export default function ProcessDiagram() {
                     };
                 });
 
-                const rePos = applyPositions(next);  // ✅ keep last drag
+                const rePos = applyPositions(next);
                 capturePositions(rePos);
                 return rePos;
             });
