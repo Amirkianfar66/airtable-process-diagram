@@ -64,6 +64,30 @@ export default function ProcessDiagram() {
     const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
 
     const prevItemsRef = useRef([]);
+    // caches latest positions by node id (survives re-renders; not in state)
+    const positionsRef = useRef(new Map());
+
+    function capturePositions(nodesArray) {
+        const m = positionsRef.current;
+        nodesArray.forEach(n => {
+            if (n?.id && n?.position) m.set(String(n.id), { x: n.position.x, y: n.position.y });
+        });
+    }
+
+    function applyPositions(nodesArray) {
+        const m = positionsRef.current;
+        return nodesArray.map(n => {
+            const cached = m.get(String(n.id));
+            if (cached) return { ...n, position: { x: cached.x, y: cached.y } };
+            // fallback if node.id differs but data.item.id matches
+            const altId = n?.data?.item?.id;
+            if (altId) {
+                const cached2 = m.get(String(altId));
+                if (cached2) return { ...n, position: { x: cached2.x, y: cached2.y } };
+            }
+            return n;
+        });
+    }
 
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
@@ -209,7 +233,19 @@ export default function ProcessDiagram() {
     }, []);
 
     const onNodeDragStop = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
+        if (!draggedNode) return;
+
+        // ensure dragged node's position is stored
+        setNodes((nds) => {
+            const next = nds.map(n =>
+                n.id === draggedNode.id ? { ...n, position: { ...draggedNode.position } } : n
+            );
+            capturePositions(next); // ✅ cache all positions after drag
+            return next;
+        });
+
+        // reset prevX/prevY only for groupLabel nodes
+        if (draggedNode.type !== 'groupLabel') return;
         setNodes((nds) =>
             nds.map((n) =>
                 n.id === draggedNode.id
@@ -217,7 +253,8 @@ export default function ProcessDiagram() {
                     : n
             )
         );
-    }, []);
+    }, [setNodes]);
+
 
     const handleEdgeSelect = useCallback(
         (edge) => {
@@ -415,7 +452,8 @@ export default function ProcessDiagram() {
                 const unitLayout2D = [uniqueUnits];
                 setUnitLayoutOrder(unitLayout2D);
 
-                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D, { prevNodes: nodes });
+                const { nodes: builtNodes, edges: builtEdges } =
+                    buildDiagram(normalizedItems, unitLayout2D, { prevNodes: nodes });
 
                 setNodes((prevNodes) => {
                     const merged = (builtNodes || []).map((n) => {
@@ -423,7 +461,12 @@ export default function ProcessDiagram() {
                         return prev ? { ...n, position: prev.position } : n;
                     });
                     const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
-                    return [...merged, ...missingPrev];
+                    const next = [...merged, ...missingPrev];
+
+                    // ✅ reapply cached positions and refresh cache
+                    const rePos = applyPositions(next);
+                    capturePositions(rePos);
+                    return rePos;
                 });
                 setEdges(builtEdges);
                 setItems(normalizedItems);
@@ -463,12 +506,17 @@ export default function ProcessDiagram() {
                     return prev ? { ...n, position: prev.position } : n;
                 });
                 const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
-                return [...merged, ...missingPrev];
+                const next = [...merged, ...missingPrev];
+
+                const rePos = applyPositions(next);  // ✅ keep user-drag
+                capturePositions(rePos);             // ✅ refresh cache
+                return rePos;
             });
             setEdges(rebuiltEdges);
+
         } else {
-            setNodes((prevNodes) =>
-                prevNodes.map((n) => {
+            setNodes((prevNodes) => {
+                const next = prevNodes.map((n) => {
                     const item = items.find((it) => String(it.id) === String(n.id));
                     if (!item) return n;
 
@@ -486,9 +534,12 @@ export default function ProcessDiagram() {
                             icon: getItemIcon(item, { width: 40, height: 40 }),
                         },
                     };
-                })
-            );
-        }
+                });
+
+                const rePos = applyPositions(next);  // ✅ keep last drag
+                capturePositions(rePos);
+                return rePos;
+            });
 
         prevItemsRef.current = items;
     }, [unitLayoutOrder, items]);
@@ -655,6 +706,14 @@ export default function ProcessDiagram() {
         },
         [items, handleEdgeSelect]
     );
+    const onNodesChangeWrapped = useCallback((changes) => {
+        onNodesChange(changes); // keep original behavior
+        // after React Flow applied changes, record positions
+        setNodes((nds) => {
+            capturePositions(nds);
+            return nds;
+        });
+    }, [onNodesChange, setNodes]);
 
     return (
         <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
