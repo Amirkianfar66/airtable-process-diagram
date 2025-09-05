@@ -17,7 +17,6 @@ import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import UnitLayoutConfig from "./UnitLayoutConfig";
-
 export const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
