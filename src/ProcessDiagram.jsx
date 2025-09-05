@@ -1,5 +1,6 @@
-﻿import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNodesState, useEdgesState, addEdge } from 'reactflow';
+﻿// src/ProcessDiagram.jsx
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
 
@@ -8,14 +9,15 @@ import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
-// import ItemDetailCard from './ItemDetailCard'; // keep disabled for this test
+import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, categoryTypeMap } from './IconManager';
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
-import UnitLayoutConfig from "./UnitLayoutConfig";
+import { buildDiagram } from './diagramBuilder';
+import UnitLayoutConfig from './UnitLayoutConfig';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -29,6 +31,7 @@ export const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
     const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+
     let allRecords = [];
     let offset = null;
     const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
@@ -48,56 +51,6 @@ export const fetchData = async () => {
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
 
-/** Build a node object from an item while preserving any existing position if present */
-function itemToNode(item, prevNodesMap) {
-    const prevPos = prevNodesMap.get(String(item.id));
-    const x = typeof item.x === 'number' ? item.x : (prevPos?.x ?? 100);
-    const y = typeof item.y === 'number' ? item.y : (prevPos?.y ?? 100);
-    return {
-        id: String(item.id),
-        position: { x, y },
-        data: {
-            label: `${item['Item Code'] || item.Code || ''} - ${item.Name || ''}`,
-            item,
-            icon: getItemIcon(item, { width: 40, height: 40 }),
-        },
-        type: categoryTypeMap[item.Category] || 'scalableIcon',
-        sourcePosition: 'right',
-        targetPosition: 'left',
-        style: { background: 'transparent' },
-    };
-}
-
-/** Convert an items list to nodes without moving existing nodes */
-function itemsToNodes(items, prevNodes = []) {
-    const map = new Map(prevNodes.map(n => [String(n.id), n.position]));
-    return items.map(it => itemToNode(it, map));
-}
-
-/** OPTIONAL: build edges from item.Connections (deduped). Delete if you want zero auto-edges. */
-function edgesFromItems(items) {
-    const edges = [];
-    const seen = new Set();
-    for (const it of items) {
-        const conns = Array.isArray(it.Connections) ? it.Connections : [];
-        for (const target of conns) {
-            if (!target) continue;
-            const id = `edge-${it.id}-${target}`;
-            if (seen.has(id)) continue;
-            seen.add(id);
-            edges.push({
-                id,
-                source: String(it.id),
-                target: String(target),
-                type: 'step',
-                animated: true,
-                style: { stroke: 'blue', strokeWidth: 2 },
-            });
-        }
-    }
-    return edges;
-}
-
 export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -106,11 +59,14 @@ export default function ProcessDiagram() {
     const [items, setItems] = useState([]);
     const [aiDescription, setAiDescription] = useState('');
     const [chatMessages, setChatMessages] = useState([]);
-    const [unitLayoutOrder, setUnitLayoutOrder] = useState([]); // harmless now
+    const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
     const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
 
+    // ---------- helpers ----------
     const updateNode = (id, newData) => {
-        setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
+        setNodes((nds) =>
+            nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node))
+        );
     };
 
     const deleteNode = (id) => {
@@ -118,21 +74,36 @@ export default function ProcessDiagram() {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
 
+    // Selection handling (node/edge)
     const onSelectionChange = useCallback(
         ({ nodes: selNodes, edges: selEdges }) => {
             setSelectedNodes(selNodes || []);
+
             if (Array.isArray(selNodes) && selNodes.length === 1) {
                 const selNode = selNodes[0];
+
+                // Prefer authoritative item in items[]
                 const itemFromItems = items.find((it) => String(it.id) === String(selNode.id));
-                if (itemFromItems) { setSelectedItem(itemFromItems); return; }
-                if (selNode?.data?.item) { setSelectedItem(selNode.data.item); return; }
+                if (itemFromItems) {
+                    setSelectedItem(itemFromItems);
+                    return;
+                }
+
+                // Fallback to node.data.item
+                if (selNode?.data?.item) {
+                    setSelectedItem(selNode.data.item);
+                    return;
+                }
+
                 setSelectedItem(null);
                 return;
             }
+
             if (Array.isArray(selEdges) && selEdges.length === 1) {
                 const edge = selEdges[0];
-                const fromItem = items.find(it => String(it.id) === String(edge.source)) || null;
-                const toItem = items.find(it => String(it.id) === String(edge.target)) || null;
+                const fromItem = items.find((it) => String(it.id) === String(edge.source)) || null;
+                const toItem = items.find((it) => String(it.id) === String(edge.target)) || null;
+
                 const edgeAsItem = {
                     id: edge.id,
                     Name: 'Edge inspector',
@@ -140,14 +111,18 @@ export default function ProcessDiagram() {
                     edgeId: edge.id,
                     from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
                     to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+                    x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
+                    y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
                     _edge: edge,
                 };
+
                 setSelectedItem(edgeAsItem);
                 return;
             }
+
             setSelectedItem(null);
         },
-        [items, setSelectedItem]
+        [items]
     );
 
     const onConnect = useCallback(
@@ -162,25 +137,39 @@ export default function ProcessDiagram() {
                 edges
             );
             setEdges(updatedEdges);
+            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
         },
-        [edges, setEdges]
+        [edges, nodes]
     );
 
     const onNodeDrag = useCallback((event, draggedNode) => {
+        // Optional: Only special behavior for groupLabel nodes
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
+
         setNodes((nds) =>
             nds.map((n) => {
                 if (!n?.data) return n;
+
                 const isChild =
                     (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
                     n.data.groupId === draggedNode.id ||
                     n.data.parentId === draggedNode.id;
+
                 if (!isChild) return n;
-                const dx = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
-                const dy = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
-                return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
+
+                const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
+                const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
+
+                return {
+                    ...n,
+                    position: {
+                        x: n.position.x + deltaX,
+                        y: n.position.y + deltaY,
+                    },
+                };
             })
         );
+
         setNodes((nds) =>
             nds.map((n) =>
                 n.id === draggedNode.id
@@ -201,144 +190,184 @@ export default function ProcessDiagram() {
         );
     }, []);
 
-    const handleEdgeSelect = useCallback(
-        (edge) => {
-            if (!edge) { setSelectedItem(null); return; }
-            const fromItem = items.find(it => String(it.id) === String(edge.source)) || null;
-            const toItem = items.find(it => String(it.id) === String(edge.target)) || null;
-            const edgeAsItem = {
-                id: edge.id,
-                Name: 'Edge inspector',
-                'Item Code': edge.id,
-                edgeId: edge.id,
-                from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
-                to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-                _edge: edge,
-            };
-            setSelectedItem(edgeAsItem);
+    const handleDeleteEdge = useCallback(
+        (edgeId) => {
+            if (!edgeId) return;
+            if (!window.confirm('Delete this edge?')) return;
+            setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+            setNodes((nds) => nds.filter((n) => !(n?.data?.item?.edgeId && n.data.item.edgeId === edgeId)));
+            setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
         },
-        [items]
+        [setEdges, setNodes, setSelectedItem]
     );
 
-    const handleDeleteEdge = useCallback((edgeId) => {
-        if (!edgeId) return;
-        if (!window.confirm('Delete this edge?')) return;
-        setEdges((eds) => eds.filter(e => e.id !== edgeId));
-        setNodes((nds) => nds.filter(n => !(n?.data?.item?.edgeId && n.data.item.edgeId === edgeId)));
-        setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
+    const handleUpdateEdge = useCallback(
+        (edgeId, patch) => {
+            setEdges((eds) => eds.map((e) => (e.id === edgeId ? { ...e, ...patch } : e)));
+            setSelectedItem((cur) => {
+                if (!cur || cur.edgeId !== edgeId) return cur;
+                return { ...cur, _edge: { ...cur._edge, ...patch } };
+            });
+        },
+        [setEdges, setSelectedItem]
+    );
+
+    const handleCreateInlineValve = useCallback(
+        (edgeId) => {
+            const edge = edges.find((e) => e.id === edgeId);
+            if (!edge) return;
+
+            const sourceNode = nodes.find((n) => n.id === edge.source);
+            const targetNode = nodes.find((n) => n.id === edge.target);
+            if (!sourceNode || !targetNode) return;
+
+            const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+            const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+            const newValveId = `valve-${Date.now()}`;
+
+            const newItem = {
+                id: newValveId,
+                'Item Code': `VALVE-${Date.now()}`,
+                Name: 'Inline Valve',
+                Category: 'Inline Valve',
+                'Category Item Type': 'Inline Valve',
+                Type: [],
+                Unit: sourceNode?.data?.item?.Unit || '',
+                SubUnit: sourceNode?.data?.item?.SubUnit || '',
+                x: midX,
+                y: midY,
+                edgeId: edge.id,
+            };
+
+            const newNode = {
+                id: newItem.id,
+                position: { x: midX, y: midY },
+                data: {
+                    label: `${newItem['Item Code']} - ${newItem.Name}`,
+                    item: newItem,
+                    icon: getItemIcon ? getItemIcon(newItem) : undefined,
+                },
+                type: 'scalableIcon',
+                sourcePosition: 'right',
+                targetPosition: 'left',
+                style: { background: 'transparent' },
+            };
+
+            setNodes((nds) => [...nds, newNode]);
+
+            const baseStyle = edge.style || {};
+            setEdges((eds) => {
+                const filtered = eds.filter((e) => e.id !== edge.id);
+                const e1 = {
+                    id: `edge-${edge.source}-${newNode.id}-${Date.now()}`,
+                    source: edge.source,
+                    target: newNode.id,
+                    type: edge.type || 'smoothstep',
+                    animated: edge.animated ?? true,
+                    style: { ...baseStyle },
+                };
+                const e2 = {
+                    id: `edge-${newNode.id}-${edge.target}-${Date.now()}`,
+                    source: newNode.id,
+                    target: edge.target,
+                    type: edge.type || 'smoothstep',
+                    animated: edge.animated ?? true,
+                    style: { ...baseStyle },
+                };
+                return [...filtered, e1, e2];
+            });
+
+            setItems((prev) => [...prev, newItem]);
+            setSelectedItem(newItem);
+        },
+        [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]
+    );
+
+    // ✅ SAFE: never change node positions from the panel
+    const handleItemPanelChange = useCallback(
+        (delta) => {
+            if (!delta || !delta.id) return;
+            const id = String(delta.id);
+            const { x, y, ...safeDelta } = delta; // strip positions
+
+            setItems((prev) =>
+                Array.isArray(prev) ? prev.map((it) => (String(it.id) === id ? { ...it, ...safeDelta } : it)) : prev
+            );
+
+            // update node.data only
+            setNodes((prev) =>
+                Array.isArray(prev)
+                    ? prev.map((n) => {
+                        if (String(n.id) !== id) return n;
+                        return {
+                            ...n,
+                            position: n.position, // keep
+                            data: {
+                                ...n.data,
+                                ...safeDelta,
+                                item: { ...(n.data?.item || {}), ...safeDelta },
+                            },
+                        };
+                    })
+                    : prev
+            );
+        },
+        [setItems, setNodes]
+    );
+
+    const handleDeleteItem = useCallback((id) => {
+        setNodes((nds) => nds.filter((n) => n.id !== id));
+        setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+        setItems((its) => its.filter((it) => it.id !== id));
+        setSelectedItem(null);
     }, []);
 
-    const handleUpdateEdge = useCallback((edgeId, patch) => {
-        setEdges((eds) => eds.map(e => e.id === edgeId ? { ...e, ...patch } : e));
-        setSelectedItem((cur) => {
-            if (!cur || cur.edgeId !== edgeId) return cur;
-            return { ...cur, _edge: { ...cur._edge, ...patch } };
-        });
-    }, []);
-
-    const handleCreateInlineValve = useCallback((edgeId) => {
-        const edge = edges.find(e => e.id === edgeId);
-        if (!edge) return;
-        const sourceNode = nodes.find(n => n.id === edge.source);
-        const targetNode = nodes.find(n => n.id === edge.target);
-        if (!sourceNode || !targetNode) return;
-
-        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
-        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-
-        const newValveId = `valve-${Date.now()}`;
-
-        const newItem = {
-            id: newValveId,
-            "Item Code": `VALVE-${Date.now()}`,
-            Name: "Inline Valve",
-            Category: "Inline Valve",
-            "Category Item Type": "Inline Valve",
-            Type: [],
-            Unit: sourceNode?.data?.item?.Unit || "",
-            SubUnit: sourceNode?.data?.item?.SubUnit || "",
-            x: midX,
-            y: midY,
-            edgeId: edge.id,
-        };
-
-        const newNode = {
-            id: newItem.id,
-            position: { x: midX, y: midY },
-            data: {
-                label: `${newItem["Item Code"]} - ${newItem.Name}`,
-                item: newItem,
-                icon: getItemIcon ? getItemIcon(newItem) : undefined,
-            },
-            type: "scalableIcon",
-            sourcePosition: "right",
-            targetPosition: "left",
-            style: { background: "transparent" },
-        };
-
-        setNodes((nds) => [...nds, newNode]);
-
-        const baseStyle = edge.style || {};
-        setEdges((eds) => {
-            const filtered = eds.filter(e => e.id !== edge.id);
-            const e1 = {
-                id: `edge-${edge.source}-${newNode.id}-${Date.now()}`,
-                source: edge.source,
-                target: newNode.id,
-                type: edge.type || "smoothstep",
-                animated: edge.animated ?? true,
-                style: { ...baseStyle },
-            };
-            const e2 = {
-                id: `edge-${newNode.id}-${edge.target}-${Date.now()}`,
-                source: newNode.id,
-                target: edge.target,
-                type: edge.type || "smoothstep",
-                animated: edge.animated ?? true,
-                style: { ...baseStyle },
-            };
-            return [...filtered, e1, e2];
-        });
-
-        setItems((prev) => [...prev, newItem]);
-        setSelectedItem(newItem);
-    }, [edges, nodes]);
-
+    // AI generator (kept as-is; merges + preserves selection)
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
         try {
             const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(
-                aiDescription, items, nodes, edges, setSelectedItem, setChatMessages
+                aiDescription,
+                items,
+                nodes,
+                edges,
+                setSelectedItem,
+                setChatMessages
             );
 
-            const aiItems = normalizedItems || (aiNodes || []).map(n => n.data?.item).filter(Boolean);
+            const aiItems = normalizedItems || (aiNodes || []).map((n) => n.data?.item).filter(Boolean);
             const updatedItems = [...items];
-            const existingIds = new Set(updatedItems.map(i => i.id));
-            aiItems.forEach(item => { if (item.id && !existingIds.has(item.id)) updatedItems.push(item); });
+            const existingIds = new Set(updatedItems.map((i) => i.id));
+            aiItems.forEach((item) => {
+                if (item.id && !existingIds.has(item.id)) {
+                    updatedItems.push(item);
+                }
+            });
             setItems(updatedItems);
 
-            // Keep exactly what the generator returns (no layout logic here)
-            setNodes(aiNodes);
-            setEdges(aiEdges);
+            setNodes(aiNodes || []);
+            setEdges(aiEdges || []);
 
             if (aiNodes?.length) {
-                const newNodesList = aiNodes.filter(n => !nodes.some(old => old.id === n.id));
+                const newNodesList = aiNodes.filter((n) => !nodes.some((old) => old.id === n.id));
                 if (newNodesList.length > 0) {
                     setSelectedNodes([newNodesList[0]]);
                     setSelectedItem(newNodesList[0].data?.item || null);
                 }
             }
         } catch (err) {
-            console.error("AI PNID generation failed:", err);
+            console.error('AI PNID generation failed:', err);
         }
     };
 
-    // Initial load: build nodes directly (no diagramBuilder)
+    // ---------- initial load ----------
     useEffect(() => {
         const loadItems = async () => {
             try {
                 const itemsRaw = await fetchData();
-                const normalizedItems = itemsRaw.map(item => ({
+
+                const normalizedItems = itemsRaw.map((item) => ({
                     id: item.id || `${item.Name}-${Date.now()}`,
                     Name: item.Name || '',
                     Code: item['Item Code'] || item.Code || '',
@@ -350,36 +379,57 @@ export default function ProcessDiagram() {
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Sequence: item.Sequence || 0,
                     Connections: Array.isArray(item.Connections) ? item.Connections : [],
-                    // if you store positions in Airtable, they will be respected:
-                    x: typeof item.x === 'number' ? item.x : undefined,
-                    y: typeof item.y === 'number' ? item.y : undefined,
                 }));
 
-                // Build nodes from items without auto layout
-                setNodes(prev => itemsToNodes(normalizedItems, prev));
-                // OPTIONAL: auto-create edges from Connections — remove this line if undesired
-                setEdges(edgesFromItems(normalizedItems));
+                const uniqueUnits = [...new Set(normalizedItems.map((i) => i.Unit))];
+                const unitLayout2D = [uniqueUnits];
+                setUnitLayoutOrder(unitLayout2D);
+
+                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
+
+                setNodes(builtNodes);
+                setEdges(builtEdges);
                 setItems(normalizedItems);
 
-                const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
-                setUnitLayoutOrder([uniqueUnits]); // harmless; no auto-rebuild effect
-                setAvailableUnitsForConfig(uniqueUnits.map(u => ({ id: u, Name: u })));
+                const uniqueUnitsObjects = uniqueUnits.map((u) => ({ id: u, Name: u }));
+                setAvailableUnitsForConfig(uniqueUnitsObjects);
             } catch (err) {
                 console.error('Error loading items:', err);
             }
         };
+
         loadItems();
     }, []);
 
-    // 🔇 No "rebuild on unitLayoutOrder or items" effect anymore.
-    // That was the source of auto moves via diagramBuilder.
+    // ---------- rebuild ONLY when unit layout changes (preserve positions) ----------
+    useEffect(() => {
+        if (!items.length || !unitLayoutOrder.length) return;
+        const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder, { prevNodes: nodes });
 
-    const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
+        setNodes((prev) => {
+            const prevById = new Map(prev.map((n) => [String(n.id), n]));
+            const merged = rebuiltNodes.map((n) => {
+                const p = prevById.get(String(n.id));
+                return p ? { ...n, position: p.position } : n;
+            });
+            // include any nodes not present in rebuilt list (defensive)
+            prev.forEach((p) => {
+                if (!merged.some((m) => String(m.id) === String(p.id))) merged.push(p);
+            });
+            return merged;
+        });
+
+        setEdges(rebuiltEdges);
+    }, [unitLayoutOrder]); // <— only unit layout triggers rebuild
+
+    // ---------- group helpers (optional UI) ----------
+    const itemsMap = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
+
     const selectedGroupNode =
         selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
 
     const childrenNodesForGroup = selectedGroupNode
-        ? nodes.filter(n => {
+        ? nodes.filter((n) => {
             if (!n) return false;
             if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id)) return true;
             if (n.data?.groupId === selectedGroupNode.id) return true;
@@ -388,98 +438,108 @@ export default function ProcessDiagram() {
         })
         : [];
 
-    // Group helpers (unchanged; they don’t auto-layout)
     const [addingToGroup, setAddingToGroup] = useState(null);
-    const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
+    const startAddItemToGroup = (groupId) => setAddingToGroup(groupId);
+
     const onAddItem = (nodeIdToAdd) => {
         if (!nodeIdToAdd) return;
-        setNodes(nds => {
-            const existing = nds.find(n => n.id === nodeIdToAdd);
+        setNodes((nds) => {
+            const existing = nds.find((n) => n.id === nodeIdToAdd);
             if (existing) {
-                return nds.map(n => n.id === nodeIdToAdd ? { ...n, data: { ...n.data, groupId: selectedGroupNode?.id } } : n);
+                return nds.map((n) =>
+                    n.id === nodeIdToAdd ? { ...n, data: { ...n.data, groupId: selectedGroupNode?.id } } : n
+                );
             }
             const newNode = {
                 id: nodeIdToAdd,
                 position: { x: 100, y: 100 },
-                data: { label: nodeIdToAdd, groupId: selectedGroupNode?.id }
+                data: { label: nodeIdToAdd, groupId: selectedGroupNode?.id },
             };
             return [...nds, newNode];
         });
     };
+
     const onRemoveItem = (childId) => {
-        setNodes(nds => nds.map(n => n.id === childId ? { ...n, data: { ...n.data, groupId: undefined } } : n));
-    };
-    const onDeleteGroup = (groupId) => {
-        setNodes(nds => nds.filter(n => n.id !== groupId));
+        setNodes((nds) => nds.map((n) => (n.id === childId ? { ...n, data: { ...n.data, groupId: undefined } } : n)));
     };
 
-    // Add item without layout; put it at a neutral spot and don’t touch others
+    const onDeleteGroup = (groupId) => {
+        setNodes((nds) => nds.filter((n) => n.id !== groupId));
+    };
+
+    // Add item helper (keeps others in place on rebuild)
     const handleAddItem = (rawItem) => {
-        setItems(prevItems => {
+        setItems((prevItems) => {
             const firstKnownUnit =
                 Array.isArray(unitLayoutOrder) && unitLayoutOrder.length && unitLayoutOrder[0].length
                     ? unitLayoutOrder[0][0]
-                    : (prevItems[0]?.Unit || 'Unit 1');
+                    : prevItems[0]?.Unit || 'Unit 1';
 
             const normalizedItem = {
                 id: rawItem.id || `item-${Date.now()}`,
                 Name: rawItem.Name || 'New Item',
                 Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
                 'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
-                Unit: rawItem.Unit || firstKnownUnit,
+                Unit: rawItem.Unit || selectedItem?.Unit || firstKnownUnit || 'Unit 1',
                 SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? 'Default SubUnit',
                 Category: Array.isArray(rawItem['Category Item Type'])
                     ? rawItem['Category Item Type'][0]
-                    : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
+                    : rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment',
                 'Category Item Type': Array.isArray(rawItem['Category Item Type'])
                     ? rawItem['Category Item Type'][0]
-                    : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
-                Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
+                    : rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment',
+                Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : rawItem.Type || '',
                 Sequence: rawItem.Sequence ?? 0,
                 Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
-                x: typeof rawItem.x === 'number' ? rawItem.x : 100,
-                y: typeof rawItem.y === 'number' ? rawItem.y : 100,
             };
 
-            // 1) append item
             const nextItems = [...prevItems, normalizedItem];
 
-            // 2) add a node for just this item; do not modify existing node positions
-            setNodes(prev => {
-                const prevMap = new Map(prev.map(n => [String(n.id), n.position]));
-                const node = itemToNode(normalizedItem, prevMap);
-                return [...prev, node];
+            // ensure unit exists in layout
+            const ensureUnitInLayout = (layout, unit) => {
+                if (!Array.isArray(layout) || !layout.length) return [[unit]];
+                const flat = new Set(layout.flat());
+                if (!flat.has(unit)) {
+                    const copy = layout.map((row) => [...row]);
+                    copy[0].push(unit);
+                    return copy;
+                }
+                return layout;
+            };
+
+            const currentLayout = Array.isArray(unitLayoutOrder) && unitLayoutOrder.length ? unitLayoutOrder : [[]];
+            const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
+            if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
+
+            // Rebuild but keep previous positions
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, patchedLayout, { prevNodes: nodes });
+
+            setNodes((prev) => {
+                const byId = new Map(prev.map((n) => [String(n.id), n]));
+                const merged = rebuiltNodes.map((n) => {
+                    const p = byId.get(String(n.id));
+                    return p ? { ...n, position: p.position } : n;
+                });
+                prev.forEach((p) => {
+                    if (!merged.some((m) => String(m.id) === String(p.id))) merged.push(p);
+                });
+                return merged;
             });
 
-            // 3) (optional) add edges only for this item’s Connections
-            setEdges(prev => {
-                if (!Array.isArray(normalizedItem.Connections) || normalizedItem.Connections.length === 0) return prev;
-                const seen = new Set(prev.map(e => e.id));
-                const extra = [];
-                for (const target of normalizedItem.Connections) {
-                    const id = `edge-${normalizedItem.id}-${target}`;
-                    if (seen.has(id)) continue;
-                    extra.push({
-                        id,
-                        source: String(normalizedItem.id),
-                        target: String(target),
-                        type: 'step',
-                        animated: true,
-                        style: { stroke: 'blue', strokeWidth: 2 },
-                    });
-                }
-                return [...prev, ...extra];
-            });
+            setEdges(rebuiltEdges);
+
+            const addedNode = rebuiltNodes.find((n) => n.id === normalizedItem.id);
+            if (addedNode) setSelectedNodes([addedNode]);
+            setSelectedItem(normalizedItem);
 
             return nextItems;
         });
     };
 
-    
     return (
-        <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
+        <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
             {/* LEFT: Diagram */}
-            <div style={{ flex: 3, position: "relative", background: "transparent" }}>
+            <div style={{ flex: 3, position: 'relative', background: 'transparent' }}>
                 <DiagramCanvas
                     nodes={nodes}
                     edges={edges}
@@ -492,7 +552,24 @@ export default function ProcessDiagram() {
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    onEdgeSelect={handleEdgeSelect}
+                    onEdgeSelect={(edge) => {
+                        // keep the edge inspector in DiagramCanvas usable
+                        if (!edge) {
+                            setSelectedItem(null);
+                            return;
+                        }
+                        const fromItem = items.find((it) => String(it.id) === String(edge.source)) || null;
+                        const toItem = items.find((it) => String(it.id) === String(edge.target)) || null;
+                        setSelectedItem({
+                            id: edge.id,
+                            Name: 'Edge inspector',
+                            'Item Code': edge.id,
+                            edgeId: edge.id,
+                            from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
+                            to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+                            _edge: edge,
+                        });
+                    }}
                     showInlineEdgeInspector={false}
                     AddItemButton={AddItemButton}
                     addItem={handleAddItem}
@@ -514,41 +591,41 @@ export default function ProcessDiagram() {
             <div
                 style={{
                     flex: 1,
-                    borderLeft: "1px solid #ccc",
-                    display: "flex",
-                    flexDirection: "column",
-                    background: "transparent",
+                    borderLeft: '1px solid #ccc',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    background: 'transparent',
                 }}
             >
                 <div>
-                    <UnitLayoutConfig
-                        availableUnits={availableUnitsForConfig}
-                        onChange={setUnitLayoutOrder} // harmless now
-                    />
+                    <UnitLayoutConfig availableUnits={availableUnitsForConfig} onChange={setUnitLayoutOrder} />
                 </div>
 
-                <div style={{ flex: 1, overflowY: "auto" }}>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
                     {selectedGroupNode ? (
                         <GroupDetailCard
                             node={selectedGroupNode}
-                            childrenNodes={nodes.filter(n => {
-                                if (!n) return false;
-                                if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id)) return true;
-                                if (n.data?.groupId === selectedGroupNode.id) return true;
-                                if (n.data?.parentId === selectedGroupNode.id) return true;
-                                return false;
-                            })}
+                            childrenNodes={childrenNodesForGroup}
                             childrenLabels={selectedGroupNode?.data?.children}
                             allItems={itemsMap}
-                            startAddItemToGroup={(gid) => { }}
-                            onAddItem={(id) => { }}
-                            onRemoveItem={(id) => { }}
-                            onDelete={() => { }}
+                            startAddItemToGroup={startAddItemToGroup}
+                            onAddItem={onAddItem}
+                            onRemoveItem={onRemoveItem}
+                            onDelete={onDeleteGroup}
+                        />
+                    ) : selectedItem ? (
+                        <ItemDetailCard
+                            item={selectedItem}
+                            items={items}
+                            edges={edges}
+                            onChange={handleItemPanelChange}        // ✅ safe updates; never repositions
+                            onDeleteItem={handleDeleteItem}
+                            onDeleteEdge={handleDeleteEdge}
+                            onUpdateEdge={handleUpdateEdge}
+                            onCreateInlineValve={handleCreateInlineValve}
                         />
                     ) : (
-                        <div style={{ padding: 20, color: "#888" }}>
-                            Item detail panel is disabled for this test.
-                        </div>
+                        <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                     )}
                 </div>
             </div>
