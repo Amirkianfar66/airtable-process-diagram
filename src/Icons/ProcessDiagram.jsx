@@ -106,74 +106,34 @@ export default function ProcessDiagram() {
     const getPrevNodesForBuilder = useCallback(() => nodes, [nodes]);
 
     // ---------- ITEM CHANGES: never touch node.position ----------
-    const handleItemDetailChange = useCallback(
-        async (updatedItem) => {
-            if (!updatedItem || !updatedItem.id) return;
-            const idStr = String(updatedItem.id);
+   // Local-only: update items + node.data, never call network
+    // Local-only: update items + node.data, never call network
+    const handleItemDetailChange = useCallback((updatedItem) => {
+        if (!updatedItem || !updatedItem.id) return;
+        const idStr = String(updatedItem.id);
 
-            // 1) Update items[] locally
-            setItems(prev =>
-                prev.map(it => (String(it.id) === idStr ? { ...it, ...updatedItem } : it))
-            );
+        // 1) Update items[] locally
+        setItems(prev =>
+            prev.map(it => (String(it.id) === idStr ? { ...it, ...updatedItem } : it))
+        );
 
-            // 2) Update the node's data only (never touch position)
-            setNodes(prevNodes =>
-                prevNodes.map(node =>
-                    String(node.id) === idStr
-                        ? { ...node, data: { ...node.data, ...updatedItem } }
-                        : node
-                )
-            );
+        // 2) Update the node's data only (never touch position)
+        setNodes(prevNodes =>
+            prevNodes.map(node =>
+                String(node.id) === idStr
+                    ? { ...node, data: { ...node.data, ...updatedItem } }
+                    : node
+            )
+        );
 
-            // 3) Keep the right panel in sync
-            setSelectedItem(cur =>
-                cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur
-            );
+        // 3) Keep the right panel in sync
+        setSelectedItem(cur =>
+            cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur
+        );
 
-            // 4) Skip remote save while disabled
-            if (!PERSIST_TO_AIRTABLE) {
-                console.debug('[Airtable disabled] Skipping PATCH for', idStr);
-                return;
-            }
-
-            // --- If you later re-enable saving, this block will run ---
-            try {
-                const payloadFields = { ...updatedItem };
-                delete payloadFields.id;
-
-                const res = await fetch('/api/airtable', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: updatedItem.id, fields: payloadFields }),
-                });
-
-                if (!res.ok) {
-                    const txt = await res.text().catch(() => '');
-                    throw new Error(`Server returned ${res.status} ${res.statusText} ${txt}`);
-                }
-
-                const json = await res.json().catch(() => null);
-                if (json && json.id) {
-                    setItems(prev =>
-                        prev.map(it =>
-                            String(it.id) === idStr ? { ...it, ...json.fields, id: json.id } : it
-                        )
-                    );
-                    setNodes(prevNodes =>
-                        prevNodes.map(node =>
-                            String(node.id) === idStr
-                                ? { ...node, data: { ...node.data, ...(json.fields || {}) } }
-                                : node
-                        )
-                    );
-                }
-            } catch (err) {
-                console.error('Failed to persist item to Airtable:', err);
-                // We’re not reverting local changes since persistence is optional right now.
-            }
-        },
-        [setItems, setNodes, setSelectedItem]
-    );
+        // 4) Explicitly do nothing else (no PATCH, no alerts)
+        // console.debug('[Airtable disabled] Local update only for', idStr);
+    }, [setItems, setNodes, setSelectedItem]);
 
 
     const onConnect = useCallback(
