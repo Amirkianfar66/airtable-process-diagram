@@ -1,10 +1,12 @@
-﻿// src/components/DiagramCanvas.jsx
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
-import { getItemIcon, categoryTypeMap } from './IconManager';
+import { getItemIcon, categoryTypeMap } from "./IconManager";
+import ScalableIconNode from './ScalableIconNode';
+import ResizableNode from './ResizableNode';
+import CustomItemNode from './CustomItemNode';
 
 export default function DiagramCanvas({
     nodes,
@@ -17,8 +19,8 @@ export default function DiagramCanvas({
     onEdgesChange,
     onConnect,
     onSelectionChange,
-    onEdgeClick, // optional parent callback
-    onEdgeSelect, // optional parent selection callback
+    onEdgeClick,
+    onEdgeSelect,
     nodeTypes,
     AddItemButton,
     addItem,
@@ -35,14 +37,12 @@ export default function DiagramCanvas({
     showInlineEdgeInspector = true,
 }) {
     const [selectedEdge, setSelectedEdge] = useState(null);
-    const [selectedNode, setSelectedNode] = useState(null);
     const panelRef = useRef(null);
 
     useEffect(() => {
-        console.log('DiagramCanvas mounted / props onEdgeClick:', !!onEdgeClick);
+        console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
     }, [onEdgeClick]);
 
-    // make sure edges are clickable and wide enough to click easily
     const enhancedEdges = useMemo(() => {
         if (!Array.isArray(edges)) return [];
         return edges.map((e) => ({
@@ -52,6 +52,11 @@ export default function DiagramCanvas({
         }));
     }, [edges]);
 
+    // <-- PUT THE DEBUG + MEMO HERE (right after enhancedEdges) -->
+    useEffect(() => {
+        console.log("categoryTypeMap['Inline Valve'] — raw:", categoryTypeMap?.['Inline Valve']);
+    }, [categoryTypeMap]);
+
     const inlineValveTypes = useMemo(() => {
         const val = categoryTypeMap?.['Inline Valve'];
         if (!val) return [];
@@ -59,49 +64,57 @@ export default function DiagramCanvas({
         if (typeof val === 'object') return Object.keys(val);
         return [String(val)];
     }, [categoryTypeMap]);
+    // <-- END INSERT -->
 
-    // ---------- Edge handlers ----------
-    function handleEdgeClickLocal(event, edge) {
-        event?.stopPropagation?.();
-        console.log('edge clicked:', edge?.id);
-        const liveEdge = (edges || []).find((e) => e.id === edge.id) || edge;
-        setSelectedEdge(liveEdge);
-        setSelectedNode(null);
-        if (typeof onEdgeSelect === 'function') onEdgeSelect(liveEdge);
-        if (typeof onEdgeClick === 'function') onEdgeClick(event, liveEdge);
-    }
-
-    function deleteSelectedEdge() {
-        if (!selectedEdge) return;
+    const deleteSelectedEdge = () => {
+        if (!selectedEdge || typeof setEdges !== 'function') return;
         if (!window.confirm('Delete this edge?')) return;
         setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
-        setSelectedEdge(null);
-        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
-    }
+        handleCloseInspector();
+    };
+    const handleEdgeClick = (event, edge) => {
+        event?.stopPropagation?.();
+        const liveEdge = edges?.find((e) => e.id === edge.id) || edge;
+        setSelectedEdge(liveEdge);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(liveEdge);
+        if (typeof onEdgeClick === 'function') onEdgeClick(event, liveEdge);
+    };
 
-    function updateSelectedEdge(patch) {
+    // safer update that merges nested data
+    const updateSelectedEdge = (patch) => {
         if (typeof setEdges !== 'function') return;
+
         setEdges((prev) =>
             prev.map((e) => {
                 if (e.id !== selectedEdge?.id) return e;
+                // merge data deeply-ish: keep existing e.data and merge patch.data
                 const mergedData = { ...(e.data || {}), ...(patch.data || {}) };
+                // copy everything else shallowly
                 return { ...e, ...patch, data: mergedData };
             })
         );
+
+        // update the selectedEdge in local state too
         setSelectedEdge((s) => {
             if (!s) return s;
             const mergedData = { ...(s.data || {}), ...(patch.data || {}) };
             return { ...s, ...patch, data: mergedData };
         });
-    }
+    };
 
-    function changeEdgeCategory(category) {
+
+    const changeEdgeCategory = (category) => {
         if (!selectedEdge) return;
-        if (category !== 'Inline Valve') {
-            updateSelectedEdge({ data: { ...(selectedEdge.data || {}), category } });
+
+        // non-inline: just patch the edge's data
+        if (category !== "Inline Valve") {
+            updateSelectedEdge({
+                data: { ...(selectedEdge.data || {}), category },
+            });
             return;
         }
 
+        // Inline Valve -> create valve node and split edges
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
         if (!sourceNode || !targetNode) return;
@@ -111,13 +124,13 @@ export default function DiagramCanvas({
 
         const newItem = {
             id: `valve-${Date.now()}`,
-            'Item Code': `VALVE-${Date.now()}`,
-            Name: 'Inline Valve',
-            Category: 'Inline Valve',
-            'Category Item Type': 'Inline Valve',
-            Type: '',
-            Unit: sourceNode.data?.item?.Unit || '',
-            SubUnit: sourceNode.data?.item?.SubUnit || '',
+            "Item Code": "VALVE001",
+            Name: "Inline Valve",
+            Category: "Inline Valve",
+            "Category Item Type": "Inline Valve",
+            Type: "",
+            Unit: sourceNode.data?.item?.Unit || "",
+            SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
             y: midY,
             edgeId: selectedEdge.id,
@@ -126,141 +139,62 @@ export default function DiagramCanvas({
         const newNode = {
             id: newItem.id,
             position: { x: midX, y: midY },
-            data: { label: `${newItem['Item Code']} - ${newItem.Name}`, item: newItem, icon: getItemIcon(newItem) },
-            type: 'scalableIcon',
-            sourcePosition: 'right',
-            targetPosition: 'left',
-            style: { background: 'transparent' },
+            data: {
+                label: `${newItem["Item Code"]} - ${newItem.Name}`,
+                item: newItem,
+                icon: getItemIcon(newItem),
+            },
+            type: "scalableIcon",
+            sourcePosition: "right",
+            targetPosition: "left",
+            style: { background: "transparent" },
         };
 
         const newEdgeA = {
-            id: `edge-${selectedEdge.source}-${newNode.id}-${Date.now()}`,
+            id: `${selectedEdge.source}-${newNode.id}`,
             source: selectedEdge.source,
             target: newNode.id,
-            type: 'step',
-            animated: selectedEdge.animated ?? true,
-            style: { stroke: selectedEdge?.style?.stroke || '#000' },
-            data: { category: 'Inline Valve', Type: '' },
+            type: "step",
+            style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            data: { category: "Inline Valve", Type: "" },
         };
         const newEdgeB = {
-            id: `edge-${newNode.id}-${selectedEdge.target}-${Date.now()}`,
+            id: `${newNode.id}-${selectedEdge.target}`,
             source: newNode.id,
             target: targetNode.id,
-            type: 'step',
-            animated: selectedEdge.animated ?? true,
-            style: { stroke: selectedEdge?.style?.stroke || '#000' },
-            data: { category: 'Inline Valve', Type: '' },
+            type: "step",
+            style: { stroke: selectedEdge?.style?.stroke || "#000" },
+            data: { category: "Inline Valve", Type: "" },
         };
 
+        // push new node and replace edges
         setNodes((nds) => [...nds, newNode]);
         setEdges((eds) => {
             const next = [...eds.filter((e) => e.id !== selectedEdge.id), newEdgeA, newEdgeB];
             return next;
         });
 
+        // IMPORTANT: set the inspector to the new edge (so the inspector shows data and Type dropdown)
         setSelectedEdge(newEdgeA);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(newEdgeA);
-    }
+    };
 
-    // ---------- Node handlers ----------
-    function handleNodeClickLocal(event, node) {
-        event?.stopPropagation?.();
-        console.log('node clicked:', node?.id);
-        const liveNode = (nodes || []).find((n) => n.id === node.id) || node;
-        setSelectedNode(liveNode);
+
+
+    const handleCloseInspector = () => {
         setSelectedEdge(null);
-        if (typeof setSelectedItem === 'function') setSelectedItem(liveNode?.data?.item ?? null);
-    }
-
-    function deleteSelectedNode() {
-        if (!selectedNode) return;
-        if (!window.confirm('Delete this item?')) return;
-        setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id));
-        setEdges((prev) => prev.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
-        if (typeof setItems === 'function') {
-            setItems((prev) => (Array.isArray(prev) ? prev.filter((it) => it.id !== selectedNode.id) : prev));
-        }
-        setSelectedNode(null);
-        if (typeof setSelectedItem === 'function') setSelectedItem(null);
-    }
-
-    function updateSelectedNode(patch) {
-        if (typeof setNodes !== 'function') return;
-        setNodes((prev) =>
-            prev.map((n) => {
-                if (n.id !== selectedNode?.id) return n;
-                const mergedData = { ...(n.data || {}), ...(patch.data || {}) };
-                return { ...n, ...patch, data: mergedData };
-            })
-        );
-        setSelectedNode((s) => {
-            if (!s) return s;
-            const mergedData = { ...(s.data || {}), ...(patch.data || {}) };
-            return { ...s, ...patch, data: mergedData };
-        });
-        if (typeof setItems === 'function') {
-            setItems((prev) => {
-                if (!Array.isArray(prev)) return prev;
-                return prev.map((it) => (it.id === selectedNode?.id ? { ...it, ...(patch.data?.item || {}) } : it));
-            });
-        }
-    }
-
-    // ----------------------
-    // Selection glue (CAREFUL: do NOT aggressively clear local inspector on empty selection)
-    // ----------------------
-    function handleSelectionChangeLocal(selection) {
-        const selNodes = Array.isArray(selection?.nodes) ? selection.nodes : [];
-        const selEdges = Array.isArray(selection?.edges) ? selection.edges : [];
-
-        // If exactly one edge selected => show edge inspector
-        if (selEdges.length === 1 && selNodes.length === 0) {
-            const e = selEdges[0];
-            const liveEdge = (edges || []).find((ed) => ed.id === e.id) || e;
-            setSelectedEdge(liveEdge);
-            setSelectedNode(null);
-            if (typeof onEdgeSelect === 'function') onEdgeSelect(liveEdge);
-            if (typeof onSelectionChange === 'function') onSelectionChange(selection);
-            return;
-        }
-
-        // If exactly one node selected => show node inspector
-        if (selNodes.length === 1 && selEdges.length === 0) {
-            const n = selNodes[0];
-            const liveNode = (nodes || []).find((nd) => nd.id === n.id) || n;
-            setSelectedNode(liveNode);
-            setSelectedEdge(null);
-            if (typeof setSelectedItem === 'function') setSelectedItem(liveNode?.data?.item ?? null);
-            if (typeof onSelectionChange === 'function') onSelectionChange(selection);
-            return;
-        }
-
-        // IMPORTANT: if selection is empty or multi-select, DO NOT clear the local inspectors.
-        // Clearing here caused race conditions where selection-change blanked state before edge click.
-        // We *only* forward the selection to the parent so it can react.
-        if (typeof onSelectionChange === 'function') onSelectionChange(selection);
-    }
-
-    function handleCloseInspector() {
-        setSelectedEdge(null);
-        setSelectedNode(null);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
-        if (typeof setSelectedItem === 'function') setSelectedItem(null);
-    }
+    };
 
-    // keyboard shortcuts (Delete, Esc)
     useEffect(() => {
-        if (!selectedEdge && !selectedNode) return;
+        if (!selectedEdge) return;
         const onKey = (e) => {
             if (e.key === 'Escape') handleCloseInspector();
-            else if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (selectedEdge) deleteSelectedEdge();
-                else if (selectedNode) deleteSelectedNode();
-            }
+            else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelectedEdge();
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [selectedEdge, selectedNode]); // small deps on purpose
+    }, [selectedEdge]);
 
     const edgeCategories = ['None', 'Inline Valve'];
 
@@ -277,7 +211,10 @@ export default function DiagramCanvas({
             />
 
             <div style={{ padding: 10 }}>
-                {AddItemButton && <AddItemButton addItem={addItem} setNodes={setNodes} setEdges={setEdges} setItems={setItems} />}
+                {AddItemButton && (
+                    // Render the component and forward the handler + useful setters
+                    <AddItemButton addItem={addItem} setNodes={setNodes} setEdges={setEdges} setItems={setItems} />
+                )}
             </div>
 
             <div style={{ padding: 10, display: 'flex', gap: 6, flexDirection: 'column' }}>
@@ -305,9 +242,8 @@ export default function DiagramCanvas({
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
-                    onSelectionChange={handleSelectionChangeLocal}
-                    onEdgeClick={handleEdgeClickLocal}
-                    onNodeClick={handleNodeClickLocal}
+                    onSelectionChange={onSelectionChange}
+                    onEdgeClick={handleEdgeClick}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     fitView
@@ -323,18 +259,18 @@ export default function DiagramCanvas({
 
                 <aside
                     ref={panelRef}
-                    aria-hidden={!selectedEdge && !selectedNode}
+                    aria-hidden={!selectedEdge}
                     style={{
                         position: 'absolute',
                         right: 0,
                         top: 0,
                         height: '100%',
-                        width: selectedEdge || selectedNode ? 360 : 0,
-                        transform: selectedEdge || selectedNode ? 'translateX(0)' : 'translateX(100%)',
+                        width: selectedEdge ? 360 : 0,
+                        transform: selectedEdge ? 'translateX(0)' : 'translateX(100%)',
                         transition: 'width 220ms ease, transform 220ms ease',
                         background: '#fff',
-                        borderLeft: selectedEdge || selectedNode ? '1px solid #ddd' : 'none',
-                        boxShadow: selectedEdge || selectedNode ? '-8px 0 24px rgba(0,0,0,0.08)' : 'none',
+                        borderLeft: selectedEdge ? '1px solid #ddd' : 'none',
+                        boxShadow: selectedEdge ? '-8px 0 24px rgba(0,0,0,0.08)' : 'none',
                         overflow: 'hidden',
                         zIndex: 9999,
                         display: 'flex',
@@ -343,33 +279,24 @@ export default function DiagramCanvas({
                 >
                     {selectedEdge && (
                         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {/* Header */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <strong>Edge inspector</strong>
                                 <div>
-                                    <button onClick={deleteSelectedEdge} style={{ marginRight: 8 }}>
-                                        Delete
-                                    </button>
+                                    <button onClick={deleteSelectedEdge} style={{ marginRight: 8 }}>Delete</button>
                                     <button onClick={handleCloseInspector}>Close</button>
                                 </div>
                             </div>
 
+                            {/* Edge details */}
                             <div style={{ fontSize: 13 }}>
-                                <div>
-                                    <strong>ID:</strong> {selectedEdge.id}
-                                </div>
-                                <div>
-                                    <strong>Source:</strong> {selectedEdge.source}
-                                    {selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}
-                                </div>
-                                <div>
-                                    <strong>Target:</strong> {selectedEdge.target}
-                                    {selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}
-                                </div>
-                                <div style={{ marginTop: 8 }}>
-                                    <strong>Type:</strong> {selectedEdge.type || 'default'}
-                                </div>
+                                <div><strong>ID:</strong> {selectedEdge.id}</div>
+                                <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
+                                <div><strong>Target:</strong> {selectedEdge.target}{selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}</div>
+                                <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
                             </div>
 
+                            {/* Category selector */}
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Category</label>
                                 <select
@@ -378,86 +305,48 @@ export default function DiagramCanvas({
                                     style={{ padding: 8, width: '100%' }}
                                 >
                                     {edgeCategories.map((cat) => (
-                                        <option key={cat} value={cat}>
-                                            {cat}
-                                        </option>
+                                        <option key={cat} value={cat}>{cat}</option>
                                     ))}
                                 </select>
                             </div>
 
+                            {/* ✅ Type selector (only shows for Inline Valve) */}
                             {selectedEdge?.data?.category === 'Inline Valve' && (
                                 <div>
                                     <label style={{ display: 'block', fontSize: 12 }}>Type</label>
                                     <select
                                         value={selectedEdge?.data?.Type || ''}
-                                        onChange={(e) => updateSelectedEdge({ data: { ...(selectedEdge.data || {}), Type: e.target.value } })}
+                                        onChange={(e) =>
+                                            updateSelectedEdge({
+                                                data: { ...(selectedEdge.data || {}), Type: e.target.value },
+                                            })
+                                        }
                                         style={{ padding: 8, width: '100%' }}
                                     >
-                                        <option value=''>Select type...</option>
-                                        {inlineValveTypes.length > 0 ? inlineValveTypes.map((t) => <option key={t} value={t}>{t}</option>) : <option disabled>No types</option>}
+                                        <option value="">Select type...</option>
+
+                                        {inlineValveTypes.length > 0 ? (
+                                            inlineValveTypes.map((type) => (
+                                                <option key={type} value={type}>{type}</option>
+                                            ))
+                                        ) : (
+                                            <option value="" disabled>No types defined</option>
+                                        )}
                                     </select>
+
                                 </div>
                             )}
 
-                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>Keyboard: Esc to close · Delete to remove</div>
-                        </div>
-                    )}
-
-                    {selectedNode && (
-                        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <strong>Item inspector</strong>
-                                <div>
-                                    <button onClick={deleteSelectedNode} style={{ marginRight: 8 }}>
-                                        Delete
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedNode(null);
-                                            if (typeof setSelectedItem === 'function') setSelectedItem(null);
-                                        }}
-                                    >
-                                        Close
-                                    </button>
-                                </div>
+                            {/* Footer hint */}
+                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>
+                                Keyboard: Esc to close · Delete to remove
                             </div>
-
-                            <div style={{ fontSize: 13 }}>
-                                <div>
-                                    <strong>ID:</strong> {selectedNode.id}
-                                </div>
-                                <div>
-                                    <strong>Label:</strong> {selectedNode.data?.label}
-                                </div>
-                                <div>
-                                    <strong>Category:</strong> {selectedNode.data?.item?.Category}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label style={{ display: 'block', fontSize: 12 }}>Name</label>
-                                <input
-                                    type='text'
-                                    value={selectedNode.data?.item?.Name || ''}
-                                    onChange={(e) => updateSelectedNode({ data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), Name: e.target.value } } })}
-                                    style={{ padding: 6, width: '100%' }}
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{ display: 'block', fontSize: 12 }}>Item Code</label>
-                                <input
-                                    type='text'
-                                    value={selectedNode.data?.item?.['Item Code'] || selectedNode.data?.item?.Code || ''}
-                                    onChange={(e) => updateSelectedNode({ data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), 'Item Code': e.target.value, Code: e.target.value } } })}
-                                    style={{ padding: 6, width: '100%' }}
-                                />
-                            </div>
-
-                            <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>Keyboard: Esc to close · Delete to remove</div>
                         </div>
                     )}
                 </aside>
+
+
+
             </div>
         </div>
     );
