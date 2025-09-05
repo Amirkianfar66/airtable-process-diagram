@@ -463,7 +463,9 @@ export default function ProcessDiagram() {
                 const unitLayout2D = [uniqueUnits];
                 setUnitLayoutOrder(unitLayout2D);
 
-                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D, { prevNodes: nodes });
+                const { nodes: builtNodes, edges: builtEdges } =
+                    buildDiagram(normalizedItems, unitLayout2D, { prevNodes: getPrevNodesForBuilder() });
+
 
                 // ✅ Build once; prefer previous node objects to keep positions (none on first load)
                 setNodes((prevNodes) => {
@@ -515,7 +517,8 @@ export default function ProcessDiagram() {
             });
 
         if (needFullRebuild) {
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder, { prevNodes: nodes });
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } =
+                buildDiagram(items, unitLayoutOrder, { prevNodes: getPrevNodesForBuilder() });
 
             // ✅ Keep old node objects for existing ids; never touch position
             setNodes((prevNodes) => {
@@ -648,7 +651,9 @@ export default function ProcessDiagram() {
             const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
             if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
 
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, patchedLayout, { prevNodes: nodes });
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } =
+                buildDiagram(nextItems, patchedLayout, { prevNodes: getPrevNodesForBuilder() });
+
 
             setNodes((prevNodes) => {
                 const next = (rebuiltNodes || []).map((fresh) => {
