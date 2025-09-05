@@ -2,7 +2,6 @@
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
-
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
@@ -17,8 +16,7 @@ import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import UnitLayoutConfig from "./UnitLayoutConfig";
-import AirtableGrid from "./AirtableGrid";
-
+import AirtableGrid from "./Airtable/AirtableGrid"
 function ProcessDiagram() {
     return (
         <div className="flex">
@@ -34,8 +32,6 @@ function ProcessDiagram() {
         </div>
     );
 }
-
-
 export const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -66,7 +62,6 @@ export const fetchData = async () => {
 
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
-
 export default function ProcessDiagram() {
     const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -186,7 +181,6 @@ export default function ProcessDiagram() {
         // dependencies: include anything used inside
         [setItems, setNodes, setSelectedItem, getUnitSubunitPosition]
     );
-
 
     const onConnect = useCallback(
         (params) => {
@@ -568,7 +562,6 @@ export default function ProcessDiagram() {
                 })
             );
         }
-
         // snapshot for next comparison
         prevItemsRef.current = items;
     }, [unitLayoutOrder, items]);
@@ -614,7 +607,6 @@ export default function ProcessDiagram() {
     const onDeleteGroup = (groupId) => {
         setNodes(nds => nds.filter(n => n.id !== groupId));
     };
-
     // inside ProcessDiagram.jsx
     const handleAddItem = (rawItem) => {
         setItems(prevItems => {
@@ -792,8 +784,6 @@ export default function ProcessDiagram() {
                                 onUpdateEdge={handleUpdateEdge}
                                 onCreateInlineValve={handleCreateInlineValve}
                             />
-
-
 
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
