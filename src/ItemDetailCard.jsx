@@ -1,12 +1,12 @@
 ﻿// src/components/ItemDetailCard.jsx
 import React, { useEffect, useState } from 'react';
 
-const typeCache = new Map();
-
 /**
- * ItemDetailCard
- * READ-ONLY with Airtable (fetches types for dropdown / resolves type name),
- * NO writes to Airtable. onChange just updates parent React state locally.
+ * ItemDetailCard (NO NETWORK CALLS)
+ * - Never reads or writes to Airtable.
+ * - Uses only props + local state.
+ * - If you want a type list, pass it via `types` prop:
+ *     types = [{ id: 'rec123', name: 'Gate Valve', category: 'Inline Valve' }, ...]
  */
 export default function ItemDetailCard({
     item,
@@ -16,78 +16,16 @@ export default function ItemDetailCard({
     onDeleteEdge,
     onUpdateEdge,
     onCreateInlineValve, // kept for compatibility
+    types = [],          // <-- optional: pass pre-fetched types from a parent (not from here)
 }) {
     const [localItem, setLocalItem] = useState(item || {});
-    const [resolvedType, setResolvedType] = useState('');
-    const [allTypes, setAllTypes] = useState([]);
 
-    // keep local copy in sync when selection changes
+    // keep local copy in sync with current selection
     useEffect(() => {
         setLocalItem(item || {});
     }, [item]);
 
-    // READ: load all types from Airtable (no writes)
-    useEffect(() => {
-        const fetchTypes = async () => {
-            try {
-                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-                if (!typesTableId) return;
-
-                const res = await fetch(`https://api.airtable.com/v0/${baseId}/${typesTableId}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                const data = await res.json();
-                const typesList = (data.records || []).map((r) => ({
-                    id: r.id,
-                    name: r.fields['Still Pipe'],
-                    category: r.fields['Category'] || 'Equipment',
-                }));
-                setAllTypes(typesList);
-            } catch (err) {
-                console.error('Error fetching types:', err);
-            }
-        };
-        fetchTypes();
-    }, []);
-
-    // READ: resolve linked Type (if it's an array of IDs) to a friendly name
-    useEffect(() => {
-        if (!item || !item.Type) {
-            setResolvedType('-');
-            return;
-        }
-        if (Array.isArray(item.Type) && item.Type.length > 0) {
-            const typeId = item.Type[0];
-            if (typeCache.has(typeId)) {
-                setResolvedType(typeCache.get(typeId));
-                return;
-            }
-            setResolvedType('Loading...');
-            const fetchTypeName = async () => {
-                try {
-                    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-                    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                    const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-                    const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`;
-                    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-                    const record = await res.json();
-                    const typeName = record.fields['Still Pipe'] || 'Unknown Type';
-                    setResolvedType(typeName);
-                    typeCache.set(typeId, typeName);
-                } catch (err) {
-                    console.error(err);
-                    setResolvedType(item.Type);
-                }
-            };
-            fetchTypeName();
-        } else {
-            setResolvedType(item.Type);
-        }
-    }, [item]);
-
-    // when edges / items change, annotate first connection for convenience
+    // Populate convenience edge fields (from/to) from the first connection, locally only
     useEffect(() => {
         if (!item || !Array.isArray(edges) || !Array.isArray(items)) return;
 
@@ -112,8 +50,7 @@ export default function ItemDetailCard({
     const handleFieldChange = (fieldName, value) => {
         const updated = { ...localItem, [fieldName]: value };
         setLocalItem(updated);
-        // local only: let parent update React state; no network writes
-        onChange?.(updated);
+        onChange?.(updated); // local-only update to parent; NO network here
     };
 
     const getSimpleLinkedValue = (field) =>
@@ -127,8 +64,11 @@ export default function ItemDetailCard({
         );
     }
 
+    // categories are local; change as needed
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
-    const filteredTypes = allTypes.filter(
+
+    // Filter given types by category (if parent passed `types`)
+    const filteredTypes = (types || []).filter(
         (t) => t.category === (localItem['Category Item Type'] || 'Equipment')
     );
 
@@ -410,7 +350,6 @@ export default function ItemDetailCard({
                         )}
                     </div>
 
-                    {/* Optional: inline valve creation button */}
                     {onCreateInlineValve && item?.edgeId && (
                         <button
                             onClick={() => onCreateInlineValve(item.edgeId)}
