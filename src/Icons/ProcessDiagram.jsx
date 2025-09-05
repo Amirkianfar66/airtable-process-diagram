@@ -531,18 +531,14 @@ export default function ProcessDiagram() {
 
         } else {
             setNodes((prevNodes) => {
+                // ✅ NEVER modify n.position here; only update data/icon
                 const next = prevNodes.map((n) => {
                     const item = items.find((it) => String(it.id) === String(n.id));
                     if (!item) return n;
 
-                    const prevItem = prevMap[String(n.id)] || {};
-                    const shouldReposition = item.Unit !== prevItem.Unit || item.SubUnit !== prevItem.SubUnit;
-
                     return {
                         ...n,
-                        position: shouldReposition
-                            ? getUnitSubunitPosition(item.Unit, item.SubUnit, prevNodes)
-                            : n.position,
+                        // keep the existing position untouched
                         data: {
                             ...n.data,
                             ...item,
@@ -551,11 +547,13 @@ export default function ProcessDiagram() {
                     };
                 });
 
+                // still reapply any cached drags (no-op if none)
                 const rePos = applyPositions(next);
                 capturePositions(rePos);
                 return rePos;
             });
         }
+
 
         prevItemsRef.current = items;
     }, [unitLayoutOrder, items]);
