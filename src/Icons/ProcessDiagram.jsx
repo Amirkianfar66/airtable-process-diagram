@@ -50,6 +50,16 @@ export const fetchData = async () => {
 
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
+// put near top
+const toAirtableFields = (fields) => {
+    const out = { ...fields };
+    if (typeof out.Type === 'string') out.Type = out.Type ? [out.Type] : [];
+    return out;
+};
+
+// inside handleItemDetailChange, before fetch:
+const payloadFields = toAirtableFields({ ...updatedItem });
+delete payloadFields.id;
 
 export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);

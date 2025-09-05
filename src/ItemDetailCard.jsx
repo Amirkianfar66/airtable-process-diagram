@@ -1,7 +1,6 @@
-﻿// src/ItemDetailCard.jsx
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+﻿import React, { useEffect, useState, useRef, useMemo } from 'react';
 
-// simple runtime cache for type id -> name
+// runtime cache for typeId -> name
 const typeNameCache = new Map();
 
 export default function ItemDetailCard({
@@ -18,12 +17,35 @@ export default function ItemDetailCard({
     const [allTypes, setAllTypes] = useState([]);
     const debounceRef = useRef(null);
 
-    // sync local when selected item id changes
+    // --- helpers for unknown shapes from /api/airtable/types ---
+    const getTypeId = (t) => t?.id;
+    const getTypeName = (t) =>
+        t?.name ?? t?.Name ?? t?.fields?.name ?? t?.fields?.Name ?? t?.label ?? 'Unknown';
+    const getTypeCategory = (t) =>
+        t?.category ??
+        t?.Category ??
+        t?.['Category Item Type'] ??
+        t?.fields?.category ??
+        t?.fields?.Category ??
+        t?.fields?.['Category Item Type'] ??
+        '';
+
+    // safe call
+    const safeOnChange = (payload, options) => {
+        if (typeof onChange !== 'function') return;
+        try {
+            onChange(payload, options);
+        } catch (e) {
+            console.error('[ItemDetailCard] onChange failed:', e);
+        }
+    };
+
+    // keep local in sync with selected item id
     useEffect(() => {
         setLocalItem(item || {});
     }, [item?.id]);
 
-    // fetch types (via your server endpoint)
+    // fetch types from your server (which talks to Airtable)
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -31,18 +53,21 @@ export default function ItemDetailCard({
                 const res = await fetch('/api/airtable/types');
                 if (!mounted) return;
                 if (!res.ok) {
-                    console.error('Failed to fetch types', res.statusText);
+                    console.error('Failed to fetch types', res.status, res.statusText);
+                    setAllTypes([]);
                     return;
                 }
-                const json = await res.json();
+                const json = await res.json().catch(() => ({}));
                 const types = Array.isArray(json?.types) ? json.types : [];
                 setAllTypes(types);
                 // warm cache
                 types.forEach((t) => {
-                    if (t?.id && t?.name) typeNameCache.set(t.id, t.name);
+                    const id = getTypeId(t);
+                    if (id) typeNameCache.set(id, getTypeName(t));
                 });
             } catch (err) {
                 console.error('Error fetching types:', err);
+                setAllTypes([]);
             }
         })();
         return () => {
@@ -50,17 +75,9 @@ export default function ItemDetailCard({
         };
     }, []);
 
-    // derive type name
-    const resolvedTypeName = useMemo(() => {
-        const typeId = localItem?.Type;
-        if (!typeId) return '-';
-        return typeNameCache.get(typeId) || (allTypes.find((t) => t.id === typeId)?.name || 'Unknown');
-    }, [localItem?.Type, allTypes]);
-
-    // best-effort: infer edge/from/to for display (does not call onChange)
+    // basic edge “from/to” display (best-effort)
     useEffect(() => {
         if (!item || !edges || !items) return;
-
         const edgeId = item.edgeId || item._edge?.id;
         const edge =
             (edgeId && edges.find((e) => e.id === edgeId)) ||
@@ -80,75 +97,49 @@ export default function ItemDetailCard({
         }));
     }, [item?.id, edges, items]);
 
-    // safe debounce -> onChange (and never send x/y)
-    const commitUpdate = (delta = {}) => {
-        if (!localItem?.id && !item?.id) return;
-        const id = item?.id ?? localItem?.id;
+    // commit minimal delta (NEVER includes x/y)
+    const commitUpdate = (patch = {}, options = {}) => {
+        const id = patch?.id ?? item?.id ?? localItem?.id;
+        const payload = { id, ...patch };
+        delete payload.x;
+        delete payload.y;
 
-        // never include x/y from the detail card
-        const { x, y, ...rest } = delta || {};
-        const payload = { id, ...rest };
-
-        // optimistic local
-        setLocalItem((prev) => ({ ...prev, ...rest }));
+        // optimistic local merge (don’t touch x/y)
+        const { x, y, ...uiPatch } = patch || {};
+        setLocalItem((prev) => ({ ...prev, ...uiPatch }));
 
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
-            try {
-                if (typeof onChange === 'function') onChange(payload);
-            } catch (err) {
-                console.error('[ItemDetailCard] onChange threw:', err, payload);
-            } finally {
-                debounceRef.current = null;
-            }
-        }, 400);
+            safeOnChange(payload, options);
+            debounceRef.current = null;
+        }, 300);
     };
 
-    const handleFieldChange = (field, value) => {
-        // ignore any attempts to set x/y from the panel
-        if (field === 'x' || field === 'y') return;
+    const handleFieldChange = (field, value, options = {}) => {
+        if (field === 'x' || field === 'y') return; // ignore positions
 
-        // Type is a single record id (string)
         if (field === 'Type') {
-            commitUpdate({ Type: value || '' });
+            // store as single record id string in UI
+            commitUpdate({ id: item?.id ?? localItem?.id, Type: value || '' }, options);
             return;
         }
 
-        // Category updates both fields and clears Type
-        if (field === 'Category') {
-            commitUpdate({
-                Category: value || '',
-                'Category Item Type': value || '',
-                Type: '', // reset Type so the user picks a valid one for the new category
-            });
-            return;
-        }
-
-        commitUpdate({ [field]: value });
+        commitUpdate({ id: item?.id ?? localItem?.id, [field]: value }, options);
     };
-
-    if (!item) {
-        return (
-            <div style={{ padding: 20, color: '#888' }}>
-                No item selected. Select a node or edge to view details.
-            </div>
-        );
-    }
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
-    const activeCategory =
-        localItem['Category Item Type'] || localItem.Category || 'Equipment';
+    const activeCategory = localItem['Category Item Type'] || localItem.Category || 'Equipment';
 
     const filteredTypes = useMemo(
-        () => allTypes.filter((t) => t?.category === activeCategory),
+        () => allTypes.filter((t) => !activeCategory || getTypeCategory(t) === activeCategory),
         [allTypes, activeCategory]
     );
 
     const row = { display: 'flex', alignItems: 'center', marginBottom: 12 };
     const label = {
         width: 130,
-        fontWeight: 600,
-        color: '#444',
+        fontWeight: 500,
+        color: '#555',
         textAlign: 'right',
         marginRight: 12,
     };
@@ -167,10 +158,20 @@ export default function ItemDetailCard({
         paddingBottom: 6,
         marginBottom: 12,
         marginTop: 0,
-        color: '#222',
+        color: '#333',
     };
 
-    const liveEdge = item._edge || {};
+    const liveEdge = item?._edge || {};
+
+    const getSimpleLinkedValue = (v) => (Array.isArray(v) ? v.join(', ') : v || '');
+
+    if (!item) {
+        return (
+            <div style={{ padding: 20, color: '#888' }}>
+                No item selected. Select a node or edge to view details.
+            </div>
+        );
+    }
 
     return (
         <>
@@ -181,15 +182,15 @@ export default function ItemDetailCard({
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     padding: 20,
                     margin: 16,
-                    maxWidth: 380,
-                    fontFamily: 'ui-sans-serif, system-ui',
+                    maxWidth: 350,
+                    fontFamily: 'sans-serif',
                 }}
             >
                 <section style={section}>
                     <h3 style={header}>General Info</h3>
 
                     <div style={row}>
-                        <span style={label}>Code:</span>
+                        <label style={label}>Code:</label>
                         <input
                             style={input}
                             type="text"
@@ -199,7 +200,7 @@ export default function ItemDetailCard({
                     </div>
 
                     <div style={row}>
-                        <span style={label}>Name:</span>
+                        <label style={label}>Name:</label>
                         <input
                             style={input}
                             type="text"
@@ -209,43 +210,54 @@ export default function ItemDetailCard({
                     </div>
 
                     <div style={row}>
-                        <span style={label}>Category:</span>
+                        <label style={label}>Category:</label>
                         <select
                             style={input}
                             value={activeCategory}
-                            onChange={(e) => handleFieldChange('Category', e.target.value)}
+                            onChange={(e) => {
+                                const newCat = e.target.value;
+                                // clear Type when category changes so user picks a valid one
+                                commitUpdate(
+                                    {
+                                        id: item?.id ?? localItem?.id,
+                                        'Category Item Type': newCat,
+                                        Category: newCat,
+                                        Type: '',
+                                    },
+                                    { reposition: false }
+                                );
+                            }}
                         >
-                            {categories.map((cat) => (
-                                <option key={cat} value={cat}>
-                                    {cat}
+                            {categories.map((c) => (
+                                <option key={c} value={c}>
+                                    {c}
                                 </option>
                             ))}
                         </select>
                     </div>
 
                     <div style={row}>
-                        <span style={label}>Type:</span>
+                        <label style={label}>Type:</label>
                         <select
                             style={input}
-                            value={localItem.Type || ''}
+                            value={localItem.Type || ''} // <-- keep record id string
                             onChange={(e) => handleFieldChange('Type', e.target.value)}
                         >
                             <option value="">Select Type</option>
-                            {filteredTypes.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                    {t.name}
-                                </option>
-                            ))}
+                            {filteredTypes.map((t) => {
+                                const id = getTypeId(t);
+                                const name = getTypeName(t);
+                                return (
+                                    <option key={id} value={id}>
+                                        {name}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
 
-                    <div style={{ ...row, fontSize: 12, color: '#666' }}>
-                        <span style={{ ...label, width: 130, color: '#777' }}>Type label:</span>
-                        <span style={{ flex: 1 }}>{resolvedTypeName}</span>
-                    </div>
-
                     <div style={row}>
-                        <span style={label}>Unit:</span>
+                        <label style={label}>Unit:</label>
                         <input
                             style={input}
                             type="text"
@@ -255,7 +267,7 @@ export default function ItemDetailCard({
                     </div>
 
                     <div style={row}>
-                        <span style={label}>Sub Unit:</span>
+                        <label style={label}>Sub Unit:</label>
                         <input
                             style={input}
                             type="text"
@@ -265,7 +277,7 @@ export default function ItemDetailCard({
                     </div>
 
                     <div style={row}>
-                        <span style={label}>From Item:</span>
+                        <label style={label}>From Item:</label>
                         <input
                             style={input}
                             type="text"
@@ -276,7 +288,7 @@ export default function ItemDetailCard({
                     </div>
 
                     <div style={row}>
-                        <span style={label}>To Item:</span>
+                        <label style={label}>To Item:</label>
                         <input
                             style={input}
                             type="text"
@@ -287,7 +299,7 @@ export default function ItemDetailCard({
                     </div>
 
                     <div style={row}>
-                        <span style={label}>Edge ID:</span>
+                        <label style={label}>Edge ID:</label>
                         <input
                             style={input}
                             type="text"
@@ -302,7 +314,7 @@ export default function ItemDetailCard({
                     <h3 style={header}>Procurement Info</h3>
 
                     <div style={row}>
-                        <span style={label}>Model Number:</span>
+                        <label style={label}>Model Number:</label>
                         <input
                             style={input}
                             type="text"
@@ -312,41 +324,29 @@ export default function ItemDetailCard({
                     </div>
 
                     <div style={row}>
-                        <span style={label}>Manufacturer:</span>
+                        <label style={label}>Manufacturer:</label>
                         <input
                             style={input}
                             type="text"
-                            value={
-                                Array.isArray(localItem['Manufacturer (from Technical Spec)'])
-                                    ? localItem['Manufacturer (from Technical Spec)'].join(', ')
-                                    : localItem['Manufacturer (from Technical Spec)'] || ''
-                            }
-                            onChange={(e) =>
-                                handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)
-                            }
+                            value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])}
+                            onChange={(e) => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)}
                         />
                     </div>
 
                     <div style={row}>
-                        <span style={label}>Supplier:</span>
+                        <label style={label}>Supplier:</label>
                         <input
                             style={input}
                             type="text"
-                            value={
-                                Array.isArray(localItem['Supplier (from Technical Spec)'])
-                                    ? localItem['Supplier (from Technical Spec)'].join(', ')
-                                    : localItem['Supplier (from Technical Spec)'] || ''
-                            }
-                            onChange={(e) =>
-                                handleFieldChange('Supplier (from Technical Spec)', e.target.value)
-                            }
+                            value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])}
+                            onChange={(e) => handleFieldChange('Supplier (from Technical Spec)', e.target.value)}
                         />
                     </div>
                 </section>
             </div>
 
             {onDeleteItem && (
-                <div style={{ margin: '0 16px 16px 16px', maxWidth: 380, textAlign: 'center' }}>
+                <div style={{ margin: 16, maxWidth: 350, textAlign: 'center' }}>
                     <button
                         onClick={() => {
                             if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
@@ -368,49 +368,35 @@ export default function ItemDetailCard({
                 </div>
             )}
 
-            {/* Edge Controls (only if inspecting an edge) */}
             {item?._edge && (
-                <div style={{ margin: '0 16px 16px 16px', maxWidth: 380 }}>
-                    <h4 style={{ margin: '8px 0' }}>Edge Controls</h4>
-
+                <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
+                    <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <input
                             style={{ flex: 1, padding: 8 }}
-                            value={item._edge.label ?? ''}
+                            value={liveEdge.label ?? ''}
                             placeholder="Edge label"
-                            onChange={(e) =>
-                                onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })
-                            }
+                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })}
                         />
-                        <button
-                            onClick={() =>
-                                onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !item._edge.animated })
-                            }
-                        >
-                            {item._edge.animated ? 'Disable animation' : 'Enable animation'}
+                        <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !liveEdge.animated })}>
+                            {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <span style={{ width: 70 }}>Color</span>
+                        <label style={{ width: 70 }}>Color</label>
                         <input
                             type="color"
-                            value={(item._edge.style && item._edge.style.stroke) || '#000000'}
+                            value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
                             onChange={(e) =>
-                                onUpdateEdge &&
-                                onUpdateEdge(item.edgeId, {
-                                    style: { ...(item._edge.style || {}), stroke: e.target.value },
-                                })
+                                onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
                             }
                         />
                         <input
                             type="text"
-                            value={(item._edge.style && item._edge.style.stroke) || ''}
+                            value={(liveEdge.style && liveEdge.style.stroke) || ''}
                             onChange={(e) =>
-                                onUpdateEdge &&
-                                onUpdateEdge(item.edgeId, {
-                                    style: { ...(item._edge.style || {}), stroke: e.target.value },
-                                })
+                                onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
                             }
                             style={{ flex: 1, padding: 8 }}
                         />
@@ -431,25 +417,6 @@ export default function ItemDetailCard({
                             </button>
                         )}
                     </div>
-
-                    {onCreateInlineValve && (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => onCreateInlineValve(item.edgeId)}
-                                style={{
-                                    background: '#1976d2',
-                                    color: '#fff',
-                                    border: 'none',
-                                    padding: '8px 12px',
-                                    borderRadius: 6,
-                                    cursor: 'pointer',
-                                    fontWeight: 600,
-                                }}
-                            >
-                                Create Inline Valve
-                            </button>
-                        </div>
-                    )}
                 </div>
             )}
         </>
