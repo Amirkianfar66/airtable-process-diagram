@@ -27,6 +27,7 @@ export const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
+// READ-ONLY fetch from Airtable (no saves anywhere in this file)
 export const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -50,11 +51,6 @@ export const fetchData = async () => {
 
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
-
-// convert UI fields to Airtable-safe fields (Type must be an array of IDs)
-// Toggle persistence (off for now)
-const PERSIST_TO_AIRTABLE = false;
-
 
 export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -102,39 +98,30 @@ export default function ProcessDiagram() {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
 
-    // helper for builder (previous nodes reference)
+    // previous nodes ref for builder
     const getPrevNodesForBuilder = useCallback(() => nodes, [nodes]);
 
-    // ---------- ITEM CHANGES: never touch node.position ----------
-   // Local-only: update items + node.data, never call network
-    // Local-only: update items + node.data, never call network
-    const handleItemDetailChange = useCallback((updatedItem) => {
-        if (!updatedItem || !updatedItem.id) return;
-        const idStr = String(updatedItem.id);
+    // ---------- ITEM CHANGES: LOCAL ONLY (no network, no alerts) ----------
+    const handleItemDetailChange = useCallback(
+        (updatedItem) => {
+            if (!updatedItem || !updatedItem.id) return;
+            const idStr = String(updatedItem.id);
 
-        // 1) Update items[] locally
-        setItems(prev =>
-            prev.map(it => (String(it.id) === idStr ? { ...it, ...updatedItem } : it))
-        );
+            // 1) update items[] locally
+            setItems((prev) => prev.map((it) => (String(it.id) === idStr ? { ...it, ...updatedItem } : it)));
 
-        // 2) Update the node's data only (never touch position)
-        setNodes(prevNodes =>
-            prevNodes.map(node =>
-                String(node.id) === idStr
-                    ? { ...node, data: { ...node.data, ...updatedItem } }
-                    : node
-            )
-        );
+            // 2) update node.data only (never touch position)
+            setNodes((prevNodes) =>
+                prevNodes.map((node) =>
+                    String(node.id) === idStr ? { ...node, data: { ...node.data, ...updatedItem } } : node
+                )
+            );
 
-        // 3) Keep the right panel in sync
-        setSelectedItem(cur =>
-            cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur
-        );
-
-        // 4) Explicitly do nothing else (no PATCH, no alerts)
-        // console.debug('[Airtable disabled] Local update only for', idStr);
-    }, [setItems, setNodes, setSelectedItem]);
-
+            // 3) keep details panel in sync
+            setSelectedItem((cur) => (cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur));
+        },
+        [setItems, setNodes, setSelectedItem]
+    );
 
     const onConnect = useCallback(
         (params) => {
@@ -153,7 +140,7 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
 
-    // ---------- DRAG: write position to state cache + items (for rebuild resilience) ----------
+    // ---------- DRAG: write position to state cache + items ----------
     const onNodeDrag = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
@@ -171,13 +158,7 @@ export default function ProcessDiagram() {
                 const deltaX = draggedNode.position.x - (draggedNode.data?.prevX ?? draggedNode.position.x);
                 const deltaY = draggedNode.position.y - (draggedNode.data?.prevY ?? draggedNode.position.y);
 
-                return {
-                    ...n,
-                    position: {
-                        x: n.position.x + deltaX,
-                        y: n.position.y + deltaY,
-                    },
-                };
+                return { ...n, position: { x: n.position.x + deltaX, y: n.position.y + deltaY } };
             })
         );
 
@@ -194,14 +175,14 @@ export default function ProcessDiagram() {
         (event, draggedNode) => {
             if (!draggedNode) return;
 
-            // 1) keep node position in ReactFlow state + cache
+            // 1) keep node position in RF state + cache
             setNodes((nds) => {
                 const next = nds.map((n) => (n.id === draggedNode.id ? { ...n, position: { ...draggedNode.position } } : n));
                 capturePositions(next);
                 return next;
             });
 
-            // 2) persist position into items[] so diagramBuilder can reuse it on rebuilds
+            // 2) persist position into items[] so builder can reuse it on rebuilds
             setItems((prev) =>
                 Array.isArray(prev)
                     ? prev.map((it) =>
@@ -227,7 +208,6 @@ export default function ProcessDiagram() {
                 setSelectedItem(null);
                 return;
             }
-
             const fromItem = items.find((it) => String(it.id) === String(edge.source)) || null;
             const toItem = items.find((it) => String(it.id) === String(edge.target)) || null;
 
@@ -368,9 +348,7 @@ export default function ProcessDiagram() {
             const updatedItems = [...items];
             const existingIds = new Set(updatedItems.map((i) => i.id));
             aiItems.forEach((item) => {
-                if (item.id && !existingIds.has(item.id)) {
-                    updatedItems.push(item);
-                }
+                if (item.id && !existingIds.has(item.id)) updatedItems.push(item);
             });
             setItems(updatedItems);
 
@@ -416,7 +394,7 @@ export default function ProcessDiagram() {
                     Category: Array.isArray(item['Category Item Type'])
                         ? item['Category Item Type'][0]
                         : item['Category Item Type'] || '',
-                    // keep only first Type ID for UI; we save it back as array
+                    // keep only first Type ID for UI (read-only)
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Sequence: item.Sequence || 0,
                     Connections: Array.isArray(item.Connections) ? item.Connections : [],
@@ -528,6 +506,7 @@ export default function ProcessDiagram() {
         prevItemsRef.current = items;
     }, [unitLayoutOrder, items, getPrevNodesForBuilder]);
 
+    // helpers for group panel
     const itemsMap = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
 
     const selectedGroupNode =
@@ -569,7 +548,83 @@ export default function ProcessDiagram() {
 
     const onDeleteGroup = (groupId) => setNodes((nds) => nds.filter((n) => n.id !== groupId));
 
-    // Selection hook used by DiagramCanvas
+    // add item (no saving)
+    const handleAddItem = (rawItem) => {
+        setItems((prevItems) => {
+            const firstKnownUnit =
+                Array.isArray(unitLayoutOrder) && unitLayoutOrder.length && unitLayoutOrder[0].length
+                    ? unitLayoutOrder[0][0]
+                    : prevItems[0]?.Unit || 'Unit 1';
+
+            const normalizedItem = {
+                id: rawItem.id || `item-${Date.now()}`,
+                Name: rawItem.Name || 'New Item',
+                Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
+                'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
+                Unit: rawItem.Unit || selectedItem?.Unit || firstKnownUnit || 'Unit 1',
+                SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? 'Default SubUnit',
+                Category: Array.isArray(rawItem['Category Item Type'])
+                    ? rawItem['Category Item Type'][0]
+                    : rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment',
+                'Category Item Type': Array.isArray(rawItem['Category Item Type'])
+                    ? rawItem['Category Item Type'][0]
+                    : rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment',
+                Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : rawItem.Type || '',
+                Sequence: rawItem.Sequence ?? 0,
+                Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
+            };
+
+            const nextItems = [...prevItems, normalizedItem];
+
+            const ensureUnitInLayout = (layout, unit) => {
+                if (!Array.isArray(layout) || !layout.length) return [[unit]];
+                const flat = new Set(layout.flat());
+                if (!flat.has(unit)) {
+                    const copy = layout.map((row) => [...row]);
+                    copy[0].push(unit);
+                    return copy;
+                }
+                return layout;
+            };
+
+            const currentLayout = Array.isArray(unitLayoutOrder) && unitLayoutOrder.length ? unitLayoutOrder : [[]];
+            const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
+            if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
+
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } =
+                buildDiagram(nextItems, patchedLayout, { prevNodes: getPrevNodesForBuilder() });
+
+            setNodes((prevNodes) => {
+                const next = (rebuiltNodes || []).map((fresh) => {
+                    const prev = prevNodes.find((p) => String(p.id) === String(fresh.id));
+                    if (!prev) return fresh;
+                    return {
+                        ...prev,
+                        type: fresh.type ?? prev.type,
+                        style: { ...(prev.style || {}), ...(fresh.style || {}) },
+                        data: { ...(prev.data || {}), ...(fresh.data || {}) },
+                    };
+                });
+
+                const missingPrev = prevNodes.filter((p) => !next.some((m) => String(m.id) === String(p.id)));
+                const merged = [...next, ...missingPrev];
+
+                const rePos = applyPositions(merged);
+                capturePositions(rePos);
+                return rePos;
+            });
+
+            setEdges(rebuiltEdges);
+
+            const addedNode = rebuiltNodes.find((n) => n.id === normalizedItem.id);
+            if (addedNode) setSelectedNodes([addedNode]);
+            setSelectedItem(normalizedItem);
+
+            return nextItems;
+        });
+    };
+
+    // selection (used by DiagramCanvas)
     const onSelectionChange = useCallback(
         ({ nodes: selNodes, edges: selEdges }) => {
             setSelectedNodes(selNodes || []);
@@ -600,7 +655,7 @@ export default function ProcessDiagram() {
         [items, handleEdgeSelect]
     );
 
-    // Wrap React Flow nodes change to keep cache fresh
+    // wrap RF nodes change to keep cache fresh
     const onNodesChangeWrapped = useCallback(
         (changes) => {
             onNodesChange(changes);
@@ -614,7 +669,7 @@ export default function ProcessDiagram() {
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            {/* LEFT: Airtable table */}
+            {/* LEFT: Airtable table (read-only) */}
             <div style={{ flex: 1, minWidth: 0, borderRight: '1px solid #ddd' }}>
                 <AirtableGrid />
             </div>
@@ -640,10 +695,7 @@ export default function ProcessDiagram() {
                         AddItemButton={AddItemButton}
                         addItem={handleAddItem}
                         selectedItem={selectedItem}
-                        onItemChange={(updatedItem) => {
-                            // never request reposition from the panel
-                            handleItemDetailChange(updatedItem);
-                        }}
+                        onItemChange={handleItemDetailChange} // local only
                         onDeleteItem={handleDeleteItem}
                         onDeleteEdge={handleDeleteEdge}
                         onUpdateEdge={handleUpdateEdge}
@@ -694,7 +746,7 @@ export default function ProcessDiagram() {
                                 item={selectedItem}
                                 items={items}
                                 edges={edges}
-                                onChange={handleItemDetailChange}
+                                onChange={handleItemDetailChange} // local only
                                 onDeleteItem={handleDeleteItem}
                                 onDeleteEdge={handleDeleteEdge}
                                 onUpdateEdge={handleUpdateEdge}
