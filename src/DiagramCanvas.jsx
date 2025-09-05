@@ -1,13 +1,10 @@
 ﻿// src/components/DiagramCanvas.jsx
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
 import { getItemIcon, categoryTypeMap } from './IconManager';
-import ScalableIconNode from './ScalableIconNode';
-import ResizableNode from './ResizableNode';
-import CustomItemNode from './CustomItemNode';
 
 export default function DiagramCanvas({
     nodes,
@@ -20,8 +17,8 @@ export default function DiagramCanvas({
     onEdgesChange,
     onConnect,
     onSelectionChange,
-    onEdgeClick,
-    onEdgeSelect,
+    onEdgeClick,     // optional parent callback
+    onEdgeSelect,    // optional parent selection callback
     nodeTypes,
     AddItemButton,
     addItem,
@@ -42,9 +39,10 @@ export default function DiagramCanvas({
     const panelRef = useRef(null);
 
     useEffect(() => {
-        console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
+        console.log('DiagramCanvas mounted / props onEdgeClick:', !!onEdgeClick);
     }, [onEdgeClick]);
 
+    // ensure edges are clickable (pointerEvents) and have interactionWidth
     const enhancedEdges = useMemo(() => {
         if (!Array.isArray(edges)) return [];
         return edges.map((e) => ({
@@ -54,6 +52,7 @@ export default function DiagramCanvas({
         }));
     }, [edges]);
 
+    // inline valve types helper
     const inlineValveTypes = useMemo(() => {
         const val = categoryTypeMap?.['Inline Valve'];
         if (!val) return [];
@@ -62,240 +61,219 @@ export default function DiagramCanvas({
         return [String(val)];
     }, [categoryTypeMap]);
 
-    // ---------- Edge handlers ----------
-    const handleEdgeClick = useCallback(
-        (event, edge) => {
-            event?.stopPropagation?.();
-            console.log('handleEdgeClick fired for edge:', edge?.id);
-            const liveEdge = edges?.find((e) => e.id === edge.id) || edge;
+    // ----------------------
+    // Edge handlers
+    // ----------------------
+    function handleEdgeClickLocal(event, edge) {
+        event?.stopPropagation?.();
+        console.log('edge clicked:', edge?.id);
+        const liveEdge = (edges || []).find((e) => e.id === edge.id) || edge;
+        setSelectedEdge(liveEdge);
+        setSelectedNode(null);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(liveEdge);
+        if (typeof onEdgeClick === 'function') onEdgeClick(event, liveEdge);
+    }
+
+    function deleteSelectedEdge() {
+        if (!selectedEdge) return;
+        if (!window.confirm('Delete this edge?')) return;
+        setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
+        // clear inspector
+        setSelectedEdge(null);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+    }
+
+    function updateSelectedEdge(patch) {
+        if (typeof setEdges !== 'function') return;
+        setEdges((prev) =>
+            prev.map((e) => {
+                if (e.id !== selectedEdge?.id) return e;
+                const mergedData = { ...(e.data || {}), ...(patch.data || {}) };
+                return { ...e, ...patch, data: mergedData };
+            })
+        );
+        setSelectedEdge((s) => {
+            if (!s) return s;
+            const mergedData = { ...(s.data || {}), ...(patch.data || {}) };
+            return { ...s, ...patch, data: mergedData };
+        });
+    }
+
+    function changeEdgeCategory(category) {
+        if (!selectedEdge) return;
+        if (category !== 'Inline Valve') {
+            updateSelectedEdge({ data: { ...(selectedEdge.data || {}), category } });
+            return;
+        }
+
+        // create valve node in middle and split edge (step)
+        const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
+        const targetNode = nodes.find((n) => n.id === selectedEdge.target);
+        if (!sourceNode || !targetNode) return;
+
+        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+        const newItem = {
+            id: `valve-${Date.now()}`,
+            'Item Code': `VALVE-${Date.now()}`,
+            Name: 'Inline Valve',
+            Category: 'Inline Valve',
+            'Category Item Type': 'Inline Valve',
+            Type: '',
+            Unit: sourceNode.data?.item?.Unit || '',
+            SubUnit: sourceNode.data?.item?.SubUnit || '',
+            x: midX,
+            y: midY,
+            edgeId: selectedEdge.id,
+        };
+
+        const newNode = {
+            id: newItem.id,
+            position: { x: midX, y: midY },
+            data: { label: `${newItem['Item Code']} - ${newItem.Name}`, item: newItem, icon: getItemIcon(newItem) },
+            type: 'scalableIcon',
+            sourcePosition: 'right',
+            targetPosition: 'left',
+            style: { background: 'transparent' },
+        };
+
+        const newEdgeA = {
+            id: `edge-${selectedEdge.source}-${newNode.id}-${Date.now()}`,
+            source: selectedEdge.source,
+            target: newNode.id,
+            type: 'step',
+            animated: selectedEdge.animated ?? true,
+            style: { stroke: selectedEdge?.style?.stroke || '#000' },
+            data: { category: 'Inline Valve', Type: '' },
+        };
+        const newEdgeB = {
+            id: `edge-${newNode.id}-${selectedEdge.target}-${Date.now()}`,
+            source: newNode.id,
+            target: targetNode.id,
+            type: 'step',
+            animated: selectedEdge.animated ?? true,
+            style: { stroke: selectedEdge?.style?.stroke || '#000' },
+            data: { category: 'Inline Valve', Type: '' },
+        };
+
+        setNodes((nds) => [...nds, newNode]);
+        setEdges((eds) => {
+            const next = [...eds.filter((e) => e.id !== selectedEdge.id), newEdgeA, newEdgeB];
+            return next;
+        });
+
+        // show inspector on newEdgeA
+        setSelectedEdge(newEdgeA);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(newEdgeA);
+    }
+
+    // ----------------------
+    // Node handlers
+    // ----------------------
+    function handleNodeClickLocal(event, node) {
+        event?.stopPropagation?.();
+        console.log('node clicked:', node?.id);
+        const liveNode = (nodes || []).find((n) => n.id === node.id) || node;
+        setSelectedNode(liveNode);
+        setSelectedEdge(null);
+        if (typeof setSelectedItem === 'function') setSelectedItem(liveNode?.data?.item ?? null);
+    }
+
+    function deleteSelectedNode() {
+        if (!selectedNode) return;
+        if (!window.confirm('Delete this item?')) return;
+        setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id));
+        setEdges((prev) => prev.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
+        if (typeof setItems === 'function') {
+            setItems((prev) => Array.isArray(prev) ? prev.filter((it) => it.id !== selectedNode.id) : prev);
+        }
+        setSelectedNode(null);
+        if (typeof setSelectedItem === 'function') setSelectedItem(null);
+    }
+
+    function updateSelectedNode(patch) {
+        if (typeof setNodes !== 'function') return;
+        setNodes((prev) =>
+            prev.map((n) => {
+                if (n.id !== selectedNode?.id) return n;
+                const mergedData = { ...(n.data || {}), ...(patch.data || {}) };
+                return { ...n, ...patch, data: mergedData };
+            })
+        );
+        setSelectedNode((s) => {
+            if (!s) return s;
+            const mergedData = { ...(s.data || {}), ...(patch.data || {}) };
+            return { ...s, ...patch, data: mergedData };
+        });
+        if (typeof setItems === 'function') {
+            setItems((prev) => {
+                if (!Array.isArray(prev)) return prev;
+                return prev.map((it) => (it.id === selectedNode?.id ? { ...it, ...(patch.data?.item || {}) } : it));
+            });
+        }
+    }
+
+    // ----------------------
+    // Selection glue: forward selection changes & keep local inspectors in sync
+    // ----------------------
+    function handleSelectionChangeLocal(selection) {
+        // selection is { nodes: [{id}], edges: [{id}] }
+        const selNodes = Array.isArray(selection?.nodes) ? selection.nodes : [];
+        const selEdges = Array.isArray(selection?.edges) ? selection.edges : [];
+
+        // prefer single-edge selection
+        if (selEdges.length === 1 && selNodes.length === 0) {
+            const e = selEdges[0];
+            const liveEdge = (edges || []).find((ed) => ed.id === e.id) || e;
             setSelectedEdge(liveEdge);
             setSelectedNode(null);
             if (typeof onEdgeSelect === 'function') onEdgeSelect(liveEdge);
-            if (typeof onEdgeClick === 'function') onEdgeClick(event, liveEdge);
-        },
-        [edges, onEdgeSelect, onEdgeClick]
-    );
+            if (typeof onSelectionChange === 'function') onSelectionChange(selection);
+            return;
+        }
 
-    const deleteSelectedEdge = useCallback(() => {
-        if (!selectedEdge || typeof setEdges !== 'function') return;
-        if (!window.confirm('Delete this edge?')) return;
-        setEdges((prev) => prev.filter((e) => e.id !== selectedEdge.id));
-        handleCloseInspector();
-    }, [selectedEdge, setEdges]);
-
-    const updateSelectedEdge = useCallback(
-        (patch) => {
-            if (typeof setEdges !== 'function') return;
-            setEdges((prev) =>
-                prev.map((e) => {
-                    if (e.id !== selectedEdge?.id) return e;
-                    const mergedData = { ...(e.data || {}), ...(patch.data || {}) };
-                    return { ...e, ...patch, data: mergedData };
-                })
-            );
-            setSelectedEdge((s) => {
-                if (!s) return s;
-                const mergedData = { ...(s.data || {}), ...(patch.data || {}) };
-                return { ...s, ...patch, data: mergedData };
-            });
-        },
-        [selectedEdge, setEdges]
-    );
-
-    const changeEdgeCategory = useCallback(
-        (category) => {
-            if (!selectedEdge) return;
-
-            if (category !== 'Inline Valve') {
-                updateSelectedEdge({
-                    data: { ...(selectedEdge.data || {}), category },
-                });
-                return;
-            }
-
-            // create valve node in the middle and split edge into two step edges
-            const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
-            const targetNode = nodes.find((n) => n.id === selectedEdge.target);
-            if (!sourceNode || !targetNode) return;
-
-            const midX = (sourceNode.position.x + targetNode.position.x) / 2;
-            const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-
-            const newItem = {
-                id: `valve-${Date.now()}`,
-                'Item Code': `VALVE-${Date.now()}`,
-                Name: 'Inline Valve',
-                Category: 'Inline Valve',
-                'Category Item Type': 'Inline Valve',
-                Type: '',
-                Unit: sourceNode.data?.item?.Unit || '',
-                SubUnit: sourceNode.data?.item?.SubUnit || '',
-                x: midX,
-                y: midY,
-                edgeId: selectedEdge.id,
-            };
-
-            const newNode = {
-                id: newItem.id,
-                position: { x: midX, y: midY },
-                data: {
-                    label: `${newItem['Item Code']} - ${newItem.Name}`,
-                    item: newItem,
-                    icon: getItemIcon(newItem),
-                },
-                type: 'scalableIcon',
-                sourcePosition: 'right',
-                targetPosition: 'left',
-                style: { background: 'transparent' },
-            };
-
-            const newEdgeA = {
-                id: `edge-${selectedEdge.source}-${newNode.id}-${Date.now()}`,
-                source: selectedEdge.source,
-                target: newNode.id,
-                type: 'step',
-                animated: selectedEdge.animated ?? true,
-                style: { stroke: selectedEdge?.style?.stroke || '#000' },
-                data: { category: 'Inline Valve', Type: '' },
-            };
-            const newEdgeB = {
-                id: `edge-${newNode.id}-${selectedEdge.target}-${Date.now()}`,
-                source: newNode.id,
-                target: targetNode.id,
-                type: 'step',
-                animated: selectedEdge.animated ?? true,
-                style: { stroke: selectedEdge?.style?.stroke || '#000' },
-                data: { category: 'Inline Valve', Type: '' },
-            };
-
-            setNodes((nds) => [...nds, newNode]);
-            setEdges((eds) => {
-                const next = [...eds.filter((e) => e.id !== selectedEdge.id), newEdgeA, newEdgeB];
-                return next;
-            });
-
-            setSelectedEdge(newEdgeA);
-            if (typeof onEdgeSelect === 'function') onEdgeSelect(newEdgeA);
-        },
-        [selectedEdge, nodes, setNodes, setEdges, updateSelectedEdge, onEdgeSelect]
-    );
-
-    // ---------- Node handlers ----------
-    const handleNodeClick = useCallback(
-        (event, node) => {
-            event?.stopPropagation?.();
-            const liveNode = nodes?.find((n) => n.id === node.id) || node;
+        // single node
+        if (selNodes.length === 1 && selEdges.length === 0) {
+            const n = selNodes[0];
+            const liveNode = (nodes || []).find((nd) => nd.id === n.id) || n;
             setSelectedNode(liveNode);
             setSelectedEdge(null);
             if (typeof setSelectedItem === 'function') setSelectedItem(liveNode?.data?.item ?? null);
-        },
-        [nodes, setSelectedItem]
-    );
-
-    const deleteSelectedNode = useCallback(() => {
-        if (!selectedNode || typeof setNodes !== 'function') return;
-        if (!window.confirm('Delete this item?')) return;
-
-        setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id));
-        setEdges((prev) => prev.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
-
-        if (typeof setItems === 'function') {
-            setItems((prevItems) => (Array.isArray(prevItems) ? prevItems.filter((it) => it.id !== selectedNode.id) : prevItems));
+            if (typeof onSelectionChange === 'function') onSelectionChange(selection);
+            return;
         }
 
+        // multiple or none -> clear local inspectors but still forward
+        setSelectedEdge(null);
         setSelectedNode(null);
-        if (typeof setSelectedItem === 'function') setSelectedItem(null);
-    }, [selectedNode, setNodes, setEdges, setItems, setSelectedItem]);
+        if (typeof onSelectionChange === 'function') onSelectionChange(selection);
+    }
 
-    const updateSelectedNode = useCallback(
-        (patch) => {
-            if (typeof setNodes !== 'function') return;
-            setNodes((prev) =>
-                prev.map((n) => {
-                    if (n.id !== selectedNode?.id) return n;
-                    const mergedData = { ...(n.data || {}), ...(patch.data || {}) };
-                    return { ...n, ...patch, data: mergedData };
-                })
-            );
-
-            setSelectedNode((s) => {
-                if (!s) return s;
-                const mergedData = { ...(s.data || {}), ...(patch.data || {}) };
-                return { ...s, ...patch, data: mergedData };
-            });
-
-            if (typeof setItems === 'function') {
-                setItems((prevItems) => {
-                    if (!Array.isArray(prevItems)) return prevItems;
-                    return prevItems.map((it) => (it.id === selectedNode?.id ? { ...it, ...(patch.data?.item || {}) } : it));
-                });
-            }
-        },
-        [selectedNode, setNodes, setItems]
-    );
-
-    // ---------- Selection handler (centralized) ----------
-    const handleSelectionChangeLocal = useCallback(
-        (sel) => {
-            const selNodes = Array.isArray(sel?.nodes) ? sel.nodes : [];
-            const selEdges = Array.isArray(sel?.edges) ? sel.edges : [];
-
-            // Prefer single-edge selection
-            if (selEdges.length === 1 && selNodes.length === 0) {
-                const e = selEdges[0];
-                const liveEdge = edges?.find((ed) => ed.id === e.id) || e;
-                setSelectedEdge(liveEdge);
-                setSelectedNode(null);
-                if (typeof onEdgeSelect === 'function') onEdgeSelect(liveEdge);
-                if (typeof onSelectionChange === 'function') onSelectionChange(sel);
-                return;
-            }
-
-            // Single-node selection
-            if (selNodes.length === 1 && selEdges.length === 0) {
-                const n = selNodes[0];
-                const liveNode = nodes?.find((nd) => nd.id === n.id) || n;
-                setSelectedNode(liveNode);
-                setSelectedEdge(null);
-                if (typeof setSelectedItem === 'function') setSelectedItem(liveNode?.data?.item ?? null);
-                if (typeof onSelectionChange === 'function') onSelectionChange(sel);
-                return;
-            }
-
-            // multiple or none -> clear local inspectors, but forward event
-            setSelectedEdge(null);
-            setSelectedNode(null);
-            if (typeof onSelectionChange === 'function') onSelectionChange(sel);
-        },
-        [edges, nodes, onEdgeSelect, onSelectionChange, setSelectedItem]
-    );
-
-    // single close handler
-    const handleCloseInspector = useCallback(() => {
+    // close inspector helper
+    function handleCloseInspector() {
         setSelectedEdge(null);
         setSelectedNode(null);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
         if (typeof setSelectedItem === 'function') setSelectedItem(null);
-    }, [onEdgeSelect, setSelectedItem]);
+    }
 
-    // keyboard shortcuts
+    // keyboard shortcuts (Delete, Esc) at canvas level
     useEffect(() => {
         if (!selectedEdge && !selectedNode) return;
         const onKey = (e) => {
-            if (e.key === 'Escape') {
-                handleCloseInspector();
-            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (e.key === 'Escape') handleCloseInspector();
+            else if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (selectedEdge) deleteSelectedEdge();
                 else if (selectedNode) deleteSelectedNode();
             }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [selectedEdge, selectedNode, handleCloseInspector, deleteSelectedEdge, deleteSelectedNode]);
+    }, [selectedEdge, selectedNode]); // intentionally small deps
 
     const edgeCategories = ['None', 'Inline Valve'];
 
-    // ---------- Render ----------
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <MainToolbar
@@ -338,8 +316,8 @@ export default function DiagramCanvas({
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={handleSelectionChangeLocal}
-                    onEdgeClick={handleEdgeClick}
-                    onNodeClick={handleNodeClick}
+                    onEdgeClick={handleEdgeClickLocal}
+                    onNodeClick={handleNodeClickLocal}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
                     fitView
@@ -373,7 +351,7 @@ export default function DiagramCanvas({
                         flexDirection: 'column',
                     }}
                 >
-                    {/* EDGE INSPECTOR */}
+                    {/* Edge inspector */}
                     {selectedEdge && (
                         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -387,20 +365,10 @@ export default function DiagramCanvas({
                             </div>
 
                             <div style={{ fontSize: 13 }}>
-                                <div>
-                                    <strong>ID:</strong> {selectedEdge.id}
-                                </div>
-                                <div>
-                                    <strong>Source:</strong> {selectedEdge.source}
-                                    {selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}
-                                </div>
-                                <div>
-                                    <strong>Target:</strong> {selectedEdge.target}
-                                    {selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}
-                                </div>
-                                <div style={{ marginTop: 8 }}>
-                                    <strong>Type:</strong> {selectedEdge.type || 'default'}
-                                </div>
+                                <div><strong>ID:</strong> {selectedEdge.id}</div>
+                                <div><strong>Source:</strong> {selectedEdge.source}{selectedEdge.sourceHandle ? ` (${selectedEdge.sourceHandle})` : ''}</div>
+                                <div><strong>Target:</strong> {selectedEdge.target}{selectedEdge.targetHandle ? ` (${selectedEdge.targetHandle})` : ''}</div>
+                                <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
                             </div>
 
                             <div>
@@ -411,38 +379,21 @@ export default function DiagramCanvas({
                                     style={{ padding: 8, width: '100%' }}
                                 >
                                     {edgeCategories.map((cat) => (
-                                        <option key={cat} value={cat}>
-                                            {cat}
-                                        </option>
+                                        <option key={cat} value={cat}>{cat}</option>
                                     ))}
                                 </select>
                             </div>
 
-                            {/* Type selection for Inline Valve */}
                             {selectedEdge?.data?.category === 'Inline Valve' && (
                                 <div>
                                     <label style={{ display: 'block', fontSize: 12 }}>Type</label>
                                     <select
                                         value={selectedEdge?.data?.Type || ''}
-                                        onChange={(e) =>
-                                            updateSelectedEdge({
-                                                data: { ...(selectedEdge.data || {}), Type: e.target.value },
-                                            })
-                                        }
+                                        onChange={(e) => updateSelectedEdge({ data: { ...(selectedEdge.data || {}), Type: e.target.value } })}
                                         style={{ padding: 8, width: '100%' }}
                                     >
-                                        <option value="">Select type...</option>
-                                        {inlineValveTypes.length > 0 ? (
-                                            inlineValveTypes.map((type) => (
-                                                <option key={type} value={type}>
-                                                    {type}
-                                                </option>
-                                            ))
-                                        ) : (
-                                            <option value="" disabled>
-                                                No types defined
-                                            </option>
-                                        )}
+                                        <option value=''>Select type...</option>
+                                        {inlineValveTypes.length > 0 ? inlineValveTypes.map((t) => <option key={t} value={t}>{t}</option>) : <option disabled>No types</option>}
                                     </select>
                                 </div>
                             )}
@@ -451,66 +402,31 @@ export default function DiagramCanvas({
                         </div>
                     )}
 
-                    {/* NODE / ITEM INSPECTOR */}
+                    {/* Node / Item inspector */}
                     {selectedNode && (
                         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <strong>Item inspector</strong>
                                 <div>
-                                    <button onClick={deleteSelectedNode} style={{ marginRight: 8 }}>
-                                        Delete
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedNode(null);
-                                            if (typeof setSelectedItem === 'function') setSelectedItem(null);
-                                        }}
-                                    >
-                                        Close
-                                    </button>
+                                    <button onClick={deleteSelectedNode} style={{ marginRight: 8 }}>Delete</button>
+                                    <button onClick={() => { setSelectedNode(null); if (typeof setSelectedItem === 'function') setSelectedItem(null); }}>Close</button>
                                 </div>
                             </div>
 
                             <div style={{ fontSize: 13 }}>
-                                <div>
-                                    <strong>ID:</strong> {selectedNode.id}
-                                </div>
-                                <div>
-                                    <strong>Label:</strong> {selectedNode.data?.label}
-                                </div>
-                                <div>
-                                    <strong>Category:</strong> {selectedNode.data?.item?.Category}
-                                </div>
+                                <div><strong>ID:</strong> {selectedNode.id}</div>
+                                <div><strong>Label:</strong> {selectedNode.data?.label}</div>
+                                <div><strong>Category:</strong> {selectedNode.data?.item?.Category}</div>
                             </div>
 
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Name</label>
-                                <input
-                                    type="text"
-                                    value={selectedNode.data?.item?.Name || ''}
-                                    onChange={(e) => {
-                                        const newName = e.target.value;
-                                        updateSelectedNode({
-                                            data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), Name: newName } },
-                                        });
-                                    }}
-                                    style={{ padding: 6, width: '100%' }}
-                                />
+                                <input type='text' value={selectedNode.data?.item?.Name || ''} onChange={(e) => updateSelectedNode({ data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), Name: e.target.value } } })} style={{ padding: 6, width: '100%' }} />
                             </div>
 
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Item Code</label>
-                                <input
-                                    type="text"
-                                    value={selectedNode.data?.item?.['Item Code'] || selectedNode.data?.item?.Code || ''}
-                                    onChange={(e) => {
-                                        const newCode = e.target.value;
-                                        updateSelectedNode({
-                                            data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), 'Item Code': newCode, Code: newCode } },
-                                        });
-                                    }}
-                                    style={{ padding: 6, width: '100%' }}
-                                />
+                                <input type='text' value={selectedNode.data?.item?.['Item Code'] || selectedNode.data?.item?.Code || ''} onChange={(e) => updateSelectedNode({ data: { ...(selectedNode.data || {}), item: { ...(selectedNode.data?.item || {}), 'Item Code': e.target.value, Code: e.target.value } } })} style={{ padding: 6, width: '100%' }} />
                             </div>
 
                             <div style={{ marginTop: 'auto', fontSize: 12, color: '#666' }}>Keyboard: Esc to close · Delete to remove</div>
