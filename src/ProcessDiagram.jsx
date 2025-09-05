@@ -309,33 +309,7 @@ export default function ProcessDiagram() {
         setSelectedItem(null);
     }, []);
 
-    const handleCreateInlineValve = useCallback(
-        (edgeId) => {
-            const edge = edges.find((e) => e.id === edgeId);
-            if (!edge) return;
-
-            const sourceNode = nodes.find((n) => n.id === edge.source);
-            const targetNode = nodes.find((n) => n.id === edge.target);
-            if (!sourceNode || !targetNode) return;
-
-            const midX = (sourceNode.position.x + targetNode.position.x) / 2;
-            const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-
-            const newValveId = `valve-${Date.now()}`;
-
-            const newItem = {
-                id: newValveId,
-                'Item Code': `VALVE-${Date.now()}`,
-                Name: 'Inline Valve',
-                Category: 'Inline Valve',
-                'Category Item Type': 'Inline Valve',
-                Type: [],
-                Unit: sourceNode?.data?.item?.Unit || '',
-                SubUnit: sourceNode?.data?.item?.SubUnit || '',
-                x: midX,
-                y: midY,
-                edgeId: edge.id,
-            };
+   
 
             const newNode = {
                 id: newItem.id,
