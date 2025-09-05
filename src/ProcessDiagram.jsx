@@ -1,5 +1,5 @@
-﻿// src/ProcessDiagram.jsx
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+﻿// src/components/ProcessDiagram.jsx
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
@@ -11,13 +11,14 @@ import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
 import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
-import { getItemIcon, categoryTypeMap } from './IconManager';
+import { getItemIcon } from './IconManager';
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import UnitLayoutConfig from './UnitLayoutConfig';
+import AirtableGrid from './Airtable/AirtableGrid';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -62,7 +63,30 @@ export default function ProcessDiagram() {
     const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
     const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
 
-    // ---------- helpers ----------
+    const prevItemsRef = useRef([]);
+    const positionsRef = useRef(new Map()); // id -> {x,y}
+
+    function capturePositions(nodesArray) {
+        const m = positionsRef.current;
+        nodesArray.forEach((n) => {
+            if (n?.id && n?.position) m.set(String(n.id), { x: n.position.x, y: n.position.y });
+        });
+    }
+
+    function applyPositions(nodesArray) {
+        const m = positionsRef.current;
+        return nodesArray.map((n) => {
+            const cached = m.get(String(n.id));
+            if (cached) return { ...n, position: { x: cached.x, y: cached.y } };
+            const altId = n?.data?.item?.id;
+            if (altId) {
+                const cached2 = m.get(String(altId));
+                if (cached2) return { ...n, position: { x: cached2.x, y: cached2.y } };
+            }
+            return n;
+        });
+    }
+
     const updateNode = (id, newData) => {
         setNodes((nds) =>
             nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node))
@@ -74,55 +98,73 @@ export default function ProcessDiagram() {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
 
-    // Selection handling (node/edge)
-    const onSelectionChange = useCallback(
-        ({ nodes: selNodes, edges: selEdges }) => {
-            setSelectedNodes(selNodes || []);
+    // ---------- ITEM CHANGES: never touch node.position ----------
+    const handleItemDetailChange = useCallback(
+        async (updatedItem /*, options */) => {
+            if (!updatedItem || !updatedItem.id) return;
+            const idStr = String(updatedItem.id);
 
-            if (Array.isArray(selNodes) && selNodes.length === 1) {
-                const selNode = selNodes[0];
+            let previousItemsSnapshot;
+            setItems((prev) => {
+                previousItemsSnapshot = prev;
+                return prev.map((it) => (String(it.id) === idStr ? { ...it, ...updatedItem } : it));
+            });
 
-                // Prefer authoritative item in items[]
-                const itemFromItems = items.find((it) => String(it.id) === String(selNode.id));
-                if (itemFromItems) {
-                    setSelectedItem(itemFromItems);
-                    return;
+            // Only merge data on the node; never change position
+            setNodes((prevNodes) =>
+                prevNodes.map((node) => {
+                    if (String(node.id) !== idStr) return node;
+                    return { ...node, data: { ...node.data, ...updatedItem } };
+                })
+            );
+
+            setSelectedItem((cur) => (cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur));
+
+            const payloadFields = { ...updatedItem };
+            delete payloadFields.id;
+
+            try {
+                const res = await fetch('/api/airtable', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: updatedItem.id, fields: payloadFields }),
+                });
+
+                if (!res.ok) {
+                    const txt = await res.text().catch(() => '');
+                    throw new Error(`Server returned ${res.status} ${res.statusText} ${txt}`);
                 }
 
-                // Fallback to node.data.item
-                if (selNode?.data?.item) {
-                    setSelectedItem(selNode.data.item);
-                    return;
+                const json = await res.json().catch(() => null);
+                if (json && json.id) {
+                    setItems((prev) =>
+                        prev.map((it) => (String(it.id) === idStr ? { ...it, ...json.fields, id: json.id } : it))
+                    );
+                    setNodes((prevNodes) =>
+                        prevNodes.map((node) =>
+                            String(node.id) === idStr ? { ...node, data: { ...node.data, ...(json.fields || {}) } } : node
+                        )
+                    );
                 }
+            } catch (err) {
+                console.error('Failed to persist item to Airtable:', err);
+                if (previousItemsSnapshot) setItems(previousItemsSnapshot);
 
-                setSelectedItem(null);
-                return;
+                // Restore previous data; keep the same position
+                setNodes((prevNodes) =>
+                    prevNodes.map((node) => {
+                        if (String(node.id) !== idStr) return node;
+                        const restored = (previousItemsSnapshot || []).find((p) => String(p.id) === idStr);
+                        return restored ? { ...node, data: { ...node.data, ...restored } } : node;
+                    })
+                );
+
+                if (typeof window !== 'undefined') {
+                    window.alert('Failed saving changes to Airtable — changes were not saved.');
+                }
             }
-
-            if (Array.isArray(selEdges) && selEdges.length === 1) {
-                const edge = selEdges[0];
-                const fromItem = items.find((it) => String(it.id) === String(edge.source)) || null;
-                const toItem = items.find((it) => String(it.id) === String(edge.target)) || null;
-
-                const edgeAsItem = {
-                    id: edge.id,
-                    Name: 'Edge inspector',
-                    'Item Code': edge.id,
-                    edgeId: edge.id,
-                    from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
-                    to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-                    x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
-                    y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
-                    _edge: edge,
-                };
-
-                setSelectedItem(edgeAsItem);
-                return;
-            }
-
-            setSelectedItem(null);
         },
-        [items]
+        [setItems, setNodes, setSelectedItem]
     );
 
     const onConnect = useCallback(
@@ -142,8 +184,8 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
 
+    // ---------- DRAG: write position to state cache + items (for rebuild resilience) ----------
     const onNodeDrag = useCallback((event, draggedNode) => {
-        // Optional: Only special behavior for groupLabel nodes
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
         setNodes((nds) =>
@@ -157,8 +199,8 @@ export default function ProcessDiagram() {
 
                 if (!isChild) return n;
 
-                const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
-                const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
+                const deltaX = draggedNode.position.x - (draggedNode.data?.prevX ?? draggedNode.position.x);
+                const deltaY = draggedNode.position.y - (draggedNode.data?.prevY ?? draggedNode.position.y);
 
                 return {
                     ...n,
@@ -179,21 +221,69 @@ export default function ProcessDiagram() {
         );
     }, []);
 
-    const onNodeDragStop = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
-        setNodes((nds) =>
-            nds.map((n) =>
-                n.id === draggedNode.id
-                    ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } }
-                    : n
-            )
-        );
-    }, []);
+    const onNodeDragStop = useCallback(
+        (event, draggedNode) => {
+            if (!draggedNode) return;
+
+            // 1) keep node position in ReactFlow state + cache
+            setNodes((nds) => {
+                const next = nds.map((n) => (n.id === draggedNode.id ? { ...n, position: { ...draggedNode.position } } : n));
+                capturePositions(next);
+                return next;
+            });
+
+            // 2) persist position into items[] so diagramBuilder can reuse it on rebuilds
+            setItems((prev) =>
+                Array.isArray(prev)
+                    ? prev.map((it) =>
+                        String(it.id) === String(draggedNode.id) ? { ...it, x: draggedNode.position.x, y: draggedNode.position.y } : it
+                    )
+                    : prev
+            );
+
+            // 3) reset prevX/prevY only for groupLabel nodes
+            if (draggedNode.type !== 'groupLabel') return;
+            setNodes((nds) =>
+                nds.map((n) =>
+                    n.id === draggedNode.id ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } } : n
+                )
+            );
+        },
+        [setNodes, setItems]
+    );
+
+    const handleEdgeSelect = useCallback(
+        (edge) => {
+            if (!edge) {
+                setSelectedItem(null);
+                return;
+            }
+
+            const fromItem = items.find((it) => String(it.id) === String(edge.source)) || null;
+            const toItem = items.find((it) => String(it.id) === String(edge.target)) || null;
+
+            const edgeAsItem = {
+                id: edge.id,
+                Name: 'Edge inspector',
+                'Item Code': edge.id,
+                edgeId: edge.id,
+                from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
+                to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+                x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
+                y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
+                _edge: edge,
+            };
+
+            setSelectedItem(edgeAsItem);
+        },
+        [items, setSelectedItem]
+    );
 
     const handleDeleteEdge = useCallback(
         (edgeId) => {
             if (!edgeId) return;
             if (!window.confirm('Delete this edge?')) return;
+
             setEdges((eds) => eds.filter((e) => e.id !== edgeId));
             setNodes((nds) => nds.filter((n) => !(n?.data?.item?.edgeId && n.data.item.edgeId === edgeId)));
             setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
@@ -211,6 +301,13 @@ export default function ProcessDiagram() {
         },
         [setEdges, setSelectedItem]
     );
+
+    const handleDeleteItem = useCallback((id) => {
+        setNodes((nds) => nds.filter((n) => n.id !== id));
+        setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+        setItems((its) => its.filter((it) => it.id !== id));
+        setSelectedItem(null);
+    }, []);
 
     const handleCreateInlineValve = useCallback(
         (edgeId) => {
@@ -284,48 +381,9 @@ export default function ProcessDiagram() {
         [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]
     );
 
-    // ✅ SAFE: never change node positions from the panel
-    const handleItemPanelChange = useCallback(
-        (delta) => {
-            if (!delta || !delta.id) return;
-            const id = String(delta.id);
-            const { x, y, ...safeDelta } = delta; // strip positions
-
-            setItems((prev) =>
-                Array.isArray(prev) ? prev.map((it) => (String(it.id) === id ? { ...it, ...safeDelta } : it)) : prev
-            );
-
-            // update node.data only
-            setNodes((prev) =>
-                Array.isArray(prev)
-                    ? prev.map((n) => {
-                        if (String(n.id) !== id) return n;
-                        return {
-                            ...n,
-                            position: n.position, // keep
-                            data: {
-                                ...n.data,
-                                ...safeDelta,
-                                item: { ...(n.data?.item || {}), ...safeDelta },
-                            },
-                        };
-                    })
-                    : prev
-            );
-        },
-        [setItems, setNodes]
-    );
-
-    const handleDeleteItem = useCallback((id) => {
-        setNodes((nds) => nds.filter((n) => n.id !== id));
-        setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
-        setItems((its) => its.filter((it) => it.id !== id));
-        setSelectedItem(null);
-    }, []);
-
-    // AI generator (kept as-is; merges + preserves selection)
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
+
         try {
             const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(
                 aiDescription,
@@ -337,6 +395,7 @@ export default function ProcessDiagram() {
             );
 
             const aiItems = normalizedItems || (aiNodes || []).map((n) => n.data?.item).filter(Boolean);
+
             const updatedItems = [...items];
             const existingIds = new Set(updatedItems.map((i) => i.id));
             aiItems.forEach((item) => {
@@ -346,22 +405,37 @@ export default function ProcessDiagram() {
             });
             setItems(updatedItems);
 
-            setNodes(aiNodes || []);
-            setEdges(aiEdges || []);
+            // ✅ Keep existing node objects for existing ids
+            setNodes((prevNodes) => {
+                const prevById = new Map(prevNodes.map((n) => [String(n.id), n]));
+                const next = (aiNodes || []).map((fresh) => {
+                    const prev = prevById.get(String(fresh.id));
+                    if (!prev) return fresh;
+                    return {
+                        ...prev,
+                        type: fresh.type ?? prev.type,
+                        style: { ...(prev.style || {}), ...(fresh.style || {}) },
+                        data: { ...(prev.data || {}), ...(fresh.data || {}) },
+                    };
+                });
 
-            if (aiNodes?.length) {
-                const newNodesList = aiNodes.filter((n) => !nodes.some((old) => old.id === n.id));
-                if (newNodesList.length > 0) {
-                    setSelectedNodes([newNodesList[0]]);
-                    setSelectedItem(newNodesList[0].data?.item || null);
-                }
-            }
+                // keep any old nodes not in aiNodes
+                prevNodes.forEach((p) => {
+                    if (!next.some((m) => String(m.id) === String(p.id))) next.push(p);
+                });
+
+                const rePos = applyPositions(next);
+                capturePositions(rePos);
+                return rePos;
+            });
+
+            setEdges(aiEdges);
         } catch (err) {
             console.error('AI PNID generation failed:', err);
         }
     };
 
-    // ---------- initial load ----------
+    // ---------- INITIAL LOAD ----------
     useEffect(() => {
         const loadItems = async () => {
             try {
@@ -379,20 +453,44 @@ export default function ProcessDiagram() {
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Sequence: item.Sequence || 0,
                     Connections: Array.isArray(item.Connections) ? item.Connections : [],
+                    // if Airtable already has x/y, keep them
+                    x: typeof item.x === 'number' ? item.x : undefined,
+                    y: typeof item.y === 'number' ? item.y : undefined,
                 }));
 
                 const uniqueUnits = [...new Set(normalizedItems.map((i) => i.Unit))];
+
                 const unitLayout2D = [uniqueUnits];
                 setUnitLayoutOrder(unitLayout2D);
 
-                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
+                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D, { prevNodes: nodes });
 
-                setNodes(builtNodes);
+                // ✅ Build once; prefer previous node objects to keep positions (none on first load)
+                setNodes((prevNodes) => {
+                    const next = (builtNodes || []).map((fresh) => {
+                        const prev = prevNodes.find((p) => String(p.id) === String(fresh.id));
+                        return prev
+                            ? {
+                                ...prev,
+                                type: fresh.type ?? prev.type,
+                                style: { ...(prev.style || {}), ...(fresh.style || {}) },
+                                data: { ...(prev.data || {}), ...(fresh.data || {}) },
+                            }
+                            : fresh;
+                    });
+
+                    const rePos = applyPositions(next);
+                    capturePositions(rePos);
+                    return rePos;
+                });
+
                 setEdges(builtEdges);
                 setItems(normalizedItems);
 
                 const uniqueUnitsObjects = uniqueUnits.map((u) => ({ id: u, Name: u }));
                 setAvailableUnitsForConfig(uniqueUnitsObjects);
+
+                prevItemsRef.current = normalizedItems;
             } catch (err) {
                 console.error('Error loading items:', err);
             }
@@ -401,28 +499,72 @@ export default function ProcessDiagram() {
         loadItems();
     }, []);
 
-    // ---------- rebuild ONLY when unit layout changes (preserve positions) ----------
+    // ---------- REBUILD / INCREMENTAL UPDATE ----------
     useEffect(() => {
         if (!items.length || !unitLayoutOrder.length) return;
-        const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder, { prevNodes: nodes });
 
-        setNodes((prev) => {
-            const prevById = new Map(prev.map((n) => [String(n.id), n]));
-            const merged = rebuiltNodes.map((n) => {
-                const p = prevById.get(String(n.id));
-                return p ? { ...n, position: p.position } : n;
+        const prevItems = prevItemsRef.current || [];
+        const prevMap = Object.fromEntries(prevItems.map((i) => [String(i.id), i]));
+
+        const needFullRebuild =
+            items.length !== prevItems.length ||
+            items.some((i) => {
+                const p = prevMap[String(i.id)];
+                if (!p) return true;
+                return p.Unit !== i.Unit || p.SubUnit !== i.SubUnit;
             });
-            // include any nodes not present in rebuilt list (defensive)
-            prev.forEach((p) => {
-                if (!merged.some((m) => String(m.id) === String(p.id))) merged.push(p);
+
+        if (needFullRebuild) {
+            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder, { prevNodes: nodes });
+
+            // ✅ Keep old node objects for existing ids; never touch position
+            setNodes((prevNodes) => {
+                const next = (rebuiltNodes || []).map((fresh) => {
+                    const prev = prevNodes.find((p) => String(p.id) === String(fresh.id));
+                    if (!prev) return fresh;
+                    return {
+                        ...prev,
+                        type: fresh.type ?? prev.type,
+                        style: { ...(prev.style || {}), ...(fresh.style || {}) },
+                        data: { ...(prev.data || {}), ...(fresh.data || {}) },
+                    };
+                });
+
+                // keep any older nodes that builder did not include
+                const missingPrev = prevNodes.filter((p) => !next.some((m) => String(m.id) === String(p.id)));
+                const merged = [...next, ...missingPrev];
+
+                const rePos = applyPositions(merged);
+                capturePositions(rePos);
+                return rePos;
             });
-            return merged;
-        });
 
-        setEdges(rebuiltEdges);
-    }, [unitLayoutOrder]); // <— only unit layout triggers rebuild
+            setEdges(rebuiltEdges);
+        } else {
+            // ✅ Incremental: update only data/icon; keep position
+            setNodes((prevNodes) => {
+                const next = prevNodes.map((n) => {
+                    const item = items.find((it) => String(it.id) === String(n.id));
+                    if (!item) return n;
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            ...item,
+                            icon: getItemIcon(item, { width: 40, height: 40 }),
+                        },
+                    };
+                });
 
-    // ---------- group helpers (optional UI) ----------
+                const rePos = applyPositions(next);
+                capturePositions(rePos);
+                return rePos;
+            });
+        }
+
+        prevItemsRef.current = items;
+    }, [unitLayoutOrder, items]);
+
     const itemsMap = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
 
     const selectedGroupNode =
@@ -459,15 +601,11 @@ export default function ProcessDiagram() {
         });
     };
 
-    const onRemoveItem = (childId) => {
+    const onRemoveItem = (childId) =>
         setNodes((nds) => nds.map((n) => (n.id === childId ? { ...n, data: { ...n.data, groupId: undefined } } : n)));
-    };
 
-    const onDeleteGroup = (groupId) => {
-        setNodes((nds) => nds.filter((n) => n.id !== groupId));
-    };
+    const onDeleteGroup = (groupId) => setNodes((nds) => nds.filter((n) => n.id !== groupId));
 
-    // Add item helper (keeps others in place on rebuild)
     const handleAddItem = (rawItem) => {
         setItems((prevItems) => {
             const firstKnownUnit =
@@ -495,7 +633,6 @@ export default function ProcessDiagram() {
 
             const nextItems = [...prevItems, normalizedItem];
 
-            // ensure unit exists in layout
             const ensureUnitInLayout = (layout, unit) => {
                 if (!Array.isArray(layout) || !layout.length) return [[unit]];
                 const flat = new Set(layout.flat());
@@ -511,19 +648,26 @@ export default function ProcessDiagram() {
             const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
             if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
 
-            // Rebuild but keep previous positions
             const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, patchedLayout, { prevNodes: nodes });
 
-            setNodes((prev) => {
-                const byId = new Map(prev.map((n) => [String(n.id), n]));
-                const merged = rebuiltNodes.map((n) => {
-                    const p = byId.get(String(n.id));
-                    return p ? { ...n, position: p.position } : n;
+            setNodes((prevNodes) => {
+                const next = (rebuiltNodes || []).map((fresh) => {
+                    const prev = prevNodes.find((p) => String(p.id) === String(fresh.id));
+                    if (!prev) return fresh;
+                    return {
+                        ...prev,
+                        type: fresh.type ?? prev.type,
+                        style: { ...(prev.style || {}), ...(fresh.style || {}) },
+                        data: { ...(prev.data || {}), ...(fresh.data || {}) },
+                    };
                 });
-                prev.forEach((p) => {
-                    if (!merged.some((m) => String(m.id) === String(p.id))) merged.push(p);
-                });
-                return merged;
+
+                const missingPrev = prevNodes.filter((p) => !next.some((m) => String(m.id) === String(p.id)));
+                const merged = [...next, ...missingPrev];
+
+                const rePos = applyPositions(merged);
+                capturePositions(rePos);
+                return rePos;
             });
 
             setEdges(rebuiltEdges);
@@ -536,97 +680,144 @@ export default function ProcessDiagram() {
         });
     };
 
+    // Selection hook used by DiagramCanvas
+    const onSelectionChange = useCallback(
+        ({ nodes: selNodes, edges: selEdges }) => {
+            setSelectedNodes(selNodes || []);
+
+            if (Array.isArray(selNodes) && selNodes.length === 1) {
+                const selNode = selNodes[0];
+                const itemFromItems = items.find((it) => String(it.id) === String(selNode.id));
+                if (itemFromItems) {
+                    setSelectedItem(itemFromItems);
+                    return;
+                }
+                if (selNode?.data?.item) {
+                    setSelectedItem(selNode.data.item);
+                    return;
+                }
+                setSelectedItem(null);
+                return;
+            }
+
+            if (Array.isArray(selEdges) && selEdges.length === 1) {
+                const edge = selEdges[0];
+                handleEdgeSelect(edge);
+                return;
+            }
+
+            setSelectedItem(null);
+        },
+        [items, handleEdgeSelect]
+    );
+
+    // Wrap React Flow nodes change to keep cache fresh
+    const onNodesChangeWrapped = useCallback(
+        (changes) => {
+            onNodesChange(changes);
+            setNodes((nds) => {
+                capturePositions(nds);
+                return nds;
+            });
+        },
+        [onNodesChange, setNodes]
+    );
+
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            {/* LEFT: Diagram */}
-            <div style={{ flex: 3, position: 'relative', background: 'transparent' }}>
-                <DiagramCanvas
-                    nodes={nodes}
-                    edges={edges}
-                    setNodes={setNodes}
-                    setEdges={setEdges}
-                    setItems={setItems}
-                    setSelectedItem={setSelectedItem}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
-                    nodeTypes={nodeTypes}
-                    onEdgeSelect={(edge) => {
-                        // keep the edge inspector in DiagramCanvas usable
-                        if (!edge) {
-                            setSelectedItem(null);
-                            return;
-                        }
-                        const fromItem = items.find((it) => String(it.id) === String(edge.source)) || null;
-                        const toItem = items.find((it) => String(it.id) === String(edge.target)) || null;
-                        setSelectedItem({
-                            id: edge.id,
-                            Name: 'Edge inspector',
-                            'Item Code': edge.id,
-                            edgeId: edge.id,
-                            from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
-                            to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-                            _edge: edge,
-                        });
-                    }}
-                    showInlineEdgeInspector={false}
-                    AddItemButton={AddItemButton}
-                    addItem={handleAddItem}
-                    aiDescription={aiDescription}
-                    setAiDescription={setAiDescription}
-                    handleGeneratePNID={handleGeneratePNID}
-                    chatMessages={chatMessages}
-                    setChatMessages={setChatMessages}
-                    selectedNodes={selectedNodes}
-                    updateNode={updateNode}
-                    deleteNode={deleteNode}
-                    ChatBox={ChatBox}
-                    onNodeDrag={onNodeDrag}
-                    onNodeDragStop={onNodeDragStop}
-                />
+            {/* LEFT: Airtable table */}
+            <div style={{ flex: 1, minWidth: 0, borderRight: '1px solid #ddd' }}>
+                <AirtableGrid />
             </div>
 
-            {/* RIGHT: Sidebar */}
-            <div
-                style={{
-                    flex: 1,
-                    borderLeft: '1px solid #ccc',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    background: 'transparent',
-                }}
-            >
-                <div>
-                    <UnitLayoutConfig availableUnits={availableUnitsForConfig} onChange={setUnitLayoutOrder} />
+            {/* RIGHT: Diagram + Sidebar */}
+            <div style={{ flex: 3, display: 'flex', minWidth: 0 }}>
+                {/* Diagram */}
+                <div style={{ flex: 3, position: 'relative', background: 'transparent' }}>
+                    <DiagramCanvas
+                        nodes={nodes}
+                        edges={edges}
+                        setNodes={setNodes}
+                        setEdges={setEdges}
+                        setItems={setItems}
+                        setSelectedItem={setSelectedItem}
+                        onNodesChange={onNodesChangeWrapped}
+                        onEdgesChange={onEdgesChange}
+                        onConnect={onConnect}
+                        onSelectionChange={onSelectionChange}
+                        nodeTypes={nodeTypes}
+                        onEdgeSelect={handleEdgeSelect}
+                        showInlineEdgeInspector={false}
+                        AddItemButton={AddItemButton}
+                        addItem={handleAddItem}
+                        selectedItem={selectedItem}
+                        onItemChange={(updatedItem) => {
+                            // 🚫 never request reposition from the panel
+                            handleItemDetailChange(updatedItem /*, { reposition: false }*/);
+                        }}
+                        onDeleteItem={handleDeleteItem}
+                        onDeleteEdge={handleDeleteEdge}
+                        onUpdateEdge={handleUpdateEdge}
+                        onCreateInlineValve={handleCreateInlineValve}
+                        aiDescription={aiDescription}
+                        setAiDescription={setAiDescription}
+                        handleGeneratePNID={handleGeneratePNID}
+                        chatMessages={chatMessages}
+                        setChatMessages={setChatMessages}
+                        selectedNodes={selectedNodes}
+                        updateNode={updateNode}
+                        deleteNode={deleteNode}
+                        ChatBox={ChatBox}
+                        onNodeDrag={onNodeDrag}
+                        onNodeDragStop={onNodeDragStop}
+                    />
                 </div>
 
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {selectedGroupNode ? (
-                        <GroupDetailCard
-                            node={selectedGroupNode}
-                            childrenNodes={childrenNodesForGroup}
-                            childrenLabels={selectedGroupNode?.data?.children}
-                            allItems={itemsMap}
-                            startAddItemToGroup={startAddItemToGroup}
-                            onAddItem={onAddItem}
-                            onRemoveItem={onRemoveItem}
-                            onDelete={onDeleteGroup}
-                        />
-                    ) : selectedItem ? (
-                        <ItemDetailCard
-                            item={selectedItem}
-                            items={items}
-                            edges={edges}
-                            onChange={handleItemPanelChange}        // ✅ safe updates; never repositions
-                            onDeleteItem={handleDeleteItem}
-                            onDeleteEdge={handleDeleteEdge}
-                            onUpdateEdge={handleUpdateEdge}
-                            onCreateInlineValve={handleCreateInlineValve}
-                        />
-                    ) : (
-                        <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
-                    )}
+                {/* Sidebar */}
+                <div
+                    style={{
+                        flex: 1,
+                        borderLeft: '1px solid #ccc',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        background: 'transparent',
+                        minWidth: 280,
+                    }}
+                >
+                    <div>
+                        <UnitLayoutConfig availableUnits={availableUnitsForConfig} onChange={setUnitLayoutOrder} />
+                    </div>
+
+                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                        {selectedGroupNode ? (
+                            <GroupDetailCard
+                                node={selectedGroupNode}
+                                childrenNodes={childrenNodesForGroup}
+                                childrenLabels={selectedGroupNode?.data?.children}
+                                allItems={itemsMap}
+                                startAddItemToGroup={startAddItemToGroup}
+                                onAddItem={onAddItem}
+                                onRemoveItem={onRemoveItem}
+                                onDelete={onDeleteGroup}
+                            />
+                        ) : selectedItem ? (
+                            <ItemDetailCard
+                                item={selectedItem}
+                                items={items}
+                                edges={edges}
+                                onChange={(updatedItem) => {
+                                    // 🚫 never request reposition from here either
+                                    handleItemDetailChange(updatedItem /*, { reposition: false }*/);
+                                }}
+                                onDeleteItem={handleDeleteItem}
+                                onDeleteEdge={handleDeleteEdge}
+                                onUpdateEdge={handleUpdateEdge}
+                                onCreateInlineValve={handleCreateInlineValve}
+                            />
+                        ) : (
+                            <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
