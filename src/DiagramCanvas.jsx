@@ -1,5 +1,5 @@
 ﻿// src/components/DiagramCanvas.jsx
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
@@ -39,21 +39,6 @@ export default function DiagramCanvas({
 }) {
     const [selectedEdge, setSelectedEdge] = useState(null);
     const panelRef = useRef(null);
-    // one-time fit via onInit
-    const rfRef = useRef(null);
-    const didInitialFit = useRef(false);
-
-    const onInit = useCallback((instance) => {
-        rfRef.current = instance;
-        if (!didInitialFit.current) {
-            try {
-                instance.fitView({ padding: 0.2 });
-            } catch (e) {
-                // ignore if instance isn't ready yet
-            }
-            didInitialFit.current = true;
-        }
-    }, []);
 
     useEffect(() => {
         console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
@@ -310,10 +295,10 @@ export default function DiagramCanvas({
                     onEdgeClick={handleEdgeClick}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
-                    onInit={onInit}
-                    fitView={false}                 // ✅ fit once via onInit, not every render
+                    fitView
                     selectionOnDrag
                     minZoom={0.02}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     nodeTypes={nodeTypes}
                     style={{ background: 'transparent' }}
                 >
