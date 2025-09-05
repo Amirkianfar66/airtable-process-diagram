@@ -1,7 +1,66 @@
-﻿// src/components/ItemDetailCard.jsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-const typeNameCache = new Map();
+const typeCache = new Map();
+
+// --- tolerant string helpers ---
+const STOPWORDS = new Set(['valve', 'the', 'a', 'an', 'inline', 'item']);
+const normalizeText = (s = '') =>
+    String(s)
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const tokenize = (s = '') =>
+    normalizeText(s)
+        .split(' ')
+        .filter(Boolean)
+        .filter(t => !STOPWORDS.has(t));
+
+const tokenOverlapScore = (a = '', b = '') => {
+    const A = new Set(tokenize(a));
+    const B = new Set(tokenize(b));
+    let common = 0;
+    for (const t of A) if (B.has(t)) common++;
+    const denom = Math.max(A.size, B.size, 1);
+    return common / denom; // 0..1
+};
+
+const tokenDiff = (a = '', b = '') => {
+    const A = new Set(tokenize(a));
+    const B = new Set(tokenize(b));
+    let extraA = 0,
+        extraB = 0;
+    for (const t of A) if (!B.has(t)) extraA++;
+    for (const t of B) if (!A.has(t)) extraB++;
+    return { total: extraA + extraB, extraA, extraB };
+};
+
+// find best type object by (tolerant) name
+const findBestTypeByName = (name, list) => {
+    if (!name || !Array.isArray(list) || !list.length) return null;
+
+    const n = normalizeText(name);
+
+    // exact match first
+    const exact = list.find(t => normalizeText(t.name) === n);
+    if (exact) return exact;
+
+    // otherwise score by diff + overlap
+    let best = null;
+    let bestScore = -Infinity;
+    for (const t of list) {
+        const diff = tokenDiff(t.name, name);
+        const overlap = tokenOverlapScore(t.name, name);
+        // reward small diff, then overlap
+        const score = (diff.total <= 1 ? 10 : 0) + overlap;
+        if (score > bestScore) {
+            bestScore = score;
+            best = t;
+        }
+    }
+    return best;
+};
 
 export default function ItemDetailCard({
     item,
@@ -14,52 +73,46 @@ export default function ItemDetailCard({
     onDeleteItem,
 }) {
     const [localItem, setLocalItem] = useState(item || {});
-    const [allTypes, setAllTypes] = useState([]); // { id, name, category }[]
-    const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+    const [allTypes, setAllTypes] = useState([]);
     const debounceRef = useRef(null);
 
+    const safeOnChange = (payload, options) => {
+        if (typeof onChange !== 'function') return;
+        try {
+            onChange(payload, options);
+        } catch (err) {
+            console.error('[ItemDetailCard] onChange threw:', err);
+        }
+    };
+
+    // keep local in sync when selection changes
     useEffect(() => {
         setLocalItem(item || {});
     }, [item?.id]);
 
-    // Read-only: fetch Types (names) so UI shows labels
+    // GET types from Airtable "types" table (names + categories)
     useEffect(() => {
-        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-        const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-        const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-
-        if (!baseId || !token || !typesTableId) {
-            console.warn('[ItemDetailCard] Missing env vars for types table.');
-            return;
-        }
-
         let mounted = true;
         (async () => {
             try {
-                setIsLoadingTypes(true);
-                const res = await fetch(
-                    `https://api.airtable.com/v0/${baseId}/${typesTableId}?pageSize=100`,
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
-                if (!res.ok) {
-                    console.error('Failed to fetch types:', res.status, res.statusText);
-                    return;
-                }
+                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+                if (!baseId || !token || !typesTableId) return;
+
+                const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}`;
+                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                if (!mounted) return;
                 const data = await res.json();
-                const list = (data.records || []).map((r) => ({
+
+                const typesList = (data.records || []).map(r => ({
                     id: r.id,
-                    name:
-                        r.fields['Still Pipe'] ||
-                        r.fields['Name'] ||
-                        r.fields['Title'] ||
-                        `Type ${r.id}`,
+                    name: r.fields['Still Pipe'],
                     category: r.fields['Category'] || 'Equipment',
                 }));
-                if (mounted) setAllTypes(list);
-            } catch (e) {
-                console.error('Error fetching types:', e);
-            } finally {
-                if (mounted) setIsLoadingTypes(false);
+                setAllTypes(typesList);
+            } catch (err) {
+                console.error('Failed to fetch types:', err);
             }
         })();
         return () => {
@@ -67,152 +120,97 @@ export default function ItemDetailCard({
         };
     }, []);
 
-    // Fallback single-record fetch to resolve id -> name (when needed)
-    const fetchTypeNameById = async (typeId) => {
-        if (!typeId) return '';
-        if (typeNameCache.has(typeId)) return typeNameCache.get(typeId);
+    // infer first connection → convenience fields
+    useEffect(() => {
+        if (!item || !edges || !Array.isArray(edges) || !items || !Array.isArray(items)) return;
 
-        const fromList = allTypes.find((t) => t.id === typeId)?.name;
-        if (fromList) {
-            typeNameCache.set(typeId, fromList);
-            return fromList;
-        }
+        const firstConnId = item.Connections?.[0];
+        if (!firstConnId) return;
 
-        try {
-            const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-            const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-            const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-            if (!baseId || !token || !typesTableId) return '';
+        const edge = edges.find(e => e.id === firstConnId);
+        if (!edge) return;
 
-            const res = await fetch(
-                `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            if (!res.ok) return '';
-            const record = await res.json();
-            const name =
-                record?.fields?.['Still Pipe'] ||
-                record?.fields?.['Name'] ||
-                record?.fields?.['Title'] ||
-                '';
-            if (name) typeNameCache.set(typeId, name);
-            return name;
-        } catch (e) {
-            console.error('fetchTypeNameById error', e);
-            return '';
-        }
+        const findItemById = id => items.find(it => it.id === id) || {};
+        const fromItem = findItemById(edge.source);
+        const toItem = findItemById(edge.target);
+
+        setLocalItem(prev => ({
+            ...prev,
+            edgeId: edge.id,
+            from: fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
+            to: toItem.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+        }));
+    }, [item, edges, items]);
+
+    // Debounced push to parent (local only; parent does not write to Airtable)
+    const commitUpdate = (patch = {}, options = { reposition: false }) => {
+        const authoritativeId = patch?.id ?? item?.id ?? localItem?.id;
+        const payload = { ...localItem, ...patch, id: authoritativeId };
+
+        setLocalItem(prev => ({ ...prev, ...patch }));
+
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            safeOnChange(payload, options);
+            debounceRef.current = null;
+        }, 350);
     };
 
-    // --------- derive id currently selected ----------
+    const handleFieldChange = (field, value, options) => {
+        // numeric fields
+        if ((field === 'x' || field === 'y') && (value === '' || Number.isNaN(value))) {
+            setLocalItem(prev => ({ ...prev, [field]: '' }));
+            return;
+        }
+        // Type changed from dropdown: store id array + friendly name
+        if (field === 'Type') {
+            const picked = allTypes.find(t => t.id === value);
+            const next = {
+                ...localItem,
+                Type: value ? [value] : [],
+                TypeName: picked?.name || '',
+            };
+            commitUpdate(next, options);
+            return;
+        }
+        commitUpdate({ [field]: value }, options);
+    };
+
+    const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
     const activeCategory =
         localItem['Category Item Type'] || localItem.Category || 'Equipment';
 
-    const typesByCategory = useMemo(() => {
-        const map = new Map();
-        allTypes.forEach((t) => {
-            if (!map.has(t.category)) map.set(t.category, []);
-            map.get(t.category).push(t);
-        });
-        for (const [, arr] of map.entries()) {
-            arr.sort((a, b) => a.name.localeCompare(b.name));
-        }
-        return map;
-    }, [allTypes]);
+    // types list for the active category
+    const filteredTypes = useMemo(
+        () => allTypes.filter(t => t.category === activeCategory),
+        [allTypes, activeCategory]
+    );
 
-    const typeOptions = typesByCategory.get(activeCategory) || [];
+    // compute the selected <option> value (a rec id). Accepts:
+    // - localItem.Type as [recId]
+    // - localItem.Type as a plain string name coming from Items table
+    // - localItem.TypeName as a friendly name
+    const selectedTypeId = useMemo(() => {
+        // already an id?
+        if (Array.isArray(localItem?.Type) && localItem.Type[0]) return localItem.Type[0];
 
-    const currentTypeId = useMemo(() => {
-        const t = localItem?.Type;
-        if (!t) return '';
-        if (Array.isArray(t) && t.length > 0) return typeof t[0] === 'string' ? t[0] : '';
-        if (typeof t === 'string' && t.startsWith('rec')) return t;
-        if (typeof t === 'string') {
-            // legacy string name -> map to id if possible
-            const found = typeOptions.find((opt) => opt.name === t) || allTypes.find((opt) => opt.name === t);
-            return found ? found.id : '';
-        }
-        return '';
-    }, [localItem?.Type, typeOptions, allTypes]);
+        // friendly name available?
+        const byName =
+            localItem?.TypeName ||
+            (typeof localItem?.Type === 'string' ? localItem.Type : '');
 
-    // Ensure we also keep a readable TypeName alongside the id array
-    useEffect(() => {
-        let mounted = true;
-        (async () => {
-            if (!currentTypeId) {
-                if (!localItem?.TypeName) return;
-                // if type cleared, clear the name too
-                setLocalItem((prev) => ({ ...prev, TypeName: '' }));
-                if (onChange) onChange({ ...(item || {}), TypeName: '' });
-                return;
-            }
-            // if we already have the name and it matches the id, skip
-            const already = localItem?.TypeName;
-            const known = allTypes.find((t) => t.id === currentTypeId)?.name;
-            const name = known || (await fetchTypeNameById(currentTypeId));
-            if (!mounted) return;
+        if (!byName) return '';
 
-            if (name && already !== name) {
-                const patch = { TypeName: name };
-                setLocalItem((prev) => ({ ...prev, ...patch }));
-                if (onChange) onChange({ ...(item || {}), ...patch });
-            }
-        })();
-        return () => {
-            mounted = false;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentTypeId, allTypes]);
+        // try category-filtered first, then fallback to all
+        const firstTry = findBestTypeByName(byName, filteredTypes);
+        if (firstTry) return firstTry.id;
 
-    // --------- LOCAL-ONLY CHANGE PLUMBING (no writes) ----------
-    const safeOnChange = (payload) => {
-        if (typeof onChange !== 'function') return;
-        try {
-            onChange(payload);
-        } catch (e) {
-            console.error('[ItemDetailCard] onChange error:', e, payload);
-        }
-    };
+        const anyTry = findBestTypeByName(byName, allTypes);
+        return anyTry?.id || '';
+    }, [localItem?.Type, localItem?.TypeName, filteredTypes, allTypes]);
 
-    const commitUpdate = (updated) => {
-        setLocalItem((prev) => ({ ...prev, ...updated }));
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => {
-            safeOnChange({ ...(item || {}), ...(updated || {}) });
-            debounceRef.current = null;
-        }, 200);
-    };
-
-    const handleFieldChange = (fieldName, value) => {
-        if ((fieldName === 'x' || fieldName === 'y') && value === '') {
-            commitUpdate({ [fieldName]: '' });
-            return;
-        }
-
-        if (fieldName === 'Type') {
-            // value is the selected rec id; also include TypeName so icons can update immediately
-            const selected = allTypes.find((t) => t.id === value);
-            commitUpdate({
-                Type: value ? [value] : [],
-                TypeName: selected?.name || '',
-            });
-            return;
-        }
-
-        if (fieldName === 'Category Item Type' || fieldName === 'Category') {
-            // reset type when category changes
-            commitUpdate({
-                'Category Item Type': value,
-                Category: value,
-                Type: [],
-                TypeName: '',
-            });
-            return;
-        }
-
-        commitUpdate({ [fieldName]: value });
-    };
-
-    const getSimpleLinkedValue = (field) =>
+    // simple linked display
+    const getSimpleLinkedValue = field =>
         Array.isArray(field) ? field.join(', ') || '' : field || '';
 
     if (!item) {
@@ -223,13 +221,11 @@ export default function ItemDetailCard({
         );
     }
 
-    const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
-
-    const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
-    const labelStyle = { width: '130px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
-    const inputStyle = { flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', outline: 'none', background: '#fafafa' };
-    const sectionStyle = { marginBottom: '24px' };
-    const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
+    const row = { display: 'flex', alignItems: 'center', marginBottom: 12 };
+    const label = { width: 130, fontWeight: 500, color: '#555', textAlign: 'right', marginRight: 12 };
+    const input = { flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc', fontSize: 14, outline: 'none', background: '#fafafa' };
+    const section = { marginBottom: 24 };
+    const header = { borderBottom: '1px solid #eee', paddingBottom: 6, marginBottom: 12, marginTop: 0, color: '#333' };
 
     const liveEdge = item._edge || {};
 
@@ -238,62 +234,53 @@ export default function ItemDetailCard({
             <div
                 style={{
                     background: '#fff',
-                    borderRadius: '10px',
+                    borderRadius: 10,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    padding: '20px',
-                    margin: '16px',
-                    maxWidth: '350px',
+                    padding: 20,
+                    margin: 16,
+                    maxWidth: 360,
                     fontFamily: 'sans-serif',
                 }}
             >
-                <section style={sectionStyle}>
-                    <h3 style={headerStyle}>General Info</h3>
+                <section style={section}>
+                    <h3 style={header}>General Info</h3>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Code:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={localItem['Item Code'] || ''}
-                            onChange={(e) => handleFieldChange('Item Code', e.target.value)}
-                        />
+                    <div style={row}>
+                        <label style={label}>Code:</label>
+                        <input style={input} type="text" value={localItem['Item Code'] || ''} onChange={e => handleFieldChange('Item Code', e.target.value)} />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Name:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={localItem['Name'] || ''}
-                            onChange={(e) => handleFieldChange('Name', e.target.value)}
-                        />
+                    <div style={row}>
+                        <label style={label}>Name:</label>
+                        <input style={input} type="text" value={localItem['Name'] || ''} onChange={e => handleFieldChange('Name', e.target.value)} />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Category:</label>
+                    <div style={row}>
+                        <label style={label}>Category:</label>
                         <select
-                            style={inputStyle}
+                            style={input}
                             value={activeCategory}
-                            onChange={(e) => handleFieldChange('Category Item Type', e.target.value)}
+                            onChange={e => {
+                                const newCategory = e.target.value;
+                                const updated = { ...localItem, 'Category Item Type': newCategory, Category: newCategory, Type: [], TypeName: '' };
+                                commitUpdate(updated, { reposition: false });
+                            }}
                         >
-                            {categories.map((cat) => (
-                                <option key={cat} value={cat}>
-                                    {cat}
-                                </option>
+                            {categories.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
                             ))}
                         </select>
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Type:</label>
+                    <div style={row}>
+                        <label style={label}>Type:</label>
                         <select
-                            style={inputStyle}
-                            value={currentTypeId}
-                            onChange={(e) => handleFieldChange('Type', e.target.value)}
-                            disabled={isLoadingTypes}
+                            style={input}
+                            value={selectedTypeId}
+                            onChange={e => handleFieldChange('Type', e.target.value)}
                         >
-                            <option value="">{isLoadingTypes ? 'Loading types...' : 'Select Type'}</option>
-                            {typeOptions.map((t) => (
+                            <option value="">Select Type</option>
+                            {filteredTypes.map(t => (
                                 <option key={t.id} value={t.id}>
                                     {t.name}
                                 </option>
@@ -301,133 +288,64 @@ export default function ItemDetailCard({
                         </select>
                     </div>
 
-                    {/* Optional read-only resolved name */}
-                    {!!localItem.TypeName && (
-                        <div style={{ ...rowStyle, color: '#666', fontSize: 12 }}>
-                            <label style={labelStyle}>Type name:</label>
-                            <div style={{ flex: 1 }}>{localItem.TypeName}</div>
-                        </div>
-                    )}
-
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Unit:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={localItem['Unit'] || ''}
-                            onChange={(e) => handleFieldChange('Unit', e.target.value)}
-                        />
+                    <div style={row}>
+                        <label style={label}>Unit:</label>
+                        <input style={input} type="text" value={localItem['Unit'] || ''} onChange={e => handleFieldChange('Unit', e.target.value)} />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Sub Unit:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={localItem['SubUnit'] || ''}
-                            onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
-                        />
+                    <div style={row}>
+                        <label style={label}>Sub Unit:</label>
+                        <input style={input} type="text" value={localItem['SubUnit'] || ''} onChange={e => handleFieldChange('SubUnit', e.target.value)} />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>From Item:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={localItem['from'] || ''}
-                            onChange={(e) => handleFieldChange('from', e.target.value)}
-                            placeholder="Source item ID / name"
-                        />
+                    <div style={row}>
+                        <label style={label}>From Item:</label>
+                        <input style={input} type="text" value={localItem['from'] || ''} onChange={e => handleFieldChange('from', e.target.value)} placeholder="Source item ID / name" />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>To Item:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={localItem['to'] || ''}
-                            onChange={(e) => handleFieldChange('to', e.target.value)}
-                            placeholder="Target item ID / name"
-                        />
+                    <div style={row}>
+                        <label style={label}>To Item:</label>
+                        <input style={input} type="text" value={localItem['to'] || ''} onChange={e => handleFieldChange('to', e.target.value)} placeholder="Target item ID / name" />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Edge ID:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={localItem['edgeId'] || ''}
-                            onChange={(e) => handleFieldChange('edgeId', e.target.value)}
-                            placeholder="edge-xxx"
-                        />
+                    <div style={row}>
+                        <label style={label}>Edge ID:</label>
+                        <input style={input} type="text" value={localItem['edgeId'] || ''} onChange={e => handleFieldChange('edgeId', e.target.value)} placeholder="edge-xxx" />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>X Position:</label>
-                        <input
-                            style={inputStyle}
-                            type="number"
-                            value={localItem['x'] ?? ''}
-                            onChange={(e) =>
-                                handleFieldChange('x', e.target.value === '' ? '' : parseFloat(e.target.value))
-                            }
-                        />
+                    <div style={row}>
+                        <label style={label}>X Position:</label>
+                        <input style={input} type="number" value={localItem['x'] ?? ''} onChange={e => handleFieldChange('x', e.target.value === '' ? '' : parseFloat(e.target.value))} />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Y Position:</label>
-                        <input
-                            style={inputStyle}
-                            type="number"
-                            value={localItem['y'] ?? ''}
-                            onChange={(e) =>
-                                handleFieldChange('y', e.target.value === '' ? '' : parseFloat(e.target.value))
-                            }
-                        />
+                    <div style={row}>
+                        <label style={label}>Y Position:</label>
+                        <input style={input} type="number" value={localItem['y'] ?? ''} onChange={e => handleFieldChange('y', e.target.value === '' ? '' : parseFloat(e.target.value))} />
                     </div>
                 </section>
 
-                <section style={sectionStyle}>
-                    <h3 style={headerStyle}>Procurement Info</h3>
+                <section style={section}>
+                    <h3 style={header}>Procurement Info</h3>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Model Number:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={localItem['Model Number'] || ''}
-                            onChange={(e) => handleFieldChange('Model Number', e.target.value)}
-                        />
+                    <div style={row}>
+                        <label style={label}>Model Number:</label>
+                        <input style={input} type="text" value={localItem['Model Number'] || ''} onChange={e => handleFieldChange('Model Number', e.target.value)} />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Manufacturer:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])}
-                            onChange={(e) =>
-                                handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)
-                            }
-                        />
+                    <div style={row}>
+                        <label style={label}>Manufacturer:</label>
+                        <input style={input} type="text" value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])} onChange={e => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)} />
                     </div>
 
-                    <div style={rowStyle}>
-                        <label style={labelStyle}>Supplier:</label>
-                        <input
-                            style={inputStyle}
-                            type="text"
-                            value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])}
-                            onChange={(e) =>
-                                handleFieldChange('Supplier (from Technical Spec)', e.target.value)
-                            }
-                        />
+                    <div style={row}>
+                        <label style={label}>Supplier:</label>
+                        <input style={input} type="text" value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])} onChange={e => handleFieldChange('Supplier (from Technical Spec)', e.target.value)} />
                     </div>
                 </section>
             </div>
 
             {onDeleteItem && (
-                <div style={{ margin: '16px', maxWidth: 350, textAlign: 'center' }}>
+                <div style={{ margin: 16, maxWidth: 360, textAlign: 'center' }}>
                     <button
                         onClick={() => {
                             if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
@@ -450,23 +368,17 @@ export default function ItemDetailCard({
             )}
 
             {item?._edge && (
-                <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
+                <div style={{ margin: '0 16px 16px 16px', maxWidth: 360 }}>
                     <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <input
                             style={{ flex: 1, padding: 8 }}
-                            value={(item._edge?.label ?? '')}
+                            value={liveEdge.label ?? ''}
                             placeholder="Edge label"
-                            onChange={(e) =>
-                                onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })
-                            }
+                            onChange={e => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })}
                         />
-                        <button
-                            onClick={() =>
-                                onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !item._edge?.animated })
-                            }
-                        >
-                            {item._edge?.animated ? 'Disable animation' : 'Enable animation'}
+                        <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !liveEdge.animated })}>
+                            {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
 
@@ -474,37 +386,19 @@ export default function ItemDetailCard({
                         <label style={{ width: 70 }}>Color</label>
                         <input
                             type="color"
-                            value={(item._edge?.style && item._edge.style.stroke) || '#000000'}
-                            onChange={(e) =>
-                                onUpdateEdge &&
-                                onUpdateEdge(item.edgeId, {
-                                    style: { ...(item._edge?.style || {}), stroke: e.target.value },
-                                })
-                            }
+                            value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
+                            onChange={e => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
                         />
                         <input
                             type="text"
-                            value={(item._edge?.style && item._edge.style.stroke) || ''}
-                            onChange={(e) =>
-                                onUpdateEdge &&
-                                onUpdateEdge(item.edgeId, {
-                                    style: { ...(item._edge?.style || {}), stroke: e.target.value },
-                                })
-                            }
+                            value={(liveEdge.style && liveEdge.style.stroke) || ''}
+                            onChange={e => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
                             style={{ flex: 1, padding: 8 }}
                         />
                         {item?.edgeId && onDeleteEdge && (
                             <button
                                 onClick={() => onDeleteEdge(item.edgeId)}
-                                style={{
-                                    marginLeft: 8,
-                                    background: '#f44336',
-                                    color: '#fff',
-                                    border: 'none',
-                                    padding: '6px 10px',
-                                    borderRadius: 6,
-                                    cursor: 'pointer',
-                                }}
+                                style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}
                             >
                                 Delete Edge
                             </button>
