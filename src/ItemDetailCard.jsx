@@ -1,4 +1,4 @@
-﻿// src/components/ItemDetailCard.jsx
+﻿// src/ItemDetailCard.jsx
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 
 // simple runtime cache for type id -> name
@@ -258,21 +258,21 @@ export default function ItemDetailCard({
                         <span style={label}>Sub Unit:</span>
                         <input
                             style={input}
-                            type="text}
-              value={localItem['SubUnit'] || ''}
-              onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
-            />
-          </div>
+                            type="text"
+                            value={localItem['SubUnit'] || ''}
+                            onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
+                        />
+                    </div>
 
-          <div style={row}>
-            <span style={label}>From Item:</span>
-            <input
-              style={input}
-              type="text"
-                        value={localItem['from'] || ''}
-                        onChange={(e) => handleFieldChange('from', e.target.value)}
-                        placeholder="Source item ID / name"
-            />
+                    <div style={row}>
+                        <span style={label}>From Item:</span>
+                        <input
+                            style={input}
+                            type="text"
+                            value={localItem['from'] || ''}
+                            onChange={(e) => handleFieldChange('from', e.target.value)}
+                            placeholder="Source item ID / name"
+                        />
                     </div>
 
                     <div style={row}>
@@ -368,7 +368,7 @@ export default function ItemDetailCard({
                 </div>
             )}
 
-            {/* Edge Controls (only if this panel is inspecting an edge) */}
+            {/* Edge Controls (only if inspecting an edge) */}
             {item?._edge && (
                 <div style={{ margin: '0 16px 16px 16px', maxWidth: 380 }}>
                     <h4 style={{ margin: '8px 0' }}>Edge Controls</h4>
