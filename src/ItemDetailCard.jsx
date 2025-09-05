@@ -1,210 +1,426 @@
 ﻿// src/components/ItemDetailCard.jsx
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 
+const typeCache = new Map();
+
+/**
+ * ItemDetailCard
+ * READ-ONLY with Airtable (fetches types for dropdown / resolves type name),
+ * NO writes to Airtable. onChange just updates parent React state locally.
+ */
 export default function ItemDetailCard({
     item,
-    items,
-    edges,
-    onChange,           // <- local-only change handler from ProcessDiagram
-    onDeleteItem,
+    onChange,
+    items = [],
+    edges = [],
     onDeleteEdge,
     onUpdateEdge,
-    onCreateInlineValve,
+    onCreateInlineValve, // kept for compatibility
 }) {
     const [localItem, setLocalItem] = useState(item || {});
+    const [resolvedType, setResolvedType] = useState('');
+    const [allTypes, setAllTypes] = useState([]);
 
+    // keep local copy in sync when selection changes
     useEffect(() => {
         setLocalItem(item || {});
-    }, [item?.id]); // reset when selection changes
+    }, [item]);
 
-    const isEdgeInspector = !!localItem.edgeId;
+    // READ: load all types from Airtable (no writes)
+    useEffect(() => {
+        const fetchTypes = async () => {
+            try {
+                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+                const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+                if (!typesTableId) return;
 
-    const handleFieldChange = (key, value) => {
-        setLocalItem((prev) => ({ ...prev, [key]: value }));
+                const res = await fetch(`https://api.airtable.com/v0/${baseId}/${typesTableId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                const typesList = (data.records || []).map((r) => ({
+                    id: r.id,
+                    name: r.fields['Still Pipe'],
+                    category: r.fields['Category'] || 'Equipment',
+                }));
+                setAllTypes(typesList);
+            } catch (err) {
+                console.error('Error fetching types:', err);
+            }
+        };
+        fetchTypes();
+    }, []);
+
+    // READ: resolve linked Type (if it's an array of IDs) to a friendly name
+    useEffect(() => {
+        if (!item || !item.Type) {
+            setResolvedType('-');
+            return;
+        }
+        if (Array.isArray(item.Type) && item.Type.length > 0) {
+            const typeId = item.Type[0];
+            if (typeCache.has(typeId)) {
+                setResolvedType(typeCache.get(typeId));
+                return;
+            }
+            setResolvedType('Loading...');
+            const fetchTypeName = async () => {
+                try {
+                    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+                    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+                    const typesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+                    const url = `https://api.airtable.com/v0/${baseId}/${typesTableId}/${typeId}`;
+                    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                    const record = await res.json();
+                    const typeName = record.fields['Still Pipe'] || 'Unknown Type';
+                    setResolvedType(typeName);
+                    typeCache.set(typeId, typeName);
+                } catch (err) {
+                    console.error(err);
+                    setResolvedType(item.Type);
+                }
+            };
+            fetchTypeName();
+        } else {
+            setResolvedType(item.Type);
+        }
+    }, [item]);
+
+    // when edges / items change, annotate first connection for convenience
+    useEffect(() => {
+        if (!item || !Array.isArray(edges) || !Array.isArray(items)) return;
+
+        const firstConnId = item.Connections?.[0];
+        if (!firstConnId) return;
+
+        const edge = edges.find((e) => e.id === firstConnId);
+        if (!edge) return;
+
+        const findItemById = (id) => items.find((it) => it.id === id) || {};
+        const fromItem = findItemById(edge.source);
+        const toItem = findItemById(edge.target);
+
+        setLocalItem((prev) => ({
+            ...prev,
+            edgeId: edge.id,
+            from: fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
+            to: toItem.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+        }));
+    }, [item, edges, items]);
+
+    const handleFieldChange = (fieldName, value) => {
+        const updated = { ...localItem, [fieldName]: value };
+        setLocalItem(updated);
+        // local only: let parent update React state; no network writes
+        onChange?.(updated);
     };
 
-    const handleSave = () => {
-        // Local-only: call back up to ProcessDiagram (no fetch, no alerts)
-        if (typeof onChange === 'function') onChange(localItem);
+    const getSimpleLinkedValue = (field) =>
+        Array.isArray(field) ? field.join(', ') || '-' : field || '-';
+
+    if (!item) {
+        return (
+            <div style={{ padding: 20, color: '#888' }}>
+                No item selected. Select a node or edge to view details.
+            </div>
+        );
+    }
+
+    const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
+    const filteredTypes = allTypes.filter(
+        (t) => t.category === (localItem['Category Item Type'] || 'Equipment')
+    );
+
+    const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
+    const labelStyle = {
+        width: '130px',
+        fontWeight: 500,
+        color: '#555',
+        textAlign: 'right',
+        marginRight: '12px',
+    };
+    const inputStyle = {
+        flex: 1,
+        padding: '6px 10px',
+        borderRadius: '6px',
+        border: '1px solid #ccc',
+        fontSize: '14px',
+        outline: 'none',
+        background: '#fafafa',
+    };
+    const sectionStyle = { marginBottom: '24px' };
+    const headerStyle = {
+        borderBottom: '1px solid #eee',
+        paddingBottom: '6px',
+        marginBottom: '12px',
+        marginTop: 0,
+        color: '#333',
     };
 
-    // Optional: show connected edges for this item
-    const connectedEdges = useMemo(() => {
-        if (!item?.id || !Array.isArray(edges)) return [];
-        return edges.filter((e) => e.source === item.id || e.target === item.id);
-    }, [item?.id, edges]);
-
-    const label = { fontWeight: 600, fontSize: 12, marginTop: 8 };
-    const input = {
-        width: '100%',
-        padding: '6px 8px',
-        border: '1px solid #ddd',
-        borderRadius: 6,
-        marginTop: 4,
-    };
+    const liveEdge = item._edge || {};
 
     return (
-        <div style={{ padding: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <h3 style={{ margin: 0, fontSize: 16 }}>Details</h3>
-                {item?.id && (
-                    <button
-                        onClick={() => onDeleteItem?.(item.id)}
-                        style={{ marginLeft: 'auto', padding: '6px 10px', borderRadius: 6, border: '1px solid #e33' }}
-                    >
-                        Delete Item
-                    </button>
-                )}
+        <>
+            <div
+                style={{
+                    background: '#fff',
+                    borderRadius: '10px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    padding: '20px',
+                    margin: '16px',
+                    maxWidth: '350px',
+                    fontFamily: 'sans-serif',
+                }}
+            >
+                <section style={sectionStyle}>
+                    <h3 style={headerStyle}>General Info</h3>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Code:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['Item Code'] || ''}
+                            onChange={(e) => handleFieldChange('Item Code', e.target.value)}
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Name:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['Name'] || ''}
+                            onChange={(e) => handleFieldChange('Name', e.target.value)}
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Category:</label>
+                        <select
+                            style={inputStyle}
+                            value={localItem['Category Item Type'] || 'Equipment'}
+                            onChange={(e) => {
+                                const newCategory = e.target.value;
+                                const updated = {
+                                    ...localItem,
+                                    'Category Item Type': newCategory,
+                                    Category: newCategory,
+                                    Type: '',
+                                };
+                                setLocalItem(updated);
+                                onChange?.(updated);
+                            }}
+                        >
+                            {categories.map((cat) => (
+                                <option key={cat} value={cat}>
+                                    {cat}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Type:</label>
+                        <select
+                            style={inputStyle}
+                            value={localItem.Type || ''}
+                            onChange={(e) => handleFieldChange('Type', e.target.value)}
+                        >
+                            <option value="">Select Type</option>
+                            {filteredTypes.map((t) => (
+                                <option key={t.id} value={t.name}>
+                                    {t.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Unit:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['Unit'] || ''}
+                            onChange={(e) => handleFieldChange('Unit', e.target.value)}
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Sub Unit:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['SubUnit'] || ''}
+                            onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>From Item:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['from'] || ''}
+                            onChange={(e) => handleFieldChange('from', e.target.value)}
+                            placeholder="Source item ID / name"
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>To Item:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['to'] || ''}
+                            onChange={(e) => handleFieldChange('to', e.target.value)}
+                            placeholder="Target item ID / name"
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Edge ID:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['edgeId'] || ''}
+                            onChange={(e) => handleFieldChange('edgeId', e.target.value)}
+                            placeholder="edge-xxx"
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>X Position:</label>
+                        <input
+                            style={inputStyle}
+                            type="number"
+                            value={localItem['x'] ?? ''}
+                            onChange={(e) =>
+                                handleFieldChange('x', e.target.value === '' ? '' : Number(e.target.value))
+                            }
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Y Position:</label>
+                        <input
+                            style={inputStyle}
+                            type="number"
+                            value={localItem['y'] ?? ''}
+                            onChange={(e) =>
+                                handleFieldChange('y', e.target.value === '' ? '' : Number(e.target.value))
+                            }
+                        />
+                    </div>
+                </section>
+
+                <section style={sectionStyle}>
+                    <h3 style={headerStyle}>Procurement Info</h3>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Model Number:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['Model Number'] || ''}
+                            onChange={(e) => handleFieldChange('Model Number', e.target.value)}
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Manufacturer:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])}
+                            onChange={(e) =>
+                                handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)
+                            }
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Supplier:</label>
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])}
+                            onChange={(e) =>
+                                handleFieldChange('Supplier (from Technical Spec)', e.target.value)
+                            }
+                        />
+                    </div>
+                </section>
             </div>
 
-            {!isEdgeInspector && (
-                <>
-                    <div style={label}>Name</div>
-                    <input
-                        style={input}
-                        type="text"
-                        value={localItem.Name || ''}
-                        onChange={(e) => handleFieldChange('Name', e.target.value)}
-                        placeholder="Name"
-                    />
+            {/* EDGE controls (when an edge is selected) */}
+            {item?._edge && (
+                <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
+                    <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
 
-                    <div style={label}>Item Code</div>
-                    <input
-                        style={input}
-                        type="text"
-                        value={localItem['Item Code'] ?? localItem.Code ?? ''}
-                        onChange={(e) => {
-                            const v = e.target.value;
-                            handleFieldChange('Item Code', v);
-                            handleFieldChange('Code', v);
-                        }}
-                        placeholder="Item Code"
-                    />
-
-                    <div style={label}>Unit</div>
-                    <input
-                        style={input}
-                        type="text"
-                        value={localItem.Unit || ''}
-                        onChange={(e) => handleFieldChange('Unit', e.target.value)}
-                        placeholder="Unit"
-                    />
-
-                    <div style={label}>SubUnit</div>
-                    <input
-                        style={input}
-                        type="text"
-                        value={localItem.SubUnit || localItem['Sub Unit'] || ''}
-                        onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
-                        placeholder="SubUnit"
-                    />
-
-                    <div style={label}>Category</div>
-                    <input
-                        style={input}
-                        type="text"
-                        value={localItem.Category || localItem['Category Item Type'] || ''}
-                        onChange={(e) => {
-                            handleFieldChange('Category', e.target.value);
-                            handleFieldChange('Category Item Type', e.target.value);
-                        }}
-                        placeholder="Category"
-                    />
-
-                    <div style={label}>Type</div>
-                    <input
-                        style={input}
-                        type="text"
-                        value={Array.isArray(localItem.Type) ? localItem.Type[0] : (localItem.Type || '')}
-                        onChange={(e) => handleFieldChange('Type', e.target.value)}
-                        placeholder="Type"
-                    />
-
-                    <div style={label}>Sequence</div>
-                    <input
-                        style={input}
-                        type="number"
-                        value={localItem.Sequence ?? 0}
-                        onChange={(e) => handleFieldChange('Sequence', Number(e.target.value))}
-                        placeholder="0"
-                    />
-
-                    <div style={{ marginTop: 12 }}>
-                        <button onClick={handleSave} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc' }}>
-                            Save (local)
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <input
+                            style={{ flex: 1, padding: 8 }}
+                            value={liveEdge.label ?? ''}
+                            placeholder="Edge label"
+                            onChange={(e) => onUpdateEdge?.(item.edgeId, { label: e.target.value })}
+                        />
+                        <button onClick={() => onUpdateEdge?.(item.edgeId, { animated: !liveEdge.animated })}>
+                            {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
 
-                    {!!connectedEdges.length && (
-                        <div style={{ marginTop: 16 }}>
-                            <div style={{ ...label, marginBottom: 8 }}>Connected Edges</div>
-                            <ul style={{ margin: 0, paddingLeft: 16 }}>
-                                {connectedEdges.map((e) => (
-                                    <li key={e.id} style={{ marginBottom: 6 }}>
-                                        {e.source} → {e.target}{' '}
-                                        <button
-                                            onClick={() => onDeleteEdge?.(e.id)}
-                                            style={{ marginLeft: 8, padding: '2px 6px', borderRadius: 6, border: '1px solid #e33' }}
-                                        >
-                                            Delete Edge
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-                </>
-            )}
-
-            {isEdgeInspector && (
-                <>
-                    <div style={{ background: '#f6f7f9', padding: 8, borderRadius: 6, marginBottom: 8 }}>
-                        <div style={{ fontSize: 12, marginBottom: 4 }}>Edge ID</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: 12 }}>{localItem.edgeId}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <label style={{ width: 70 }}>Color</label>
+                        <input
+                            type="color"
+                            value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
+                            onChange={(e) =>
+                                onUpdateEdge?.(item.edgeId, {
+                                    style: { ...(liveEdge.style || {}), stroke: e.target.value },
+                                })
+                            }
+                        />
+                        <input
+                            type="text"
+                            value={(liveEdge.style && liveEdge.style.stroke) || ''}
+                            onChange={(e) =>
+                                onUpdateEdge?.(item.edgeId, {
+                                    style: { ...(liveEdge.style || {}), stroke: e.target.value },
+                                })
+                            }
+                            style={{ flex: 1, padding: 8 }}
+                        />
+                        {item?.edgeId && onDeleteEdge && (
+                            <button
+                                onClick={() => onDeleteEdge(item.edgeId)}
+                                style={{
+                                    marginLeft: 8,
+                                    background: '#f44336',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '6px 10px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Delete Edge
+                            </button>
+                        )}
                     </div>
 
-                    <div style={label}>From</div>
-                    <input
-                        style={input}
-                        type="text"
-                        value={localItem.from || ''}
-                        onChange={(e) => handleFieldChange('from', e.target.value)}
-                        placeholder="source node id"
-                    />
-
-                    <div style={label}>To</div>
-                    <input
-                        style={input}
-                        type="text"
-                        value={localItem.to || ''}
-                        onChange={(e) => handleFieldChange('to', e.target.value)}
-                        placeholder="target node id"
-                    />
-
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    {/* Optional: inline valve creation button */}
+                    {onCreateInlineValve && item?.edgeId && (
                         <button
-                            onClick={() => onUpdateEdge?.(localItem.edgeId, { label: localItem['Item Code'] || localItem.Name || '' })}
-                            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc' }}
-                        >
-                            Update Edge Label
-                        </button>
-
-                        <button
-                            onClick={() => onCreateInlineValve?.(localItem.edgeId)}
-                            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc' }}
+                            onClick={() => onCreateInlineValve(item.edgeId)}
+                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc' }}
                         >
                             Insert Inline Valve
                         </button>
-
-                        <button
-                            onClick={() => onDeleteEdge?.(localItem.edgeId)}
-                            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #e33' }}
-                        >
-                            Delete Edge
-                        </button>
-                    </div>
-                </>
+                    )}
+                </div>
             )}
-        </div>
+        </>
     );
 }
