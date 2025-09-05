@@ -38,7 +38,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 13,
+          "SelectedChildIndex": 14,
           "Children": [
             {
               "$type": "Bookmark",
@@ -69,6 +69,10 @@
               "Name": "ST:130:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
             },
             {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
+            {
               "$type": "Document",
               "DocumentIndex": 2,
               "Title": "DiagramCanvas.jsx",
@@ -78,8 +82,7 @@
               "RelativeToolTip": "src\\DiagramCanvas.jsx",
               "ViewState": "AgIAAHEBAAAAAAAAAAAiwJIBAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-04T18:16:48.448Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-04T18:16:48.448Z"
             },
             {
               "$type": "Document",
@@ -91,8 +94,7 @@
               "RelativeToolTip": "src\\ScalableIconNode.jsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-04T17:31:45.658Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-04T17:31:45.658Z"
             },
             {
               "$type": "Document",
@@ -104,8 +106,7 @@
               "RelativeToolTip": "src\\IconManager.jsx",
               "ViewState": "AgIAAK0AAAAAAAAAAAApwMoAAAASAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-04T16:25:54.986Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-04T16:25:54.986Z"
             },
             {
               "$type": "Document",
@@ -117,8 +118,7 @@
               "RelativeToolTip": "src\\diagramBuilder.jsx",
               "ViewState": "AgIAAKcAAAAAAAAAAAAgwKkAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-04T16:02:33.788Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-04T16:02:33.788Z"
             },
             {
               "$type": "Document",
@@ -130,8 +130,7 @@
               "RelativeToolTip": "src\\ItemDetailCard.jsx",
               "ViewState": "AgIAAEgBAAAAAAAAAAAgwGMBAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-04T15:30:50.309Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-04T15:30:50.309Z"
             },
             {
               "$type": "Document",
@@ -143,8 +142,7 @@
               "RelativeToolTip": "src\\Icons\\InlineValveIcon.jsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAI4AAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-04T15:28:17.138Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-04T15:28:17.138Z"
             },
             {
               "$type": "Document",
@@ -154,14 +152,10 @@
               "RelativeDocumentMoniker": "src\\Icons\\ProcessDiagram.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\Icons\\ProcessDiagram.jsx",
               "RelativeToolTip": "src\\Icons\\ProcessDiagram.jsx",
-              "ViewState": "AgIAAAkAAAAAAAAAAAAAAFAAAAALAAAAAAAAAA==",
+              "ViewState": "AgIAAAoAAAAAAAAAAAAAAGMAAABEAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-09-04T15:25:07.285Z",
               "EditorCaption": ""
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
             }
           ]
         }
