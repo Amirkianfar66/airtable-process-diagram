@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
+﻿// src/components/DiagramCanvas.jsx
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
@@ -180,21 +181,69 @@ export default function DiagramCanvas({
     };
 
 
-
     const handleCloseInspector = () => {
         setSelectedEdge(null);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+        // also clear any selected item in parent
+        if (typeof setSelectedItem === 'function') setSelectedItem(null);
     };
 
+    // --- NEW: keyboard shortcuts for Delete (delete item) and Escape (close)
     useEffect(() => {
-        if (!selectedEdge) return;
         const onKey = (e) => {
-            if (e.key === 'Escape') handleCloseInspector();
-            else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelectedEdge();
+            // ESC -> close any open inspector
+            if (e.key === 'Escape') {
+                handleCloseInspector();
+                return;
+            }
+
+            // Delete / Backspace -> delete either selected edge (if open) or selected node (if exactly one selected)
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                // 1) If an edge inspector is open, delete that edge
+                if (selectedEdge) {
+                    // re-use your existing handler
+                    deleteSelectedEdge();
+                    return;
+                }
+
+                // 2) Otherwise, check selectedNodes prop from parent (if single node selected)
+                if (Array.isArray(selectedNodes) && selectedNodes.length === 1) {
+                    const nodeToDelete = selectedNodes[0];
+                    const nodeId = nodeToDelete?.id ?? nodeToDelete; // support both node object or id string
+                    if (!nodeId) return;
+
+                    if (!window.confirm('Delete this item and its connected edges?')) return;
+
+                    // remove node
+                    if (typeof setNodes === 'function') {
+                        setNodes((prev) => (Array.isArray(prev) ? prev.filter((n) => n.id !== nodeId) : prev));
+                    }
+
+                    // remove edges connected to it
+                    if (typeof setEdges === 'function') {
+                        setEdges((prev) => (Array.isArray(prev) ? prev.filter((ed) => ed.source !== nodeId && ed.target !== nodeId) : prev));
+                    }
+
+                    // remove from items if available
+                    if (typeof setItems === 'function') {
+                        setItems((prevItems) => (Array.isArray(prevItems) ? prevItems.filter((it) => it.id !== nodeId) : prevItems));
+                    }
+
+                    // notify parent selection change (clear selection)
+                    if (typeof onSelectionChange === 'function') onSelectionChange({ nodes: [], edges: [] });
+
+                    // clear parent selectedItem
+                    if (typeof setSelectedItem === 'function') setSelectedItem(null);
+
+                    return;
+                }
+            }
         };
+
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [selectedEdge]);
+    }, [selectedEdge, selectedNodes, deleteSelectedEdge, setNodes, setEdges, setItems, setSelectedItem, onSelectionChange]);
+
 
     const edgeCategories = ['None', 'Inline Valve'];
 
