@@ -1,6 +1,6 @@
 ﻿// src/components/ProcessDiagram.jsx
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
+import { useNodesState, useEdgesState, addEdge } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
 
@@ -9,11 +9,11 @@ import CustomItemNode from './CustomItemNode';
 import PipeItemNode from './PipeItemNode';
 import ScalableIconNode from './ScalableIconNode';
 import GroupLabelNode from './GroupLabelNode';
+import ItemDetailCard from './ItemDetailCard';
 import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon } from './IconManager';
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
-import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import UnitLayoutConfig from './UnitLayoutConfig';
@@ -50,16 +50,13 @@ export const fetchData = async () => {
 
     return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
 };
-// put near top
+
+// convert UI fields to Airtable-safe fields (Type must be an array of IDs)
 const toAirtableFields = (fields) => {
     const out = { ...fields };
     if (typeof out.Type === 'string') out.Type = out.Type ? [out.Type] : [];
     return out;
 };
-
-// inside handleItemDetailChange, before fetch:
-const payloadFields = toAirtableFields({ ...updatedItem });
-delete payloadFields.id;
 
 export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -75,14 +72,14 @@ export default function ProcessDiagram() {
     const prevItemsRef = useRef([]);
     const positionsRef = useRef(new Map()); // id -> {x,y}
 
-    function capturePositions(nodesArray) {
+    const capturePositions = (nodesArray) => {
         const m = positionsRef.current;
         nodesArray.forEach((n) => {
             if (n?.id && n?.position) m.set(String(n.id), { x: n.position.x, y: n.position.y });
         });
-    }
+    };
 
-    function applyPositions(nodesArray) {
+    const applyPositions = (nodesArray) => {
         const m = positionsRef.current;
         return nodesArray.map((n) => {
             const cached = m.get(String(n.id));
@@ -94,7 +91,7 @@ export default function ProcessDiagram() {
             }
             return n;
         });
-    }
+    };
 
     const updateNode = (id, newData) => {
         setNodes((nds) =>
@@ -106,6 +103,9 @@ export default function ProcessDiagram() {
         setNodes((nds) => nds.filter((node) => node.id !== id));
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
+
+    // helper for builder (previous nodes reference)
+    const getPrevNodesForBuilder = useCallback(() => nodes, [nodes]);
 
     // ---------- ITEM CHANGES: never touch node.position ----------
     const handleItemDetailChange = useCallback(
@@ -129,7 +129,8 @@ export default function ProcessDiagram() {
 
             setSelectedItem((cur) => (cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur));
 
-            const payloadFields = { ...updatedItem };
+            // convert for Airtable (Type -> array of IDs, etc.)
+            const payloadFields = toAirtableFields({ ...updatedItem });
             delete payloadFields.id;
 
             try {
@@ -278,8 +279,8 @@ export default function ProcessDiagram() {
                 edgeId: edge.id,
                 from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
                 to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-                x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
-                y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
+                x: fromItem?.x && toItem?.x ? (fromItem.x + toItem.x) / 2 : undefined,
+                y: fromItem?.y && toItem?.y ? (fromItem.y + toItem.y) / 2 : undefined,
                 _edge: edge,
             };
 
@@ -414,7 +415,7 @@ export default function ProcessDiagram() {
             });
             setItems(updatedItems);
 
-            // ✅ Keep existing node objects for existing ids
+            // keep existing node objects/positions
             setNodes((prevNodes) => {
                 const prevById = new Map(prevNodes.map((n) => [String(n.id), n]));
                 const next = (aiNodes || []).map((fresh) => {
@@ -427,12 +428,9 @@ export default function ProcessDiagram() {
                         data: { ...(prev.data || {}), ...(fresh.data || {}) },
                     };
                 });
-
-                // keep any old nodes not in aiNodes
                 prevNodes.forEach((p) => {
                     if (!next.some((m) => String(m.id) === String(p.id))) next.push(p);
                 });
-
                 const rePos = applyPositions(next);
                 capturePositions(rePos);
                 return rePos;
@@ -459,24 +457,21 @@ export default function ProcessDiagram() {
                     Category: Array.isArray(item['Category Item Type'])
                         ? item['Category Item Type'][0]
                         : item['Category Item Type'] || '',
+                    // keep only first Type ID for UI; we save it back as array
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Sequence: item.Sequence || 0,
                     Connections: Array.isArray(item.Connections) ? item.Connections : [],
-                    // if Airtable already has x/y, keep them
                     x: typeof item.x === 'number' ? item.x : undefined,
                     y: typeof item.y === 'number' ? item.y : undefined,
                 }));
 
                 const uniqueUnits = [...new Set(normalizedItems.map((i) => i.Unit))];
-
                 const unitLayout2D = [uniqueUnits];
                 setUnitLayoutOrder(unitLayout2D);
 
                 const { nodes: builtNodes, edges: builtEdges } =
                     buildDiagram(normalizedItems, unitLayout2D, { prevNodes: getPrevNodesForBuilder() });
 
-
-                // ✅ Build once; prefer previous node objects to keep positions (none on first load)
                 setNodes((prevNodes) => {
                     const next = (builtNodes || []).map((fresh) => {
                         const prev = prevNodes.find((p) => String(p.id) === String(fresh.id));
@@ -508,7 +503,7 @@ export default function ProcessDiagram() {
         };
 
         loadItems();
-    }, []);
+    }, [getPrevNodesForBuilder]);
 
     // ---------- REBUILD / INCREMENTAL UPDATE ----------
     useEffect(() => {
@@ -529,7 +524,6 @@ export default function ProcessDiagram() {
             const { nodes: rebuiltNodes, edges: rebuiltEdges } =
                 buildDiagram(items, unitLayoutOrder, { prevNodes: getPrevNodesForBuilder() });
 
-            // ✅ Keep old node objects for existing ids; never touch position
             setNodes((prevNodes) => {
                 const next = (rebuiltNodes || []).map((fresh) => {
                     const prev = prevNodes.find((p) => String(p.id) === String(fresh.id));
@@ -542,7 +536,6 @@ export default function ProcessDiagram() {
                     };
                 });
 
-                // keep any older nodes that builder did not include
                 const missingPrev = prevNodes.filter((p) => !next.some((m) => String(m.id) === String(p.id)));
                 const merged = [...next, ...missingPrev];
 
@@ -553,7 +546,6 @@ export default function ProcessDiagram() {
 
             setEdges(rebuiltEdges);
         } else {
-            // ✅ Incremental: update only data/icon; keep position
             setNodes((prevNodes) => {
                 const next = prevNodes.map((n) => {
                     const item = items.find((it) => String(it.id) === String(n.id));
@@ -575,7 +567,7 @@ export default function ProcessDiagram() {
         }
 
         prevItemsRef.current = items;
-    }, [unitLayoutOrder, items]);
+    }, [unitLayoutOrder, items, getPrevNodesForBuilder]);
 
     const itemsMap = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
 
@@ -617,82 +609,6 @@ export default function ProcessDiagram() {
         setNodes((nds) => nds.map((n) => (n.id === childId ? { ...n, data: { ...n.data, groupId: undefined } } : n)));
 
     const onDeleteGroup = (groupId) => setNodes((nds) => nds.filter((n) => n.id !== groupId));
-
-    const handleAddItem = (rawItem) => {
-        setItems((prevItems) => {
-            const firstKnownUnit =
-                Array.isArray(unitLayoutOrder) && unitLayoutOrder.length && unitLayoutOrder[0].length
-                    ? unitLayoutOrder[0][0]
-                    : prevItems[0]?.Unit || 'Unit 1';
-
-            const normalizedItem = {
-                id: rawItem.id || `item-${Date.now()}`,
-                Name: rawItem.Name || 'New Item',
-                Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
-                'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
-                Unit: rawItem.Unit || selectedItem?.Unit || firstKnownUnit || 'Unit 1',
-                SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? 'Default SubUnit',
-                Category: Array.isArray(rawItem['Category Item Type'])
-                    ? rawItem['Category Item Type'][0]
-                    : rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment',
-                'Category Item Type': Array.isArray(rawItem['Category Item Type'])
-                    ? rawItem['Category Item Type'][0]
-                    : rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment',
-                Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : rawItem.Type || '',
-                Sequence: rawItem.Sequence ?? 0,
-                Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
-            };
-
-            const nextItems = [...prevItems, normalizedItem];
-
-            const ensureUnitInLayout = (layout, unit) => {
-                if (!Array.isArray(layout) || !layout.length) return [[unit]];
-                const flat = new Set(layout.flat());
-                if (!flat.has(unit)) {
-                    const copy = layout.map((row) => [...row]);
-                    copy[0].push(unit);
-                    return copy;
-                }
-                return layout;
-            };
-
-            const currentLayout = Array.isArray(unitLayoutOrder) && unitLayoutOrder.length ? unitLayoutOrder : [[]];
-            const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
-            if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
-
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } =
-                buildDiagram(nextItems, patchedLayout, { prevNodes: getPrevNodesForBuilder() });
-
-
-            setNodes((prevNodes) => {
-                const next = (rebuiltNodes || []).map((fresh) => {
-                    const prev = prevNodes.find((p) => String(p.id) === String(fresh.id));
-                    if (!prev) return fresh;
-                    return {
-                        ...prev,
-                        type: fresh.type ?? prev.type,
-                        style: { ...(prev.style || {}), ...(fresh.style || {}) },
-                        data: { ...(prev.data || {}), ...(fresh.data || {}) },
-                    };
-                });
-
-                const missingPrev = prevNodes.filter((p) => !next.some((m) => String(m.id) === String(p.id)));
-                const merged = [...next, ...missingPrev];
-
-                const rePos = applyPositions(merged);
-                capturePositions(rePos);
-                return rePos;
-            });
-
-            setEdges(rebuiltEdges);
-
-            const addedNode = rebuiltNodes.find((n) => n.id === normalizedItem.id);
-            if (addedNode) setSelectedNodes([addedNode]);
-            setSelectedItem(normalizedItem);
-
-            return nextItems;
-        });
-    };
 
     // Selection hook used by DiagramCanvas
     const onSelectionChange = useCallback(
@@ -766,8 +682,8 @@ export default function ProcessDiagram() {
                         addItem={handleAddItem}
                         selectedItem={selectedItem}
                         onItemChange={(updatedItem) => {
-                            // 🚫 never request reposition from the panel
-                            handleItemDetailChange(updatedItem /*, { reposition: false }*/);
+                            // never request reposition from the panel
+                            handleItemDetailChange(updatedItem);
                         }}
                         onDeleteItem={handleDeleteItem}
                         onDeleteEdge={handleDeleteEdge}
@@ -815,7 +731,16 @@ export default function ProcessDiagram() {
                                 onDelete={onDeleteGroup}
                             />
                         ) : selectedItem ? (
-                           
+                            <ItemDetailCard
+                                item={selectedItem}
+                                items={items}
+                                edges={edges}
+                                onChange={handleItemDetailChange}
+                                onDeleteItem={handleDeleteItem}
+                                onDeleteEdge={handleDeleteEdge}
+                                onUpdateEdge={handleUpdateEdge}
+                                onCreateInlineValve={handleCreateInlineValve}
+                            />
                         ) : (
                             <div style={{ padding: 20, color: '#888' }}>Select an item or group to see details</div>
                         )}
