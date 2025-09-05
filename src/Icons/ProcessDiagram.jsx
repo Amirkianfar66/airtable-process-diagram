@@ -823,16 +823,11 @@ export default function ProcessDiagram() {
                                 items={items}
                                 edges={edges}
                                 onChange={(updatedItem) => {
-                                    const prev = items.find(it => it.id === updatedItem.id) || {};
-                                    handleItemDetailChange(updatedItem, {
-                                        reposition: updatedItem.Unit !== prev.Unit || updatedItem.SubUnit !== prev.SubUnit
-                                    });
+                                    handleItemDetailChange(updatedItem, { reposition: false });
                                 }}
-                                onDeleteItem={handleDeleteItem}
-                                onDeleteEdge={handleDeleteEdge}
-                                onUpdateEdge={handleUpdateEdge}
-                                onCreateInlineValve={handleCreateInlineValve}
-                            />
+  ...
+/>
+
                         ) : (
                             <div style={{ padding: 20, color: "#888" }}>
                                 Select an item or group to see details
