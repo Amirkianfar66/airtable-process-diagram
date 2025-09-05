@@ -11,7 +11,7 @@ export default function ItemDetailCard({
     edges = [],
     onDeleteEdge,
     onUpdateEdge,
-    onCreateInlineValve, // not used here but kept for parity
+    onCreateInlineValve,
     onDeleteItem,
 }) {
     const [localItem, setLocalItem] = useState(item || {});
@@ -19,17 +19,20 @@ export default function ItemDetailCard({
     const [allTypes, setAllTypes] = useState([]);
     const debounceRef = useRef(null);
 
-    // safe wrapper to parent onChange
+    // safe wrapper
     const safeOnChange = (payload, options) => {
         if (typeof onChange !== 'function') return;
         try {
             onChange(payload, options);
         } catch (err) {
             console.error('[safeOnChange] onChange threw:', err);
+            try {
+                console.log('[safeOnChange] payload:', payload, 'options:', options);
+            } catch { }
         }
     };
 
-    // keep local state in sync when selected item changes
+    // sync local when selected item id changes
     useEffect(() => {
         setLocalItem(item || {});
     }, [item?.id]);
@@ -60,13 +63,14 @@ export default function ItemDetailCard({
     const fetchTypeNameById = async (typeId) => {
         if (!typeId) return 'Unknown';
         if (typeCache.has(typeId)) return typeCache.get(typeId);
-
+        // try from allTypes first
         const found = allTypes.find((t) => t.id === typeId);
         if (found) {
             typeCache.set(typeId, found.name);
             return found.name;
         }
 
+        // fallback: try server endpoint to fetch single record (optional)
         try {
             const res = await fetch(`/api/airtable/types/${typeId}`);
             if (!res.ok) return 'Unknown';
@@ -106,13 +110,14 @@ export default function ItemDetailCard({
         }
     }, [item, allTypes]);
 
-    // best-effort populate edge info for display
+    // infer first connected edge and resolve "from" / "to" display (best-effort)
     useEffect(() => {
         if (!item || !edges || !items) return;
-
+        // if item carries a direct edge reference, prefer that
         const edgeId = item.edgeId || item._edge?.id;
         const edge =
             (edgeId && edges.find((e) => e.id === edgeId)) ||
+            // fallback: try a first edge that touches this node
             edges.find((e) => e.source === item.id || e.target === item.id);
 
         if (!edge) return;
@@ -129,12 +134,12 @@ export default function ItemDetailCard({
         }));
     }, [item?.id, edges, items]);
 
-    // commit a minimal update — NEVER send x/y; NEVER trigger reposition from here
-    const commitUpdate = (updatedObj = {}) => {
+    // commitUpdate with debounce — **never** send x/y from here
+    const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {
         const id = updatedObj?.id ?? item?.id ?? localItem?.id;
         const payload = { id, ...updatedObj };
 
-        // hard block any x/y from being sent
+        // strip x/y entirely (we don't manage positions from this panel)
         delete payload.x;
         delete payload.y;
 
@@ -142,35 +147,28 @@ export default function ItemDetailCard({
         const { x, y, ...uiPatch } = updatedObj || {};
         setLocalItem((prev) => ({ ...prev, ...uiPatch }));
 
-        // debounce write up
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
-            // IMPORTANT: we never pass a 'reposition' option here
-            safeOnChange(payload, /* options */ { reposition: false });
+            safeOnChange(payload, options);
             debounceRef.current = null;
-        }, 500);
+        }, 600);
     };
 
-    // inputs handler — send minimal deltas; suppress Unit/SubUnit propagation
-    const handleFieldChange = (fieldName, value) => {
-        // do not send x/y at all
+    // handler used by inputs — send **minimal** deltas; ignore x/y
+    const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
+        // ignore x/y entirely for now
         if (fieldName === 'x' || fieldName === 'y') return;
-
-        // do not propagate Unit/SubUnit changes (keep local only so canvas doesn't move)
-        if (fieldName === 'Unit' || fieldName === 'SubUnit') {
-            setLocalItem((prev) => ({ ...prev, [fieldName]: value }));
-            return;
-        }
 
         // When updating Type from dropdown: store as array of record ids
         if (fieldName === 'Type') {
             const newType = value ? [value] : [];
-            commitUpdate({ id: item?.id ?? localItem?.id, Type: newType });
+            commitUpdate({ id: item?.id ?? localItem?.id, Type: newType }, options);
             return;
         }
 
-        // send minimal delta for everything else
-        commitUpdate({ id: item?.id ?? localItem?.id, [fieldName]: value });
+        // send minimal delta
+        const payload = { id: item?.id ?? localItem?.id, [fieldName]: value };
+        commitUpdate(payload, options);
     };
 
     const getSimpleLinkedValue = (field) =>
@@ -186,6 +184,7 @@ export default function ItemDetailCard({
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
 
+    // filter types by category - prefer localItem's chosen category fallback to Equipment
     const activeCategory = localItem['Category Item Type'] || localItem.Category || 'Equipment';
     const filteredTypes = useMemo(
         () => allTypes.filter((t) => t.category === activeCategory),
@@ -193,7 +192,13 @@ export default function ItemDetailCard({
     );
 
     const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
-    const labelStyle = { width: '130px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
+    const labelStyle = {
+        width: '130px',
+        fontWeight: 500,
+        color: '#555',
+        textAlign: 'right',
+        marginRight: '12px',
+    };
     const inputStyle = {
         flex: 1,
         padding: '6px 10px',
@@ -204,7 +209,13 @@ export default function ItemDetailCard({
         background: '#fafafa',
     };
     const sectionStyle = { marginBottom: '24px' };
-    const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
+    const headerStyle = {
+        borderBottom: '1px solid #eee',
+        paddingBottom: '6px',
+        marginBottom: '12px',
+        marginTop: 0,
+        color: '#333',
+    };
 
     const liveEdge = item._edge || {};
 
@@ -251,19 +262,14 @@ export default function ItemDetailCard({
                             value={activeCategory}
                             onChange={(e) => {
                                 const newCategory = e.target.value;
-                                // clear Type to force a valid pick for this category
-                                setLocalItem((prev) => ({
-                                    ...prev,
-                                    'Category Item Type': newCategory,
-                                    Category: newCategory,
-                                    Type: [],
-                                }));
-                                // send minimal change up (without Type first)
-                                commitUpdate({
+                                const updated = {
                                     id: item?.id ?? localItem?.id,
                                     'Category Item Type': newCategory,
                                     Category: newCategory,
-                                });
+                                    // when category changes, clear Type so user picks a valid one
+                                    Type: [],
+                                };
+                                commitUpdate(updated, { reposition: false });
                             }}
                         >
                             {categories.map((cat) => (
@@ -297,7 +303,6 @@ export default function ItemDetailCard({
                             type="text"
                             value={localItem['Unit'] || ''}
                             onChange={(e) => handleFieldChange('Unit', e.target.value)}
-                            title="Editing Unit here will not move the item (local only)."
                         />
                     </div>
 
@@ -308,7 +313,6 @@ export default function ItemDetailCard({
                             type="text"
                             value={localItem['SubUnit'] || ''}
                             onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
-                            title="Editing SubUnit here will not move the item (local only)."
                         />
                     </div>
 

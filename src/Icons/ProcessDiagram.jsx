@@ -235,16 +235,27 @@ export default function ProcessDiagram() {
     const onNodeDragStop = useCallback((event, draggedNode) => {
         if (!draggedNode) return;
 
-        // ensure dragged node's position is stored
+        // 1) keep node position in ReactFlow state + cache
         setNodes((nds) => {
-            const next = nds.map(n =>
+            const next = nds.map((n) =>
                 n.id === draggedNode.id ? { ...n, position: { ...draggedNode.position } } : n
             );
-            capturePositions(next); // ✅ cache all positions after drag
+            capturePositions(next);
             return next;
         });
 
-        // reset prevX/prevY only for groupLabel nodes
+        // 2) ✅ persist position into items[] so diagramBuilder can reuse it on rebuilds
+        setItems((prev) =>
+            Array.isArray(prev)
+                ? prev.map((it) =>
+                    String(it.id) === String(draggedNode.id)
+                        ? { ...it, x: draggedNode.position.x, y: draggedNode.position.y }
+                        : it
+                )
+                : prev
+        );
+
+        // 3) reset prevX/prevY only for groupLabel nodes
         if (draggedNode.type !== 'groupLabel') return;
         setNodes((nds) =>
             nds.map((n) =>
@@ -253,7 +264,7 @@ export default function ProcessDiagram() {
                     : n
             )
         );
-    }, [setNodes]);
+    }, [setNodes, setItems]);
 
 
     const handleEdgeSelect = useCallback(
@@ -744,7 +755,7 @@ export default function ProcessDiagram() {
                         setEdges={setEdges}
                         setItems={setItems}
                         setSelectedItem={setSelectedItem}
-                        oNodesChange={onNodesChangeWrapped}
+                        onNodesChange={onNodesChangeWrapped
                         onEdgesChange={onEdgesChange}
                         onConnect={onConnect}
                         onSelectionChange={onSelectionChange}
