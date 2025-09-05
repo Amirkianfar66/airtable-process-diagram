@@ -52,11 +52,9 @@ export const fetchData = async () => {
 };
 
 // convert UI fields to Airtable-safe fields (Type must be an array of IDs)
-const toAirtableFields = (fields) => {
-    const out = { ...fields };
-    if (typeof out.Type === 'string') out.Type = out.Type ? [out.Type] : [];
-    return out;
-};
+// Toggle persistence (off for now)
+const PERSIST_TO_AIRTABLE = false;
+
 
 export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -109,31 +107,40 @@ export default function ProcessDiagram() {
 
     // ---------- ITEM CHANGES: never touch node.position ----------
     const handleItemDetailChange = useCallback(
-        async (updatedItem /*, options */) => {
+        async (updatedItem) => {
             if (!updatedItem || !updatedItem.id) return;
             const idStr = String(updatedItem.id);
 
-            let previousItemsSnapshot;
-            setItems((prev) => {
-                previousItemsSnapshot = prev;
-                return prev.map((it) => (String(it.id) === idStr ? { ...it, ...updatedItem } : it));
-            });
-
-            // Only merge data on the node; never change position
-            setNodes((prevNodes) =>
-                prevNodes.map((node) => {
-                    if (String(node.id) !== idStr) return node;
-                    return { ...node, data: { ...node.data, ...updatedItem } };
-                })
+            // 1) Update items[] locally
+            setItems(prev =>
+                prev.map(it => (String(it.id) === idStr ? { ...it, ...updatedItem } : it))
             );
 
-            setSelectedItem((cur) => (cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur));
+            // 2) Update the node's data only (never touch position)
+            setNodes(prevNodes =>
+                prevNodes.map(node =>
+                    String(node.id) === idStr
+                        ? { ...node, data: { ...node.data, ...updatedItem } }
+                        : node
+                )
+            );
 
-            // convert for Airtable (Type -> array of IDs, etc.)
-            const payloadFields = toAirtableFields({ ...updatedItem });
-            delete payloadFields.id;
+            // 3) Keep the right panel in sync
+            setSelectedItem(cur =>
+                cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur
+            );
 
+            // 4) Skip remote save while disabled
+            if (!PERSIST_TO_AIRTABLE) {
+                console.debug('[Airtable disabled] Skipping PATCH for', idStr);
+                return;
+            }
+
+            // --- If you later re-enable saving, this block will run ---
             try {
+                const payloadFields = { ...updatedItem };
+                delete payloadFields.id;
+
                 const res = await fetch('/api/airtable', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
@@ -147,35 +154,27 @@ export default function ProcessDiagram() {
 
                 const json = await res.json().catch(() => null);
                 if (json && json.id) {
-                    setItems((prev) =>
-                        prev.map((it) => (String(it.id) === idStr ? { ...it, ...json.fields, id: json.id } : it))
+                    setItems(prev =>
+                        prev.map(it =>
+                            String(it.id) === idStr ? { ...it, ...json.fields, id: json.id } : it
+                        )
                     );
-                    setNodes((prevNodes) =>
-                        prevNodes.map((node) =>
-                            String(node.id) === idStr ? { ...node, data: { ...node.data, ...(json.fields || {}) } } : node
+                    setNodes(prevNodes =>
+                        prevNodes.map(node =>
+                            String(node.id) === idStr
+                                ? { ...node, data: { ...node.data, ...(json.fields || {}) } }
+                                : node
                         )
                     );
                 }
             } catch (err) {
                 console.error('Failed to persist item to Airtable:', err);
-                if (previousItemsSnapshot) setItems(previousItemsSnapshot);
-
-                // Restore previous data; keep the same position
-                setNodes((prevNodes) =>
-                    prevNodes.map((node) => {
-                        if (String(node.id) !== idStr) return node;
-                        const restored = (previousItemsSnapshot || []).find((p) => String(p.id) === idStr);
-                        return restored ? { ...node, data: { ...node.data, ...restored } } : node;
-                    })
-                );
-
-                if (typeof window !== 'undefined') {
-                    window.alert('Failed saving changes to Airtable — changes were not saved.');
-                }
+                // We’re not reverting local changes since persistence is optional right now.
             }
         },
         [setItems, setNodes, setSelectedItem]
     );
+
 
     const onConnect = useCallback(
         (params) => {
