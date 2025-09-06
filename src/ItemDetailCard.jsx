@@ -299,7 +299,9 @@ export default function ItemDetailCard({
     }
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
-    const filteredTypes = allTypes.filter((t) => t.category === (localItem['Category Item Type'] || 'Equipment'));
+    const typesForSelectedCategory = allTypes.filter(
+           (t) => t.category === (localItem['Category Item Type'] || 'Equipment')
+          );
 
     // For Edge inspector: list only Inline Valve types
     const inlineValveTypes = allTypes.filter((t) => t.category === 'Inline Valve');
@@ -387,7 +389,7 @@ export default function ItemDetailCard({
                             onChange={(e) => handleFieldChange('Type', e.target.value)}
                         >
                             <option value="">Select Type</option>
-                            {filteredTypes.map((t) => (
+                            {typesForSelectedCategory.map(t) => (
                                 <option key={t.id} value={t.name}>
                                     {t.name}
                                 </option>
