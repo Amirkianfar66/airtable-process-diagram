@@ -622,8 +622,6 @@ export default function ProcessDiagram() {
     };
 
 
-
-
     function getUnitSubunitPosition(unit, subUnit, nodes) {
         const unitNode = nodes.find(n => n.id === `unit-${unit}`);
         const subUnitNode = nodes.find(n => n.id === `sub-${unit}-${subUnit}`);
