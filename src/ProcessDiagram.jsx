@@ -18,6 +18,29 @@ import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import UnitLayoutConfig from "./UnitLayoutConfig";
 
+// Prefer keeping existing edges if they connect the same nodes.
+// Also drop any edges that reference nodes that no longer exist.
+const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => {
+    const key = (e) => `${e.source}->${e.target}`;
+
+    const filterValid = (arr) =>
+        (arr || []).filter(
+            (e) => e && validNodeIds.has(String(e.source)) && validNodeIds.has(String(e.target))
+        );
+
+    const prevFiltered = filterValid(prevEdges);
+    const newFiltered = filterValid(newEdges);
+
+    const seen = new Set(prevFiltered.map((e) => key(e)));
+    const merged = [...prevFiltered];
+
+    for (const e of newFiltered) {
+        const k = key(e);
+        if (!seen.has(k)) merged.push(e); // add builder edges that are new
+    }
+    return merged;
+};
+
 export const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -64,10 +87,8 @@ export default function ProcessDiagram() {
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
-    // Prefer keeping existing edges if they connect the same nodes.
-    // Also drop any edges that reference nodes that no longer exist.
-    function mergeEdges(prevEdges = [], newEdges = [], validNodeIds = new Set()) setEdges(builtEdges)
-        const key = (e) => `${e.source}->${e.target}`;
+    
+    
 
         // keep only edges pointing to existing nodes
         const filteredPrev = prevEdges.filter(e => validNodeIds.has(e.source) && validNodeIds.has(e.target));
