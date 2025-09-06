@@ -138,55 +138,58 @@ export default function ItemDetailCard({
     };
 
     // Resolve Type label if item.Type is an Airtable record id
+    // Edge → Item: mirror inlineValveType from ANY connected edge into this inline valve item
     useEffect(() => {
-        if (!item || !item.Type) {
-            setResolvedType('-');
-            return;
-        }
+        if (!item) return;
 
-        if (Array.isArray(item.Type) && item.Type.length > 0) {
-            const typeIdOrName = item.Type[0];
-            if (typeof typeIdOrName === 'string' && typeIdOrName.startsWith('rec')) {
-                if (typeCache.has(typeIdOrName)) {
-                    setResolvedType(typeCache.get(typeIdOrName));
-                    return;
-                }
-                setResolvedType('Loading...');
-                (async () => {
-                    const category = item['Category Item Type'] || item.Category || 'Equipment';
-                    const name = await fetchTypeNameById(typeIdOrName, category);
-                    setResolvedType(name);
-                })();
-            } else {
-                setResolvedType(typeIdOrName);
-            }
-        } else {
-            setResolvedType(item.Type);
+        // Only for inline valve items
+        const isInlineValve =
+            (localItem?.['Category Item Type'] || localItem?.Category) === 'Inline Valve';
+        if (!isInlineValve) return;
+
+        // Find any connected edge carrying inlineValveType
+        const connected = Array.isArray(edges)
+            ? edges.filter(e => e.source === item.id || e.target === item.id)
+            : [];
+
+        const withType = connected.find(e => e?.data?.inlineValveType);
+        const inlineType = withType?.data?.inlineValveType || '';
+
+        if (!inlineType) return;
+
+        // If panel shows a different value, update it and persist (debounced)
+        if ((localItem?.Type || '') !== inlineType) {
+            setLocalItem(prev => ({ ...prev, Type: inlineType }));
+            commitUpdate({ Type: inlineType }); // debounced 2s
         }
-    }, [item]);
+    }, [edges, item?.id, localItem?.['Category Item Type'], localItem?.Category]);
+
 
     // When an item has a first connection, surface basic edge context in the panel
+    // Item → Edge(s): if user changes Type in this panel, push it to all connected edges
     useEffect(() => {
-        if (!item || !edges || !Array.isArray(edges) || !items || !Array.isArray(items)) return;
+        if (!item || typeof onUpdateEdge !== 'function') return;
 
-        const firstConnId = item.Connections?.[0];
-        if (!firstConnId) return;
+        const isInlineValve =
+            (localItem?.['Category Item Type'] || localItem?.Category) === 'Inline Valve';
+        if (!isInlineValve) return;
 
-        const edge = edges.find((e) => e.id === firstConnId);
-        if (!edge) return;
+        const desiredType = localItem?.Type || '';
 
-        const findItemById = (id) => items.find((it) => it.id === id) || {};
+        const connected = Array.isArray(edges)
+            ? edges.filter(e => e.source === item.id || e.target === item.id)
+            : [];
 
-        const fromItem = findItemById(edge.source);
-        const toItem = findItemById(edge.target);
+        connected.forEach(edge => {
+            const cur = edge?.data?.inlineValveType || '';
+            if (desiredType && desiredType !== cur) {
+                onUpdateEdge(edge.id, {
+                    data: { ...(edge.data || {}), inlineValveType: desiredType },
+                });
+            }
+        });
+    }, [localItem?.Type, localItem?.['Category Item Type'], localItem?.Category, item?.id, edges, onUpdateEdge]);
 
-        setLocalItem((prev) => ({
-            ...prev,
-            edgeId: edge.id,
-            from: fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
-            to: toItem.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-        }));
-    }, [item, edges, items]);
 
     // Commit with 2s debounce to avoid live-updating canvas while typing
     const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {

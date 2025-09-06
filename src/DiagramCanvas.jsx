@@ -130,14 +130,14 @@ export default function DiagramCanvas({
 
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-
+        const inlineType = selectedEdge?.data?.inlineValveType || '';
         const newItem = {
             id: `valve-${Date.now()}`,
             "Item Code": "VALVE001",
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
-            Type: [],
+            Type: inlineType || '',
             Unit: sourceNode.data?.item?.Unit || "",
             SubUnit: sourceNode.data?.item?.SubUnit || "",
             x: midX,
@@ -246,6 +246,42 @@ export default function DiagramCanvas({
     }, [selectedEdge, selectedNodes, nodes, setNodes, setEdges, setItems, setSelectedItem, onSelectionChange]);
 
     const edgeCategories = ['None', 'Inline Valve'];
+
+    // Keep the valve node's item.Type in sync with the edge dropdown
+    const setEdgeInlineValveType = (typeValue) => {
+        if (!selectedEdge) return;
+
+        // 1) Update the edge data
+        updateSelectedEdge({
+            data: { ...(selectedEdge.data || {}), inlineValveType: typeValue }
+        });
+
+        // 2) If a valve node is connected to this edge, update its item.Type
+        const candidateIds = [selectedEdge.source, selectedEdge.target];
+        const valveNode = (Array.isArray(nodes) ? nodes : []).find(n => {
+            if (!candidateIds.includes(n.id)) return false;
+            const cat = n?.data?.item?.['Category Item Type'] || n?.data?.item?.Category;
+            return cat === 'Inline Valve';
+        });
+
+        if (valveNode) {
+            // update ReactFlow node
+            setNodes(prev =>
+                prev.map(n =>
+                    n.id === valveNode.id
+                        ? { ...n, data: { ...n.data, item: { ...n.data.item, Type: typeValue } } }
+                        : n
+                )
+            );
+
+            // update your items[] store if you mirror nodes there
+            setItems?.(prev =>
+                Array.isArray(prev)
+                    ? prev.map(it => (it.id === valveNode.id ? { ...it, Type: typeValue } : it))
+                    : prev
+            );
+        }
+    };
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -362,11 +398,7 @@ export default function DiagramCanvas({
                                     <label style={{ display: 'block', fontSize: 12, marginTop: 8 }}>Inline Valve Type</label>
                                     <select
                                         value={selectedEdge?.data?.inlineValveType || ''}
-                                        onChange={(e) =>
-                                            updateSelectedEdge({
-                                                data: { ...(selectedEdge.data || {}), inlineValveType: e.target.value }
-                                            })
-                                        }
+                                        onChange={(e) => setEdgeInlineValveType(e.target.value)}   // ⬅️ changed
                                         style={{ padding: 8, width: '100%' }}
                                     >
                                         <option value="">Select type...</option>
