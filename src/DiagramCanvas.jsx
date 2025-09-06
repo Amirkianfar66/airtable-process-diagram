@@ -35,6 +35,8 @@ export default function DiagramCanvas({
     onNodeDrag,
     onNodeDragStop,
     showInlineEdgeInspector = true,
+    availableUnits = [],
+    onUnitLayoutChange = () => { },
 }) {
     const [selectedEdge, setSelectedEdge] = useState(null);
     const [valveTypeOptions, setValveTypeOptions] = useState([]);
@@ -293,6 +295,8 @@ export default function DiagramCanvas({
                 setEdges={setEdges}
                 updateNode={updateNode}
                 deleteNode={deleteNode}
+                availableUnits={availableUnits}
+                onUnitLayoutChange={onUnitLayoutChange}
             />
 
             <div style={{ padding: 10 }}>
