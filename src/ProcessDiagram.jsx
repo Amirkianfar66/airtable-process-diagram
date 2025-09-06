@@ -88,24 +88,7 @@ export default function ProcessDiagram() {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
     
-    
-
-        // keep only edges pointing to existing nodes
-        const filteredPrev = prevEdges.filter(e => validNodeIds.has(e.source) && validNodeIds.has(e.target));
-        const filteredNew = newEdges.filter(e => validNodeIds.has(e.source) && validNodeIds.has(e.target));
-
-        const prevByKey = new Map(filteredPrev.map(e => [key(e), e]));
-        const merged = [...filteredPrev];
-
-        for (const e of filteredNew) {
-            const k = key(e);
-            if (!prevByKey.has(k)) {
-                merged.push(e); // add new connections from builder
-            } // else: keep the user's existing edge (style/label/animation preserved)
-        }
-
-        return merged;
-    }
+   
 
     const deleteNode = (id) => {
         setNodes((nds) => nds.filter((node) => node.id !== id));
@@ -737,5 +720,3 @@ export default function ProcessDiagram() {
             </div>
         </div>
     );
-
-}
