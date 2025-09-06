@@ -86,99 +86,30 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     // --- canvas & item geometry ---
     const unitWidth = 4200;
     const unitHeight = 3000;
+
     const itemWidth = 160;
-    const itemHeight = 120;   // used for row spacing inside a sub-cell
-    const itemGap = 30;
+    const itemHeight = 120;
+
+    // separate gaps
+    const itemGapX = 30;   // horizontal gap between items
+    const itemGapY = 30;   // vertical gap between items
 
     // --- 3×3 grid inside each Unit ---
     const GRID_COLS = 3;
     const GRID_ROWS = 3;
-    const GRID_GAP = 30; // gap between sub-cells
-    const UNIT_PAD = 10; // inner padding inside the unit frame
+    const GRID_GAP = 30;  // gap between sub-cells
+    const UNIT_PAD = 10;
 
-    // keep rectangles so we can place first-time items / Unit-changed items
-    const subRects = new Map(); // key: `${unit}|||${sub}` -> { baseX, baseY, cellW, cellH }
+    // ...
 
-    // Unit/SubUnit frames as 3×3 grid
-    safeLayout.forEach((row, rowIndex) => {
-        row.forEach((unitName, colIndex) => {
-            const unit = String(unitName || 'No Unit');
-            const unitX = colIndex * (unitWidth + 100);
-            const unitY = rowIndex * (unitHeight + 100);
-            if (!grouped[unit]) return;
-
-            // Unit frame
-            nodes.push({
-                id: `unit-${unit}`,
-                type: 'custom',
-                position: { x: unitX, y: unitY },
-                data: {
-                    label: unit,
-                    fontSize: 200,
-                    fontWeight: 'bold',
-                    color: '#222',
-                    fontFamily: 'Arial, sans-serif',
-                    offsetX: 200,
-                    offsetY: -300,
-                },
-                style: {
-                    width: unitWidth,
-                    height: unitHeight,
-                    background: 'transparent',
-                    border: '4px dashed #444',
-                    borderRadius: '10px',
-                },
-                draggable: false,
-                selectable: false,
-            });
-
-            // 3×3 geometry inside unit
-            const innerW = unitWidth - 2 * UNIT_PAD;
-            const innerH = unitHeight - 2 * UNIT_PAD;
-            const cellW = (innerW - (GRID_COLS - 1) * GRID_GAP) / GRID_COLS;
-            const cellH = (innerH - (GRID_ROWS - 1) * GRID_GAP) / GRID_ROWS;
-
-            // stable sub-unit order
-            const subUnits = grouped[unit];
-            const subKeys = Object.keys(subUnits).sort((a, b) => a.localeCompare(b));
-
-            subKeys.forEach((sub, idx) => {
-                const idx9 = idx % (GRID_COLS * GRID_ROWS);
-                const rIdx = Math.floor(idx9 / GRID_COLS);
-                const cIdx = idx9 % GRID_COLS;
-
-                const subX = unitX + UNIT_PAD + cIdx * (cellW + GRID_GAP);
-                const subY = unitY + UNIT_PAD + rIdx * (cellH + GRID_GAP);
-
-                nodes.push({
-                    id: `sub-${unit}-${sub}`,
-                    position: { x: subX, y: subY },
-                    data: { label: sub },
-                    style: {
-                        width: cellW,
-                        height: cellH,
-                        border: '2px dashed #aaa',
-                        background: 'transparent',
-                    },
-                    labelStyle: {
-                        fontSize: 100,
-                        fontWeight: 600,
-                        color: '#555',
-                        fontFamily: 'Arial, sans-serif',
-                    },
-                    draggable: false,
-                    selectable: false,
-                });
-
-                subRects.set(`${unit}|||${sub}`, {
-                    baseX: subX + 30,
-                    baseY: subY + 20,
-                    cellW,
-                    cellH,
-                });
-            });
-        });
+    subRects.set(`${unit}|||${sub}`, {
+        baseX: subX + itemGapX,   // (optional) align inner margin with your gap
+        baseY: subY + itemGapY,   // (optional) align inner margin with your gap
+        cellW,
+        cellH,
     });
+
+    // ...
 
     // first-time placement counters (per sub-cell) with wrap
     const firstTimeCounters = new Map(); // key -> { col, row, maxCols }
@@ -188,16 +119,15 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         const baseX = (rect?.baseX ?? 100);
         const baseY = (rect?.baseY ?? 100);
 
-        // how many items per row can we fit?
-        const usableW = (rect?.cellW ?? 600) - 20; // small left/right margin inside cell
-        const maxCols = Math.max(1, Math.floor((usableW + itemGap) / (itemWidth + itemGap)));
+        // how many items per row can we fit (based on width only)?
+        const usableW = (rect?.cellW ?? 600) - 20;
+        const maxCols = Math.max(1, Math.floor((usableW + itemGapX) / (itemWidth + itemGapX)));
 
         const state = firstTimeCounters.get(key) || { col: 0, row: 0, maxCols };
-        // if cell geometry changed, refresh maxCols
-        if (state.maxCols !== maxCols) state.col = 0, state.row = 0, state.maxCols = maxCols;
+        if (state.maxCols !== maxCols) { state.col = 0; state.row = 0; state.maxCols = maxCols; }
 
-        const x = baseX + state.col * (itemWidth + itemGap);
-        const y = baseY + state.row * (itemHeight + itemGap);
+        const x = baseX + state.col * (itemWidth + itemGapX);
+        const y = baseY + state.row * (itemHeight + itemGapY);
 
         // advance cursor
         state.col += 1;
@@ -209,6 +139,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         firstTimeCounters.set(key, state);
         return { x, y };
     }
+
 
     // Items: preserve position unless Unit changed OR no previous position exists
     safeLayout.forEach(row => {
