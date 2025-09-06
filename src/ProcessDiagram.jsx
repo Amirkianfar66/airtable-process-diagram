@@ -252,21 +252,49 @@ export default function ProcessDiagram() {
     // ---------- AI generator ----------
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
+
         try {
             const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(
-                aiDescription, items, nodes, edges, setSelectedItem, setChatMessages
+                aiDescription,
+                items,
+                nodes,
+                edges,
+                setSelectedItem,
+                setChatMessages
             );
-            const aiItems = normalizedItems || (aiNodes || []).map((n) => n.data?.item).filter(Boolean);
+
+            // Extract AI items
+            const aiItems = normalizedItems || (aiNodes || []).map(n => n.data?.item).filter(Boolean);
+            console.log("AI Items:", aiItems);
+            aiItems.forEach(i => console.log(i.Name, i.Code, i.Connections));
+
+            // Merge into items
             const updatedItems = [...items];
-            const existingIds = new Set(updatedItems.map((i) => i.id));
-            aiItems.forEach((it) => { if (it.id && !existingIds.has(it.id)) updatedItems.push(it); });
+            const existingIds = new Set(updatedItems.map(i => i.id));
+            aiItems.forEach(item => {
+                if (item.id && !existingIds.has(item.id)) {
+                    updatedItems.push(item);
+                }
+            });
             setItems(updatedItems);
+
+            // Merge nodes + edges directly (instead of discarding AI edges)
             setNodes(aiNodes);
             setEdges(aiEdges);
+
+            // Auto-select first new node
+            if (aiNodes?.length) {
+                const newNodesList = aiNodes.filter(n => !nodes.some(old => old.id === n.id));
+                if (newNodesList.length > 0) {
+                    setSelectedNodes([newNodesList[0]]);
+                    setSelectedItem(newNodesList[0].data?.item || null);
+                }
+            }
         } catch (err) {
             console.error("AI PNID generation failed:", err);
         }
     };
+
 
     // ---------- Initial load ----------
     useEffect(() => {

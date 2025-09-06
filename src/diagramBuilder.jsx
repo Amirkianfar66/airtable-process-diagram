@@ -91,7 +91,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const itemHeight = 120;
 
     // separate gaps
-    const itemGapX = 30;   // horizontal gap between items
+    const itemGapX = 40;   // horizontal gap between items
     const itemGapY = 60;   // vertical gap between items
 
     // --- 3×3 grid inside each Unit ---
