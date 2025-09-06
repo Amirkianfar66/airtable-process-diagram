@@ -389,11 +389,15 @@ export default function ItemDetailCard({
                             onChange={(e) => handleFieldChange('Type', e.target.value)}
                         >
                             <option value="">Select Type</option>
-                            {typesForSelectedCategory.map(t) => (
-                                <option key={t.id} value={t.name}>
-                                    {t.name}
+                            {(typesForSelectedCategory || []).map((t) => (
+                                <option
+                                    key={(t.value ?? t.id ?? t.name ?? String(t))}
+                                    value={(t.value ?? t.name ?? String(t))}
+                                >
+                                    {t.label ?? t.name ?? String(t)}
                                 </option>
                             ))}
+
                         </select>
                     </div>
 
