@@ -1,12 +1,8 @@
 {
   "ExpandedNodes": [
     "",
-    "\\ai",
-    "\\api",
-    "\\src",
-    "\\src\\Components",
-    "\\src\\Icons"
+    "\\ai"
   ],
-  "SelectedNode": "\\src\\AddItemButton.jsx",
+  "SelectedNode": "\\api",
   "PreviewInSolutionExplorer": false
 }
