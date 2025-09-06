@@ -2,8 +2,9 @@
   "ExpandedNodes": [
     "",
     "\\ai",
-    "\\src"
+    "\\src",
+    "\\src\\Icons"
   ],
-  "SelectedNode": "\\src\\AIPNIDGenerator.jsx",
+  "SelectedNode": "\\src\\diagramBuilder.jsx",
   "PreviewInSolutionExplorer": false
 }
