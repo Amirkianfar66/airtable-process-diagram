@@ -473,7 +473,7 @@ export default function ProcessDiagram() {
                        const p = posById[String(it.id)];
                        return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { ...it, x: p.x, y: p.y } : it;
                      });
-                setItems(itemsWithPos);
+                setItems(normalizedItems);
                 prevItemsRef.current = normalizedItems;
                 // Pass units to UnitLayoutConfig
                 const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
@@ -512,13 +512,6 @@ export default function ProcessDiagram() {
         setNodes(rebuiltNodes);
         const validIds = new Set((rebuiltNodes || []).map(n => n.id));
         setEdges(prev => mergeEdges(prev, rebuiltEdges, validIds));
-        setItems(prev => {
-               const posById = Object.fromEntries((rebuiltNodes || []).map(n => [String(n.id), n.position || {}]));
-               return prev.map(it => {
-                     const p = posById[String(it.id)];
-                     return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { ...it, x: p.x, y: p.y } : it;
-                   });
-             });
 
         // update snapshot for next diff
         prevItemsRef.current = items;
