@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
@@ -60,7 +60,7 @@ export default function ProcessDiagram() {
     const [chatMessages, setChatMessages] = useState([]);
     const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
     const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
-
+    const prevItemsRef = useRef([]);
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
@@ -414,7 +414,7 @@ export default function ProcessDiagram() {
                 setNodes(builtNodes);
                 setEdges(builtEdges);
                 setItems(normalizedItems);
-
+                prevItemsRef.current = normalizedItems;
                 // Pass units to UnitLayoutConfig
                 const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
                 setAvailableUnitsForConfig(uniqueUnitsObjects);
@@ -429,12 +429,33 @@ export default function ProcessDiagram() {
 
     // rebuild diagram whenever user updates unitLayoutOrder
     useEffect(() => {
-        if (items.length && unitLayoutOrder.length) {
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder);
-            setNodes(rebuiltNodes);
-            setEdges(rebuiltEdges);
-        }
-    }, [unitLayoutOrder, items]);
+        if (!items.length || !unitLayoutOrder.length) return;
+
+        // previous snapshot
+        const prevItems = prevItemsRef.current || [];
+        const prevMap = Object.fromEntries(prevItems.map(i => [String(i.id), i]));
+
+        // ✅ Only items whose Unit changed are allowed to move
+        const unitChangedIds = new Set(
+            items
+                .filter(i => {
+                    const p = prevMap[String(i.id)];
+                    return p && p.Unit !== i.Unit;   // ONLY Unit change matters
+                })
+                .map(i => String(i.id))
+        );
+
+        // Let the builder preserve positions for all others
+        const { nodes: rebuiltNodes, edges: rebuiltEdges } =
+            buildDiagram(items, unitLayoutOrder, { prevNodes: nodes, unitChangedIds });
+
+        setNodes(rebuiltNodes);
+        setEdges(rebuiltEdges);
+
+        // update snapshot for next diff
+        prevItemsRef.current = items;
+    }, [items, unitLayoutOrder]);
+
 
     const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
     const selectedGroupNode =
