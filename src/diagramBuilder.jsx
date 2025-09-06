@@ -2,8 +2,20 @@
 import { getItemIcon, categoryTypeMap } from './IconManager';
 import { nanoid } from 'nanoid';
 
+/**
+ * buildDiagram(items, unitLayoutOrder, { prevNodes, unitChangedIds })
+ * - Keeps every node's position from prevNodes
+ * - Ignores ALL changes (Type/Category/Name/SubUnit/…)
+ * - EXCEPT: if the item's Unit changed (id is in unitChangedIds), it is re-placed into its new Unit area.
+ */
 export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const prevNodes = Array.isArray(opts.prevNodes) ? opts.prevNodes : [];
+    const unitChangedIds =
+        opts.unitChangedIds instanceof Set
+            ? opts.unitChangedIds
+            : new Set();
+
+    // cache previous positions by node id
     const posCache = new Map(prevNodes.map(n => [String(n.id), n?.position || {}]));
 
     // Name -> Code lookup for connections
@@ -14,22 +26,18 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         if (name && code) nameToCode[name] = code;
     });
 
-    // Normalize items (keep Type as string or first element of array; DO NOT compute positions here)
+    // Normalize items (keep stable id!)
     const normalized = items.map(item => {
         const Code = item.Code || item['Item Code'] || '';
         const Type = Array.isArray(item.Type) ? (item.Type[0] ?? '') : (item.Type ?? '');
         const Category = item.Category ?? item['Category Item Type'] ?? 'Equipment';
 
-        // 🔒 STABLE ID: prefer Airtable record id, else Code, else a once-generated id stored back on the item
-        let stableId = item.id || Code;
-        if (!stableId) {
-            // last-resort: create a generated id but don't ever tie it to Type/Category/Name
-            stableId = item._genId || `gen-${nanoid(8)}`;
-            // (builder is pure; we won't mutate item here. upstream should keep id for new items.)
-        }
+        // 🔒 STABLE ID: prefer Airtable record id; else Code; else keep existing custom id
+        const stableId = String(item.id || Code || item._genId || `gen-${nanoid(8)}`);
 
         return {
             ...item,
+            id: stableId,
             Code,
             Type,
             Category,
@@ -37,8 +45,8 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
             SubUnit: item.SubUnit != null ? String(item.SubUnit) : 'No SubUnit',
             Sequence: Number.isFinite(Number(item.Sequence)) ? Number(item.Sequence) : 1,
             Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
-            id: String(stableId),
 
+            // map Connections by Code (support both Name and Code inputs)
             Connections: Array.isArray(item.Connections)
                 ? item.Connections
                     .map(conn => {
@@ -54,7 +62,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         };
     });
 
-    // Ensure unit layout contains all units
+    // make sure layout includes all Units
     let safeLayout = Array.isArray(unitLayoutOrder)
         ? unitLayoutOrder.map(row => (Array.isArray(row) ? row.map(u => String(u)) : []))
         : [[]];
@@ -65,7 +73,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         if (!safeLayout.some(row => row.includes(u))) safeLayout[0].push(u);
     });
 
-    // Group by Unit/SubUnit
+    // group by Unit/SubUnit
     const grouped = {};
     normalized.forEach(item => {
         const { Unit, SubUnit } = item;
@@ -83,9 +91,10 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const itemWidth = 160;
     const itemGap = 30;
 
-    const subRects = new Map(); // `${unit}|||${sub}` -> { baseX, baseY }
+    // keep the rectangles so we can place first-time items / Unit-changed items
+    const subRects = new Map(); // key: `${unit}|||${sub}` -> { baseX, baseY }
 
-    // Frames
+    // Unit/SubUnit frames
     safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
             const unit = String(unitName || 'No Unit');
@@ -147,7 +156,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         });
     });
 
-    // First-time placement helpers (ONLY if no prev pos and no item.x/y)
+    // simple counters for first-time placements
     const firstTimeCounters = new Map();
     function nextFirstTimePos(unit, sub) {
         const key = `${unit}|||${sub}`;
@@ -159,7 +168,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         return { x: currentX, y };
     }
 
-    // Items (preserve prev position -> else item.x/y -> else first-time)
+    // Items: preserve position unless Unit changed OR no previous position exists
     safeLayout.forEach(row => {
         row.forEach(unit => {
             if (!grouped[unit]) return;
@@ -172,14 +181,25 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
 
                 sorted.forEach(item => {
                     const id = String(item.id);
-                    const cached = posCache.get(id);
+                    const hadPrevPos = posCache.has(id) &&
+                        Number.isFinite(posCache.get(id)?.x) &&
+                        Number.isFinite(posCache.get(id)?.y);
+
                     let position;
-                    if (cached && Number.isFinite(cached.x) && Number.isFinite(cached.y)) {
-                        position = { x: cached.x, y: cached.y };
+
+                    if (unitChangedIds.has(id)) {
+                        // ✅ Unit changed: re-place into the new Unit frame
+                        position = nextFirstTimePos(item.Unit, item.SubUnit);
+                    } else if (hadPrevPos) {
+                        // ✅ keep previous position no matter what else changed
+                        const p = posCache.get(id);
+                        position = { x: p.x, y: p.y };
                     } else if (Number.isFinite(item.x) && Number.isFinite(item.y)) {
+                        // first build but item already has stored x/y
                         position = { x: Number(item.x), y: Number(item.y) };
                     } else {
-                        position = nextFirstTimePos(unit, sub);
+                        // first build with no position yet: place inside correct Unit/SubUnit
+                        position = nextFirstTimePos(item.Unit, item.SubUnit);
                     }
 
                     const category = String(item.Category ?? item['Category Item Type'] ?? 'Equipment');
@@ -192,6 +212,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
                             item,
                             icon: getItemIcon(item, { width: 40, height: 40 }),
                         },
+                        // change visual only; position stays
                         type: categoryTypeMap[category] || 'scalableIcon',
                         sourcePosition: 'right',
                         targetPosition: 'left',
