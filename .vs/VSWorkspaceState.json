@@ -1,8 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\ai"
+    "\\ai",
+    "\\src"
   ],
-  "SelectedNode": "\\api",
+  "SelectedNode": "\\src\\AIPNIDGenerator.jsx",
   "PreviewInSolutionExplorer": false
 }
