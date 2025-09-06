@@ -85,16 +85,15 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const nodes = [];
     const edges = [];
 
-    const unitWidth = 5000;
-    const unitHeight = 6000;
-    const subUnitHeight = unitHeight / 9;
-    const itemWidth = 160;
-    const itemGap = 30;
+    // --- constants for a 3×3 grid inside each Unit ---
+    const GRID_COLS = 3;
+    const GRID_ROWS = 3;
+    const GRID_GAP = 30;   // gap between sub-cells
+    const UNIT_PAD = 10;   // inner padding inside the unit frame
 
     // keep the rectangles so we can place first-time items / Unit-changed items
     const subRects = new Map(); // key: `${unit}|||${sub}` -> { baseX, baseY }
 
-    // Unit/SubUnit frames
     safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
             const unit = String(unitName || 'No Unit');
@@ -102,6 +101,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
             const unitY = rowIndex * (unitHeight + 100);
             if (!grouped[unit]) return;
 
+            // --- Unit frame ---
             nodes.push({
                 id: `unit-${unit}`,
                 type: 'custom',
@@ -126,18 +126,32 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
                 selectable: false,
             });
 
+            // --- 3×3 grid geometry inside the unit ---
+            const innerW = unitWidth - 2 * UNIT_PAD;
+            const innerH = unitHeight - 2 * UNIT_PAD;
+            const cellW = (innerW - (GRID_COLS - 1) * GRID_GAP) / GRID_COLS;
+            const cellH = (innerH - (GRID_ROWS - 1) * GRID_GAP) / GRID_ROWS;
+
+            // stable sub-unit order (alphabetical; adjust if you prefer Sequence-based)
             const subUnits = grouped[unit];
-            Object.keys(subUnits).forEach((sub, subIndex) => {
-                const subX = unitX + 10;
-                const subY = unitY + subIndex * subUnitHeight + 10;
+            const subKeys = Object.keys(subUnits).sort((a, b) => a.localeCompare(b));
+
+            subKeys.forEach((sub, idx) => {
+                // place Left→Right, Top→Bottom; overflow past 9 will wrap/overlap cells
+                const idx9 = idx % (GRID_COLS * GRID_ROWS);
+                const rowIdx = Math.floor(idx9 / GRID_COLS);
+                const colIdx = idx9 % GRID_COLS;
+
+                const subX = unitX + UNIT_PAD + colIdx * (cellW + GRID_GAP);
+                const subY = unitY + UNIT_PAD + rowIdx * (cellH + GRID_GAP);
 
                 nodes.push({
                     id: `sub-${unit}-${sub}`,
                     position: { x: subX, y: subY },
                     data: { label: sub },
                     style: {
-                        width: unitWidth - 20,
-                        height: subUnitHeight - 20,
+                        width: cellW,
+                        height: cellH,
                         border: '2px dashed #aaa',
                         background: 'transparent',
                     },
@@ -151,7 +165,13 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
                     selectable: false,
                 });
 
-                subRects.set(`${unit}|||${sub}`, { baseX: subX + 30, baseY: subY + 10 });
+                // base point for item placement inside this sub-cell
+                subRects.set(`${unit}|||${sub}`, {
+                    baseX: subX + 30,
+                    baseY: subY + 20,
+                    cellW,
+                    cellH
+                });
             });
         });
     });
