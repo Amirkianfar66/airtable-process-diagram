@@ -17,7 +17,6 @@ import DiagramCanvas from './DiagramCanvas';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import UnitLayoutConfig from './UnitLayoutConfig';
-import AirtableGrid from './Airtable/AirtableGrid';
 
 export const nodeTypes = {
     resizable: ResizableNode,
@@ -27,7 +26,7 @@ export const nodeTypes = {
     groupLabel: GroupLabelNode,
 };
 
-// READ-ONLY fetch from Airtable (no saves anywhere in this file)
+// READ-ONLY fetch from Airtable (no saving happens here)
 export const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -98,26 +97,22 @@ export default function ProcessDiagram() {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     };
 
-    // previous nodes ref for builder
     const getPrevNodesForBuilder = useCallback(() => nodes, [nodes]);
 
-    // ---------- ITEM CHANGES: LOCAL ONLY (no network, no alerts) ----------
+    // --- LOCAL-ONLY detail changes (no network, no alerts) ---
     const handleItemDetailChange = useCallback(
         (updatedItem) => {
             if (!updatedItem || !updatedItem.id) return;
             const idStr = String(updatedItem.id);
 
-            // 1) update items[] locally
             setItems((prev) => prev.map((it) => (String(it.id) === idStr ? { ...it, ...updatedItem } : it)));
 
-            // 2) update node.data only (never touch position)
             setNodes((prevNodes) =>
                 prevNodes.map((node) =>
                     String(node.id) === idStr ? { ...node, data: { ...node.data, ...updatedItem } } : node
                 )
             );
 
-            // 3) keep details panel in sync
             setSelectedItem((cur) => (cur && String(cur.id) === idStr ? { ...cur, ...updatedItem } : cur));
         },
         [setItems, setNodes, setSelectedItem]
@@ -126,12 +121,7 @@ export default function ProcessDiagram() {
     const onConnect = useCallback(
         (params) => {
             const updatedEdges = addEdge(
-                {
-                    ...params,
-                    type: 'step',
-                    animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2 },
-                },
+                { ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } },
                 edges
             );
             setEdges(updatedEdges);
@@ -140,7 +130,6 @@ export default function ProcessDiagram() {
         [edges, nodes]
     );
 
-    // ---------- DRAG: write position to state cache + items ----------
     const onNodeDrag = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
@@ -175,14 +164,12 @@ export default function ProcessDiagram() {
         (event, draggedNode) => {
             if (!draggedNode) return;
 
-            // 1) keep node position in RF state + cache
             setNodes((nds) => {
                 const next = nds.map((n) => (n.id === draggedNode.id ? { ...n, position: { ...draggedNode.position } } : n));
                 capturePositions(next);
                 return next;
             });
 
-            // 2) persist position into items[] so builder can reuse it on rebuilds
             setItems((prev) =>
                 Array.isArray(prev)
                     ? prev.map((it) =>
@@ -191,7 +178,6 @@ export default function ProcessDiagram() {
                     : prev
             );
 
-            // 3) reset prevX/prevY only for groupLabel nodes
             if (draggedNode.type !== 'groupLabel') return;
             setNodes((nds) =>
                 nds.map((n) =>
@@ -211,7 +197,7 @@ export default function ProcessDiagram() {
             const fromItem = items.find((it) => String(it.id) === String(edge.source)) || null;
             const toItem = items.find((it) => String(it.id) === String(edge.target)) || null;
 
-            const edgeAsItem = {
+            setSelectedItem({
                 id: edge.id,
                 Name: 'Edge inspector',
                 'Item Code': edge.id,
@@ -221,11 +207,9 @@ export default function ProcessDiagram() {
                 x: fromItem?.x && toItem?.x ? (fromItem.x + toItem.x) / 2 : undefined,
                 y: fromItem?.y && toItem?.y ? (fromItem.y + toItem.y) / 2 : undefined,
                 _edge: edge,
-            };
-
-            setSelectedItem(edgeAsItem);
+            });
         },
-        [items, setSelectedItem]
+        [items]
     );
 
     const handleDeleteEdge = useCallback(
@@ -237,19 +221,16 @@ export default function ProcessDiagram() {
             setNodes((nds) => nds.filter((n) => !(n?.data?.item?.edgeId && n.data.item.edgeId === edgeId)));
             setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
         },
-        [setEdges, setNodes, setSelectedItem]
+        [setEdges, setNodes]
     );
 
-    const handleUpdateEdge = useCallback(
-        (edgeId, patch) => {
-            setEdges((eds) => eds.map((e) => (e.id === edgeId ? { ...e, ...patch } : e)));
-            setSelectedItem((cur) => {
-                if (!cur || cur.edgeId !== edgeId) return cur;
-                return { ...cur, _edge: { ...cur._edge, ...patch } };
-            });
-        },
-        [setEdges, setSelectedItem]
-    );
+    const handleUpdateEdge = useCallback((edgeId, patch) => {
+        setEdges((eds) => eds.map((e) => (e.id === edgeId ? { ...e, ...patch } : e)));
+        setSelectedItem((cur) => {
+            if (!cur || cur.edgeId !== edgeId) return cur;
+            return { ...cur, _edge: { ...cur._edge, ...patch } };
+        });
+    }, []);
 
     const handleDeleteItem = useCallback((id) => {
         setNodes((nds) => nds.filter((n) => n.id !== id));
@@ -327,7 +308,7 @@ export default function ProcessDiagram() {
             setItems((prev) => [...prev, newItem]);
             setSelectedItem(newItem);
         },
-        [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]
+        [edges, nodes]
     );
 
     const handleGeneratePNID = async () => {
@@ -352,7 +333,6 @@ export default function ProcessDiagram() {
             });
             setItems(updatedItems);
 
-            // keep existing node objects/positions
             setNodes((prevNodes) => {
                 const prevById = new Map(prevNodes.map((n) => [String(n.id), n]));
                 const next = (aiNodes || []).map((fresh) => {
@@ -394,7 +374,6 @@ export default function ProcessDiagram() {
                     Category: Array.isArray(item['Category Item Type'])
                         ? item['Category Item Type'][0]
                         : item['Category Item Type'] || '',
-                    // keep only first Type ID for UI (read-only)
                     Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
                     Sequence: item.Sequence || 0,
                     Connections: Array.isArray(item.Connections) ? item.Connections : [],
@@ -506,7 +485,6 @@ export default function ProcessDiagram() {
         prevItemsRef.current = items;
     }, [unitLayoutOrder, items, getPrevNodesForBuilder]);
 
-    // helpers for group panel
     const itemsMap = useMemo(() => Object.fromEntries(items.map((i) => [i.id, i])), [items]);
 
     const selectedGroupNode =
@@ -548,7 +526,6 @@ export default function ProcessDiagram() {
 
     const onDeleteGroup = (groupId) => setNodes((nds) => nds.filter((n) => n.id !== groupId));
 
-    // add item (no saving)
     const handleAddItem = (rawItem) => {
         setItems((prevItems) => {
             const firstKnownUnit =
@@ -624,7 +601,6 @@ export default function ProcessDiagram() {
         });
     };
 
-    // selection (used by DiagramCanvas)
     const onSelectionChange = useCallback(
         ({ nodes: selNodes, edges: selEdges }) => {
             setSelectedNodes(selNodes || []);
@@ -655,7 +631,6 @@ export default function ProcessDiagram() {
         [items, handleEdgeSelect]
     );
 
-    // wrap RF nodes change to keep cache fresh
     const onNodesChangeWrapped = useCallback(
         (changes) => {
             onNodesChange(changes);
@@ -669,13 +644,8 @@ export default function ProcessDiagram() {
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-            {/* LEFT: Airtable table (read-only) */}
-            <div style={{ flex: 1, minWidth: 0, borderRight: '1px solid #ddd' }}>
-                <AirtableGrid />
-            </div>
-
-            {/* RIGHT: Diagram + Sidebar */}
-            <div style={{ flex: 3, display: 'flex', minWidth: 0 }}>
+            {/* RIGHT SIDE ONLY: Diagram + Sidebar (AirtableGrid removed) */}
+            <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
                 {/* Diagram */}
                 <div style={{ flex: 3, position: 'relative', background: 'transparent' }}>
                     <DiagramCanvas
@@ -695,7 +665,7 @@ export default function ProcessDiagram() {
                         AddItemButton={AddItemButton}
                         addItem={handleAddItem}
                         selectedItem={selectedItem}
-                        onItemChange={handleItemDetailChange} // local only
+                        onItemChange={handleItemDetailChange}
                         onDeleteItem={handleDeleteItem}
                         onDeleteEdge={handleDeleteEdge}
                         onUpdateEdge={handleUpdateEdge}
@@ -746,7 +716,7 @@ export default function ProcessDiagram() {
                                 item={selectedItem}
                                 items={items}
                                 edges={edges}
-                                onChange={handleItemDetailChange} // local only
+                                onChange={handleItemDetailChange}
                                 onDeleteItem={handleDeleteItem}
                                 onDeleteEdge={handleDeleteEdge}
                                 onUpdateEdge={handleUpdateEdge}
