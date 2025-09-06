@@ -85,6 +85,14 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const nodes = [];
     const edges = [];
 
+    const unitWidth = 5000;
+    const unitHeight = 6000;
+    const subUnitHeight = unitHeight / 9;
+    const itemWidth = 160;
+    const itemGap = 30;
+
+    // keep the rectangles so we can place first-time items / Unit-changed items
+    const subRects = new Map(); // key: `${unit}|||${sub}` -> { baseX, baseY }
     // --- constants for a 3×3 grid inside each Unit ---
     const GRID_COLS = 3;
     const GRID_ROWS = 3;
@@ -175,6 +183,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
             });
         });
     });
+
 
     // simple counters for first-time placements
     const firstTimeCounters = new Map();
