@@ -176,10 +176,9 @@ export default function ProcessDiagram() {
                                if (cur.includes(dstCode)) return it;
                               return { ...it, Connections: [...cur, dstCode] };
                             });
-                         return next;
+                        return next;
                       });
         },
-        [edges, nodes]
          [edges, nodes, setItems]
     );
 
