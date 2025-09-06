@@ -6,7 +6,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const prevNodes = Array.isArray(opts.prevNodes) ? opts.prevNodes : [];
     const posCache = new Map(prevNodes.map(n => [String(n.id), n?.position || {}]));
 
-    // Name → Code lookup so Connections can reference Names or Codes
+    // Name -> Code lookup for connections
     const nameToCode = {};
     items.forEach(i => {
         const name = i?.Name;
@@ -14,12 +14,19 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         if (name && code) nameToCode[name] = code;
     });
 
-    // Normalize items (do NOT touch x/y here)
+    // Normalize items (keep Type as string or first element of array; DO NOT compute positions here)
     const normalized = items.map(item => {
         const Code = item.Code || item['Item Code'] || '';
-        // allow Type as string or [recId]; keep whatever the item has (builder only renders)
         const Type = Array.isArray(item.Type) ? (item.Type[0] ?? '') : (item.Type ?? '');
         const Category = item.Category ?? item['Category Item Type'] ?? 'Equipment';
+
+        // 🔒 STABLE ID: prefer Airtable record id, else Code, else a once-generated id stored back on the item
+        let stableId = item.id || Code;
+        if (!stableId) {
+            // last-resort: create a generated id but don't ever tie it to Type/Category/Name
+            stableId = item._genId || `gen-${nanoid(8)}`;
+            // (builder is pure; we won't mutate item here. upstream should keep id for new items.)
+        }
 
         return {
             ...item,
@@ -30,9 +37,8 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
             SubUnit: item.SubUnit != null ? String(item.SubUnit) : 'No SubUnit',
             Sequence: Number.isFinite(Number(item.Sequence)) ? Number(item.Sequence) : 1,
             Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
-            id: String(item.id ?? `${Category}-${Type}-${item.Name || 'Unnamed'}-${Code || ''}`),
+            id: String(stableId),
 
-            // Normalize Connections to Codes when possible (leaves existing Codes as-is)
             Connections: Array.isArray(item.Connections)
                 ? item.Connections
                     .map(conn => {
@@ -48,7 +54,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         };
     });
 
-    // Ensure unit layout includes all units present
+    // Ensure unit layout contains all units
     let safeLayout = Array.isArray(unitLayoutOrder)
         ? unitLayoutOrder.map(row => (Array.isArray(row) ? row.map(u => String(u)) : []))
         : [[]];
@@ -56,11 +62,10 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const allUnits = [...new Set(normalized.map(i => i.Unit))];
     if (!safeLayout.length) safeLayout = [[]];
     allUnits.forEach(u => {
-        const exists = safeLayout.some(row => row.includes(u));
-        if (!exists) safeLayout[0].push(u);
+        if (!safeLayout.some(row => row.includes(u))) safeLayout[0].push(u);
     });
 
-    // Group items by Unit/SubUnit for drawing frames and FIRST-TIME placement only
+    // Group by Unit/SubUnit
     const grouped = {};
     normalized.forEach(item => {
         const { Unit, SubUnit } = item;
@@ -72,23 +77,20 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const nodes = [];
     const edges = [];
 
-    // Canvas / frames
     const unitWidth = 5000;
     const unitHeight = 6000;
     const subUnitHeight = unitHeight / 9;
     const itemWidth = 160;
     const itemGap = 30;
 
-    // Track subunit rectangles to compute FIRST-TIME initial positions
-    const subRects = new Map(); // key: `${unit}|||${sub}`, value: { baseX, baseY }
+    const subRects = new Map(); // `${unit}|||${sub}` -> { baseX, baseY }
 
-    // 1) Frames (units + subunits)
+    // Frames
     safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
             const unit = String(unitName || 'No Unit');
             const unitX = colIndex * (unitWidth + 100);
             const unitY = rowIndex * (unitHeight + 100);
-
             if (!grouped[unit]) return;
 
             nodes.push({
@@ -116,9 +118,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
             });
 
             const subUnits = grouped[unit];
-            const subKeys = Object.keys(subUnits);
-
-            subKeys.forEach((sub, subIndex) => {
+            Object.keys(subUnits).forEach((sub, subIndex) => {
                 const subX = unitX + 10;
                 const subY = unitY + subIndex * subUnitHeight + 10;
 
@@ -147,46 +147,38 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         });
     });
 
-    // 2) Items — preserve position if known, else FIRST-TIME place inside its subunit row
-    //    For first-time placement per subunit, advance X in order of Sequence, then Name.
-    const firstTimeCounters = new Map(); // key `${unit}|||${sub}` -> nextX
+    // First-time placement helpers (ONLY if no prev pos and no item.x/y)
+    const firstTimeCounters = new Map();
     function nextFirstTimePos(unit, sub) {
         const key = `${unit}|||${sub}`;
         const rect = subRects.get(key);
         const startX = (rect?.baseX ?? 100) + 10;
         const y = (rect?.baseY ?? 100) + 10;
-
         const currentX = firstTimeCounters.has(key) ? firstTimeCounters.get(key) : startX;
         firstTimeCounters.set(key, currentX + itemWidth + itemGap);
         return { x: currentX, y };
     }
 
-    // To produce nicer first-time layout, iterate subunits in layout order and sort their items
-    safeLayout.forEach((row) => {
+    // Items (preserve prev position -> else item.x/y -> else first-time)
+    safeLayout.forEach(row => {
         row.forEach(unit => {
             if (!grouped[unit]) return;
             const subUnits = grouped[unit];
-
             Object.entries(subUnits).forEach(([sub, list]) => {
                 const sorted = [...list].sort((a, b) => {
                     const s = (a.Sequence || 0) - (b.Sequence || 0);
-                    if (s !== 0) return s;
-                    return String(a.Name || '').localeCompare(String(b.Name || ''));
+                    return s !== 0 ? s : String(a.Name || '').localeCompare(String(b.Name || ''));
                 });
 
                 sorted.forEach(item => {
                     const id = String(item.id);
                     const cached = posCache.get(id);
                     let position;
-
                     if (cached && Number.isFinite(cached.x) && Number.isFinite(cached.y)) {
-                        // Already placed before → keep exact position
                         position = { x: cached.x, y: cached.y };
                     } else if (Number.isFinite(item.x) && Number.isFinite(item.y)) {
-                        // Item carries its own persisted position → use it
                         position = { x: Number(item.x), y: Number(item.y) };
                     } else {
-                        // FIRST-EVER placement → compute inside its subunit row
                         position = nextFirstTimePos(unit, sub);
                     }
 
@@ -210,20 +202,18 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         });
     });
 
-    // Build a Code → nodeId map for edges
+    // Edges (Code -> Code)
     const codeToNodeId = new Map();
     nodes.forEach(n => {
         const it = n.data?.item;
         if (it?.Code) codeToNodeId.set(String(it.Code), n.id);
     });
 
-    // 3) Edges (use Codes)
     normalized.forEach(item => {
         const fromId = String(item.id);
-        item.Connections.forEach(connCode => {
+        (item.Connections || []).forEach(connCode => {
             const toId = codeToNodeId.get(String(connCode));
             if (!toId) return;
-
             edges.push({
                 id: `edge-${fromId}-${toId}-${nanoid(6)}`,
                 source: fromId,
