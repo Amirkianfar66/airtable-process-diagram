@@ -228,6 +228,44 @@ export default function ItemDetailCard({
             if (debounceRef.current) clearTimeout(debounceRef.current);
         };
     }, []);
+    // 1) Edge → Item: when the selected edge's inlineValveType changes,
+    //    reflect it in the inline valve item's Type (and persist via debounced commitUpdate).
+    useEffect(() => {
+        if (!item) return;
+        const edgeId = item.edgeId || localItem.edgeId;
+        if (!edgeId) return;
+        const edge = Array.isArray(edges) ? edges.find(e => e.id === edgeId) : null;
+        const inlineType = edge?.data?.inlineValveType;
+        if (!inlineType) return;
+
+        // If ItemDetailCard isn't showing the same Type, mirror it and persist
+        if ((localItem?.Type || '') !== inlineType) {
+            setLocalItem(prev => ({ ...prev, Type: inlineType }));
+            // persist to parent (respects your 2s debounce in commitUpdate)
+            commitUpdate({ Type: inlineType });
+        }
+    }, [edges, item?.edgeId]); 
+    // 2) Item → Edge: if user changes Type in the right tab for an inline valve item,
+    //    keep the connected edge's inlineValveType in sync.
+    useEffect(() => {
+        if (!item?.edgeId || typeof onUpdateEdge !== 'function') return;
+        const edge = Array.isArray(edges) ? edges.find(e => e.id === item.edgeId) : null;
+        if (!edge) return;
+
+        const isInlineValve =
+            (localItem?.['Category Item Type'] || localItem?.Category) === 'Inline Valve';
+
+        if (!isInlineValve) return;
+
+        const currentEdgeType = edge.data?.inlineValveType || '';
+        const desiredType = localItem?.Type || '';
+
+        if (desiredType && desiredType !== currentEdgeType) {
+            onUpdateEdge(item.edgeId, {
+                data: { ...(edge.data || {}), inlineValveType: desiredType },
+            });
+        }
+    }, [localItem?.Type, localItem?.['Category Item Type'], localItem?.Category, item?.edgeId, edges, onUpdateEdge]);
 
     // Avoid auto-forcing reposition for Unit/SubUnit
     const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
