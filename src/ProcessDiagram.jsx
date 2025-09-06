@@ -64,6 +64,27 @@ export default function ProcessDiagram() {
     const updateNode = (id, newData) => {
         setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
+    // Prefer keeping existing edges if they connect the same nodes.
+    // Also drop any edges that reference nodes that no longer exist.
+    function mergeEdges(prevEdges = [], newEdges = [], validNodeIds = new Set()) setEdges(builtEdges)
+        const key = (e) => `${e.source}->${e.target}`;
+
+        // keep only edges pointing to existing nodes
+        const filteredPrev = prevEdges.filter(e => validNodeIds.has(e.source) && validNodeIds.has(e.target));
+        const filteredNew = newEdges.filter(e => validNodeIds.has(e.source) && validNodeIds.has(e.target));
+
+        const prevByKey = new Map(filteredPrev.map(e => [key(e), e]));
+        const merged = [...filteredPrev];
+
+        for (const e of filteredNew) {
+            const k = key(e);
+            if (!prevByKey.has(k)) {
+                merged.push(e); // add new connections from builder
+            } // else: keep the user's existing edge (style/label/animation preserved)
+        }
+
+        return merged;
+    }
 
     const deleteNode = (id) => {
         setNodes((nds) => nds.filter((node) => node.id !== id));
@@ -142,8 +163,24 @@ export default function ProcessDiagram() {
             );
             setEdges(updatedEdges);
             localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
+               // ✅ also reflect this connection in items[].Connections by CODE
+                   setItems(prev => {
+                        const src = prev.find(it => String(it.id) === String(params.source));
+                        const dst = prev.find(it => String(it.id) === String(params.target));
+                        if (!src || !dst) return prev;
+                         const dstCode = dst.Code || dst['Item Code'] || '';
+                         if (!dstCode) return prev;
+                         const next = prev.map(it => {
+                               if (String(it.id) !== String(src.id)) return it;
+                               const cur = Array.isArray(it.Connections) ? it.Connections : [];
+                               if (cur.includes(dstCode)) return it;
+                              return { ...it, Connections: [...cur, dstCode] };
+                            });
+                         return next;
+                      });
         },
         [edges, nodes]
+         [edges, nodes, setItems]
     );
 
     // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
@@ -412,7 +449,8 @@ export default function ProcessDiagram() {
                 const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
 
                 setNodes(builtNodes);
-                setEdges(builtEdges);
+                const validIdsInit = new Set((builtNodes || []).map(n => n.id));
+                setEdges(prev => mergeEdges(prev, builtEdges, validIdsInit));;
                 setItems(normalizedItems);
                 prevItemsRef.current = normalizedItems;
                 // Pass units to UnitLayoutConfig
@@ -450,7 +488,8 @@ export default function ProcessDiagram() {
             buildDiagram(items, unitLayoutOrder, { prevNodes: nodes, unitChangedIds });
 
         setNodes(rebuiltNodes);
-        setEdges(rebuiltEdges);
+        const validIds = new Set((rebuiltNodes || []).map(n => n.id));
+        setEdges(prev => mergeEdges(prev, rebuiltEdges, validIds));
 
         // update snapshot for next diff
         prevItemsRef.current = items;
