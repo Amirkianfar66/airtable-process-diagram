@@ -1,5 +1,5 @@
-﻿// ItemDetailCard.jsx (updated)
-import React, { useEffect, useState } from 'react';
+﻿// ItemDetailCard.jsx (rewritten with 2s debounce + ND/ID/OD + inline valve type)
+import React, { useEffect, useState, useRef } from 'react';
 
 // simple runtime cache for resolved type names by record id
 const typeCache = new Map();
@@ -18,23 +18,25 @@ export default function ItemDetailCard({
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
 
+    // Debounce timer to delay writes to parent/canvas
+    const debounceRef = useRef(null);
+
     const safeOnChange = (payload, options) => {
-        if (typeof onChange !== "function") return;
+        if (typeof onChange !== 'function') return;
         try {
             onChange(payload, options);
         } catch (err) {
-            console.error("[safeOnChange] onChange threw:", err);
+            console.error('[safeOnChange] onChange threw:', err);
             try {
-                console.log("[safeOnChange] payload:", payload);
-                console.log("[safeOnChange] options:", options);
-            } catch (e) { }
+                console.log('[safeOnChange] payload:', payload);
+                console.log('[safeOnChange] options:', options);
+            } catch { }
         }
     };
 
-    // --- NEW: Delete by keyboard (Delete key)
+    // --- Delete by keyboard (Delete / Backspace) — ignore when typing in inputs
     useEffect(() => {
         const handleKeyDown = (e) => {
-            // Avoid deleting while typing in inputs
             const tag = (e.target?.tagName || '').toLowerCase();
             const typing = tag === 'input' || tag === 'textarea' || e.target?.isContentEditable;
             if (typing) return;
@@ -49,13 +51,15 @@ export default function ItemDetailCard({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [item?.id, onDeleteItem]);
 
-    // ---- PATCH 1: only update localItem when the selected item's id changes ----
+    // Only update localItem when the selected item's id changes
     useEffect(() => {
-        console.log('ItemDetailCard | incoming item id:', item?.id);
         setLocalItem(item || {});
+        if (debounceRef.current) clearTimeout(debounceRef.current);
     }, [item?.id]);
 
+    // Fetch Equipment + Inline Valve Types from Airtable
     useEffect(() => {
+        let alive = true;
         const fetchTypes = async () => {
             try {
                 const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -93,12 +97,13 @@ export default function ItemDetailCard({
                     );
                 }
 
-                setAllTypes(typesList);
+                if (alive) setAllTypes(typesList);
             } catch (err) {
                 console.error('Error fetching types:', err);
             }
         };
         fetchTypes();
+        return () => { alive = false; };
     }, []);
 
     const fetchTypeNameById = async (typeId, category) => {
@@ -132,6 +137,7 @@ export default function ItemDetailCard({
         }
     };
 
+    // Resolve Type label if item.Type is an Airtable record id
     useEffect(() => {
         if (!item || !item.Type) {
             setResolvedType('-');
@@ -159,6 +165,7 @@ export default function ItemDetailCard({
         }
     }, [item]);
 
+    // When an item has a first connection, surface basic edge context in the panel
     useEffect(() => {
         if (!item || !edges || !Array.isArray(edges) || !items || !Array.isArray(items)) return;
 
@@ -181,7 +188,7 @@ export default function ItemDetailCard({
         }));
     }, [item, edges, items]);
 
-    // ---- PATCH 3: small debug flag and explicit reposition marker ----
+    // Commit with 2s debounce to avoid live-updating canvas while typing
     const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {
         const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
 
@@ -202,22 +209,31 @@ export default function ItemDetailCard({
             if (typeof chosenY === 'number') payload.y = Number(chosenY);
         }
 
-        // local UI update
+        // Update local form immediately
         setLocalItem(prev => ({ ...prev, ...updatedObj }));
 
-        // include explicit marker if requesting reposition
         if (options.reposition) payload._repositionRequest = true;
 
-        safeOnChange(payload, options);
+        // Debounce: push to parent after 2s idle
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            safeOnChange(payload, options);
+            debounceRef.current = null;
+        }, 2000);
     };
 
-    // ---- PATCH 2: do NOT auto-force reposition for Unit/SubUnit ----
+    // Cleanup debounce on unmount
+    useEffect(() => {
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, []);
+
+    // Avoid auto-forcing reposition for Unit/SubUnit
     const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
         const repositionFlag = options.reposition === true;
-
         const updated = { ...(localItem || {}), [fieldName]: value };
         if (!updated.id && item?.id) updated.id = item.id;
-
         commitUpdate(updated, { reposition: repositionFlag });
     };
 
@@ -235,7 +251,7 @@ export default function ItemDetailCard({
     const filteredTypes = allTypes.filter((t) => t.category === (localItem['Category Item Type'] || 'Equipment'));
 
     // For Edge inspector: list only Inline Valve types
-    const inlineValveTypes = allTypes.filter(t => t.category === 'Inline Valve');
+    const inlineValveTypes = allTypes.filter((t) => t.category === 'Inline Valve');
 
     const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
     const labelStyle = { width: '130px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
@@ -250,22 +266,43 @@ export default function ItemDetailCard({
         if (val === '' || val === null || typeof val === 'undefined') return '';
         const n = Number(val);
         return Number.isFinite(n) ? n : '';
+        // (If you want to clamp or prevent negatives, add logic here)
     };
 
     return (
         <>
-            <div style={{ background: '#fff', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '20px', margin: '16px', maxWidth: '350px', fontFamily: 'sans-serif' }}>
+            <div
+                style={{
+                    background: '#fff',
+                    borderRadius: '10px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    padding: '20px',
+                    margin: '16px',
+                    maxWidth: '350px',
+                    fontFamily: 'sans-serif',
+                }}
+            >
                 <section style={sectionStyle}>
                     <h3 style={headerStyle}>General Info</h3>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Code:</label>
-                        <input style={inputStyle} type="text" value={localItem['Item Code'] || ''} onChange={(e) => handleFieldChange('Item Code', e.target.value)} />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['Item Code'] || ''}
+                            onChange={(e) => handleFieldChange('Item Code', e.target.value)}
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Name:</label>
-                        <input style={inputStyle} type="text" value={localItem['Name'] || ''} onChange={(e) => handleFieldChange('Name', e.target.value)} />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['Name'] || ''}
+                            onChange={(e) => handleFieldChange('Name', e.target.value)}
+                        />
                     </div>
 
                     <div style={rowStyle}>
@@ -275,57 +312,113 @@ export default function ItemDetailCard({
                             value={localItem['Category Item Type'] || 'Equipment'}
                             onChange={(e) => {
                                 const newCategory = e.target.value;
-                                const updated = { ...localItem, 'Category Item Type': newCategory, Category: newCategory, Type: '' };
+                                const updated = {
+                                    ...localItem,
+                                    'Category Item Type': newCategory,
+                                    Category: newCategory,
+                                    Type: '',
+                                };
                                 commitUpdate(updated, { reposition: false });
-                            }}>
-                            {categories.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
+                            }}
+                        >
+                            {categories.map((cat) => (
+                                <option key={cat} value={cat}>
+                                    {cat}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Type:</label>
-                        <select style={inputStyle} value={localItem.Type || ''} onChange={(e) => handleFieldChange('Type', e.target.value)}>
+                        <select
+                            style={inputStyle}
+                            value={localItem.Type || ''}
+                            onChange={(e) => handleFieldChange('Type', e.target.value)}
+                        >
                             <option value="">Select Type</option>
-                            {filteredTypes.map((t) => (<option key={t.id} value={t.name}>{t.name}</option>))}
+                            {filteredTypes.map((t) => (
+                                <option key={t.id} value={t.name}>
+                                    {t.name}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Unit:</label>
-                        <input style={inputStyle} type="text" value={localItem['Unit'] || ''} onChange={(e) => handleFieldChange('Unit', e.target.value)} />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['Unit'] || ''}
+                            onChange={(e) => handleFieldChange('Unit', e.target.value)}
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Sub Unit:</label>
-                        <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={(e) => handleFieldChange('SubUnit', e.target.value)} />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['SubUnit'] || ''}
+                            onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>From Item:</label>
-                        <input style={inputStyle} type="text" value={localItem['from'] || ''} onChange={(e) => handleFieldChange('from', e.target.value)} placeholder="Source item ID / name" />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['from'] || ''}
+                            onChange={(e) => handleFieldChange('from', e.target.value)}
+                            placeholder="Source item ID / name"
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>To Item:</label>
-                        <input style={inputStyle} type="text" value={localItem['to'] || ''} onChange={(e) => handleFieldChange('to', e.target.value)} placeholder="Target item ID / name" />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['to'] || ''}
+                            onChange={(e) => handleFieldChange('to', e.target.value)}
+                            placeholder="Target item ID / name"
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Edge ID:</label>
-                        <input style={inputStyle} type="text" value={localItem['edgeId'] || ''} onChange={(e) => handleFieldChange('edgeId', e.target.value)} placeholder="edge-xxx" />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['edgeId'] || ''}
+                            onChange={(e) => handleFieldChange('edgeId', e.target.value)}
+                            placeholder="edge-xxx"
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>X Position:</label>
-                        <input style={inputStyle} type="number" value={localItem['x'] ?? ''} onChange={(e) => handleFieldChange('x', parseNum(e.target.value))} />
+                        <input
+                            style={inputStyle}
+                            type="number"
+                            value={localItem['x'] ?? ''}
+                            onChange={(e) => handleFieldChange('x', parseNum(e.target.value))}
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Y Position:</label>
-                        <input style={inputStyle} type="number" value={localItem['y'] ?? ''} onChange={(e) => handleFieldChange('y', parseNum(e.target.value))} />
+                        <input
+                            style={inputStyle}
+                            type="number"
+                            value={localItem['y'] ?? ''}
+                            onChange={(e) => handleFieldChange('y', parseNum(e.target.value))}
+                        />
                     </div>
 
-                    {/* --- NEW: Dimensional parameters --- */}
+                    {/* Dimensional parameters */}
                     <div style={{ ...rowStyle, marginTop: 8 }}>
                         <label style={labelStyle}>ND:</label>
                         <input
@@ -358,7 +451,6 @@ export default function ItemDetailCard({
                             placeholder="Outer Diameter"
                         />
                     </div>
-
                 </section>
 
                 <section style={sectionStyle}>
@@ -366,17 +458,32 @@ export default function ItemDetailCard({
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Model Number:</label>
-                        <input style={inputStyle} type="text" value={localItem['Model Number'] || ''} onChange={(e) => handleFieldChange('Model Number', e.target.value)} />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={localItem['Model Number'] || ''}
+                            onChange={(e) => handleFieldChange('Model Number', e.target.value)}
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Manufacturer:</label>
-                        <input style={inputStyle} type="text" value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])} onChange={(e) => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)} />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])}
+                            onChange={(e) => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)}
+                        />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Supplier:</label>
-                        <input style={inputStyle} type="text" value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])} onChange={(e) => handleFieldChange('Supplier (from Technical Spec)', e.target.value)} />
+                        <input
+                            style={inputStyle}
+                            type="text"
+                            value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])}
+                            onChange={(e) => handleFieldChange('Supplier (from Technical Spec)', e.target.value)}
+                        />
                     </div>
                 </section>
             </div>
@@ -385,7 +492,7 @@ export default function ItemDetailCard({
                 <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
                     <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
 
-                    {/* --- NEW: CATEGORY area with Inline Valve Type selector --- */}
+                    {/* CATEGORY area with Inline Valve Type selector */}
                     <div style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, marginBottom: 10 }}>
                         <div style={{ fontWeight: 600, marginBottom: 8 }}>CATEGORY</div>
                         <div style={rowStyle}>
@@ -396,13 +503,15 @@ export default function ItemDetailCard({
                                 onChange={(e) =>
                                     onUpdateEdge &&
                                     onUpdateEdge(item.edgeId, {
-                                        data: { ...(liveEdge.data || {}), inlineValveType: e.target.value }
+                                        data: { ...(liveEdge.data || {}), inlineValveType: e.target.value },
                                     })
                                 }
                             >
                                 <option value="">Select type…</option>
-                                {inlineValveTypes.map(t => (
-                                    <option key={t.id} value={t.name}>{t.name}</option>
+                                {inlineValveTypes.map((t) => (
+                                    <option key={t.id} value={t.name}>
+                                        {t.name}
+                                    </option>
                                 ))}
                             </select>
                         </div>
@@ -415,7 +524,7 @@ export default function ItemDetailCard({
                             placeholder="Edge label"
                             onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })}
                         />
-                        <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !(liveEdge.animated) })}>
+                        <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !liveEdge.animated })}>
                             {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
@@ -449,18 +558,32 @@ export default function ItemDetailCard({
                         <input
                             type="color"
                             value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
-                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
+                            onChange={(e) =>
+                                onUpdateEdge &&
+                                onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
+                            }
                         />
                         <input
                             type="text"
                             value={(liveEdge.style && liveEdge.style.stroke) || ''}
-                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
+                            onChange={(e) =>
+                                onUpdateEdge &&
+                                onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
+                            }
                             style={{ flex: 1, padding: 8 }}
                         />
                         {item?.edgeId && onDeleteEdge && (
                             <button
                                 onClick={() => onDeleteEdge(item.edgeId)}
-                                style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}
+                                style={{
+                                    marginLeft: 8,
+                                    background: '#f44336',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '6px 10px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                }}
                             >
                                 Delete Edge
                             </button>
