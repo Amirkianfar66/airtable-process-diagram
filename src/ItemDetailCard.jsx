@@ -156,25 +156,32 @@ export default function ItemDetailCard({
         }, 350);
     };
 
-    const handleFieldChange = (field, value, options) => {
-        // numeric fields
-        if ((field === 'x' || field === 'y') && (value === '' || Number.isNaN(value))) {
-            setLocalItem(prev => ({ ...prev, [field]: '' }));
+    const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
+        // numeric fields: allow empty, avoid NaN
+        if ((fieldName === 'x' || fieldName === 'y') && (value === '' || Number.isNaN(value))) {
+            setLocalItem(prev => ({ ...prev, [fieldName]: '' }));
             return;
         }
-        // Type changed from dropdown: store id array + friendly name
-        if (field === 'Type') {
-            const picked = allTypes.find(t => t.id === value);
+
+        // Type comes from Airtable (record id). Save both: Type (id) and TypeName (readable)
+        if (fieldName === 'Type') {
+            const newType = value ? [value] : [];
+            const picked = allTypes.find(t => t.id === value);   // allTypes: [{id, name, category}]
             const next = {
                 ...localItem,
-                Type: value ? [value] : [],
-                TypeName: picked?.name || '',
+                Type: newType,                       // e.g., ["recXXXXXXXXXXXX"]
+                TypeName: picked?.name || '',        // readable label for icon logic
             };
             commitUpdate(next, options);
             return;
         }
-        commitUpdate({ [field]: value }, options);
+
+        // default field update
+        const updated = { ...(localItem || {}), [fieldName]: value };
+        if (!updated.id && item?.id) updated.id = item.id;
+        commitUpdate(updated, options);
     };
+
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
     const activeCategory =
