@@ -1,5 +1,6 @@
 ﻿// ItemDetailCard.jsx (rewritten with 2s debounce + ND/ID/OD + inline valve type)
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+
 
 // simple runtime cache for resolved type names by record id
 const typeCache = new Map();
@@ -17,6 +18,18 @@ export default function ItemDetailCard({
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
+    // after the useState hooks
+    const currentCategory = React.useMemo(() => {
+        const raw = localItem?.['Category Item Type'] ?? localItem?.Category ?? '';
+        const val = Array.isArray(raw) ? raw[0] : raw;
+        return (val ?? '').toString().trim() || 'Equipment';
+    }, [localItem]);
+
+ 
+
+    // with this:
+    const filteredTypes = allTypes.filter(t => t.category === currentCategory);
+
 
     // Debounce timer to delay writes to parent/canvas
     const debounceRef = useRef(null);
@@ -350,7 +363,7 @@ export default function ItemDetailCard({
                         <label style={labelStyle}>Category:</label>
                         <select
                             style={inputStyle}
-                            value={localItem['Category Item Type'] || 'Equipment'}
+                            value={currentCategory}
                             onChange={(e) => {
                                 const newCategory = e.target.value;
                                 const updated = {
@@ -363,11 +376,10 @@ export default function ItemDetailCard({
                             }}
                         >
                             {categories.map((cat) => (
-                                <option key={cat} value={cat}>
-                                    {cat}
-                                </option>
+                                <option key={cat} value={cat}>{cat}</option>
                             ))}
                         </select>
+
                     </div>
 
                     <div style={rowStyle}>

@@ -433,13 +433,28 @@ export default function ProcessDiagram() {
                     Code: item['Item Code'] || item.Code || '',
                     Unit: item.Unit || 'Default Unit',
                     SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                    // BEFORE (excerpt)
                     Category: Array.isArray(item['Category Item Type'])
                         ? item['Category Item Type'][0]
                         : item['Category Item Type'] || '',
-                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
-                    Sequence: item.Sequence || 0,
-                    Connections: Array.isArray(item.Connections) ? item.Connections : [], // ✅ include connections
-                }));
+
+                    // AFTER — normalize once and assign to both fields
+                    const rawCat = item['Category Item Type'] ?? item.Category ?? '';
+                    const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
+
+                    const normalizedItems = itemsRaw.map(item => ({
+                        id: item.id || `${item.Name}-${Date.now()}`,
+                        Name: item.Name || '',
+                        Code: item['Item Code'] || item.Code || '',
+                        Unit: item.Unit || 'Default Unit',
+                        SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+                        Category: cat,
+                        'Category Item Type': cat,          // 👈 add this
+                        Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
+                        Sequence: item.Sequence || 0,
+                        Connections: Array.isArray(item.Connections) ? item.Connections : [],
+                    }));
+
 
                 // Build unique units array
                 const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
