@@ -1,777 +1,368 @@
-﻿import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
-import 'reactflow/dist/style.css';
-import 'react-resizable/css/styles.css';
+﻿// ItemDetailCard.jsx (patched)
+import React, { useEffect, useState } from 'react';
 
-import ResizableNode from './ResizableNode';
-import CustomItemNode from './CustomItemNode';
-import PipeItemNode from './PipeItemNode';
-import ScalableIconNode from './ScalableIconNode';
-import GroupLabelNode from './GroupLabelNode';
-import ItemDetailCard from './ItemDetailCard';
-import GroupDetailCard from './GroupDetailCard';
-import { getItemIcon, handleItemChangeNode, categoryTypeMap } from './IconManager';
-import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
-import DiagramCanvas from './DiagramCanvas';
-import MainToolbar from './MainToolbar';
-import AddItemButton from './AddItemButton';
-import { buildDiagram } from './diagramBuilder';
-import UnitLayoutConfig from "./UnitLayoutConfig";
+// simple runtime cache for resolved type names by record id
+const typeCache = new Map();
 
-export const nodeTypes = {
-    resizable: ResizableNode,
-    custom: CustomItemNode,
-    pipe: PipeItemNode,
-    scalableIcon: ScalableIconNode,
-    groupLabel: GroupLabelNode,
-};
+export default function ItemDetailCard({
+    item,
+    onChange,
+    items = [],
+    edges = [],
+    onDeleteEdge,
+    onUpdateEdge,
+    onCreateInlineValve,
+    onDeleteItem,
+}) {
+    const [localItem, setLocalItem] = useState(item || {});
+    const [resolvedType, setResolvedType] = useState('');
+    const [allTypes, setAllTypes] = useState([]);
 
-export const fetchData = async () => {
-    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-    const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-    let allRecords = [];
-    let offset = null;
-    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
-
-    do {
-        const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
+    const safeOnChange = (payload, options) => {
+        if (typeof onChange !== "function") return;
+        try {
+            onChange(payload, options);
+        } catch (err) {
+            console.error("[safeOnChange] onChange threw:", err);
+            try {
+                console.log("[safeOnChange] payload:", payload);
+                console.log("[safeOnChange] options:", options);
+            } catch (e) { }
         }
-        const data = await res.json();
-        allRecords = allRecords.concat(data.records);
-        offset = data.offset;
-    } while (offset);
-
-    return allRecords.map((rec) => ({ id: rec.id, ...rec.fields }));
-};
-
-export default function ProcessDiagram() {
-    const [defaultLayout, setDefaultLayout] = useState({ nodes: [], edges: [] });
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [selectedNodes, setSelectedNodes] = useState([]);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [items, setItems] = useState([]);
-    const [aiDescription, setAiDescription] = useState('');
-    const [chatMessages, setChatMessages] = useState([]);
-    const [unitLayoutOrder, setUnitLayoutOrder] = useState([]);
-    const [availableUnitsForConfig, setAvailableUnitsForConfig] = useState([]);
-
-    // keep previous items snapshot to avoid unnecessary full rebuilds
-    const prevItemsRef = useRef([]);
-
-    const updateNode = (id, newData) => {
-        setNodes((nds) => nds.map((node) => (node.id === id ? { ...node, data: { ...node.data, ...newData } } : node)));
     };
 
-    const deleteNode = (id) => {
-        setNodes((nds) => nds.filter((node) => node.id !== id));
-        setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
-    };
+    // ---- PATCH 1: only update localItem when the selected item's id changes ----
+    useEffect(() => {
+        console.log('ItemDetailCard | incoming item id:', item?.id);
+        setLocalItem(item || {});
+    }, [item?.id]);
 
-    // wrap ItemDetailCard onChange so we can preserve positions unless reposition requested
-    const handleItemDetailChange = useCallback((updatedItem, options = {}) => {
-        // inside handleItemDetailChange, replace previous setItems(...) with:
-        setItems((prev) =>
-            prev.map((it) => {
-                if (String(it.id) !== String(updatedItem.id)) return it;
-                return {
-                    ...it,
-                    ...updatedItem,
-                    // preserve x/y unless reposition requested or payload contains them explicitly
-                    x: options.reposition ? (('x' in updatedItem) ? updatedItem.x : it.x) : (('x' in updatedItem) ? updatedItem.x : it.x),
-                    y: options.reposition ? (('y' in updatedItem) ? updatedItem.y : it.y) : (('y' in updatedItem) ? updatedItem.y : it.y),
-                };
-            })
-        );
+    useEffect(() => {
+        const fetchTypes = async () => {
+            try {
+                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+                const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+                const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
 
-        // update nodes: preserve position unless reposition requested
-        setNodes((prevNodes) =>
-            prevNodes.map((node) => {
-                if (String(node.id) !== String(updatedItem.id)) return node;
+                let typesList = [];
 
-                const currentPos = node.position || { x: node.data?.x ?? updatedItem.x ?? 0, y: node.data?.y ?? updatedItem.y ?? 0 };
-
-                if (options && options.reposition === true) {
-                    // compute new position using your helper (fallback to currentPos)
-                    try {
-                        const newPos = getUnitSubunitPosition(updatedItem.Unit, updatedItem.SubUnit, prevNodes) || currentPos;
-                        return { ...node, position: { x: newPos.x, y: newPos.y }, data: { ...node.data, ...updatedItem } };
-                    } catch (err) {
-                        return { ...node, position: currentPos, data: { ...node.data, ...updatedItem } };
-                    }
+                if (equipTypesTableId) {
+                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${equipTypesTableId}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json();
+                    typesList = typesList.concat(
+                        (data.records || []).map((r) => ({
+                            id: r.id,
+                            name: r.fields['Still Pipe'] || r.fields['Name'] || '',
+                            category: r.fields['Category'] || 'Equipment',
+                        }))
+                    );
                 }
 
-                // otherwise preserve position and only update data so icon/type changes without moving
-                return { ...node, position: currentPos, data: { ...node.data, ...updatedItem } };
-            })
-        );
-
-        // also keep selectedItem in sync if the details panel is showing this item
-        setSelectedItem((cur) => (cur && String(cur.id) === String(updatedItem.id) ? { ...cur, ...updatedItem } : cur));
-    }, []);
-
-    // Replace your existing onSelectionChange with this
-    const onSelectionChange = useCallback(
-        ({ nodes: selNodes, edges: selEdges }) => {
-            setSelectedNodes(selNodes || []);
-
-            // --- Single node selected ---
-            if (Array.isArray(selNodes) && selNodes.length === 1) {
-                const selNode = selNodes[0];
-
-                // Prefer authoritative item stored in items[] (keeps data consistent)
-                const itemFromItems = items.find((it) => it.id === selNode.id);
-                if (itemFromItems) {
-                    setSelectedItem(itemFromItems);
-                    return;
+                if (valveTypesTableId) {
+                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${valveTypesTableId}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json();
+                    typesList = typesList.concat(
+                        (data.records || []).map((r) => ({
+                            id: r.id,
+                            name: r.fields['Still Pipe'] || r.fields['Name'] || '',
+                            category: 'Inline Valve',
+                        }))
+                    );
                 }
 
-                // Fallback to node.data.item (useful for newly created valve nodes)
-                if (selNode?.data?.item) {
-                    setSelectedItem(selNode.data.item);
-                    return;
-                }
-
-                // Nothing found for this node
-                setSelectedItem(null);
-                return;
+                setAllTypes(typesList);
+            } catch (err) {
+                console.error('Error fetching types:', err);
             }
-
-            // --- Single edge selected: try to surface an inline valve attached to that edge ---
-            if (Array.isArray(selEdges) && selEdges.length === 1) {
-                const edge = selEdges[0];
-
-                // 1) Look for valve items in items[] that reference edgeId
-                const edgeValves = items.filter((it) => it.edgeId === edge.id);
-                if (edgeValves.length > 0) {
-                    // If multiple valves found, pick the first for now
-                    setSelectedItem(edgeValves[0]);
-                    return;
-                }
-
-                // 2) Fallback: maybe there's a valve node present whose data.item.edgeId === edge.id
-                const valveNode = nodes.find((n) => n?.data?.item?.edgeId === edge.id);
-                if (valveNode?.data?.item) {
-                    setSelectedItem(valveNode.data.item);
-                    return;
-                }
-
-                // nothing connected to this edge
-                setSelectedItem(null);
-                return;
-            }
-
-            // --- Multiple selection or nothing selected ---
-            setSelectedItem(null);
-        },
-        [items, nodes]
-    );
-
-    const onConnect = useCallback(
-        (params) => {
-            const updatedEdges = addEdge(
-                {
-                    ...params,
-                    type: 'step',
-                    animated: true,
-                    style: { stroke: 'blue', strokeWidth: 2 },
-                },
-                edges
-            );
-            setEdges(updatedEdges);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
-        },
-        [edges, nodes]
-    );
-
-    // --- NEW: when a group node is moved, shift its children by the same delta (live while dragging) ---
-    const onNodeDrag = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
-
-        setNodes((nds) =>
-            nds.map((n) => {
-                if (!n?.data) return n;
-
-                // group membership check
-                const isChild =
-                    (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
-                    n.data.groupId === draggedNode.id ||
-                    n.data.parentId === draggedNode.id;
-
-                if (!isChild) return n;
-
-                // shift children by the same delta as the group’s drag
-                const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
-                const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
-
-                return {
-                    ...n,
-                    position: {
-                        x: n.position.x + deltaX,
-                        y: n.position.y + deltaY,
-                    },
-                };
-            })
-        );
-
-        // update prev position for next drag tick
-        setNodes((nds) =>
-            nds.map((n) =>
-                n.id === draggedNode.id
-                    ? { ...n, data: { ...n.data, prevX: draggedNode.position.x, prevY: draggedNode.position.y } }
-                    : n
-            )
-        );
-    }, []);
-
-    // --- Reset prevX/prevY once drag stops ---
-    const onNodeDragStop = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
-        setNodes((nds) =>
-            nds.map((n) =>
-                n.id === draggedNode.id
-                    ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } }
-                    : n
-            )
-        );
-    }, []);
-    // --- Add in ProcessDiagram.jsx near other callbacks ---
-    const handleEdgeSelect = useCallback(
-        (edge) => {
-            if (!edge) {
-                setSelectedItem(null);
-                return;
-            }
-
-            // Try to find linked items in items[]
-            const fromItem = items.find(it => it.id === edge.source) || null;
-            const toItem = items.find(it => it.id === edge.target) || null;
-
-            // Build a lightweight item-like object for ItemDetailCard
-            const edgeAsItem = {
-                id: edge.id,
-                Name: 'Edge inspector',
-                'Item Code': edge.id,
-                edgeId: edge.id,
-                from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
-                to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-                // try to approximate mid position if source/target nodes have positions
-                x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
-                y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
-                // keep original edge for reference (optional)
-                _edge: edge,
-            };
-
-            setSelectedItem(edgeAsItem);
-        },
-        [items, setSelectedItem]
-    );
-
-    // Delete edge (used by ItemDetailCard delete button)
-    const handleDeleteEdge = useCallback((edgeId) => {
-        if (!edgeId) return;
-        if (!window.confirm('Delete this edge?')) return;
-
-        // remove edge
-        setEdges((eds) => eds.filter(e => e.id !== edgeId));
-
-        // remove any inline valve node that references this edge (if you create valve nodes with item.edgeId)
-        setNodes((nds) => nds.filter(n => !(n?.data?.item?.edgeId && n.data.item.edgeId === edgeId)));
-
-        // clear selected item if it was the edge
-        setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
-    }, [setEdges, setNodes, setSelectedItem]);
-
-    // update a live edge (label, style, animated, data, etc.)
-    const handleUpdateEdge = useCallback((edgeId, patch) => {
-        setEdges((eds) => eds.map(e => e.id === edgeId ? { ...e, ...patch } : e));
-
-        // keep selectedItem in sync when we're inspecting an edge
-        setSelectedItem((cur) => {
-            if (!cur || cur.edgeId !== edgeId) return cur;
-            return { ...cur, _edge: { ...cur._edge, ...patch } };
-        });
-    }, [setEdges, setSelectedItem]);
-
-    // create an inline valve on an existing edge and split the edge into two
-    const handleCreateInlineValve = useCallback((edgeId) => {
-        const edge = edges.find(e => e.id === edgeId);
-        if (!edge) return;
-
-        // find the nodes for midpoint calculation
-        const sourceNode = nodes.find(n => n.id === edge.source);
-        const targetNode = nodes.find(n => n.id === edge.target);
-        if (!sourceNode || !targetNode) return;
-
-        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
-        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-
-        // small unique id using timestamp (no extra imports)
-        const newValveId = `valve-${Date.now()}`;
-
-        // new valve item (keeps shape similar to other items)
-        const newItem = {
-            id: newValveId,
-            "Item Code": `VALVE-${Date.now()}`,
-            Name: "Inline Valve",
-            Category: "Inline Valve",
-            "Category Item Type": "Inline Valve",
-            Type: [],
-            Unit: sourceNode?.data?.item?.Unit || "",
-            SubUnit: sourceNode?.data?.item?.SubUnit || "",
-            x: midX,
-            y: midY,
-            edgeId: edge.id, // track the parent edge
         };
+        fetchTypes();
+    }, []);
 
-        const newNode = {
-            id: newItem.id,
-            position: { x: midX, y: midY },
-            data: {
-                label: `${newItem["Item Code"]} - ${newItem.Name}`,
-                item: newItem,
-                icon: getItemIcon ? getItemIcon(newItem) : undefined,
-            },
-            type: "scalableIcon",
-            sourcePosition: "right",
-            targetPosition: "left",
-            style: { background: "transparent" },
-        };
+    const fetchTypeNameById = async (typeId, category) => {
+        if (typeCache.has(typeId)) return typeCache.get(typeId);
 
-        // insert node
-        setNodes((nds) => [...nds, newNode]);
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+        const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+        const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
 
-        // replace original edge with two edges going through the valve node
-        const baseStyle = edge.style || {};
-        setEdges((eds) => {
-            const filtered = eds.filter(e => e.id !== edge.id);
-            const e1 = {
-                id: `edge-${edge.source}-${newNode.id}-${Date.now()}`,
-                source: edge.source,
-                target: newNode.id,
-                type: edge.type || "smoothstep",
-                animated: edge.animated ?? true,
-                style: { ...baseStyle },
-            };
-            const e2 = {
-                id: `edge-${newNode.id}-${edge.target}-${Date.now()}`,
-                source: newNode.id,
-                target: edge.target,
-                type: edge.type || "smoothstep",
-                animated: edge.animated ?? true,
-                style: { ...baseStyle },
-            };
-            return [...filtered, e1, e2];
-        });
+        let tableId = equipTypesTableId;
+        let fieldName = 'Still Pipe';
 
-        // add the valve to your items so ItemDetailCard and other code can find it
-        setItems((prev) => [...prev, newItem]);
+        if (category === 'Inline Valve') {
+            tableId = valveTypesTableId;
+            fieldName = 'Still Pipe';
+        }
 
-        // select the new valve item in the details panel
-        setSelectedItem(newItem);
-    }, [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]);
-
-    const handleGeneratePNID = async () => {
-        if (!aiDescription) return;
+        if (!tableId) return 'Unknown';
 
         try {
-            const { nodes: aiNodes, edges: aiEdges, normalizedItems } = await AIPNIDGenerator(
-                aiDescription,
-                items,
-                nodes,
-                edges,
-                setSelectedItem,
-                setChatMessages
-            );
-
-            // Extract AI items
-            const aiItems = normalizedItems || (aiNodes || []).map(n => n.data?.item).filter(Boolean);
-            console.log("AI Items:", aiItems);
-            aiItems.forEach(i => console.log(i.Name, i.Code, i.Connections));
-
-            // Merge into items
-            const updatedItems = [...items];
-            const existingIds = new Set(updatedItems.map(i => i.id));
-            aiItems.forEach(item => {
-                if (item.id && !existingIds.has(item.id)) {
-                    updatedItems.push(item);
-                }
-            });
-            setItems(updatedItems);
-
-            // --- MERGE AI nodes with existing positions instead of replacing ---
-            setNodes((prevNodes) => {
-                const prevById = new Map(prevNodes.map(n => [String(n.id), n]));
-                const merged = (aiNodes || []).map(n => {
-                    const prev = prevById.get(String(n.id));
-                    return prev ? { ...n, position: prev.position } : n;
-                });
-                // keep any previous nodes that AI didn't return
-                prevNodes.forEach(p => {
-                    if (!merged.some(m => String(m.id) === String(p.id))) merged.push(p);
-                });
-                return merged;
-            });
-
-            setEdges(aiEdges);
-
-            // Auto-select first new node
-            if (aiNodes?.length) {
-                const newNodesList = aiNodes.filter(n => !nodes.some(old => old.id === n.id));
-                if (newNodesList.length > 0) {
-                    setSelectedNodes([newNodesList[0]]);
-                    setSelectedItem(newNodesList[0].data?.item || null);
-                }
-            }
+            const url = `https://api.airtable.com/v0/${baseId}/${tableId}/${typeId}`;
+            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+            const record = await res.json();
+            const name = (record?.fields && (record.fields[fieldName] || record.fields['Name'])) || 'Unknown Type';
+            typeCache.set(typeId, name);
+            return name;
         } catch (err) {
-            console.error("AI PNID generation failed:", err);
+            console.error('Error fetching type by id', err);
+            return 'Unknown Type';
         }
     };
 
     useEffect(() => {
-        const loadItems = async () => {
-            try {
-                const itemsRaw = await fetchData();
-
-                // Normalize fields including Connections
-                const normalizedItems = itemsRaw.map(item => ({
-                    id: item.id || `${item.Name}-${Date.now()}`,
-                    Name: item.Name || '',
-                    Code: item['Item Code'] || item.Code || '',
-                    Unit: item.Unit || 'Default Unit',
-                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
-                    Category: Array.isArray(item['Category Item Type'])
-                        ? item['Category Item Type'][0]
-                        : item['Category Item Type'] || '',
-                    Type: Array.isArray(item.Type) ? item.Type[0] : item.Type || '',
-                    Sequence: item.Sequence || 0,
-                    Connections: Array.isArray(item.Connections) ? item.Connections : [], // ✅ include connections
-                }));
-
-                // Build unique units array
-                const uniqueUnits = [...new Set(normalizedItems.map(i => i.Unit))];
-
-                // Wrap in array for buildDiagram
-                const unitLayout2D = [uniqueUnits];
-                setUnitLayoutOrder(unitLayout2D);
-
-                // Build diagram nodes and edges
-                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D, { prevNodes: nodes });
-
-                // --- MERGE builtNodes with existing node positions instead of overwriting ---
-                setNodes((prevNodes) => {
-                    const merged = (builtNodes || []).map((n) => {
-                        const prev = prevNodes.find(p => String(p.id) === String(n.id));
-                        return prev ? { ...n, position: prev.position } : n;
-                    });
-                    // include previous nodes that builder didn't return (keep them)
-                    const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
-                    return [...merged, ...missingPrev];
-                });
-                setEdges(builtEdges);
-                setItems(normalizedItems);
-
-                // Pass units to UnitLayoutConfig
-                const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
-                setAvailableUnitsForConfig(uniqueUnitsObjects);
-
-                // snapshot
-                prevItemsRef.current = normalizedItems;
-
-            } catch (err) {
-                console.error('Error loading items:', err);
-            }
-        };
-
-        loadItems();
-    }, []);
-
-    // rebuild diagram whenever user updates unitLayoutOrder or when items change in a layout-relevant way
-    useEffect(() => {
-        if (!items.length || !unitLayoutOrder.length) return;
-
-        const prevItems = prevItemsRef.current || [];
-        const prevMap = Object.fromEntries(prevItems.map(i => [String(i.id), i]));
-
-        // decide whether we need a full rebuild: new item added, item removed, or Unit/SubUnit changed
-        const needFullRebuild =
-            items.length !== prevItems.length ||
-            items.some((i) => {
-                const p = prevMap[String(i.id)];
-                if (!p) return true; // new item
-                return p.Unit !== i.Unit || p.SubUnit !== i.SubUnit;
-            });
-
-        if (needFullRebuild) {
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(items, unitLayoutOrder, { prevNodes: nodes });
-
-            // --- MERGE instead of overwrite ---
-            setNodes((prevNodes) => {
-                const merged = (rebuiltNodes || []).map((n) => {
-                    const prev = prevNodes.find(p => String(p.id) === String(n.id));
-                    return prev ? { ...n, position: prev.position } : n;
-                });
-                const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
-                return [...merged, ...missingPrev];
-            });
-            setEdges(rebuiltEdges);
-        } else {
-            // Merge updated item data into existing nodes, but preserve positions
-            setNodes((prevNodes) =>
-                prevNodes.map((n) => {
-                    const item = items.find((it) => String(it.id) === String(n.id));
-                    if (!item) return n;
-
-                    const prevItem = prevMap[String(n.id)] || {};
-                    const shouldReposition = item.Unit !== prevItem.Unit || item.SubUnit !== prevItem.SubUnit;
-
-                    return {
-                        ...n,
-                        position: shouldReposition
-                            ? getUnitSubunitPosition(item.Unit, item.SubUnit, prevNodes)
-                            : n.position,
-                        data: {
-                            ...n.data,
-                            ...item,
-                            icon: getItemIcon(item, { width: 40, height: 40 }),
-                        },
-                    };
-                })
-            );
+        if (!item || !item.Type) {
+            setResolvedType('-');
+            return;
         }
 
-        // snapshot for next comparison
-        prevItemsRef.current = items;
-    }, [unitLayoutOrder, items]);
-
-    const itemsMap = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
-    const selectedGroupNode =
-        selectedNodes.length === 1 && selectedNodes[0]?.type === 'groupLabel' ? selectedNodes[0] : null;
-    const childrenNodesForGroup = selectedGroupNode
-        ? nodes.filter(n => {
-            if (!n) return false;
-            if (Array.isArray(selectedGroupNode.data?.children) && selectedGroupNode.data.children.includes(n.id)) return true;
-            if (n.data?.groupId === selectedGroupNode.id) return true;
-            if (n.data?.parentId === selectedGroupNode.id) return true;
-            return false;
-        })
-        : [];
-
-    // --- Group detail wiring ---
-    const [addingToGroup, setAddingToGroup] = useState(null);
-
-    const startAddItemToGroup = (groupId) => { setAddingToGroup(groupId); };
-
-    const onAddItem = (nodeIdToAdd) => {
-        if (!nodeIdToAdd) return;
-        setNodes(nds => {
-            const existing = nds.find(n => n.id === nodeIdToAdd);
-            if (existing) {
-                return nds.map(n => n.id === nodeIdToAdd ? { ...n, data: { ...n.data, groupId: selectedGroupNode?.id } } : n);
-            }
-            const newNode = {
-                id: nodeIdToAdd,
-                position: { x: 100, y: 100 },
-                data: { label: nodeIdToAdd, groupId: selectedGroupNode?.id }
-            };
-            return [...nds, newNode];
-        });
-    };
-
-    const onRemoveItem = (childId) => {
-        setNodes(nds => nds.map(n => n.id === childId ? { ...n, data: { ...n.data, groupId: undefined } } : n));
-    };
-
-    const onDeleteGroup = (groupId) => {
-        setNodes(nds => nds.filter(n => n.id !== groupId));
-    };
-
-    // inside ProcessDiagram.jsx
-    const handleAddItem = (rawItem) => {
-        setItems(prevItems => {
-            const firstKnownUnit =
-                Array.isArray(unitLayoutOrder) && unitLayoutOrder.length && unitLayoutOrder[0].length
-                    ? unitLayoutOrder[0][0]
-                    : (prevItems[0]?.Unit || 'Unit 1');
-
-            const normalizedItem = {
-                id: rawItem.id || `item-${Date.now()}`,
-                Name: rawItem.Name || 'New Item',
-                Code: rawItem.Code ?? rawItem['Item Code'] ?? `CODE-${Date.now()}`,
-                'Item Code': rawItem['Item Code'] ?? rawItem.Code ?? '',
-                // <-- default Unit is Unit 1 unless something else is present
-                Unit: rawItem.Unit || selectedItem?.Unit || firstKnownUnit || 'Unit 1',
-                SubUnit: rawItem.SubUnit ?? rawItem['Sub Unit'] ?? 'Default SubUnit',
-                Category: Array.isArray(rawItem['Category Item Type'])
-                    ? rawItem['Category Item Type'][0]
-                    : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
-                'Category Item Type': Array.isArray(rawItem['Category Item Type'])
-                    ? rawItem['Category Item Type'][0]
-                    : (rawItem['Category Item Type'] ?? rawItem.Category ?? 'Equipment'),
-                Type: Array.isArray(rawItem.Type) ? rawItem.Type[0] : (rawItem.Type || ''),
-                Sequence: rawItem.Sequence ?? 0,
-                Connections: Array.isArray(rawItem.Connections) ? rawItem.Connections : [],
-            };
-
-            const nextItems = [...prevItems, normalizedItem];
-
-            // ensure the unit exists in the layout
-            const ensureUnitInLayout = (layout, unit) => {
-                if (!Array.isArray(layout) || !layout.length) return [[unit]];
-                const flat = new Set(layout.flat());
-                if (!flat.has(unit)) {
-                    const copy = layout.map(row => [...row]);
-                    copy[0].push(unit); // add to first row
-                    return copy;
+        if (Array.isArray(item.Type) && item.Type.length > 0) {
+            const typeIdOrName = item.Type[0];
+            if (typeof typeIdOrName === 'string' && typeIdOrName.startsWith('rec')) {
+                if (typeCache.has(typeIdOrName)) {
+                    setResolvedType(typeCache.get(typeIdOrName));
+                    return;
                 }
-                return layout;
-            };
+                setResolvedType('Loading...');
+                (async () => {
+                    const category = item['Category Item Type'] || item.Category || 'Equipment';
+                    const name = await fetchTypeNameById(typeIdOrName, category);
+                    setResolvedType(name);
+                })();
+            } else {
+                setResolvedType(typeIdOrName);
+            }
+        } else {
+            setResolvedType(item.Type);
+        }
+    }, [item]);
 
-            const currentLayout = (Array.isArray(unitLayoutOrder) && unitLayoutOrder.length) ? unitLayoutOrder : [[]];
-            const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
-            if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
+    useEffect(() => {
+        if (!item || !edges || !Array.isArray(edges) || !items || !Array.isArray(items)) return;
 
-            // Pass prevNodes option and merge positions when applying rebuilt nodes
-            const { nodes: rebuiltNodes, edges: rebuiltEdges } = buildDiagram(nextItems, patchedLayout, { prevNodes: nodes });
+        const firstConnId = item.Connections?.[0];
+        if (!firstConnId) return;
 
-            setNodes((prevNodes) => {
-                const merged = (rebuiltNodes || []).map((n) => {
-                    const prev = prevNodes.find(p => String(p.id) === String(n.id));
-                    return prev ? { ...n, position: prev.position } : n;
-                });
-                const missingPrev = prevNodes.filter(p => !merged.some(m => String(m.id) === String(p.id)));
-                return [...merged, ...missingPrev];
-            });
+        const edge = edges.find((e) => e.id === firstConnId);
+        if (!edge) return;
 
-            setEdges(rebuiltEdges);
+        const findItemById = (id) => items.find((it) => it.id === id) || {};
 
-            const addedNode = rebuiltNodes.find(n => n.id === normalizedItem.id);
-            if (addedNode) setSelectedNodes([addedNode]);
-            setSelectedItem(normalizedItem);
+        const fromItem = findItemById(edge.source);
+        const toItem = findItemById(edge.target);
 
-            console.log('handleAddItem added:', normalizedItem, 'rebuiltNodes contains:', !!addedNode);
+        setLocalItem((prev) => ({
+            ...prev,
+            edgeId: edge.id,
+            from: fromItem.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
+            to: toItem.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+        }));
+    }, [item, edges, items]);
 
-            return nextItems;
-        });
-    };
+    // ---- PATCH 3: small debug flag and explicit reposition marker ----
+    const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {
+        const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
 
-    function getUnitSubunitPosition(unit, subUnit, nodes) {
-        const unitNode = nodes.find(n => n.id === `unit-${unit}`);
-        const subUnitNode = nodes.find(n => n.id === `sub-${unit}-${subUnit}`);
+        const chosenX = (typeof updatedObj?.x === 'number') ? updatedObj.x
+            : (typeof localItem?.x === 'number') ? localItem.x
+                : (typeof item?.x === 'number') ? item.x
+                    : undefined;
 
-        if (!subUnitNode) {
-            // fallback if SubUnit not found
-            return { x: 100, y: 100 };
+        const chosenY = (typeof updatedObj?.y === 'number') ? updatedObj.y
+            : (typeof localItem?.y === 'number') ? localItem.y
+                : (typeof item?.y === 'number') ? item.y
+                    : undefined;
+
+        const payload = { ...updatedObj, id: authoritativeId };
+
+        if (!options.reposition) {
+            if (typeof chosenX === 'number') payload.x = Number(chosenX);
+            if (typeof chosenY === 'number') payload.y = Number(chosenY);
         }
 
-        // Get all items already in this subUnit
-        const siblings = nodes.filter(n =>
-            n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit
+        // local UI update
+        setLocalItem(prev => ({ ...prev, ...updatedObj }));
+
+        // include explicit marker if requesting reposition
+        if (options.reposition) payload._repositionRequest = true;
+
+        safeOnChange(payload, options);
+    };
+
+    // ---- PATCH 2: do NOT auto-force reposition for Unit/SubUnit ----
+    const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
+        const repositionFlag = options.reposition === true;
+
+        const updated = { ...(localItem || {}), [fieldName]: value };
+        if (!updated.id && item?.id) updated.id = item.id;
+
+        commitUpdate(updated, { reposition: repositionFlag });
+    };
+
+    const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
+
+    if (!item) {
+        return (
+            <div style={{ padding: 20, color: '#888' }}>
+                No item selected. Select a node or edge to view details.
+            </div>
         );
-
-        const itemWidth = 160;
-        const itemGap = 30;
-
-        let x = subUnitNode.position.x + 40 + siblings.length * (itemWidth + itemGap);
-        let y = subUnitNode.position.y + 40;
-
-        return { x, y };
     }
 
-    return (
-        <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
-            {/* LEFT: Diagram */}
-            <div style={{ flex: 3, position: "relative", background: "transparent" }}>
-                <DiagramCanvas
-                    nodes={nodes}
-                    edges={edges}
-                    setNodes={setNodes}
-                    setEdges={setEdges}
-                    setItems={setItems}
-                    setSelectedItem={setSelectedItem}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
-                    nodeTypes={nodeTypes}
-                    onEdgeSelect={handleEdgeSelect}           // <--- add this
-                    showInlineEdgeInspector={false}           // <--- hide inline inspector
-                    AddItemButton={AddItemButton}             // <--- pass component directly
-                    addItem={handleAddItem}                   // <--- pass handler separately
-                    aiDescription={aiDescription}
-                    setAiDescription={setAiDescription}
-                    handleGeneratePNID={handleGeneratePNID}
-                    chatMessages={chatMessages}
-                    setChatMessages={setChatMessages}
-                    selectedNodes={selectedNodes}
-                    updateNode={updateNode}
-                    deleteNode={deleteNode}
-                    ChatBox={ChatBox}
-                    onNodeDrag={onNodeDrag}
-                    onNodeDragStop={onNodeDragStop}
-                />
+    const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
+    const filteredTypes = allTypes.filter((t) => t.category === (localItem['Category Item Type'] || 'Equipment'));
 
+    const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
+    const labelStyle = { width: '130px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
+    const inputStyle = { flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', outline: 'none', background: '#fafafa' };
+    const sectionStyle = { marginBottom: '24px' };
+    const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
+
+    const liveEdge = item._edge || {};
+
+    return (
+        <>
+            <div style={{ background: '#fff', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '20px', margin: '16px', maxWidth: '350px', fontFamily: 'sans-serif' }}>
+                <section style={sectionStyle}>
+                    <h3 style={headerStyle}>General Info</h3>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Code:</label>
+                        <input style={inputStyle} type="text" value={localItem['Item Code'] || ''} onChange={(e) => handleFieldChange('Item Code', e.target.value)} />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Name:</label>
+                        <input style={inputStyle} type="text" value={localItem['Name'] || ''} onChange={(e) => handleFieldChange('Name', e.target.value)} />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Category:</label>
+                        <select style={inputStyle} value={localItem['Category Item Type'] || 'Equipment'} onChange={(e) => {
+                            const newCategory = e.target.value;
+                            const updated = { ...localItem, 'Category Item Type': newCategory, Category: newCategory, Type: '' };
+                            commitUpdate(updated, { reposition: false });
+                        }}>
+                            {categories.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
+                        </select>
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Type:</label>
+                        <select style={inputStyle} value={localItem.Type || ''} onChange={(e) => handleFieldChange('Type', e.target.value)}>
+                            <option value="">Select Type</option>
+                            {filteredTypes.map((t) => (<option key={t.id} value={t.name}>{t.name}</option>))}
+                        </select>
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Unit:</label>
+                        <input style={inputStyle} type="text" value={localItem['Unit'] || ''} onChange={(e) => handleFieldChange('Unit', e.target.value)} />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Sub Unit:</label>
+                        <input style={inputStyle} type="text" value={localItem['SubUnit'] || ''} onChange={(e) => handleFieldChange('SubUnit', e.target.value)} />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>From Item:</label>
+                        <input style={inputStyle} type="text" value={localItem['from'] || ''} onChange={(e) => handleFieldChange('from', e.target.value)} placeholder="Source item ID / name" />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>To Item:</label>
+                        <input style={inputStyle} type="text" value={localItem['to'] || ''} onChange={(e) => handleFieldChange('to', e.target.value)} placeholder="Target item ID / name" />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Edge ID:</label>
+                        <input style={inputStyle} type="text" value={localItem['edgeId'] || ''} onChange={(e) => handleFieldChange('edgeId', e.target.value)} placeholder="edge-xxx" />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>X Position:</label>
+                        <input style={inputStyle} type="number" value={localItem['x'] ?? ''} onChange={(e) => handleFieldChange('x', parseFloat(e.target.value))} />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Y Position:</label>
+                        <input style={inputStyle} type="number" value={localItem['y'] ?? ''} onChange={(e) => handleFieldChange('y', parseFloat(e.target.value))} />
+                    </div>
+
+                    {/* explicit save / reposition controls could be added here if you want */}
+                </section>
+
+                <section style={sectionStyle}>
+                    <h3 style={headerStyle}>Procurement Info</h3>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Model Number:</label>
+                        <input style={inputStyle} type="text" value={localItem['Model Number'] || ''} onChange={(e) => handleFieldChange('Model Number', e.target.value)} />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Manufacturer:</label>
+                        <input style={inputStyle} type="text" value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])} onChange={(e) => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)} />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Supplier:</label>
+                        <input style={inputStyle} type="text" value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])} onChange={(e) => handleFieldChange('Supplier (from Technical Spec)', e.target.value)} />
+                    </div>
+                </section>
             </div>
 
-            {/* RIGHT: Sidebar */}
-            <div
-                style={{
-                    flex: 1,
-                    borderLeft: "1px solid #ccc",
-                    display: "flex",
-                    flexDirection: "column",
-                    background: "transparent",
-                }}
-            >
-
-                <div>
-                    <UnitLayoutConfig
-                        availableUnits={availableUnitsForConfig}
-                        onChange={setUnitLayoutOrder}
-                    />
-                </div>
-                {/* detail panel */}
-                <div style={{ flex: 1, overflowY: "auto" }}>
-                    {selectedGroupNode ? (
-                        <GroupDetailCard
-                            node={selectedGroupNode}
-                            childrenNodes={childrenNodesForGroup}
-                            childrenLabels={selectedGroupNode?.data?.children}
-                            allItems={itemsMap}
-                            startAddItemToGroup={startAddItemToGroup}
-                            onAddItem={onAddItem}
-                            onRemoveItem={onRemoveItem}
-                            onDelete={onDeleteGroup}
-                        />
-                    ) : selectedItem ? (
-                        <ItemDetailCard
-                            item={selectedItem}
-                            items={items}
-                            edges={edges}
-                            onChange={(updatedItem, options = {}) => {
-                                // By default, don't reposition (explicit button will request it)
-                                handleItemDetailChange(updatedItem, { reposition: options.reposition === true });
-                            }}
-                            onDeleteEdge={handleDeleteEdge}
-                            onUpdateEdge={handleUpdateEdge}
-                            onCreateInlineValve={handleCreateInlineValve}
-                            onDeleteItem={handleDeleteItem}
-                        />
-
-
-                    ) : (
-                        <div style={{ padding: 20, color: "#888" }}>
-                            Select an item or group to see details
+            {item?._edge && (
+                <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
+                    <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <input style={{ flex: 1, padding: 8 }} value={liveEdge.label ?? ''} placeholder="Edge label" onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })} />
+                        <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !(liveEdge.animated) })}>
+                            {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
+                        </button>
+                    </div>
+                    {/* Delete Item Button */}
+                    {onDeleteItem && (
+                        <div style={{ marginTop: 16, textAlign: 'center' }}>
+                            <button
+                                onClick={() => {
+                                    if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
+                                        onDeleteItem(item.id);
+                                    }
+                                }}
+                                style={{
+                                    background: '#f44336',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '10px 16px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                Delete Item
+                            </button>
                         </div>
                     )}
-                </div>
-            </div>
-        </div>
-    );
 
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <label style={{ width: 70 }}>Color</label>
+                        <input type="color" value={(liveEdge.style && liveEdge.style.stroke) || '#000000'} onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })} />
+                        <input type="text" value={(liveEdge.style && liveEdge.style.stroke) || ''} onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })} style={{ flex: 1, padding: 8 }} />
+                        {item?.edgeId && onDeleteEdge && (
+                            <button onClick={() => onDeleteEdge(item.edgeId)} style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}>
+                                Delete Edge
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </>
+    );
 }
