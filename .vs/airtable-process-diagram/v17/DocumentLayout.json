@@ -66,32 +66,6 @@
               "IsPinned": true
             },
             {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "MainToolbar.jsx",
-              "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\MainToolbar.jsx",
-              "RelativeDocumentMoniker": "src\\MainToolbar.jsx",
-              "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\MainToolbar.jsx",
-              "RelativeToolTip": "src\\MainToolbar.jsx",
-              "ViewState": "AgIAAN0AAAAAAAAAAAAuwBoBAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-06T14:58:29.163Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "UnitLayoutConfig.jsx",
-              "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
-              "RelativeDocumentMoniker": "src\\UnitLayoutConfig.jsx",
-              "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
-              "RelativeToolTip": "src\\UnitLayoutConfig.jsx",
-              "ViewState": "AgIAAHUBAAAAAAAAAAAuwI4BAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-06T14:54:37.621Z",
-              "EditorCaption": ""
-            },
-            {
               "$type": "Bookmark",
               "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
             },
@@ -125,6 +99,30 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "MainToolbar.jsx",
+              "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\MainToolbar.jsx",
+              "RelativeDocumentMoniker": "src\\MainToolbar.jsx",
+              "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\MainToolbar.jsx",
+              "RelativeToolTip": "src\\MainToolbar.jsx",
+              "ViewState": "AgIAAN0AAAAAAAAAAAAuwBoBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-06T14:58:29.163Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "UnitLayoutConfig.jsx",
+              "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
+              "RelativeDocumentMoniker": "src\\UnitLayoutConfig.jsx",
+              "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
+              "RelativeToolTip": "src\\UnitLayoutConfig.jsx",
+              "ViewState": "AgIAAHUBAAAAAAAAAAAuwI4BAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-06T14:54:37.621Z"
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 5,
               "Title": "DiagramCanvas.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\DiagramCanvas.jsx",
@@ -133,8 +131,7 @@
               "RelativeToolTip": "src\\DiagramCanvas.jsx",
               "ViewState": "AgIAABcAAAAAAAAAAAAAwCcAAAAEAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-06T02:15:02.259Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-06T02:15:02.259Z"
             },
             {
               "$type": "Document",
@@ -146,8 +143,7 @@
               "RelativeToolTip": "src\\diagramBuilder.jsx",
               "ViewState": "AgIAAE8AAAAAAAAAAAAvwF4AAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-06T00:46:50.997Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-06T00:46:50.997Z"
             },
             {
               "$type": "Document",
@@ -157,7 +153,7 @@
               "RelativeDocumentMoniker": "src\\ProcessDiagram.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\Downloads\\airtable-process-diagram\\airtable-process-diagram\\src\\ProcessDiagram.jsx",
               "RelativeToolTip": "src\\ProcessDiagram.jsx",
-              "ViewState": "AgIAAKkCAAAAAAAAAAAuwMICAAADAAAAAAAAAA==",
+              "ViewState": "AgIAALgCAAAAAAAAAAAswMcCAAAOAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-09-06T00:46:01.961Z",
               "EditorCaption": ""
@@ -172,8 +168,7 @@
               "RelativeToolTip": "src\\ItemDetailCard.jsx",
               "ViewState": "AgIAAHMCAAAAAAAAAAAswIwCAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-06T00:36:30.761Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-06T00:36:30.761Z"
             },
             {
               "$type": "Document",

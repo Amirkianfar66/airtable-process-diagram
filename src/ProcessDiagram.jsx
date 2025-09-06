@@ -107,7 +107,7 @@ export default function ProcessDiagram() {
                 // Prefer authoritative item stored in items[] (keeps data consistent)
                 const itemFromItems = items.find((it) => it.id === selNode.id);
                 if (itemFromItems) {
-                    setSelectedItem(itemFromItems);
+                    setSelectedItem({ ...itemFromItems, x: selNode?.position?.x, y: selNode?.position?.y });
                     return;
                 }
 
@@ -227,16 +227,40 @@ export default function ProcessDiagram() {
     }, []);
 
     // --- Reset prevX/prevY once drag stops ---
+    // --- Reset prevX/prevY for group labels, and persist x/y for normal item nodes
     const onNodeDragStop = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
-        setNodes((nds) =>
-            nds.map((n) =>
-                n.id === draggedNode.id
-                    ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } }
-                    : n
-            )
-        );
-    }, []);
+        if (!draggedNode) return;
+
+        // 1) Group label: just clear the temp drag markers
+        if (draggedNode.type === 'groupLabel') {
+            setNodes(nds =>
+                nds.map(n =>
+                    n.id === draggedNode.id
+                        ? { ...n, data: { ...n.data, prevX: undefined, prevY: undefined } }
+                        : n
+                )
+            );
+            return;
+        }
+
+        // 2) Regular item node: persist its coordinates
+        // (guard so we don't try to save frames/subcells)
+        if (!draggedNode?.data?.item) return;
+
+        const { x, y } = draggedNode.position || {};
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            // write to items[]
+            setItems(prev =>
+                prev.map(it => (String(it.id) === String(draggedNode.id) ? { ...it, x, y } : it))
+            );
+
+            // reflect in the right panel if this item is selected
+            setSelectedItem(cur =>
+                cur && String(cur.id) === String(draggedNode.id) ? { ...cur, x, y } : cur
+            );
+        }
+    }, [setNodes, setItems, setSelectedItem]);
+
     // --- Add in ProcessDiagram.jsx near other callbacks ---
     const handleEdgeSelect = useCallback(
         (edge) => {
@@ -467,8 +491,13 @@ export default function ProcessDiagram() {
 
                 setNodes(builtNodes);
                 const validIdsInit = new Set((builtNodes || []).map(n => n.id));
-                setEdges(prev => mergeEdges(prev, builtEdges, validIdsInit));;
-                setItems(normalizedItems);
+                setEdges(prev => mergeEdges(prev, builtEdges, validIdsInit));
+                 const posById = Object.fromEntries((builtNodes || []).map(n => [String(n.id), n.position || {}]));
+                 const itemsWithPos = normalizedItems.map(it => {
+                       const p = posById[String(it.id)];
+                       return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { ...it, x: p.x, y: p.y } : it;
+                     });
+                setItems(itemsWithPos);
                 prevItemsRef.current = normalizedItems;
                 // Pass units to UnitLayoutConfig
                 const uniqueUnitsObjects = uniqueUnits.map(u => ({ id: u, Name: u }));
@@ -507,6 +536,13 @@ export default function ProcessDiagram() {
         setNodes(rebuiltNodes);
         const validIds = new Set((rebuiltNodes || []).map(n => n.id));
         setEdges(prev => mergeEdges(prev, rebuiltEdges, validIds));
+        setItems(prev => {
+               const posById = Object.fromEntries((rebuiltNodes || []).map(n => [String(n.id), n.position || {}]));
+               return prev.map(it => {
+                     const p = posById[String(it.id)];
+                     return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { ...it, x: p.x, y: p.y } : it;
+                   });
+             });
 
         // update snapshot for next diff
         prevItemsRef.current = items;
