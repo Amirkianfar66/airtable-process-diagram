@@ -679,36 +679,21 @@ export default function ProcessDiagram() {
             </div>
 
             
-                {/* detail panel */}
+            {/* RIGHT: Sidebar — only detail panel */}
+            <div
+                style={{
+                    flex: 1,
+                    borderLeft: "1px solid #ccc",
+                    display: "flex",
+                    flexDirection: "column",
+                    background: "transparent",
+                }}
+            >
                 <div style={{ flex: 1, overflowY: "auto" }}>
                     {selectedGroupNode ? (
-                        <GroupDetailCard
-                            node={selectedGroupNode}
-                            childrenNodes={childrenNodesForGroup}
-                            childrenLabels={selectedGroupNode?.data?.children}
-                            allItems={itemsMap}
-                            startAddItemToGroup={startAddItemToGroup}
-                            onAddItem={onAddItem}
-                            onRemoveItem={onRemoveItem}
-                            onDelete={onDeleteGroup}
-                        />
+                        <GroupDetailCard groupNode={selectedGroupNode} />
                     ) : selectedItem ? (
-                            <ItemDetailCard
-                                item={selectedItem}
-                                items={items}
-                                edges={edges}
-                                onChange={(updatedItem) =>
-                                    handleItemChangeNode(
-                                        updatedItem,
-                                        setItems,
-                                        setNodes,
-                                        setSelectedItem
-                                    )
-                                }
-                                onDeleteEdge={handleDeleteEdge}
-                                onUpdateEdge={handleUpdateEdge}
-                                onCreateInlineValve={handleCreateInlineValve}
-                            />
+                        <ItemDetailCard item={selectedItem} />
                     ) : (
                         <div style={{ padding: 20, color: "#888" }}>
                             Select an item or group to see details
@@ -716,6 +701,7 @@ export default function ProcessDiagram() {
                     )}
                 </div>
             </div>
+
         </div>
     );
   }
