@@ -25,9 +25,6 @@ export default function ItemDetailCard({
         return (val ?? '').toString().trim() || 'Equipment';
     }, [localItem]);
 
- 
-
-    // with this:
     const filteredTypes = allTypes.filter(t => t.category === currentCategory);
 
 
