@@ -1,6 +1,5 @@
-﻿// src/components/ProcessDiagram.jsx
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import ReactFlow, { useNodesState, useEdgesState, addEdge, Controls } from 'reactflow';
+﻿import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useNodesState, useEdgesState, addEdge } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
 
@@ -14,25 +13,18 @@ import GroupDetailCard from './GroupDetailCard';
 import { getItemIcon, handleItemChangeNode } from './IconManager';
 import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
-import MainToolbar from './MainToolbar';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
-import UnitLayoutConfig from "./UnitLayoutConfig";
 
-// ------- helpers -------
 const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => {
     const key = (e) => `${e.source}->${e.target}`;
     const filterValid = (arr) =>
         (arr || []).filter((e) => e && validNodeIds.has(String(e.source)) && validNodeIds.has(String(e.target)));
-
     const prevFiltered = filterValid(prevEdges);
     const newFiltered = filterValid(newEdges);
-    const seen = new Set(prevFiltered.map((e) => key(e)));
+    const seen = new Set(prevFiltered.map(key));
     const merged = [...prevFiltered];
-    for (const e of newFiltered) {
-        const k = key(e);
-        if (!seen.has(k)) merged.push(e);
-    }
+    for (const e of newFiltered) if (!seen.has(key(e))) merged.push(e);
     return merged;
 };
 
@@ -56,10 +48,7 @@ export const fetchData = async () => {
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Airtable API error: ${res.status} ${res.statusText} - ${errorText}`);
-        }
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         offset = data.offset;
@@ -89,66 +78,68 @@ export default function ProcessDiagram() {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
     }, [setNodes, setEdges]);
 
-    // ------- selection: always include live node x/y in the sidebar -------
+    // ---------- Selection: only set when we truly have a node/edge; never clear on empty ----------
     const onSelectionChange = useCallback(
-        ({ nodes: selNodes, edges: selEdges }) => {
-            setSelectedNodes(selNodes || []);
+        ({ nodes: selNodes = [], edges: selEdges = [] }) => {
+            setSelectedNodes(selNodes);
 
-            // Single node
-            if (Array.isArray(selNodes) && selNodes.length === 1) {
+            if (selNodes.length === 1) {
                 const selNode = selNodes[0];
-                const itemFromItems = items.find((it) => String(it.id) === String(selNode.id));
+                const fromItems = items.find((it) => String(it.id) === String(selNode.id));
                 const live = { x: selNode?.position?.x, y: selNode?.position?.y };
-                if (itemFromItems) { setSelectedItem({ ...itemFromItems, ...live }); return; }
+                if (fromItems) { setSelectedItem({ ...fromItems, ...live }); return; }
                 if (selNode?.data?.item) { setSelectedItem({ ...selNode.data.item, ...live }); return; }
-                setSelectedItem(null);
+                // leave selectedItem as-is if we couldn’t resolve yet (avoid flicker)
                 return;
             }
 
-            // Single edge → surface inline valve if any
-            if (Array.isArray(selEdges) && selEdges.length === 1) {
+            if (selEdges.length === 1) {
                 const edge = selEdges[0];
-                const edgeValves = items.filter((it) => it.edgeId === edge.id);
-                if (edgeValves.length > 0) { setSelectedItem(edgeValves[0]); return; }
-                const valveNode = nodes.find((n) => n?.data?.item?.edgeId === edge.id);
-                if (valveNode?.data?.item) { setSelectedItem(valveNode.data.item); return; }
-                setSelectedItem(null);
+                const fromItem = items.find((it) => it.id === edge.source) || null;
+                const toItem = items.find((it) => it.id === edge.target) || null;
+                setSelectedItem({
+                    id: edge.id,
+                    Name: 'Edge inspector',
+                    'Item Code': edge.id,
+                    edgeId: edge.id,
+                    from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
+                    to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
+                    x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
+                    y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
+                    _edge: edge,
+                });
                 return;
             }
 
-            setSelectedItem(null);
+            // If neither nodes nor edges selected, DO NOT clear selectedItem here.
+            // This prevents brief empty-selection events from hiding the panel.
         },
-        [items, nodes]
+        [items]
     );
 
-    // ------- connect: add edge + update items[].Connections by code -------
-    const onConnect = useCallback(
-        (params) => {
-            const updatedEdges = addEdge(
-                { ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } },
-                edges
-            );
-            setEdges(updatedEdges);
-            localStorage.setItem('diagram-layout', JSON.stringify({ nodes, edges: updatedEdges }));
-
-            setItems((prev) => {
-                const src = prev.find((it) => String(it.id) === String(params.source));
-                const dst = prev.find((it) => String(it.id) === String(params.target));
-                if (!src || !dst) return prev;
-                const dstCode = dst.Code || dst['Item Code'] || '';
-                if (!dstCode) return prev;
-                return prev.map((it) => {
-                    if (String(it.id) !== String(src.id)) return it;
-                    const cur = Array.isArray(it.Connections) ? it.Connections : [];
-                    if (cur.includes(dstCode)) return it;
-                    return { ...it, Connections: [...cur, dstCode] };
-                });
+    // ---------- Connect ----------
+    const onConnect = useCallback((params) => {
+        const updatedEdges = addEdge(
+            { ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } },
+            edges
+        );
+        setEdges(updatedEdges);
+        setItems((prev) => {
+            const src = prev.find((it) => String(it.id) === String(params.source));
+            const dst = prev.find((it) => String(it.id) === String(params.target));
+            if (!src || !dst) return prev;
+            const dstCode = dst.Code || dst['Item Code'] || '';
+            if (!dstCode) return prev;
+            return prev.map((it) => {
+                if (String(it.id) !== String(src.id)) return it;
+                const cur = Array.isArray(it.Connections) ? it.Connections : [];
+                if (cur.includes(dstCode)) return it;
+                return { ...it, Connections: [...cur, dstCode] };
             });
-        },
-        [edges, nodes]
-    );
+        });
+    }, [edges]);
 
-    // ------- group drag (live shift children) -------
+    // ---------- Group drag (shift children live) ----------
     const onNodeDrag = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
@@ -159,12 +150,11 @@ export default function ProcessDiagram() {
                     (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
                     n.data.groupId === draggedNode.id ||
                     n.data.parentId === draggedNode.id;
-
                 if (!isChild) return n;
 
-                const deltaX = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
-                const deltaY = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
-                return { ...n, position: { x: n.position.x + deltaX, y: n.position.y + deltaY } };
+                const dx = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
+                const dy = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
+                return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
             })
         );
 
@@ -177,7 +167,7 @@ export default function ProcessDiagram() {
         );
     }, [setNodes]);
 
-    // ------- drag stop: clear prevX/prevY (group) + persist x/y (items) -------
+    // ---------- Drag stop: clear markers for group; persist x/y for normal nodes ----------
     const onNodeDragStop = useCallback((event, draggedNode) => {
         if (!draggedNode) return;
 
@@ -190,7 +180,7 @@ export default function ProcessDiagram() {
             return;
         }
 
-        if (!draggedNode?.data?.item) return; // ignore non-item frames
+        if (!draggedNode?.data?.item) return;
         const { x, y } = draggedNode.position || {};
         if (Number.isFinite(x) && Number.isFinite(y)) {
             setItems((prev) =>
@@ -202,54 +192,21 @@ export default function ProcessDiagram() {
         }
     }, [setNodes, setItems, setSelectedItem]);
 
-    // ------- edge helpers -------
-    const handleEdgeSelect = useCallback((edge) => {
-        if (!edge) { setSelectedItem(null); return; }
-        const fromItem = items.find((it) => it.id === edge.source) || null;
-        const toItem = items.find((it) => it.id === edge.target) || null;
-
-        const edgeAsItem = {
-            id: edge.id,
-            Name: 'Edge inspector',
-            'Item Code': edge.id,
-            edgeId: edge.id,
-            from: fromItem?.Name ? `${fromItem.Name} (${edge.source})` : edge.source,
-            to: toItem?.Name ? `${toItem.Name} (${edge.target})` : edge.target,
-            x: (fromItem?.x && toItem?.x) ? (fromItem.x + toItem.x) / 2 : undefined,
-            y: (fromItem?.y && toItem?.y) ? (fromItem.y + toItem.y) / 2 : undefined,
-            _edge: edge,
-        };
-        setSelectedItem(edgeAsItem);
-    }, [items]);
-
-    const handleDeleteEdge = useCallback((edgeId) => {
-        if (!edgeId) return;
-        if (!window.confirm('Delete this edge?')) return;
-
-        setEdges((eds) => eds.filter((e) => e.id !== edgeId));
-        setNodes((nds) => nds.filter((n) => !(n?.data?.item?.edgeId && n.data.item.edgeId === edgeId)));
-        setSelectedItem((cur) => (cur?.edgeId === edgeId ? null : cur));
-    }, []);
-
+    // ---------- Edge helpers ----------
     const handleUpdateEdge = useCallback((edgeId, patch) => {
         setEdges((eds) => eds.map((e) => (e.id === edgeId ? { ...e, ...patch } : e)));
-        setSelectedItem((cur) => {
-            if (!cur || cur.edgeId !== edgeId) return cur;
-            return { ...cur, _edge: { ...cur._edge, ...patch } };
-        });
+        setSelectedItem((cur) => (cur?.edgeId === edgeId ? { ...cur, _edge: { ...cur._edge, ...patch } } : cur));
     }, []);
 
     const handleCreateInlineValve = useCallback((edgeId) => {
         const edge = edges.find((e) => e.id === edgeId);
         if (!edge) return;
-
         const sourceNode = nodes.find((n) => n.id === edge.source);
         const targetNode = nodes.find((n) => n.id === edge.target);
         if (!sourceNode || !targetNode) return;
 
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-
         const newValveId = `valve-${Date.now()}`;
 
         const newItem = {
@@ -280,26 +237,11 @@ export default function ProcessDiagram() {
         };
 
         setNodes((nds) => [...nds, newNode]);
-
         const baseStyle = edge.style || {};
         setEdges((eds) => {
             const filtered = eds.filter((e) => e.id !== edge.id);
-            const e1 = {
-                id: `edge-${edge.source}-${newNode.id}-${Date.now()}`,
-                source: edge.source,
-                target: newNode.id,
-                type: edge.type || "smoothstep",
-                animated: edge.animated ?? true,
-                style: { ...baseStyle },
-            };
-            const e2 = {
-                id: `edge-${newNode.id}-${edge.target}-${Date.now()}`,
-                source: newNode.id,
-                target: edge.target,
-                type: edge.type || "smoothstep",
-                animated: edge.animated ?? true,
-                style: { ...baseStyle },
-            };
+            const e1 = { id: `edge-${edge.source}-${newNode.id}-${Date.now()}`, source: edge.source, target: newNode.id, type: edge.type || "smoothstep", animated: edge.animated ?? true, style: { ...baseStyle } };
+            const e2 = { id: `edge-${newNode.id}-${edge.target}-${Date.now()}`, source: newNode.id, target: edge.target, type: edge.type || "smoothstep", animated: edge.animated ?? true, style: { ...baseStyle } };
             return [...filtered, e1, e2];
         });
 
@@ -307,7 +249,7 @@ export default function ProcessDiagram() {
         setSelectedItem(newItem);
     }, [edges, nodes]);
 
-    // ------- AI generator -------
+    // ---------- AI generator ----------
     const handleGeneratePNID = async () => {
         if (!aiDescription) return;
         try {
@@ -321,26 +263,17 @@ export default function ProcessDiagram() {
             setItems(updatedItems);
             setNodes(aiNodes);
             setEdges(aiEdges);
-
-            if (aiNodes?.length) {
-                const newOnes = aiNodes.filter((n) => !nodes.some((old) => old.id === n.id));
-                if (newOnes.length > 0) {
-                    setSelectedNodes([newOnes[0]]);
-                    setSelectedItem(newOnes[0].data?.item || null);
-                }
-            }
         } catch (err) {
             console.error("AI PNID generation failed:", err);
         }
     };
 
-    // ------- initial load -------
+    // ---------- Initial load ----------
     useEffect(() => {
         const loadItems = async () => {
             try {
                 const itemsRaw = await fetchData();
 
-                // normalize
                 const normalizedItems = itemsRaw.map((item) => {
                     const rawCat = item['Category Item Type'] ?? item.Category ?? '';
                     const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
@@ -352,7 +285,8 @@ export default function ProcessDiagram() {
                         'Item Code': item['Item Code'] || item.Code || '',
                         Unit: item.Unit || 'Default Unit',
                         SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
-                        Category: cat, 'Category Item Type': cat,
+                        Category: cat,
+                        'Category Item Type': cat,
                         Type: rawType,
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
@@ -363,18 +297,19 @@ export default function ProcessDiagram() {
                 const unitLayout2D = [uniqueUnits];
                 setUnitLayoutOrder(unitLayout2D);
 
-                // build & backfill x/y
                 const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
                 setNodes(builtNodes);
                 const validIdsInit = new Set((builtNodes || []).map((n) => n.id));
                 setEdges((prev) => mergeEdges(prev, builtEdges, validIdsInit));
 
+                // Backfill x/y onto items from built node positions
                 const posById = Object.fromEntries((builtNodes || []).map((n) => [String(n.id), n.position || {}]));
                 const itemsWithPos = normalizedItems.map((it) => {
                     const p = posById[String(it.id)];
                     return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { ...it, x: p.x, y: p.y } : it;
                 });
-                setItems(itemsWithPos);
+
+                setItems(itemsWithPos);                 // ✅ use itemsWithPos (not normalizedItems)
                 prevItemsRef.current = itemsWithPos;
 
                 const uniqueUnitsObjects = uniqueUnits.map((u) => ({ id: u, Name: u }));
@@ -387,20 +322,17 @@ export default function ProcessDiagram() {
         loadItems();
     }, []);
 
-    // ------- rebuild on layout change; mirror node positions back to items (no loops) -------
+    // ---------- Rebuild on unit layout change; mirror positions back to items ----------
     useEffect(() => {
         if (!items.length || !unitLayoutOrder.length) return;
 
         const prevItems = prevItemsRef.current || [];
         const prevMap = Object.fromEntries(prevItems.map((i) => [String(i.id), i]));
-
         const unitChangedIds = new Set(
-            items
-                .filter((i) => {
-                    const p = prevMap[String(i.id)];
-                    return p && p.Unit !== i.Unit; // ONLY move when Unit changed
-                })
-                .map((i) => String(i.id))
+            items.filter((i) => {
+                const p = prevMap[String(i.id)];
+                return p && p.Unit !== i.Unit;
+            }).map((i) => String(i.id))
         );
 
         const { nodes: rebuiltNodes, edges: rebuiltEdges } =
@@ -410,17 +342,15 @@ export default function ProcessDiagram() {
         const validIds = new Set((rebuiltNodes || []).map((n) => n.id));
         setEdges((prev) => mergeEdges(prev, rebuiltEdges, validIds));
 
-        // mirror node positions back to items, but only if something changed
+        // Mirror positions → items[] (only if changed)
         setItems((prev) => {
             const posById = Object.fromEntries((rebuiltNodes || []).map((n) => [String(n.id), n.position || {}]));
             let changed = false;
             const next = prev.map((it) => {
                 const p = posById[String(it.id)];
-                if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-                    if (it.x !== p.x || it.y !== p.y) {
-                        changed = true;
-                        return { ...it, x: p.x, y: p.y };
-                    }
+                if (p && Number.isFinite(p.x) && Number.isFinite(p.y) && (it.x !== p.x || it.y !== p.y)) {
+                    changed = true;
+                    return { ...it, x: p.x, y: p.y };
                 }
                 return it;
             });
@@ -445,7 +375,6 @@ export default function ProcessDiagram() {
         })
         : [];
 
-    // ------- add item -------
     const handleAddItem = (rawItem) => {
         setItems((prevItems) => {
             const firstKnownUnit =
@@ -472,7 +401,6 @@ export default function ProcessDiagram() {
             };
 
             const nextItems = [...prevItems, normalizedItem];
-
             const ensureUnitInLayout = (layout, unit) => {
                 if (!Array.isArray(layout) || !layout.length) return [[unit]];
                 const flat = new Set(layout.flat());
@@ -492,17 +420,14 @@ export default function ProcessDiagram() {
             setNodes(rebuiltNodes);
             setEdges(rebuiltEdges);
 
-            // write back the placed x/y for the new item
             const addedNode = rebuiltNodes.find((n) => n.id === normalizedItem.id);
             if (addedNode) {
                 const { x, y } = addedNode.position || {};
                 if (Number.isFinite(x) && Number.isFinite(y)) {
                     nextItems[nextItems.length - 1] = { ...normalizedItem, x, y };
-                    setSelectedNodes([addedNode]);
                 }
             }
             setSelectedItem(nextItems[nextItems.length - 1]);
-
             return nextItems;
         });
     };
@@ -516,14 +441,14 @@ export default function ProcessDiagram() {
                     edges={edges}
                     setNodes={setNodes}
                     setEdges={setEdges}
+                    /* DO NOT pass setSelectedItem to avoid it being cleared inside DiagramCanvas */
                     setItems={setItems}
-                    setSelectedItem={setSelectedItem}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
-                    onEdgeSelect={handleEdgeSelect}
+                    /* we’re not using DiagramCanvas’s internal edge inspector here */
                     showInlineEdgeInspector={false}
                     AddItemButton={AddItemButton}
                     addItem={handleAddItem}
