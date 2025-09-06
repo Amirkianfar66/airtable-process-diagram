@@ -84,8 +84,8 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const edges = [];
 
     // --- canvas & item geometry ---
-    const unitWidth = 5000;
-    const unitHeight = 6000;
+    const unitWidth = 4200;
+    const unitHeight = 3000;
     const itemWidth = 160;
     const itemHeight = 120;   // used for row spacing inside a sub-cell
     const itemGap = 30;
