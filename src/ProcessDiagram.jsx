@@ -427,36 +427,32 @@ export default function ProcessDiagram() {
                 const itemsRaw = await fetchData();
 
                 // Normalize fields including Connections
-                const normalizedItems = itemsRaw.map(item => ({
-                    id: item.id || `${item.Name}-${Date.now()}`,
-                    Name: item.Name || '',
-                    Code: item['Item Code'] || item.Code || '',
-                    Unit: item.Unit || 'Default Unit',
-                    SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
-                    // BEFORE (excerpt)
-                    Category: Array.isArray(item['Category Item Type'])
-                        ? item['Category Item Type'][0]
-                        : item['Category Item Type'] || '',
+                const normalizedItems = itemsRaw.map((item) => {
+                    // ✅ compute outside the returned object
+                    const rawCat = item['Category Item Type'] ?? item.Category ?? '';
+                    const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
 
-                    // wherever you build normalized items in ProcessDiagram.jsx
-                    const normalizedItems = itemsRaw.map((item) => {
-                        // compute category first
-                        const rawCat = item['Category Item Type'] ?? item.Category ?? '';
-                        const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
+                    const rawType = Array.isArray(item.Type) ? (item.Type[0] ?? '') : String(item.Type || '');
 
-                        return {
-                            id: item.id || `${item.Name}-${Date.now()}`,
-                            Name: item.Name || '',
-                            Code: item['Item Code'] ?? item.Code ?? '',
-                            Unit: item.Unit || '',
-                            SubUnit: item.SubUnit ?? item['Sub Unit'] ?? '',
-                            Category: cat,
-                            'Category Item Type': cat,          // keep both in sync
-                            Type: Array.isArray(item.Type) ? item.Type[0] : (item.Type || ''),
-                            Sequence: item.Sequence ?? 0,
-                            Connections: Array.isArray(item.Connections) ? item.Connections : [],
-                        };
-                    });
+                    return {
+                        id: item.id || `${item.Name}-${Date.now()}`,
+                        Name: item.Name || '',
+                        // keep both Code fields in sync
+                        Code: item['Item Code'] || item.Code || '',
+                        'Item Code': item['Item Code'] || item.Code || '',
+                        Unit: item.Unit || 'Default Unit',
+                        SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
+
+                        // ✅ use the normalized category in both fields
+                        Category: cat,
+                        'Category Item Type': cat,
+
+                        Type: rawType,
+                        Sequence: item.Sequence || 0,
+                        Connections: Array.isArray(item.Connections) ? item.Connections : [],
+                    };
+                });
+
 
 
                 // Build unique units array
