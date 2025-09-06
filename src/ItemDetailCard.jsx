@@ -1,4 +1,4 @@
-﻿// ItemDetailCard.jsx (patched)
+﻿// ItemDetailCard.jsx (updated)
 import React, { useEffect, useState } from 'react';
 
 // simple runtime cache for resolved type names by record id
@@ -30,6 +30,24 @@ export default function ItemDetailCard({
             } catch (e) { }
         }
     };
+
+    // --- NEW: Delete by keyboard (Delete key)
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Avoid deleting while typing in inputs
+            const tag = (e.target?.tagName || '').toLowerCase();
+            const typing = tag === 'input' || tag === 'textarea' || e.target?.isContentEditable;
+            if (typing) return;
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (item?.id && typeof onDeleteItem === 'function') {
+                    onDeleteItem(item.id);
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [item?.id, onDeleteItem]);
 
     // ---- PATCH 1: only update localItem when the selected item's id changes ----
     useEffect(() => {
@@ -216,6 +234,9 @@ export default function ItemDetailCard({
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
     const filteredTypes = allTypes.filter((t) => t.category === (localItem['Category Item Type'] || 'Equipment'));
 
+    // For Edge inspector: list only Inline Valve types
+    const inlineValveTypes = allTypes.filter(t => t.category === 'Inline Valve');
+
     const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
     const labelStyle = { width: '130px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
     const inputStyle = { flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', outline: 'none', background: '#fafafa' };
@@ -223,6 +244,13 @@ export default function ItemDetailCard({
     const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
 
     const liveEdge = item._edge || {};
+
+    // Helper to parse number fields safely
+    const parseNum = (val) => {
+        if (val === '' || val === null || typeof val === 'undefined') return '';
+        const n = Number(val);
+        return Number.isFinite(n) ? n : '';
+    };
 
     return (
         <>
@@ -242,11 +270,14 @@ export default function ItemDetailCard({
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Category:</label>
-                        <select style={inputStyle} value={localItem['Category Item Type'] || 'Equipment'} onChange={(e) => {
-                            const newCategory = e.target.value;
-                            const updated = { ...localItem, 'Category Item Type': newCategory, Category: newCategory, Type: '' };
-                            commitUpdate(updated, { reposition: false });
-                        }}>
+                        <select
+                            style={inputStyle}
+                            value={localItem['Category Item Type'] || 'Equipment'}
+                            onChange={(e) => {
+                                const newCategory = e.target.value;
+                                const updated = { ...localItem, 'Category Item Type': newCategory, Category: newCategory, Type: '' };
+                                commitUpdate(updated, { reposition: false });
+                            }}>
                             {categories.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
                         </select>
                     </div>
@@ -286,15 +317,48 @@ export default function ItemDetailCard({
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>X Position:</label>
-                        <input style={inputStyle} type="number" value={localItem['x'] ?? ''} onChange={(e) => handleFieldChange('x', parseFloat(e.target.value))} />
+                        <input style={inputStyle} type="number" value={localItem['x'] ?? ''} onChange={(e) => handleFieldChange('x', parseNum(e.target.value))} />
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Y Position:</label>
-                        <input style={inputStyle} type="number" value={localItem['y'] ?? ''} onChange={(e) => handleFieldChange('y', parseFloat(e.target.value))} />
+                        <input style={inputStyle} type="number" value={localItem['y'] ?? ''} onChange={(e) => handleFieldChange('y', parseNum(e.target.value))} />
                     </div>
 
-                    {/* explicit save / reposition controls could be added here if you want */}
+                    {/* --- NEW: Dimensional parameters --- */}
+                    <div style={{ ...rowStyle, marginTop: 8 }}>
+                        <label style={labelStyle}>ND:</label>
+                        <input
+                            style={inputStyle}
+                            type="number"
+                            value={localItem['ND'] ?? ''}
+                            onChange={(e) => handleFieldChange('ND', parseNum(e.target.value))}
+                            placeholder="Nominal Diameter"
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>ID:</label>
+                        <input
+                            style={inputStyle}
+                            type="number"
+                            value={localItem['ID'] ?? ''}
+                            onChange={(e) => handleFieldChange('ID', parseNum(e.target.value))}
+                            placeholder="Inner Diameter"
+                        />
+                    </div>
+
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>OD:</label>
+                        <input
+                            style={inputStyle}
+                            type="number"
+                            value={localItem['OD'] ?? ''}
+                            onChange={(e) => handleFieldChange('OD', parseNum(e.target.value))}
+                            placeholder="Outer Diameter"
+                        />
+                    </div>
+
                 </section>
 
                 <section style={sectionStyle}>
@@ -320,12 +384,42 @@ export default function ItemDetailCard({
             {item?._edge && (
                 <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
                     <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
+
+                    {/* --- NEW: CATEGORY area with Inline Valve Type selector --- */}
+                    <div style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                        <div style={{ fontWeight: 600, marginBottom: 8 }}>CATEGORY</div>
+                        <div style={rowStyle}>
+                            <label style={labelStyle}>Inline Valve Type:</label>
+                            <select
+                                style={inputStyle}
+                                value={liveEdge?.data?.inlineValveType || ''}
+                                onChange={(e) =>
+                                    onUpdateEdge &&
+                                    onUpdateEdge(item.edgeId, {
+                                        data: { ...(liveEdge.data || {}), inlineValveType: e.target.value }
+                                    })
+                                }
+                            >
+                                <option value="">Select type…</option>
+                                {inlineValveTypes.map(t => (
+                                    <option key={t.id} value={t.name}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                        <input style={{ flex: 1, padding: 8 }} value={liveEdge.label ?? ''} placeholder="Edge label" onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })} />
+                        <input
+                            style={{ flex: 1, padding: 8 }}
+                            value={liveEdge.label ?? ''}
+                            placeholder="Edge label"
+                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })}
+                        />
                         <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !(liveEdge.animated) })}>
                             {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
+
                     {/* Delete Item Button */}
                     {onDeleteItem && (
                         <div style={{ marginTop: 16, textAlign: 'center' }}>
@@ -350,13 +444,24 @@ export default function ItemDetailCard({
                         </div>
                     )}
 
-
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <label style={{ width: 70 }}>Color</label>
-                        <input type="color" value={(liveEdge.style && liveEdge.style.stroke) || '#000000'} onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })} />
-                        <input type="text" value={(liveEdge.style && liveEdge.style.stroke) || ''} onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })} style={{ flex: 1, padding: 8 }} />
+                        <input
+                            type="color"
+                            value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
+                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
+                        />
+                        <input
+                            type="text"
+                            value={(liveEdge.style && liveEdge.style.stroke) || ''}
+                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })}
+                            style={{ flex: 1, padding: 8 }}
+                        />
                         {item?.edgeId && onDeleteEdge && (
-                            <button onClick={() => onDeleteEdge(item.edgeId)} style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}>
+                            <button
+                                onClick={() => onDeleteEdge(item.edgeId)}
+                                style={{ marginLeft: 8, background: '#f44336', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}
+                            >
                                 Delete Edge
                             </button>
                         )}
