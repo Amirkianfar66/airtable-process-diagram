@@ -679,29 +679,37 @@ export default function ProcessDiagram() {
             </div>
 
             
-            {/* RIGHT: Sidebar — only detail panel */}
-            <div
-                style={{
-                    flex: 1,
-                    borderLeft: "1px solid #ccc",
-                    display: "flex",
-                    flexDirection: "column",
-                    background: "transparent",
-                }}
-            >
-                <div style={{ flex: 1, overflowY: "auto" }}>
-                    {selectedGroupNode ? (
-                        <GroupDetailCard groupNode={selectedGroupNode} />
-                    ) : selectedItem ? (
-                        <ItemDetailCard item={selectedItem} />
-                    ) : (
-                        <div style={{ padding: 20, color: "#888" }}>
-                            Select an item or group to see details
-                        </div>
-                    )}
-                </div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+                {selectedGroupNode ? (
+                    <GroupDetailCard
+                        node={selectedGroupNode}
+                        childrenNodes={childrenNodesForGroup}
+                        childrenLabels={selectedGroupNode?.data?.children}
+                        allItems={itemsMap}
+                        startAddItemToGroup={startAddItemToGroup}
+                        onAddItem={onAddItem}
+                        onRemoveItem={onRemoveItem}
+                        onDelete={onDeleteGroup}
+                    />
+                ) : selectedItem ? (
+                    <ItemDetailCard
+                        item={selectedItem}
+                        items={items}
+                        edges={edges}
+                        onChange={(updatedItem) =>
+                            handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
+                        }
+                        onDeleteEdge={handleDeleteEdge}
+                        onUpdateEdge={handleUpdateEdge}
+                        onCreateInlineValve={handleCreateInlineValve}
+                    />
+                ) : (
+                    <div style={{ padding: 20, color: "#888" }}>
+                        Select an item or group to see details
+                    </div>
+                )}
             </div>
-
         </div>
+  </div >
     );
   }
