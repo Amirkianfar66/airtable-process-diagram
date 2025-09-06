@@ -672,27 +672,13 @@ export default function ProcessDiagram() {
                     ChatBox={ChatBox}
                     onNodeDrag={onNodeDrag}
                     onNodeDragStop={onNodeDragStop}
+                    availableUnits={availableUnitsForConfig}          // ⬅️ NEW
+                    onUnitLayoutChange={setUnitLayoutOrder}
                 />
 
             </div>
 
-            {/* RIGHT: Sidebar */}
-            <div
-                style={{
-                    flex: 1,
-                    borderLeft: "1px solid #ccc",
-                    display: "flex",
-                    flexDirection: "column",
-                    background: "transparent",
-                }}
-            >
-
-                <div>
-                    <UnitLayoutConfig
-                        availableUnits={availableUnitsForConfig}
-                        onChange={setUnitLayoutOrder}
-                    />
-                </div>
+            
                 {/* detail panel */}
                 <div style={{ flex: 1, overflowY: "auto" }}>
                     {selectedGroupNode ? (
