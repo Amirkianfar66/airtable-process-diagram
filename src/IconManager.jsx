@@ -1,4 +1,5 @@
-﻿import React from "react";
+﻿// File: src/components/IconManager.jsx
+import React from "react";
 import EquipmentIcon from "./Icons/EquipmentIcon";
 import InstrumentIcon from "./Icons/InstrumentIcon";
 import InlineValveIcon from "./Icons/InlineValveIcon";
@@ -14,7 +15,7 @@ export const categoryTypeMap = {
     Electrical: "scalableIcon",
 };
 
-/** Category components */
+/** Category → default component */
 const CATEGORY_COMPONENTS = {
     Equipment: EquipmentIcon,
     Instrument: InstrumentIcon,
@@ -23,61 +24,92 @@ const CATEGORY_COMPONENTS = {
     Electrical: ElectricalIcon,
 };
 
-/** Return a React element for an item icon */
-// IconManager.jsx (replace getItemIcon)
+/**
+ * Optional: (Category, Type) → specific component map.
+ * If you have separate icons per valve type, register them here:
+ * e.g.
+ * const GateValveIcon = ...;
+ * TYPE_COMPONENTS["Inline Valve"]["Gate Valve"] = GateValveIcon;
+ */
+const TYPE_COMPONENTS = {
+    "Inline Valve": {
+        // "Gate Valve": GateValveIcon,
+        // "Ball Valve": BallValveIcon,
+    },
+};
+
+/** Small helper to normalize values coming from Airtable arrays, etc. */
+function normalize(val) {
+    if (Array.isArray(val)) return String(val[0] ?? "").trim();
+    if (val == null) return "";
+    return String(val).trim();
+}
+
+/** Public: pick node type for a category (with fallback) */
+export function getNodeTypeForCategory(category) {
+    return categoryTypeMap[category] || "scalableIcon";
+}
+
+/** Return a React element for an item icon (remounts when Category/Type changes) */
 export function getItemIcon(item, props = {}) {
     if (!item) return null;
 
-    // Normalize category into a string (support arrays & other types)
-    const rawCategory = item?.Category ?? item?.['Category Item Type'] ?? '';
-    const category =
-        typeof rawCategory === 'string'
-            ? rawCategory.trim()
-            : Array.isArray(rawCategory)
-                ? (rawCategory[0] ? String(rawCategory[0]).trim() : '')
-                : String(rawCategory || '');
+    const category = normalize(item?.Category ?? item?.["Category Item Type"]);
+    const type = normalize(item?.Type);
 
-    const CategoryComponent = CATEGORY_COMPONENTS[category];
+    const TypeComponent = TYPE_COMPONENTS?.[category]?.[type];
+    const CategoryComponent = CATEGORY_COMPONENTS[category] || null;
+    const Comp = TypeComponent || CategoryComponent;
 
-    if (CategoryComponent) {
+    if (Comp) {
         try {
-            return <CategoryComponent id={item.id} data={item} {...props} />;
+            // key forces a remount when either category or type changes
+            return (
+                <Comp
+                    key={`${item.id}-${category}-${type}`}
+                    id={item.id}
+                    data={item}
+                    type={type}
+                    category={category}
+                    {...props}
+                />
+            );
         } catch (err) {
-            console.error('Icon render failed for', category, err);
-            // fallback visual so render won't crash
+            console.error("Icon render failed for", category, type, err);
             return (
                 <div
                     style={{
                         width: props.width || 40,
                         height: props.height || 40,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: '#eee',
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "#eee",
                         borderRadius: 6,
                         fontSize: 10,
-                        color: '#444',
+                        color: "#444",
                     }}
                 >
-                    {category.slice(0, 3) || 'N/A'}
+                    {(type || category || "N/A").slice(0, 3)}
                 </div>
             );
         }
     }
 
+    // Fallback gray box
     return (
         <div
             style={{
                 width: props.width || 40,
                 height: props.height || 40,
-                background: '#ccc',
+                background: "#ccc",
                 borderRadius: 6,
             }}
         />
     );
 }
 
-/** Create a new item node */
+/** Create a new item and its node */
 export function createNewItemNode(setNodes, setItems, setSelectedItem) {
     const newItem = {
         id: `item-${Date.now()}`,
@@ -89,12 +121,13 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
         Type: "Tank",
         Unit: "Unit 1",
         SubUnit: "Sub 1",
-        // 🔑 add placeholders
+        // placeholders for edge helpers if you use them elsewhere
         edgeId: "",
         from: "",
         to: "",
     };
 
+    const nodeType = getNodeTypeForCategory(newItem.Category);
 
     const newNode = {
         id: newItem.id,
@@ -104,7 +137,7 @@ export function createNewItemNode(setNodes, setItems, setSelectedItem) {
             item: newItem,
             icon: getItemIcon(newItem, { width: 40, height: 40 }),
         },
-        type: categoryTypeMap[newItem.Category] || "scalableIcon",
+        type: nodeType,
         sourcePosition: "right",
         targetPosition: "left",
         style: { background: "transparent" },
@@ -134,43 +167,49 @@ export function AddItemButton({ setNodes, setItems, setSelectedItem }) {
     );
 }
 
-/** Update an item and its node (category/type changes reflected) */
-export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem, nodes = []) {
-    // merge with existing item
+/** Update an item + its node (reflect Category/Type changes in both icon and node.type) */
+export function handleItemChangeNode(
+    updatedItem,
+    setItems,
+    setNodes,
+    setSelectedItem,
+    nodes = []
+) {
+    // Read previous item to compare Unit/SubUnit changes for repositioning
     let prevItem = {};
     setItems((prev) => {
         prevItem = prev.find((it) => it.id === updatedItem.id) || {};
         return prev;
     });
 
-    const next = {
-        ...prevItem,
-        ...updatedItem,
-    };
+    const next = { ...prevItem, ...updatedItem };
 
-    // --- Normalize Category to a clean string ---
-    const rawCategory = next.Category ?? next['Category Item Type'] ?? '';
-    next.Category = Array.isArray(rawCategory) ? (rawCategory[0] ?? '') : String(rawCategory);
-    next['Category Item Type'] = next.Category;
+    // Normalize Category
+    const rawCategory = next.Category ?? next["Category Item Type"] ?? "";
+    next.Category = Array.isArray(rawCategory) ? (rawCategory[0] ?? "") : String(rawCategory);
+    next["Category Item Type"] = next.Category;
 
-    // --- Normalize Type ---
-    if (Array.isArray(next.Type)) next.Type = next.Type[0] ?? '';
-    next.Type = String(next.Type ?? '');
+    // Normalize Type
+    if (Array.isArray(next.Type)) next.Type = next.Type[0] ?? "";
+    next.Type = String(next.Type ?? "");
 
-    // --- Normalize code fields ---
-    if (!next.Code && next['Item Code']) next.Code = next['Item Code'];
-    if (!next['Item Code'] && next.Code) next['Item Code'] = next.Code;
+    // Normalize code fields
+    if (!next.Code && next["Item Code"]) next.Code = next["Item Code"];
+    if (!next["Item Code"] && next.Code) next["Item Code"] = next.Code;
 
     // ✅ Update items array
     setItems((prev) => prev.map((it) => (it.id === next.id ? next : it)));
 
-    // Helper for positioning if Unit/SubUnit changed
+    // Helper: compute a position when Unit/SubUnit changes
     function getUnitSubunitPosition(unit, subUnit, nodesArr) {
         const subUnitNode = nodesArr.find((n) => n.id === `sub-${unit}-${subUnit}`);
         if (!subUnitNode) return { x: 100, y: 100 };
 
         const siblings = nodesArr.filter(
-            (n) => n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit && n.id !== next.id
+            (n) =>
+                n.data?.item?.Unit === unit &&
+                n.data?.item?.SubUnit === subUnit &&
+                n.id !== next.id
         );
 
         const itemWidth = 160;
@@ -182,29 +221,33 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
         };
     }
 
-    // ✅ Update nodes safely
     setNodes((nds) =>
         nds.map((node) => {
             if (node.id !== next.id) return node;
 
-            // keep old position unless Unit/SubUnit changed
-            const oldPos = node.position;
-            const shouldReposition = next.Unit !== prevItem.Unit || next.SubUnit !== prevItem.SubUnit;
-            const newPos = shouldReposition ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds) : oldPos;
+            const shouldReposition =
+                next.Unit !== prevItem.Unit || next.SubUnit !== prevItem.SubUnit;
+            const position = shouldReposition
+                ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds)
+                : node.position;
+
+            // 🔑 Update the ReactFlow node.type if Category changed
+            const nextNodeType = getNodeTypeForCategory(next.Category);
 
             return {
                 ...node,
-                position: newPos,
+                type: nextNodeType,
+                position,
                 data: {
                     ...node.data,
                     label: `${next.Code || ""} - ${next.Name || ""}`,
                     item: next,
+                    // This React element carries a key that changes with Category/Type → remounts SVG
                     icon: getItemIcon(next, { width: 40, height: 40 }),
                 },
             };
         })
     );
-
 
     setSelectedItem(next);
 }
