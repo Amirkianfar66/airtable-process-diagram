@@ -11,9 +11,7 @@ import { nanoid } from 'nanoid';
 export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const prevNodes = Array.isArray(opts.prevNodes) ? opts.prevNodes : [];
     const unitChangedIds =
-        opts.unitChangedIds instanceof Set
-            ? opts.unitChangedIds
-            : new Set();
+        opts.unitChangedIds instanceof Set ? opts.unitChangedIds : new Set();
 
     // cache previous positions by node id
     const posCache = new Map(prevNodes.map(n => [String(n.id), n?.position || {}]));
@@ -85,23 +83,23 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
     const nodes = [];
     const edges = [];
 
+    // --- canvas & item geometry ---
     const unitWidth = 5000;
     const unitHeight = 6000;
-    const subUnitHeight = unitHeight / 9;
     const itemWidth = 160;
+    const itemHeight = 120;   // used for row spacing inside a sub-cell
     const itemGap = 30;
 
-    // keep the rectangles so we can place first-time items / Unit-changed items
-    const subRects = new Map(); // key: `${unit}|||${sub}` -> { baseX, baseY }
-    // --- constants for a 3×3 grid inside each Unit ---
+    // --- 3×3 grid inside each Unit ---
     const GRID_COLS = 3;
     const GRID_ROWS = 3;
-    const GRID_GAP = 30;   // gap between sub-cells
-    const UNIT_PAD = 10;   // inner padding inside the unit frame
+    const GRID_GAP = 30; // gap between sub-cells
+    const UNIT_PAD = 10; // inner padding inside the unit frame
 
-    // keep the rectangles so we can place first-time items / Unit-changed items
-    const subRects = new Map(); // key: `${unit}|||${sub}` -> { baseX, baseY }
+    // keep rectangles so we can place first-time items / Unit-changed items
+    const subRects = new Map(); // key: `${unit}|||${sub}` -> { baseX, baseY, cellW, cellH }
 
+    // Unit/SubUnit frames as 3×3 grid
     safeLayout.forEach((row, rowIndex) => {
         row.forEach((unitName, colIndex) => {
             const unit = String(unitName || 'No Unit');
@@ -109,7 +107,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
             const unitY = rowIndex * (unitHeight + 100);
             if (!grouped[unit]) return;
 
-            // --- Unit frame ---
+            // Unit frame
             nodes.push({
                 id: `unit-${unit}`,
                 type: 'custom',
@@ -134,24 +132,23 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
                 selectable: false,
             });
 
-            // --- 3×3 grid geometry inside the unit ---
+            // 3×3 geometry inside unit
             const innerW = unitWidth - 2 * UNIT_PAD;
             const innerH = unitHeight - 2 * UNIT_PAD;
             const cellW = (innerW - (GRID_COLS - 1) * GRID_GAP) / GRID_COLS;
             const cellH = (innerH - (GRID_ROWS - 1) * GRID_GAP) / GRID_ROWS;
 
-            // stable sub-unit order (alphabetical; adjust if you prefer Sequence-based)
+            // stable sub-unit order
             const subUnits = grouped[unit];
             const subKeys = Object.keys(subUnits).sort((a, b) => a.localeCompare(b));
 
             subKeys.forEach((sub, idx) => {
-                // place Left→Right, Top→Bottom; overflow past 9 will wrap/overlap cells
                 const idx9 = idx % (GRID_COLS * GRID_ROWS);
-                const rowIdx = Math.floor(idx9 / GRID_COLS);
-                const colIdx = idx9 % GRID_COLS;
+                const rIdx = Math.floor(idx9 / GRID_COLS);
+                const cIdx = idx9 % GRID_COLS;
 
-                const subX = unitX + UNIT_PAD + colIdx * (cellW + GRID_GAP);
-                const subY = unitY + UNIT_PAD + rowIdx * (cellH + GRID_GAP);
+                const subX = unitX + UNIT_PAD + cIdx * (cellW + GRID_GAP);
+                const subY = unitY + UNIT_PAD + rIdx * (cellH + GRID_GAP);
 
                 nodes.push({
                     id: `sub-${unit}-${sub}`,
@@ -173,28 +170,44 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
                     selectable: false,
                 });
 
-                // base point for item placement inside this sub-cell
                 subRects.set(`${unit}|||${sub}`, {
                     baseX: subX + 30,
                     baseY: subY + 20,
                     cellW,
-                    cellH
+                    cellH,
                 });
             });
         });
     });
 
-
-    // simple counters for first-time placements
-    const firstTimeCounters = new Map();
+    // first-time placement counters (per sub-cell) with wrap
+    const firstTimeCounters = new Map(); // key -> { col, row, maxCols }
     function nextFirstTimePos(unit, sub) {
         const key = `${unit}|||${sub}`;
         const rect = subRects.get(key);
-        const startX = (rect?.baseX ?? 100) + 10;
-        const y = (rect?.baseY ?? 100) + 10;
-        const currentX = firstTimeCounters.has(key) ? firstTimeCounters.get(key) : startX;
-        firstTimeCounters.set(key, currentX + itemWidth + itemGap);
-        return { x: currentX, y };
+        const baseX = (rect?.baseX ?? 100);
+        const baseY = (rect?.baseY ?? 100);
+
+        // how many items per row can we fit?
+        const usableW = (rect?.cellW ?? 600) - 20; // small left/right margin inside cell
+        const maxCols = Math.max(1, Math.floor((usableW + itemGap) / (itemWidth + itemGap)));
+
+        const state = firstTimeCounters.get(key) || { col: 0, row: 0, maxCols };
+        // if cell geometry changed, refresh maxCols
+        if (state.maxCols !== maxCols) state.col = 0, state.row = 0, state.maxCols = maxCols;
+
+        const x = baseX + state.col * (itemWidth + itemGap);
+        const y = baseY + state.row * (itemHeight + itemGap);
+
+        // advance cursor
+        state.col += 1;
+        if (state.col >= state.maxCols) {
+            state.col = 0;
+            state.row += 1;
+        }
+
+        firstTimeCounters.set(key, state);
+        return { x, y };
     }
 
     // Items: preserve position unless Unit changed OR no previous position exists
@@ -202,6 +215,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
         row.forEach(unit => {
             if (!grouped[unit]) return;
             const subUnits = grouped[unit];
+
             Object.entries(subUnits).forEach(([sub, list]) => {
                 const sorted = [...list].sort((a, b) => {
                     const s = (a.Sequence || 0) - (b.Sequence || 0);
@@ -210,14 +224,14 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
 
                 sorted.forEach(item => {
                     const id = String(item.id);
-                    const hadPrevPos = posCache.has(id) &&
+                    const hadPrevPos =
+                        posCache.has(id) &&
                         Number.isFinite(posCache.get(id)?.x) &&
                         Number.isFinite(posCache.get(id)?.y);
 
                     let position;
-
                     if (unitChangedIds.has(id)) {
-                        // ✅ Unit changed: re-place into the new Unit frame
+                        // ✅ Unit changed: re-place into the new Unit/SubUnit cell
                         position = nextFirstTimePos(item.Unit, item.SubUnit);
                     } else if (hadPrevPos) {
                         // ✅ keep previous position no matter what else changed
@@ -241,7 +255,6 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
                             item,
                             icon: getItemIcon(item, { width: 40, height: 40 }),
                         },
-                        // change visual only; position stays
                         type: categoryTypeMap[category] || 'scalableIcon',
                         sourcePosition: 'right',
                         targetPosition: 'left',
