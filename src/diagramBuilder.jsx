@@ -92,7 +92,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
 
     // separate gaps
     const itemGapX = 30;   // horizontal gap between items
-    const itemGapY = 30;   // vertical gap between items
+    const itemGapY = 300;   // vertical gap between items
 
     // --- 3×3 grid inside each Unit ---
     const GRID_COLS = 3;
