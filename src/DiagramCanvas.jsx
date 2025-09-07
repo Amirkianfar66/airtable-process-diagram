@@ -125,6 +125,7 @@ export default function DiagramCanvas({
     };
 
     // --- Insert inline valve on the selected edge, replace the direct edge, and persist to items ---
+    // --- Insert inline valve on the selected edge, replace the direct edge(s), and persist to items ---
     const createInlineValveNode = () => {
         if (!selectedEdge) return;
 
@@ -168,17 +169,17 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        // 1) Visual: add valve node and replace direct edge(s)
+        // 1) Visual: add valve node and remove BOTH directions of the direct edge
         setNodes((nds) => [...nds, newNode]);
-
         setEdges((eds) => {
             const stroke = selectedEdge?.style?.stroke || "#000";
             const filtered = (eds || []).filter(
                 (e) =>
-                    // remove THIS selected edge
+                    // remove this selected edge
                     e.id !== selectedEdge.id &&
-                    // and remove ANY other direct edge between the same endpoints
-                    !(e.source === selectedEdge.source && e.target === selectedEdge.target)
+                    // remove any other edge source->target or target->source
+                    !((e.source === selectedEdge.source && e.target === selectedEdge.target) ||
+                        (e.source === selectedEdge.target && e.target === selectedEdge.source))
             );
             return [
                 ...filtered,
@@ -187,51 +188,60 @@ export default function DiagramCanvas({
             ];
         });
 
-        // 2) Persist: update items so buildDiagram() won’t recreate a gray src->dst edge
+        // 2) Persist: update items so buildDiagram() cannot recreate a direct gray edge
         setItems?.((prev) => {
             const arr = Array.isArray(prev) ? [...prev] : [];
 
             const srcIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.source));
             const dstIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.target));
 
+            const srcCode = arr[srcIdx]?.Code || arr[srcIdx]?.['Item Code'] || '';
+            const srcName = arr[srcIdx]?.Name || '';
             const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
             const dstName = arr[dstIdx]?.Name || '';
 
-            // Insert the valve (valve -> dst)
+            // Insert valve (valve -> dst)
             if (!arr.some((it) => String(it.id) === String(uid))) {
                 arr.push({ ...newItem, Connections: dstCode ? [dstCode] : [] });
             }
 
-            // Helper: remove any form of "src -> dst" reference
-            const removeDirectConn = (list = []) =>
-                list
-                    .filter((c) => {
-                        if (typeof c === 'string') {
-                            // could be Code or Name
-                            return !(c === dstCode || (dstName && c === dstName));
-                        }
-                        if (c && typeof c === 'object') {
-                            // { to: Name } | { toId: nodeId }
-                            if (c.to && (c.to === dstName || c.to === dstCode)) return false;
-                            if (c.toId && String(c.toId) === String(selectedEdge.target)) return false;
-                        }
-                        return true;
-                    });
+            // Helper: robust, case-insensitive removal of direct refs to a target (by code, name, {to}, {toId})
+            const norm = (s) => String(s || '').trim().toLowerCase();
+            const removeRefTo = (list = [], targetId, targetCode, targetName) =>
+                list.filter((c) => {
+                    if (typeof c === 'string') {
+                        const v = norm(c);
+                        return v !== norm(targetCode) && (targetName ? v !== norm(targetName) : true);
+                    }
+                    if (c && typeof c === 'object') {
+                        if (c.to && (norm(c.to) === norm(targetName) || norm(c.to) === norm(targetCode))) return false;
+                        if (c.toId && String(c.toId) === String(targetId)) return false;
+                    }
+                    return true;
+                });
 
             // Replace src -> dst with src -> valve
             if (srcIdx !== -1) {
-                const current = Array.isArray(arr[srcIdx].Connections) ? arr[srcIdx].Connections : [];
-                const cleaned = removeDirectConn(current);
+                const cur = Array.isArray(arr[srcIdx].Connections) ? arr[srcIdx].Connections : [];
+                const cleaned = removeRefTo(cur, selectedEdge.target, dstCode, dstName);
                 if (!cleaned.includes(code)) cleaned.push(code);
                 arr[srcIdx] = { ...arr[srcIdx], Connections: cleaned };
+            }
+
+            // ALSO remove reverse link dst -> src (prevents a sneaky back edge)
+            if (dstIdx !== -1) {
+                const cur = Array.isArray(arr[dstIdx].Connections) ? arr[dstIdx].Connections : [];
+                const cleaned = removeRefTo(cur, selectedEdge.source, srcCode, srcName);
+                arr[dstIdx] = { ...arr[dstIdx], Connections: cleaned };
             }
 
             return arr;
         });
 
-        // 3) Close inspector (original edge removed)
+        // 3) Close the inspector (original edge removed)
         handleCloseInspector();
     };
+
 
 
    const handleCloseInspector = () => {
