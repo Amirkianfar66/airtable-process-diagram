@@ -147,12 +147,12 @@ export default function DiagramCanvas({
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
             Type: inlineType || '',
-            // Avoid empty strings so the builder doesn’t create a weird "" Unit
             Unit: sourceNode?.data?.item?.Unit || 'No Unit',
             SubUnit: sourceNode?.data?.item?.SubUnit || 'Default SubUnit',
             x: midX,
             y: midY,
             edgeId: selectedEdge.id,
+            // We'll also set Connections below with the real target code
         };
 
         const newNode = {
@@ -169,10 +169,11 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
+        // 1) Update React Flow nodes/edges immediately for visual feedback
         setNodes((nds) => [...nds, newNode]);
 
         setEdges((eds) => {
-            const filtered = eds.filter((e) => e.id !== selectedEdge.id);
+            const filtered = eds.filter((e) => e.id !== selectedEdge.id); // remove original edge
             const stroke = selectedEdge?.style?.stroke || "#000";
             return [
                 ...filtered,
@@ -193,18 +194,36 @@ export default function DiagramCanvas({
             ];
         });
 
-        // ✅ Persist so future buildDiagram() rebuilds keep the valve
+        // 2) Persist to items so buildDiagram() won’t recreate the direct (gray) edge
         setItems?.((prev) => {
-            const arr = Array.isArray(prev) ? prev : [];
+            const arr = Array.isArray(prev) ? [...prev] : [];
+
+            const srcIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.source));
+            const dstIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.target));
+            const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
+
+            // Insert valve item with a connection to the original target
             if (!arr.some((it) => String(it.id) === String(uid))) {
-                return [...arr, newItem];
+                arr.push({ ...newItem, Connections: dstCode ? [dstCode] : [] });
             }
-            return prev;
+
+            // Replace src -> dst connection with src -> valve
+            if (srcIdx !== -1) {
+                const cur = Array.isArray(arr[srcIdx].Connections) ? [...arr[srcIdx].Connections] : [];
+                const withoutDst = dstCode ? cur.filter((c) => String(c) !== String(dstCode)) : cur;
+                if (!withoutDst.includes(code)) withoutDst.push(code);
+                arr[srcIdx] = { ...arr[srcIdx], Connections: withoutDst };
+            }
+
+            // (Optional) If you maintain reverse links, also replace dst <- src with dst <- valve here.
+
+            return arr;
         });
 
-        // Original edge is gone; close the inspector
+        // Close the inspector (the original edge was removed)
         handleCloseInspector();
     };
+
 
 
     const handleCloseInspector = () => {
