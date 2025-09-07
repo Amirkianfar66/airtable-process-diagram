@@ -224,6 +224,13 @@ export default function DiagramCanvas({
         handleCloseInspector();
     };
 
+
+
+    const handleCloseInspector = () => {
+        setSelectedEdge(null);
+        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+    };
+
     // Keep only ESC handling here; Delete is handled by the global keyboard handler below.
     useEffect(() => {
         if (!selectedEdge) return;
