@@ -291,6 +291,43 @@ export default function ProcessDiagram() {
             // 5) Merge edges safely (keep existing, add new, drop invalid)
             const validIds = new Set(built.nodes.map(n => n.id));
             setEdges(prev => mergeEdges(prev, built.edges, validIds));
+            // Remove any direct edge (src -> dst) when there is a valve node V such that src -> V and V -> dst exist.
+            const pruneDirectEdgesIfValvePresent = (edges = [], nodes = []) => {
+                const E = Array.isArray(edges) ? edges.slice() : [];
+                if (!E.length) return E;
+
+                const nodeById = new Map(nodes.map(n => [String(n.id), n]));
+                const isValve = (n) => {
+                    const cat = n?.data?.item?.['Category Item Type'] ?? n?.data?.item?.Category;
+                    return String(cat || '').toLowerCase() === 'inline valve';
+                };
+
+                // Build quick lookups
+                const outEdgesBySrc = new Map(); // src -> [edges]
+                for (const e of E) {
+                    const arr = outEdgesBySrc.get(e.source) || [];
+                    arr.push(e);
+                    outEdgesBySrc.set(e.source, arr);
+                }
+
+                // Find all (src, dst) pairs that are routed via a valve
+                const blockPairs = new Set();
+                for (const e1 of E) {
+                    const maybeValve = nodeById.get(String(e1.target));
+                    if (!maybeValve || !isValve(maybeValve)) continue;
+
+                    const viaValve = outEdgesBySrc.get(maybeValve.id) || [];
+                    for (const e2 of viaValve) {
+                        // src -> V and V -> dst => block src -> dst
+                        blockPairs.add(`${e1.source}->${e2.target}`);
+                        // (optional) also block reverse to be safe
+                        blockPairs.add(`${e2.target}->${e1.source}`);
+                    }
+                }
+
+                // Drop any edge that matches a blocked direct pair
+                return E.filter(e => !blockPairs.has(`${e.source}->${e.target}`));
+            };
 
             // 6) Commit items and auto-select a new node if any
             setItems(nextItems);
@@ -379,7 +416,12 @@ export default function ProcessDiagram() {
 
         setNodes(rebuiltNodes);
         const validIds = new Set((rebuiltNodes || []).map((n) => n.id));
-        setEdges((prev) => mergeEdges(prev, rebuiltEdges, validIds));
+        // AFTER
+        setEdges((prev) => {
+            const merged = mergeEdges(prev, rebuiltEdges, validIds);
+            return pruneDirectEdgesIfValvePresent(merged, rebuiltNodes);
+        });
+
 
         // Mirror positions → items[] (only if changed)
         setItems((prev) => {
