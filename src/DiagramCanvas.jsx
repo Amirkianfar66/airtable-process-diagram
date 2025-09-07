@@ -125,6 +125,9 @@ export default function DiagramCanvas({
     };
 
     // Your original auto-split logic factored into a helper, callable by a button:
+    
+
+
     const createInlineValveNode = () => {
         if (!selectedEdge) return;
 
@@ -152,7 +155,6 @@ export default function DiagramCanvas({
             x: midX,
             y: midY,
             edgeId: selectedEdge.id,
-            // We'll also set Connections below with the real target code
         };
 
         const newNode = {
@@ -169,45 +171,37 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        // 1) Update React Flow nodes/edges immediately for visual feedback
+        // 1) Add the valve node and replace the old edge with two edges via the valve
         setNodes((nds) => [...nds, newNode]);
-
         setEdges((eds) => {
-            const filtered = eds.filter((e) => e.id !== selectedEdge.id); // remove original edge
             const stroke = selectedEdge?.style?.stroke || "#000";
+            const filtered = (eds || []).filter(
+                (e) =>
+                    // remove the selected edge by id...
+                    e.id !== selectedEdge.id &&
+                    // ...and any other direct edge between the same endpoints
+                    !(e.source === selectedEdge.source && e.target === selectedEdge.target)
+            );
             return [
                 ...filtered,
-                {
-                    id: `${selectedEdge.source}-${uid}`,
-                    source: selectedEdge.source,
-                    target: uid,
-                    type: 'step',
-                    style: { stroke },
-                },
-                {
-                    id: `${uid}-${selectedEdge.target}`,
-                    source: uid,
-                    target: selectedEdge.target,
-                    type: 'step',
-                    style: { stroke },
-                },
+                { id: `${selectedEdge.source}-${uid}`, source: selectedEdge.source, target: uid, type: 'step', style: { stroke } },
+                { id: `${uid}-${selectedEdge.target}`, source: uid, target: selectedEdge.target, type: 'step', style: { stroke } },
             ];
         });
 
-        // 2) Persist to items so buildDiagram() won’t recreate the direct (gray) edge
+        // 2) Update items so the direct edge never gets rebuilt
         setItems?.((prev) => {
             const arr = Array.isArray(prev) ? [...prev] : [];
-
             const srcIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.source));
             const dstIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.target));
             const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
 
-            // Insert valve item with a connection to the original target
+            // Insert the valve item (valve -> dst)
             if (!arr.some((it) => String(it.id) === String(uid))) {
                 arr.push({ ...newItem, Connections: dstCode ? [dstCode] : [] });
             }
 
-            // Replace src -> dst connection with src -> valve
+            // Replace src -> dst with src -> valve
             if (srcIdx !== -1) {
                 const cur = Array.isArray(arr[srcIdx].Connections) ? [...arr[srcIdx].Connections] : [];
                 const withoutDst = dstCode ? cur.filter((c) => String(c) !== String(dstCode)) : cur;
@@ -215,21 +209,13 @@ export default function DiagramCanvas({
                 arr[srcIdx] = { ...arr[srcIdx], Connections: withoutDst };
             }
 
-            // (Optional) If you maintain reverse links, also replace dst <- src with dst <- valve here.
-
             return arr;
         });
 
-        // Close the inspector (the original edge was removed)
+        // 3) Close the inspector
         handleCloseInspector();
     };
 
-
-
-    const handleCloseInspector = () => {
-        setSelectedEdge(null);
-        if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
-    };
 
     // Keep only ESC handling here; Delete is handled by the global keyboard handler below.
     useEffect(() => {
