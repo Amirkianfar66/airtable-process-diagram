@@ -28,6 +28,41 @@ const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => 
     return merged;
 };
 
+// --- Helper: drop direct src->dst edges when a valve node routes between them ---
+const pruneDirectEdgesIfValvePresent = (edges = [], nodes = []) => {
+    const E = Array.isArray(edges) ? edges : [];
+    if (!E.length) return E;
+
+    const nodeMap = new Map((nodes || []).map(n => [String(n.id), n]));
+    const isValve = (n) => {
+        const it = n?.data?.item;
+        const cat = it?.['Category Item Type'] ?? it?.Category ?? '';
+        return String(cat).trim().toLowerCase() === 'inline valve';
+    };
+
+    // src -> [edges]
+    const outBySrc = new Map();
+    for (const e of E) {
+        if (!outBySrc.has(e.source)) outBySrc.set(e.source, []);
+        outBySrc.get(e.source).push(e);
+    }
+
+    // Any path src -> V (valve) and V -> dst means: drop direct src -> dst (and reverse for safety)
+    const blockPairs = new Set();
+    for (const e1 of E) {
+        const maybeValve = nodeMap.get(String(e1.target));
+        if (!maybeValve || !isValve(maybeValve)) continue;
+
+        const viaValve = outBySrc.get(maybeValve.id) || [];
+        for (const e2 of viaValve) {
+            blockPairs.add(`${e1.source}->${e2.target}`);  // src -> dst
+            blockPairs.add(`${e2.target}->${e1.source}`);  // dst -> src (optional)
+        }
+    }
+
+    return E.filter(e => !blockPairs.has(`${e.source}->${e.target}`));
+};
+
 export const nodeTypes = {
     resizable: ResizableNode,
     custom: CustomItemNode,
@@ -201,29 +236,33 @@ export default function ProcessDiagram() {
     const handleCreateInlineValve = useCallback((edgeId) => {
         const edge = edges.find((e) => e.id === edgeId);
         if (!edge) return;
+
         const sourceNode = nodes.find((n) => n.id === edge.source);
         const targetNode = nodes.find((n) => n.id === edge.target);
         if (!sourceNode || !targetNode) return;
 
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-        const newValveId = `valve-${Date.now()}`;
+
+        const uid = `valve-${Date.now()}`;
+        const code = `VAL-${Date.now()}`;
 
         const newItem = {
-            id: newValveId,
-            "Item Code": `VALVE-${Date.now()}`,
+            id: uid,
+            Code: code,
+            "Item Code": code,
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
             Type: [],
-            Unit: sourceNode?.data?.item?.Unit || "",
-            SubUnit: sourceNode?.data?.item?.SubUnit || "",
+            Unit: sourceNode?.data?.item?.Unit || "No Unit",
+            SubUnit: sourceNode?.data?.item?.SubUnit || "Default SubUnit",
             x: midX, y: midY,
             edgeId: edge.id,
         };
 
         const newNode = {
-            id: newItem.id,
+            id: uid,
             position: { x: midX, y: midY },
             data: {
                 label: `${newItem["Item Code"]} - ${newItem.Name}`,
@@ -236,18 +275,91 @@ export default function ProcessDiagram() {
             style: { background: "transparent" },
         };
 
+        // Add the valve node
         setNodes((nds) => [...nds, newNode]);
-        const baseStyle = edge.style || {};
+
+        // Replace direct edges (both directions) and PRUNE
         setEdges((eds) => {
-            const filtered = eds.filter((e) => e.id !== edge.id);
-            const e1 = { id: `edge-${edge.source}-${newNode.id}-${Date.now()}`, source: edge.source, target: newNode.id, type: edge.type || "smoothstep", animated: edge.animated ?? true, style: { ...baseStyle } };
-            const e2 = { id: `edge-${newNode.id}-${edge.target}-${Date.now()}`, source: newNode.id, target: edge.target, type: edge.type || "smoothstep", animated: edge.animated ?? true, style: { ...baseStyle } };
-            return [...filtered, e1, e2];
+            const baseStyle = edge.style || {};
+            const filtered = (eds || []).filter(
+                (e) =>
+                    e.id !== edge.id &&
+                    !((e.source === edge.source && e.target === edge.target) ||
+                        (e.source === edge.target && e.target === edge.source))
+            );
+
+            const e1 = {
+                id: `edge-${edge.source}-${uid}-${Date.now()}`,
+                source: edge.source,
+                target: uid,
+                type: edge.type || "smoothstep",
+                animated: edge.animated ?? true,
+                style: { ...baseStyle },
+            };
+            const e2 = {
+                id: `edge-${uid}-${edge.target}-${Date.now()}`,
+                source: uid,
+                target: edge.target,
+                type: edge.type || "smoothstep",
+                animated: edge.animated ?? true,
+                style: { ...baseStyle },
+            };
+
+            const next = [...filtered, e1, e2];
+            const allNodes = [...nodes, newNode];
+            return pruneDirectEdgesIfValvePresent(next, allNodes);
         });
 
-        setItems((prev) => [...prev, newItem]);
+        // Persist connections: src->valve, valve->dst; remove src->dst and dst->src (if present)
+        setItems((prev) => {
+            const arr = Array.isArray(prev) ? [...prev] : [];
+            const srcIdx = arr.findIndex((it) => String(it.id) === String(edge.source));
+            const dstIdx = arr.findIndex((it) => String(it.id) === String(edge.target));
+
+            const srcCode = arr[srcIdx]?.Code || arr[srcIdx]?.['Item Code'] || '';
+            const srcName = arr[srcIdx]?.Name || '';
+            const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
+            const dstName = arr[dstIdx]?.Name || '';
+
+            const norm = (s) => String(s || '').trim().toLowerCase();
+            const removeRefTo = (list = [], targetId, targetCode, targetName) =>
+                list.filter((c) => {
+                    if (typeof c === 'string') {
+                        const v = norm(c);
+                        return v !== norm(targetCode) && (targetName ? v !== norm(targetName) : true);
+                    }
+                    if (c && typeof c === 'object') {
+                        if (c.to && (norm(c.to) === norm(targetName) || norm(c.to) === norm(targetCode))) return false;
+                        if (c.toId && String(c.toId) === String(targetId)) return false;
+                    }
+                    return true;
+                });
+
+            // add valve item (valve -> dst)
+            if (!arr.some((it) => String(it.id) === String(uid))) {
+                arr.push({ ...newItem, Connections: dstCode ? [dstCode] : [] });
+            }
+
+            // replace src->dst with src->valve
+            if (srcIdx !== -1) {
+                const cur = Array.isArray(arr[srcIdx].Connections) ? arr[srcIdx].Connections : [];
+                const cleaned = removeRefTo(cur, edge.target, dstCode, dstName);
+                if (!cleaned.includes(code)) cleaned.push(code);
+                arr[srcIdx] = { ...arr[srcIdx], Connections: cleaned };
+            }
+
+            // remove dst->src reverse link (if your data ever has it)
+            if (dstIdx !== -1) {
+                const cur = Array.isArray(arr[dstIdx].Connections) ? arr[dstIdx].Connections : [];
+                const cleaned = removeRefTo(cur, edge.source, srcCode, srcName);
+                arr[dstIdx] = { ...arr[dstIdx], Connections: cleaned };
+            }
+
+            return arr;
+        });
+
         setSelectedItem(newItem);
-    }, [edges, nodes]);
+    }, [edges, nodes, setNodes, setEdges, setItems, setSelectedItem]);
 
     // ---------- AI generator ----------
     const handleGeneratePNID = useCallback(async () => {
@@ -288,46 +400,14 @@ export default function ProcessDiagram() {
             const built = buildDiagram(nextItems, patchedLayout, { prevNodes: nodes });
             setNodes(built.nodes);
 
-            // 5) Merge edges safely (keep existing, add new, drop invalid)
+            // 5) Merge edges safely THEN prune
             const validIds = new Set(built.nodes.map(n => n.id));
-            setEdges(prev => mergeEdges(prev, built.edges, validIds));
-            // Remove any direct edge (src -> dst) when there is a valve node V such that src -> V and V -> dst exist.
-            const pruneDirectEdgesIfValvePresent = (edges = [], nodes = []) => {
-                const E = Array.isArray(edges) ? edges.slice() : [];
-                if (!E.length) return E;
-
-                const nodeById = new Map(nodes.map(n => [String(n.id), n]));
-                const isValve = (n) => {
-                    const cat = n?.data?.item?.['Category Item Type'] ?? n?.data?.item?.Category;
-                    return String(cat || '').toLowerCase() === 'inline valve';
-                };
-
-                // Build quick lookups
-                const outEdgesBySrc = new Map(); // src -> [edges]
-                for (const e of E) {
-                    const arr = outEdgesBySrc.get(e.source) || [];
-                    arr.push(e);
-                    outEdgesBySrc.set(e.source, arr);
-                }
-
-                // Find all (src, dst) pairs that are routed via a valve
-                const blockPairs = new Set();
-                for (const e1 of E) {
-                    const maybeValve = nodeById.get(String(e1.target));
-                    if (!maybeValve || !isValve(maybeValve)) continue;
-
-                    const viaValve = outEdgesBySrc.get(maybeValve.id) || [];
-                    for (const e2 of viaValve) {
-                        // src -> V and V -> dst => block src -> dst
-                        blockPairs.add(`${e1.source}->${e2.target}`);
-                        // (optional) also block reverse to be safe
-                        blockPairs.add(`${e2.target}->${e1.source}`);
-                    }
-                }
-
-                // Drop any edge that matches a blocked direct pair
-                return E.filter(e => !blockPairs.has(`${e.source}->${e.target}`));
-            };
+            setEdges(prev =>
+                pruneDirectEdgesIfValvePresent(
+                    mergeEdges(prev, built.edges, validIds),
+                    built.nodes
+                )
+            );
 
             // 6) Commit items and auto-select a new node if any
             setItems(nextItems);
@@ -341,8 +421,6 @@ export default function ProcessDiagram() {
             alert("AI generation failed. Check your VITE_GOOGLE_API_KEY and /api/parse-item logs.");
         }
     }, [aiDescription, items, nodes, edges, unitLayoutOrder, setChatMessages, setSelectedItem, setSelectedNodes]);
-
-
 
     // ---------- Initial load ----------
     useEffect(() => {
@@ -376,7 +454,12 @@ export default function ProcessDiagram() {
                 const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
                 setNodes(builtNodes);
                 const validIdsInit = new Set((builtNodes || []).map((n) => n.id));
-                setEdges((prev) => mergeEdges(prev, builtEdges, validIdsInit));
+                setEdges((prev) =>
+                    pruneDirectEdgesIfValvePresent(
+                        mergeEdges(prev, builtEdges, validIdsInit),
+                        builtNodes
+                    )
+                );
 
                 // Backfill x/y onto items from built node positions
                 const posById = Object.fromEntries((builtNodes || []).map((n) => [String(n.id), n.position || {}]));
@@ -416,12 +499,11 @@ export default function ProcessDiagram() {
 
         setNodes(rebuiltNodes);
         const validIds = new Set((rebuiltNodes || []).map((n) => n.id));
-        // AFTER
+
         setEdges((prev) => {
             const merged = mergeEdges(prev, rebuiltEdges, validIds);
             return pruneDirectEdgesIfValvePresent(merged, rebuiltNodes);
         });
-
 
         // Mirror positions → items[] (only if changed)
         setItems((prev) => {
