@@ -220,13 +220,8 @@ export default function DiagramCanvas({
             return arr;
         });
 
-        // Close the inspector (the original edge was removed)
-        handleCloseInspector();
-    };
-
-
-
-    const handleCloseInspector = () => {
+ 
+  const handleCloseInspector = () => {
         setSelectedEdge(null);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
     };
