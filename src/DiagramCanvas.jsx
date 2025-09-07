@@ -34,6 +34,7 @@ export default function DiagramCanvas({
     deleteNode,
     onNodeDrag,
     onNodeDragStop,
+    onCreateInlineValve,
     showInlineEdgeInspector = true,
     availableUnits = [],
     onUnitLayoutChange = () => { },
