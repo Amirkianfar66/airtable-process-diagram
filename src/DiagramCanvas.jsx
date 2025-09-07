@@ -147,7 +147,6 @@ export default function DiagramCanvas({
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
             Type: inlineType || '',
-            // Avoid empty strings so the builder doesn’t create a weird "" Unit
             Unit: sourceNode?.data?.item?.Unit || 'No Unit',
             SubUnit: sourceNode?.data?.item?.SubUnit || 'Default SubUnit',
             x: midX,
@@ -169,7 +168,7 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        // 1) Visual update: add valve node and replace/remove direct edge(s)
+        // 1) Visual: add valve node and replace direct edge(s)
         setNodes((nds) => [...nds, newNode]);
 
         setEdges((eds) => {
@@ -178,7 +177,7 @@ export default function DiagramCanvas({
                 (e) =>
                     // remove THIS selected edge
                     e.id !== selectedEdge.id &&
-                    // and remove any other direct edge between the same endpoints (prevents gray edge)
+                    // and remove ANY other direct edge between the same endpoints
                     !(e.source === selectedEdge.source && e.target === selectedEdge.target)
             );
             return [
@@ -188,33 +187,52 @@ export default function DiagramCanvas({
             ];
         });
 
-        // 2) Persist: update items so buildDiagram() won’t recreate the direct edge
+        // 2) Persist: update items so buildDiagram() won’t recreate a gray src->dst edge
         setItems?.((prev) => {
             const arr = Array.isArray(prev) ? [...prev] : [];
 
             const srcIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.source));
             const dstIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.target));
-            const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
 
-            // Insert the valve item with connection to original target
+            const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
+            const dstName = arr[dstIdx]?.Name || '';
+
+            // Insert the valve (valve -> dst)
             if (!arr.some((it) => String(it.id) === String(uid))) {
                 arr.push({ ...newItem, Connections: dstCode ? [dstCode] : [] });
             }
 
+            // Helper: remove any form of "src -> dst" reference
+            const removeDirectConn = (list = []) =>
+                list
+                    .filter((c) => {
+                        if (typeof c === 'string') {
+                            // could be Code or Name
+                            return !(c === dstCode || (dstName && c === dstName));
+                        }
+                        if (c && typeof c === 'object') {
+                            // { to: Name } | { toId: nodeId }
+                            if (c.to && (c.to === dstName || c.to === dstCode)) return false;
+                            if (c.toId && String(c.toId) === String(selectedEdge.target)) return false;
+                        }
+                        return true;
+                    });
+
             // Replace src -> dst with src -> valve
             if (srcIdx !== -1) {
-                const cur = Array.isArray(arr[srcIdx].Connections) ? [...arr[srcIdx].Connections] : [];
-                const withoutDst = dstCode ? cur.filter((c) => String(c) !== String(dstCode)) : cur;
-                if (!withoutDst.includes(code)) withoutDst.push(code);
-                arr[srcIdx] = { ...arr[srcIdx], Connections: withoutDst };
+                const current = Array.isArray(arr[srcIdx].Connections) ? arr[srcIdx].Connections : [];
+                const cleaned = removeDirectConn(current);
+                if (!cleaned.includes(code)) cleaned.push(code);
+                arr[srcIdx] = { ...arr[srcIdx], Connections: cleaned };
             }
 
             return arr;
         });
 
-        // 3) Close the inspector (original edge is gone)
+        // 3) Close inspector (original edge removed)
         handleCloseInspector();
-    }; // <-- make sure this closing brace exists
+    };
+
 
    const handleCloseInspector = () => {
         setSelectedEdge(null);
