@@ -126,6 +126,7 @@ export default function DiagramCanvas({
     // Your original auto-split logic factored into a helper, callable by a button:
     const createInlineValveNode = () => {
         if (!selectedEdge) return;
+
         const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
         const targetNode = nodes.find((n) => n.id === selectedEdge.target);
         if (!sourceNode || !targetNode) return;
@@ -133,22 +134,28 @@ export default function DiagramCanvas({
         const midX = (sourceNode.position.x + targetNode.position.x) / 2;
         const midY = (sourceNode.position.y + targetNode.position.y) / 2;
         const inlineType = selectedEdge?.data?.inlineValveType || '';
+
+        const uid = `valve-${Date.now()}`;
+        const code = `VAL-${Date.now()}`;
+
         const newItem = {
-            id: `valve-${Date.now()}`,
-            "Item Code": "VALVE001",
+            id: uid,
+            Code: code,
+            "Item Code": code,
             Name: "Inline Valve",
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
             Type: inlineType || '',
-            Unit: sourceNode.data?.item?.Unit || "",
-            SubUnit: sourceNode.data?.item?.SubUnit || "",
+            // Avoid empty strings so the builder doesn’t create a weird "" Unit
+            Unit: sourceNode?.data?.item?.Unit || 'No Unit',
+            SubUnit: sourceNode?.data?.item?.SubUnit || 'Default SubUnit',
             x: midX,
             y: midY,
             edgeId: selectedEdge.id,
         };
 
         const newNode = {
-            id: newItem.id,
+            id: uid,
             position: { x: midX, y: midY },
             data: {
                 label: `${newItem["Item Code"]} - ${newItem.Name}`,
@@ -162,26 +169,42 @@ export default function DiagramCanvas({
         };
 
         setNodes((nds) => [...nds, newNode]);
-        setEdges((eds) => [
-            ...eds.filter((e) => e.id !== selectedEdge.id),
-            {
-                id: `${selectedEdge.source}-${newNode.id}`,
-                source: selectedEdge.source,
-                target: newNode.id,
-                type: 'step',
-                style: { stroke: selectedEdge?.style?.stroke || "#000" },
-            },
-            {
-                id: `${newNode.id}-${selectedEdge.target}`,
-                source: newNode.id,
-                target: targetNode.id,
-                type: 'step',
-                style: { stroke: selectedEdge?.style?.stroke || "#000" },
-            },
-        ]);
-        // After splitting, close inspector (the original edge is gone).
+
+        setEdges((eds) => {
+            const filtered = eds.filter((e) => e.id !== selectedEdge.id);
+            const stroke = selectedEdge?.style?.stroke || "#000";
+            return [
+                ...filtered,
+                {
+                    id: `${selectedEdge.source}-${uid}`,
+                    source: selectedEdge.source,
+                    target: uid,
+                    type: 'step',
+                    style: { stroke },
+                },
+                {
+                    id: `${uid}-${selectedEdge.target}`,
+                    source: uid,
+                    target: selectedEdge.target,
+                    type: 'step',
+                    style: { stroke },
+                },
+            ];
+        });
+
+        // ✅ Persist so future buildDiagram() rebuilds keep the valve
+        setItems?.((prev) => {
+            const arr = Array.isArray(prev) ? prev : [];
+            if (!arr.some((it) => String(it.id) === String(uid))) {
+                return [...arr, newItem];
+            }
+            return prev;
+        });
+
+        // Original edge is gone; close the inspector
         handleCloseInspector();
     };
+
 
     const handleCloseInspector = () => {
         setSelectedEdge(null);
@@ -420,9 +443,13 @@ export default function DiagramCanvas({
                                         <button onClick={toggleEdgeAnimated}>
                                             {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
                                         </button>
-                                        <button onClick={createInlineValveNode}>
+                                        <button
+                                            onClick={() =>
+                                                onCreateInlineValve ? onCreateInlineValve(selectedEdge.id) : createInlineValveNode()
+                                            }>
                                             Insert Inline Valve Node
                                         </button>
+
                                     </div>
                                 </div>
                             )}

@@ -504,6 +504,7 @@ export default function ProcessDiagram() {
                     onNodeDragStop={onNodeDragStop}
                     availableUnits={availableUnitsForConfig}
                     onUnitLayoutChange={setUnitLayoutOrder}
+                    onCreateInlineValve={handleCreateInlineValve}
                 />
             </div>
 
