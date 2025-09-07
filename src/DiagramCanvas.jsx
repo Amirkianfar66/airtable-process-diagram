@@ -124,7 +124,7 @@ export default function DiagramCanvas({
         // If you want to keep your original auto-split behavior, call createInlineValveNode() here.
     };
 
-    // Your original auto-split logic factored into a helper, callable by a button:
+    // --- Insert inline valve on the selected edge, replace the direct edge, and persist to items ---
     const createInlineValveNode = () => {
         if (!selectedEdge) return;
 
@@ -147,12 +147,12 @@ export default function DiagramCanvas({
             Category: "Inline Valve",
             "Category Item Type": "Inline Valve",
             Type: inlineType || '',
+            // Avoid empty strings so the builder doesn’t create a weird "" Unit
             Unit: sourceNode?.data?.item?.Unit || 'No Unit',
             SubUnit: sourceNode?.data?.item?.SubUnit || 'Default SubUnit',
             x: midX,
             y: midY,
             edgeId: selectedEdge.id,
-            // We'll also set Connections below with the real target code
         };
 
         const newNode = {
@@ -169,32 +169,26 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        // 1) Update React Flow nodes/edges immediately for visual feedback
+        // 1) Visual update: add valve node and replace/remove direct edge(s)
         setNodes((nds) => [...nds, newNode]);
 
         setEdges((eds) => {
-            const filtered = eds.filter((e) => e.id !== selectedEdge.id); // remove original edge
             const stroke = selectedEdge?.style?.stroke || "#000";
+            const filtered = (eds || []).filter(
+                (e) =>
+                    // remove THIS selected edge
+                    e.id !== selectedEdge.id &&
+                    // and remove any other direct edge between the same endpoints (prevents gray edge)
+                    !(e.source === selectedEdge.source && e.target === selectedEdge.target)
+            );
             return [
                 ...filtered,
-                {
-                    id: `${selectedEdge.source}-${uid}`,
-                    source: selectedEdge.source,
-                    target: uid,
-                    type: 'step',
-                    style: { stroke },
-                },
-                {
-                    id: `${uid}-${selectedEdge.target}`,
-                    source: uid,
-                    target: selectedEdge.target,
-                    type: 'step',
-                    style: { stroke },
-                },
+                { id: `${selectedEdge.source}-${uid}`, source: selectedEdge.source, target: uid, type: 'step', style: { stroke } },
+                { id: `${uid}-${selectedEdge.target}`, source: uid, target: selectedEdge.target, type: 'step', style: { stroke } },
             ];
         });
 
-        // 2) Persist to items so buildDiagram() won’t recreate the direct (gray) edge
+        // 2) Persist: update items so buildDiagram() won’t recreate the direct edge
         setItems?.((prev) => {
             const arr = Array.isArray(prev) ? [...prev] : [];
 
@@ -202,12 +196,12 @@ export default function DiagramCanvas({
             const dstIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.target));
             const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
 
-            // Insert valve item with a connection to the original target
+            // Insert the valve item with connection to original target
             if (!arr.some((it) => String(it.id) === String(uid))) {
                 arr.push({ ...newItem, Connections: dstCode ? [dstCode] : [] });
             }
 
-            // Replace src -> dst connection with src -> valve
+            // Replace src -> dst with src -> valve
             if (srcIdx !== -1) {
                 const cur = Array.isArray(arr[srcIdx].Connections) ? [...arr[srcIdx].Connections] : [];
                 const withoutDst = dstCode ? cur.filter((c) => String(c) !== String(dstCode)) : cur;
@@ -215,16 +209,18 @@ export default function DiagramCanvas({
                 arr[srcIdx] = { ...arr[srcIdx], Connections: withoutDst };
             }
 
-            // (Optional) If you maintain reverse links, also replace dst <- src with dst <- valve here.
-
             return arr;
         });
 
- 
-  const handleCloseInspector = () => {
+        // 3) Close the inspector (original edge is gone)
+        handleCloseInspector();
+    }; // <-- make sure this closing brace exists
+
+   const handleCloseInspector = () => {
         setSelectedEdge(null);
         if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
     };
+
 
     // Keep only ESC handling here; Delete is handled by the global keyboard handler below.
     useEffect(() => {
