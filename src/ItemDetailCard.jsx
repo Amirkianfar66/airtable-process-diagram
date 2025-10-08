@@ -156,6 +156,11 @@ export default function ItemDetailCard({
         const fetched = await fetchTypeNameById(val);
         return fetched || ""; // return empty if unresolved (don't fabricate "Unknown")
     };
+    const withVisualBump = (obj) => ({
+        ...obj,
+        __iconRev: Date.now(),   // lives next to Type under the same object
+    });
+
 
     // Force a tiny data change so memoized nodes re-render
     const withVisualBump = (obj) => ({ ...obj, _visualKey: Date.now() });
@@ -246,6 +251,7 @@ export default function ItemDetailCard({
             // 4) Write state (update Category too if needed)
             const idForUpdate = item?.id ?? localItem?.id;
             if (inferredCat && inferredCat !== (localItem?.["Category Item Type"] || localItem?.Category)) {
+                // category + type
                 const updatedA = {
                     ...(localItem || {}),
                     id: idForUpdate,
@@ -253,10 +259,12 @@ export default function ItemDetailCard({
                     Category: inferredCat,
                     Type: remoteType,
                 };
-                commitUpdate(withVisualBump(updatedA), { reposition: false });
-            } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
+                commitUpdate(withVisualBump(updatedA), { reposition: false, immediate: true });
+
+                // only type
                 const updatedB = { ...(localItem || {}), id: idForUpdate, Type: remoteType };
-                commitUpdate(withVisualBump(updatedB), { reposition: false });
+                commitUpdate(withVisualBump(updatedB), { reposition: false, immediate: true });
+
             }
 
             if (DEBUG_SYNC) {
@@ -352,8 +360,9 @@ export default function ItemDetailCard({
         if ((localItem?.Type || '') !== inlineType) {
             setLocalItem(prev => ({ ...prev, Type: inlineType }));
             const upd = { ...(localItem || {}), id: item?.id ?? localItem?.id, Type: inlineType };
-            commitUpdate(withVisualBump(upd), { reposition: false });
+            commitUpdate(withVisualBump(upd), { reposition: false, immediate: true });
         }
+
     }, [edges, item?.id, localItem?.['Category Item Type'], localItem?.Category]);
 
 
@@ -384,17 +393,18 @@ export default function ItemDetailCard({
 
 
     // Commit with 2s debounce to avoid live-updating canvas while typing
-    const commitUpdate = (updatedObj = {}, options = { reposition: false }) => {
-        const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
+    const commitUpdate = (updatedObj = {}, options = { reposition: false, immediate: false }) => {
+        const authoritativeId =
+            updatedObj?.id ?? item?.id ?? localItem?.id;
 
-        const chosenX = (typeof updatedObj?.x === 'number') ? updatedObj.x
-            : (typeof localItem?.x === 'number') ? localItem.x
-                : (typeof item?.x === 'number') ? item.x
+        const chosenX = typeof updatedObj?.x === 'number' ? updatedObj.x
+            : typeof localItem?.x === 'number' ? localItem.x
+                : typeof item?.x === 'number' ? item.x
                     : undefined;
 
-        const chosenY = (typeof updatedObj?.y === 'number') ? updatedObj.y
-            : (typeof localItem?.y === 'number') ? localItem.y
-                : (typeof item?.y === 'number') ? item.y
+        const chosenY = typeof updatedObj?.y === 'number' ? updatedObj.y
+            : typeof localItem?.y === 'number' ? localItem.y
+                : typeof item?.y === 'number' ? item.y
                     : undefined;
 
         const payload = { ...updatedObj, id: authoritativeId };
@@ -404,17 +414,23 @@ export default function ItemDetailCard({
             if (typeof chosenY === 'number') payload.y = Number(chosenY);
         }
 
-        // Update local form immediately
+        // update local panel immediately
         setLocalItem(prev => ({ ...prev, ...updatedObj }));
 
         if (options.reposition) payload._repositionRequest = true;
 
-        // Debounce: push to parent after 2s idle
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => {
+
+        const run = () => {
             safeOnChange(payload, options);
             debounceRef.current = null;
-        }, 2000);
+        };
+
+        if (options.immediate) {
+            run();
+        } else {
+            debounceRef.current = setTimeout(run, 2000);
+        }
     };
 
     // Cleanup debounce on unmount
@@ -437,7 +453,7 @@ export default function ItemDetailCard({
         if ((localItem?.Type || '') !== inlineType) {
             setLocalItem(prev => ({ ...prev, Type: inlineType }));
             // persist to parent (respects your 2s debounce in commitUpdate)
-            commitUpdate({ Type: inlineType });
+            
         }
     }, [edges, item?.edgeId]); 
     // 2) Item → Edge: if user changes Type in the right tab for an inline valve item,
