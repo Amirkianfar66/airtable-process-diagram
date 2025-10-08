@@ -20,6 +20,8 @@ export default function ItemDetailCard({
     const [allTypes, setAllTypes] = useState([]);
     const [isTypeFocused, setIsTypeFocused] = useState(false);
 
+    const DEBUG_SYNC = true;
+
     // after the useState hooks
     const currentCategory = useMemo(() => {
         const raw = localItem?.['Category Item Type'] ?? localItem?.Category ?? '';
@@ -496,7 +498,7 @@ export default function ItemDetailCard({
                         </button>
                     </div>
 
-                    </div>
+                 
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Unit:</label>
