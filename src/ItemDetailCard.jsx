@@ -116,6 +116,62 @@ export default function ItemDetailCard({
         return () => { alive = false; };
     }, []);
 
+    // Live-sync "Type" from Airtable → ItemDetailCard (every 5s).
+    // Uses your existing env vars and reads the item record directly.
+    // (Later you can switch this fetch to your /api/airtable endpoint.)
+    useEffect(() => {
+        const id = item?.id || localItem?.id;
+        if (!id) return;
+
+        let alive = true;
+
+        const fetchRemoteType = async () => {
+            try {
+                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+                // Use whichever you have defined for the ITEMS table:
+                const itemsTableId =
+                    import.meta.env.VITE_AIRTABLE_TABLE_ID ||
+                    import.meta.env.VITE_AIRTABLE_ITEMS_TABLE_ID;
+
+                if (!baseId || !token || !itemsTableId) return;
+
+                const url = `https://api.airtable.com/v0/${baseId}/${itemsTableId}/${id}`;
+                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                if (!res.ok) return;
+
+                const rec = await res.json();
+                const val = rec?.fields?.Type;
+                const remoteType = Array.isArray(val) ? val[0] : val;
+
+                if (!alive) return;
+
+                if (remoteType != null && remoteType !== (localItem?.Type ?? '')) {
+                    // Update the panel
+                    setLocalItem(prev => ({ ...(prev || {}), Type: remoteType }));
+                    // Push upstream so node/icon refresh too
+                    safeOnChange({ id, Type: remoteType });
+                }
+            } catch (err) {
+                console.warn('Type live-sync failed:', err);
+            }
+        };
+
+        // initial check
+        fetchRemoteType();
+
+        // poll every 5s; pause while user is editing the Type field
+        const t = setInterval(() => {
+            if (!isTypeFocused) fetchRemoteType();
+        }, 5000);
+
+        return () => {
+            alive = false;
+            clearInterval(t);
+        };
+    }, [item?.id, localItem?.id, isTypeFocused]);
+
+
     const fetchTypeNameById = async (typeId, category) => {
         if (typeCache.has(typeId)) return typeCache.get(typeId);
 
@@ -387,6 +443,8 @@ export default function ItemDetailCard({
                             style={inputStyle}
                             value={localItem.Type || ''}
                             onChange={(e) => handleFieldChange('Type', e.target.value)}
+                            onFocus={() => setIsTypeFocused(true)}
+                            onBlur={() => setIsTypeFocused(false)}
                         >
                             <option value="">Select Type</option>
                             {(typesForSelectedCategory || []).map((t) => (
