@@ -132,13 +132,31 @@ export default function ItemDetailCard({
         "Table 13";
     const itemsTable = encodeURIComponent(itemsTableRaw);
 
+    // Pick a readable name from an Airtable record's fields
+    const deriveNameFromFields = (fields = {}) => {
+        const candidates = ["Name", "Type", "Type Name", "Title", "Label", "Still Pipe", "Display Name"];
+        for (const k of candidates) {
+            const v = fields[k];
+            if (typeof v === "string" && v.trim()) return v.trim();
+            if (Array.isArray(v) && v.length && typeof v[0] === "string") return String(v[0]).trim();
+        }
+        // fallback: first non-empty string-ish field
+        for (const v of Object.values(fields)) {
+            if (typeof v === "string" && v.trim()) return v.trim();
+            if (Array.isArray(v) && v.length && typeof v[0] === "string") return String(v[0]).trim();
+        }
+        return "";
+    };
+
     // Map a linked-record id (rec...) to its display name using allTypes or a one-off fetch
     const getTypeName = async (val) => {
         if (!isRecId(val)) return String(val ?? "");
         const hit = (allTypes || []).find((t) => t.id === val);
         if (hit?.name) return hit.name;
-        return await fetchTypeNameById(val, currentCategory); // you already have this helper
+        const fetched = await fetchTypeNameById(val);
+        return fetched || ""; // return empty if unresolved (don't fabricate "Unknown")
     };
+
 
     // One-shot pull from Airtable; set force=true to ignore isTypeFocused
     const refreshRemoteType = async (force = false) => {
@@ -212,7 +230,9 @@ export default function ItemDetailCard({
             // 2) Normalize to a single value then resolve any rec... to a display name
             const remoteRaw = f[typeKey];
             const remoteType0 = Array.isArray(remoteRaw) ? remoteRaw[0] : remoteRaw;
-            const remoteType = await getTypeName(remoteType0);
+            const remoteType = await getTypeName(remoteType0); // ← always a name or ""
+            if (!remoteType) return; // don't write unknowns
+
 
             const optionValue = (t) => t?.value ?? t?.name ?? String(t ?? "");
 
@@ -271,36 +291,39 @@ export default function ItemDetailCard({
 
 
 
-    const fetchTypeNameById = async (typeId, category) => {
-        if (typeCache.has(typeId)) return typeCache.get(typeId);
+    const fetchTypeNameById = async (typeId) => {
+        if (!typeId) return "";
+        if (typeCache.has(typeId)) {
+            const cached = typeCache.get(typeId);
+            if (cached) return cached;           // only return truthy names
+        }
 
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
         const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
         const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
 
-        let tableId = equipTypesTableId;
-        let fieldName = 'Still Pipe';
+        const tryTable = async (tableId) => {
+            if (!tableId) return "";
+            try {
+                const url = `https://api.airtable.com/v0/${baseId}/${tableId}/${typeId}?cellFormat=string`;
+                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                if (!res.ok) return "";
+                const record = await res.json();
+                return deriveNameFromFields(record.fields);
+            } catch {
+                return "";
+            }
+        };
 
-        if (category === 'Inline Valve') {
-            tableId = valveTypesTableId;
-            fieldName = 'Still Pipe';
-        }
+        // Prefer your main types table, then fall back
+        let name = await tryTable(equipTypesTableId);
+        if (!name) name = await tryTable(valveTypesTableId);
 
-        if (!tableId) return 'Unknown';
-
-        try {
-            const url = `https://api.airtable.com/v0/${baseId}/${tableId}/${typeId}?cellFormat=string`;
-            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-            const record = await res.json();
-            const name = (record?.fields && (record.fields[fieldName] || record.fields['Name'])) || 'Unknown Type';
-            typeCache.set(typeId, name);
-            return name;
-        } catch (err) {
-            console.error('Error fetching type by id', err);
-            return 'Unknown Type';
-        }
+        if (name) typeCache.set(typeId, name); // cache ONLY real names
+        return name;                            // may be ""
     };
+
 
     // Resolve Type label if item.Type is an Airtable record id
     // Edge → Item: mirror inlineValveType from ANY connected edge into this inline valve item
@@ -480,7 +503,9 @@ export default function ItemDetailCard({
     const optionValue = (t) => t.value ?? t.name ?? String(t);
     const typeOptions = typesForSelectedCategory || [];
     const needsTempOption =
-        Boolean(localItem.Type) && !typeOptions.some((t) => optionValue(t) === localItem.Type);
+         Boolean(localItem.Type) &&
+         localItem.Type !== "Unknown Type" &&
+         !typeOptions.some((t) => optionValue(t) === localItem.Type);
 
     return (
         <>
