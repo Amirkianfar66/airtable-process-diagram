@@ -12,7 +12,7 @@ export default function MainToolbar({
     deleteNode,
     onUndo,
     onRedo,
-    // for Unit layout config
+    // for Unit layjjhout config
     availableUnits = [],
     onUnitLayoutChange = () => { },
 }) {
