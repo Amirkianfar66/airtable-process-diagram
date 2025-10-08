@@ -64,7 +64,32 @@ export default function EquipmentIcon({ id, data }) {
     }, []);
 
     // Normalize: lookup by Type case-insensitive
-    const key = data?.Type?.toLowerCase();
+    // --- add near top, after imports ---
+    const normalizeKey = (s) =>
+        (s || "")
+            .toString()
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "_")
+            .replace(/[^a-z0-9_-]/g, "");
+
+    // ...inside the component, REPLACE the old key/Icon lines with:
+    const primaryKey = (data?.TypeKey || normalizeKey(data?.Type || "")).toLowerCase();
+    const keysToTry = [
+        primaryKey,
+        primaryKey.replace(/[_-]/g, ""), // no separators
+        primaryKey.replace(/_/g, "-"),   // underscores -> dashes
+        primaryKey.replace(/-/g, "_"),   // dashes -> underscores
+    ];
+
+    let Icon = null;
+    for (const k of keysToTry) {
+        if (k && typeIcons[k]) {
+            Icon = typeIcons[k];
+            break;
+        }
+    }
+
     const Icon = key && typeIcons[key] ? typeIcons[key] : null;
 
     return (

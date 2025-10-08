@@ -21,6 +21,13 @@ export default function ItemDetailCard({
     const [isTypeFocused, setIsTypeFocused] = useState(false);
 
     const DEBUG_SYNC = true;
+    const normalizeTypeKey = (s) =>
+        (s || "")
+            .toString()
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "_")
+            .replace(/[^a-z0-9_-]/g, "");
 
     // after the useState hooks
     const currentCategory = useMemo(() => {
