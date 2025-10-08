@@ -80,6 +80,7 @@ export default function ItemDetailCard({
                 const token = import.meta.env.VITE_AIRTABLE_TOKEN;
                 const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
                 const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+                const agentTypesTableId = import.meta.env.VITE_AIRTABLE_AGENT_TYPES_TABLE_ID;
 
                 let typesList = [];
 
@@ -178,15 +179,62 @@ export default function ItemDetailCard({
             }
 
             const f = rec?.fields || {};
-            // accept both "Type" and "Type Name", plus single/multi/linked
-            const remoteRaw = f.Type ?? f["Type Name"] ?? null;
-            const remoteType = Array.isArray(remoteRaw) ? remoteRaw[0] : remoteRaw;
 
-            if (remoteType != null && remoteType !== (localItem?.Type ?? "")) {
-                setLocalItem(prev => ({ ...(prev || {}), Type: remoteType }));
-                safeOnChange({ id: item?.id ?? localItem?.id, Type: remoteType });
-                // optional: console.log("[Type sync] updated from Airtable →", remoteType);
+            // 1) Find the actual Type field name dynamically
+            const pickTypeField = (fields) => {
+                const candidates = [
+                    "Type",
+                    "Type Name",
+                    "Item Type",
+                    "ItemType",
+                    "Type (from Types)",
+                    "Type (from Agent)",
+                ];
+                for (const k of candidates) if (k in fields) return k;
+                // Fallback: first key that includes "type" and is not empty
+                return Object.keys(fields).find((k) => /type/i.test(k) && fields[k] != null && fields[k] !== "");
+            };
+
+            const typeKey = pickTypeField(f);
+            if (!typeKey) {
+                if (DEBUG_SYNC) console.warn("[Type sync] No type-like field found. Available keys:", Object.keys(f));
+                return;
             }
+
+            // 2) Normalize to a single value (string or rec id)
+            let remoteRaw = f[typeKey];
+            let remoteType = Array.isArray(remoteRaw) ? remoteRaw[0] : remoteRaw;
+
+            // If you didn’t add ?cellFormat=string or Airtable still returns rec IDs, resolve to name:
+            const optionValue = (t) => t?.value ?? t?.name ?? String(t ?? "");
+            if (isRecId(remoteType)) {
+                const hit = (allTypes || []).find((t) => t.id === remoteType);
+                if (hit?.name) remoteType = hit.name;
+            }
+
+            // 3) Try to infer category for this type (so the select options contain it)
+            const match = (allTypes || []).find((t) => optionValue(t) === remoteType);
+            const inferredCat = match?.category;
+
+            // 4) Write state (update Category too if needed)
+            const idForUpdate = item?.id ?? localItem?.id;
+            if (inferredCat && inferredCat !== (localItem?.["Category Item Type"] || localItem?.Category)) {
+                setLocalItem((prev) => ({
+                    ...(prev || {}),
+                    "Category Item Type": inferredCat,
+                    Category: inferredCat,
+                    Type: remoteType,
+                }));
+                safeOnChange({ id: idForUpdate, "Category Item Type": inferredCat, Category: inferredCat, Type: remoteType });
+            } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
+                setLocalItem((prev) => ({ ...(prev || {}), Type: remoteType }));
+                safeOnChange({ id: idForUpdate, Type: remoteType });
+            }
+
+            if (DEBUG_SYNC) {
+                console.log("[Type sync] typeKey:", typeKey, "remoteType:", remoteType, "inferredCat:", inferredCat);
+            }
+
         } catch (err) {
             console.warn("[Type sync] error", err);
         }
@@ -410,6 +458,11 @@ export default function ItemDetailCard({
         // (If you want to clamp or prevent negatives, add logic here)
     };
 
+    const optionValue = (t) => t.value ?? t.name ?? String(t);
+    const typeOptions = typesForSelectedCategory || [];
+    const needsTempOption =
+        Boolean(localItem.Type) && !typeOptions.some((t) => optionValue(t) === localItem.Type);
+
     return (
         <>
             <div
@@ -479,7 +532,11 @@ export default function ItemDetailCard({
                             onBlur={() => setIsTypeFocused(false)}
                         >
                             <option value="">Select Type</option>
-                            {(typesForSelectedCategory || []).map((t) => (
+                            {needsTempOption && (
+                                <option value={localItem.Type}>• {localItem.Type} (from Airtable)</option>
+                            )}
+
+                            {typeOptions.map((t) => (
                                 <option
                                     key={(t.value ?? t.id ?? t.name ?? String(t))}
                                     value={(t.value ?? t.name ?? String(t))}
