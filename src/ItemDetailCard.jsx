@@ -162,8 +162,6 @@ export default function ItemDetailCard({
     });
 
 
-    // Force a tiny data change so memoized nodes re-render
-    const withVisualBump = (obj) => ({ ...obj, _visualKey: Date.now() });
 
     // One-shot pull from Airtable; set force=true to ignore isTypeFocused
     const refreshRemoteType = async (force = false) => {
@@ -251,21 +249,13 @@ export default function ItemDetailCard({
             // 4) Write state (update Category too if needed)
             const idForUpdate = item?.id ?? localItem?.id;
             if (inferredCat && inferredCat !== (localItem?.["Category Item Type"] || localItem?.Category)) {
-                // category + type
-                const updatedA = {
-                    ...(localItem || {}),
-                    id: idForUpdate,
-                    "Category Item Type": inferredCat,
-                    Category: inferredCat,
-                    Type: remoteType,
-                };
-                commitUpdate(withVisualBump(updatedA), { reposition: false, immediate: true });
-
-                // only type
-                const updatedB = { ...(localItem || {}), id: idForUpdate, Type: remoteType };
-                commitUpdate(withVisualBump(updatedB), { reposition: false, immediate: true });
-
+                const updated = { ...(localItem || {}), id: idForUpdate, "Category Item Type": inferredCat, Category: inferredCat, Type: remoteType };
+                commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
+            } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
+                const updated = { ...(localItem || {}), id: idForUpdate, Type: remoteType };
+                commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
             }
+
 
             if (DEBUG_SYNC) {
                 console.log("[Type sync] typeKey:", typeKey, "remoteType:", remoteType, "inferredCat:", inferredCat);
@@ -439,23 +429,7 @@ export default function ItemDetailCard({
             if (debounceRef.current) clearTimeout(debounceRef.current);
         };
     }, []);
-    // 1) Edge → Item: when the selected edge's inlineValveType changes,
-    //    reflect it in the inline valve item's Type (and persist via debounced commitUpdate).
-    useEffect(() => {
-        if (!item) return;
-        const edgeId = item.edgeId || localItem.edgeId;
-        if (!edgeId) return;
-        const edge = Array.isArray(edges) ? edges.find(e => e.id === edgeId) : null;
-        const inlineType = edge?.data?.inlineValveType;
-        if (!inlineType) return;
-
-        // If ItemDetailCard isn't showing the same Type, mirror it and persist
-        if ((localItem?.Type || '') !== inlineType) {
-            setLocalItem(prev => ({ ...prev, Type: inlineType }));
-            // persist to parent (respects your 2s debounce in commitUpdate)
-            
-        }
-    }, [edges, item?.edgeId]); 
+    
     // 2) Item → Edge: if user changes Type in the right tab for an inline valve item,
     //    keep the connected edge's inlineValveType in sync.
     useEffect(() => {
