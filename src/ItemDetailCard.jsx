@@ -18,8 +18,10 @@ export default function ItemDetailCard({
     const [localItem, setLocalItem] = useState(item || {});
     const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
+    const [isTypeFocused, setIsTypeFocused] = useState(false);
+
     // after the useState hooks
-    const currentCategory = React.useMemo(() => {
+    const currentCategory = useMemo(() => {
         const raw = localItem?.['Category Item Type'] ?? localItem?.Category ?? '';
         const val = Array.isArray(raw) ? raw[0] : raw;
         return (val ?? '').toString().trim() || 'Equipment';
@@ -330,7 +332,7 @@ export default function ItemDetailCard({
         const desiredType = localItem?.Type || '';
 
         if (desiredType && desiredType !== currentEdgeType) {
-            onUpdateEdge(item.edgeId, {
+            onUpdateEdge && onUpdateEdge(item.edgeId || liveEdge.id, {
                 data: { ...(edge.data || {}), inlineValveType: desiredType },
             });
         }
@@ -356,7 +358,7 @@ export default function ItemDetailCard({
 
     const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
     const typesForSelectedCategory = allTypes.filter(
-           (t) => t.category === (localItem['Category Item Type'] || 'Equipment')
+        (t) => t.category === currentCategory
           );
 
     // For Edge inspector: list only Inline Valve types
@@ -616,7 +618,7 @@ export default function ItemDetailCard({
                                 value={liveEdge?.data?.inlineValveType || ''}
                                 onChange={(e) =>
                                     onUpdateEdge &&
-                                    onUpdateEdge(item.edgeId, {
+                                    onUpdateEdge(item.edgeId || liveEdge.id, {
                                         data: { ...(liveEdge.data || {}), inlineValveType: e.target.value },
                                     })
                                 }
@@ -636,9 +638,10 @@ export default function ItemDetailCard({
                             style={{ flex: 1, padding: 8 }}
                             value={liveEdge.label ?? ''}
                             placeholder="Edge label"
-                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId, { label: e.target.value })}
+                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId || liveEdge.id, { label: e.target.value })}
                         />
-                        <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId, { animated: !liveEdge.animated })}>
+
+                            <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId || liveEdge.id, { animated: !liveEdge.animated })}>
                             {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
                         </button>
                     </div>
@@ -673,8 +676,7 @@ export default function ItemDetailCard({
                             type="color"
                             value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
                             onChange={(e) =>
-                                onUpdateEdge &&
-                                onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
+                                onUpdateEdge && onUpdateEdge(item.edgeId || liveEdge.id, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
                             }
                         />
                         <input
@@ -682,13 +684,12 @@ export default function ItemDetailCard({
                             value={(liveEdge.style && liveEdge.style.stroke) || ''}
                             onChange={(e) =>
                                 onUpdateEdge &&
-                                onUpdateEdge(item.edgeId, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
+                                onUpdateEdge(item.edgeId || liveEdge.id, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
                             }
                             style={{ flex: 1, padding: 8 }}
                         />
-                        {item?.edgeId && onDeleteEdge && (
-                            <button
-                                onClick={() => onDeleteEdge(item.edgeId)}
+                        {(item?.edgeId || liveEdge?.id) && onDeleteEdge && (
+                               <button onClick={() => onDeleteEdge(item.edgeId || liveEdge.id)}
                                 style={{
                                     marginLeft: 8,
                                     background: '#f44336',
