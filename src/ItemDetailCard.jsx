@@ -118,60 +118,88 @@ export default function ItemDetailCard({
         return () => { alive = false; };
     }, []);
 
-    // Live-sync "Type" from Airtable → ItemDetailCard (every 5s).
-    // Uses your existing env vars and reads the item record directly.
-    // (Later you can switch this fetch to your /api/airtable endpoint.)
-    useEffect(() => {
-        const id = item?.id || localItem?.id;
-        if (!id) return;
 
-        let alive = true;
+    // Helper: rec id?
+    const isRecId = (s) => typeof s === "string" && s.startsWith("rec");
 
-        const fetchRemoteType = async () => {
-            try {
-                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                // Use whichever you have defined for the ITEMS table:
-                const itemsTableId =
-                    import.meta.env.VITE_AIRTABLE_TABLE_ID ||
-                    import.meta.env.VITE_AIRTABLE_ITEMS_TABLE_ID;
+    // Resolved table name (encode so "Table 13" works)
+    const itemsTableRaw =
+        import.meta.env.VITE_AIRTABLE_TABLE_ID ||
+        import.meta.env.VITE_AIRTABLE_ITEMS_TABLE_ID ||
+        "Table 13";
+    const itemsTable = encodeURIComponent(itemsTableRaw);
 
-                if (!baseId || !token || !itemsTableId) return;
+    // One-shot pull from Airtable; set force=true to ignore isTypeFocused
+    const refreshRemoteType = async (force = false) => {
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+        if (!baseId || !token || !itemsTableRaw) {
+            console.warn("[Type sync] Missing envs", { baseId: !!baseId, token: !!token, itemsTableRaw });
+            return;
+        }
 
-                const url = `https://api.airtable.com/v0/${baseId}/${itemsTableId}/${id}`;
+        if (!force && isTypeFocused) return;
+
+        const idOrCode = item?.id || localItem?.id || localItem?.["Item Code"] || "";
+        if (!idOrCode) return;
+
+        try {
+            let rec = null;
+
+            if (isRecId(idOrCode)) {
+                // direct record endpoint
+                const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}/${idOrCode}`;
                 const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-                if (!res.ok) return;
-
-                const rec = await res.json();
-                const val = rec?.fields?.Type;
-                const remoteType = Array.isArray(val) ? val[0] : val;
-
-                if (!alive) return;
-
-                if (remoteType != null && remoteType !== (localItem?.Type ?? '')) {
-                    // Update the panel
-                    setLocalItem(prev => ({ ...(prev || {}), Type: remoteType }));
-                    // Push upstream so node/icon refresh too
-                    safeOnChange({ id, Type: remoteType });
+                if (!res.ok) {
+                    console.warn("[Type sync] /record fetch failed", res.status, await res.text());
+                    return;
                 }
-            } catch (err) {
-                console.warn('Type live-sync failed:', err);
+                rec = await res.json();
+            } else {
+                // fall back: find by Item Code / Code / Name
+                const clauses = [];
+                if (idOrCode) clauses.push(`{Item Code}='${idOrCode}'`, `{Code}='${idOrCode}'`);
+                if (localItem?.Name) clauses.push(`{Name}='${String(localItem.Name).replace(/'/g, "\\'")}'`);
+                const formula = `OR(${clauses.join(",")})`;
+                const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}?maxRecords=1&filterByFormula=${encodeURIComponent(formula)}`;
+                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                if (!res.ok) {
+                    console.warn("[Type sync] /list fetch failed", res.status, await res.text());
+                    return;
+                }
+                const data = await res.json();
+                rec = data.records?.[0];
+                if (!rec) {
+                    console.warn("[Type sync] No matching record found for", { idOrCode, name: localItem?.Name });
+                    return;
+                }
             }
-        };
 
-        // initial check
-        fetchRemoteType();
+            const f = rec?.fields || {};
+            // accept both "Type" and "Type Name", plus single/multi/linked
+            const remoteRaw = f.Type ?? f["Type Name"] ?? null;
+            const remoteType = Array.isArray(remoteRaw) ? remoteRaw[0] : remoteRaw;
 
-        // poll every 5s; pause while user is editing the Type field
-        const t = setInterval(() => {
-            if (!isTypeFocused) fetchRemoteType();
-        }, 5000);
+            if (remoteType != null && remoteType !== (localItem?.Type ?? "")) {
+                setLocalItem(prev => ({ ...(prev || {}), Type: remoteType }));
+                safeOnChange({ id: item?.id ?? localItem?.id, Type: remoteType });
+                // optional: console.log("[Type sync] updated from Airtable →", remoteType);
+            }
+        } catch (err) {
+            console.warn("[Type sync] error", err);
+        }
+    };
 
-        return () => {
-            alive = false;
-            clearInterval(t);
-        };
-    }, [item?.id, localItem?.id, isTypeFocused]);
+    useEffect(() => {
+        let t;
+        // initial pull
+        refreshRemoteType(false);
+        // poll every 5s
+        t = setInterval(() => refreshRemoteType(false), 5000);
+        return () => clearInterval(t);
+        // rebind if item or env changes
+    }, [item?.id, localItem?.id, isTypeFocused, itemsTable]);
+
 
 
     const fetchTypeNameById = async (typeId, category) => {
@@ -459,6 +487,15 @@ export default function ItemDetailCard({
                             ))}
 
                         </select>
+                        <button
+                            style={{ marginLeft: 8, padding: "6px 10px", borderRadius: 6 }}
+                            title="Sync from Airtable"
+                            onClick={() => refreshRemoteType(true)}
+                        >
+                            ↻
+                        </button>
+                    </div>
+
                     </div>
 
                     <div style={rowStyle}>
