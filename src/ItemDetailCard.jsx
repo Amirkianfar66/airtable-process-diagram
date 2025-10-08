@@ -132,6 +132,14 @@ export default function ItemDetailCard({
         "Table 13";
     const itemsTable = encodeURIComponent(itemsTableRaw);
 
+    // Map a linked-record id (rec...) to its display name using allTypes or a one-off fetch
+    const getTypeName = async (val) => {
+        if (!isRecId(val)) return String(val ?? "");
+        const hit = (allTypes || []).find((t) => t.id === val);
+        if (hit?.name) return hit.name;
+        return await fetchTypeNameById(val, currentCategory); // you already have this helper
+    };
+
     // One-shot pull from Airtable; set force=true to ignore isTypeFocused
     const refreshRemoteType = async (force = false) => {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -201,16 +209,13 @@ export default function ItemDetailCard({
                 return;
             }
 
-            // 2) Normalize to a single value (string or rec id)
-            let remoteRaw = f[typeKey];
-            let remoteType = Array.isArray(remoteRaw) ? remoteRaw[0] : remoteRaw;
+            // 2) Normalize to a single value then resolve any rec... to a display name
+            const remoteRaw = f[typeKey];
+            const remoteType0 = Array.isArray(remoteRaw) ? remoteRaw[0] : remoteRaw;
+            const remoteType = await getTypeName(remoteType0);
 
-            // If you didn’t add ?cellFormat=string or Airtable still returns rec IDs, resolve to name:
             const optionValue = (t) => t?.value ?? t?.name ?? String(t ?? "");
-            if (isRecId(remoteType)) {
-                const hit = (allTypes || []).find((t) => t.id === remoteType);
-                if (hit?.name) remoteType = hit.name;
-            }
+
 
             // 3) Try to infer category for this type (so the select options contain it)
             const match = (allTypes || []).find((t) => optionValue(t) === remoteType);
@@ -239,6 +244,20 @@ export default function ItemDetailCard({
             console.warn("[Type sync] error", err);
         }
     };
+
+    useEffect(() => {
+        (async () => {
+            const v = localItem?.Type;
+            if (isRecId(v)) {
+                const name = await getTypeName(v);
+                if (name && name !== v) {
+                    // Update UI only; don't push upstream here
+                    setLocalItem(prev => ({ ...(prev || {}), Type: name }));
+                }
+            }
+        })();
+    }, [localItem?.Type, allTypes, currentCategory]);
+
 
     useEffect(() => {
         let t;
@@ -271,7 +290,7 @@ export default function ItemDetailCard({
         if (!tableId) return 'Unknown';
 
         try {
-            const url = `https://api.airtable.com/v0/${baseId}/${tableId}/${typeId}`;
+            const url = `https://api.airtable.com/v0/${baseId}/${tableId}/${typeId}?cellFormat=string`;
             const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
             const record = await res.json();
             const name = (record?.fields && (record.fields[fieldName] || record.fields['Name'])) || 'Unknown Type';
