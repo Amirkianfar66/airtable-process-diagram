@@ -150,7 +150,7 @@ export default function ItemDetailCard({
 
             if (isRecId(idOrCode)) {
                 // direct record endpoint
-                const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}/${idOrCode}`;
+                const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}/${idOrCode}?cellFormat=string`;
                 const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
                 if (!res.ok) {
                     console.warn("[Type sync] /record fetch failed", res.status, await res.text());
@@ -163,7 +163,7 @@ export default function ItemDetailCard({
                 if (idOrCode) clauses.push(`{Item Code}='${idOrCode}'`, `{Code}='${idOrCode}'`);
                 if (localItem?.Name) clauses.push(`{Name}='${String(localItem.Name).replace(/'/g, "\\'")}'`);
                 const formula = `OR(${clauses.join(",")})`;
-                const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}?maxRecords=1&filterByFormula=${encodeURIComponent(formula)}`;
+                const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}?maxRecords=1&cellFormat=string&filterByFormula=${encodeURIComponent(formula)}`;
                 const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
                 if (!res.ok) {
                     console.warn("[Type sync] /list fetch failed", res.status, await res.text());
