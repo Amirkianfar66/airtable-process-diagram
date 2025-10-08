@@ -244,16 +244,19 @@ export default function ItemDetailCard({
             // 4) Write state (update Category too if needed)
             const idForUpdate = item?.id ?? localItem?.id;
             if (inferredCat && inferredCat !== (localItem?.["Category Item Type"] || localItem?.Category)) {
-                setLocalItem((prev) => ({
-                    ...(prev || {}),
+                const updatedA = {
+                    ...(localItem || {}),
+                    id: idForUpdate,
                     "Category Item Type": inferredCat,
                     Category: inferredCat,
                     Type: remoteType,
-                }));
+                };
+                commitUpdate(updatedA, { reposition: false });
+
                 safeOnChange({ id: idForUpdate, "Category Item Type": inferredCat, Category: inferredCat, Type: remoteType });
             } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
-                setLocalItem((prev) => ({ ...(prev || {}), Type: remoteType }));
-                safeOnChange({ id: idForUpdate, Type: remoteType });
+                const updatedB = { ...(localItem || {}), id: idForUpdate, Type: remoteType };
+                commitUpdate(updatedB, { reposition: false });
             }
 
             if (DEBUG_SYNC) {
