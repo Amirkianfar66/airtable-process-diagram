@@ -157,6 +157,8 @@ export default function ItemDetailCard({
         return fetched || ""; // return empty if unresolved (don't fabricate "Unknown")
     };
 
+    // Force a tiny data change so memoized nodes re-render
+    const withVisualBump = (obj) => ({ ...obj, _visualKey: Date.now() });
 
     // One-shot pull from Airtable; set force=true to ignore isTypeFocused
     const refreshRemoteType = async (force = false) => {
@@ -251,12 +253,10 @@ export default function ItemDetailCard({
                     Category: inferredCat,
                     Type: remoteType,
                 };
-                commitUpdate(updatedA, { reposition: false });
-
-                safeOnChange({ id: idForUpdate, "Category Item Type": inferredCat, Category: inferredCat, Type: remoteType });
+                commitUpdate(withVisualBump(updatedA), { reposition: false });
             } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
                 const updatedB = { ...(localItem || {}), id: idForUpdate, Type: remoteType };
-                commitUpdate(updatedB, { reposition: false });
+                commitUpdate(withVisualBump(updatedB), { reposition: false });
             }
 
             if (DEBUG_SYNC) {
@@ -351,7 +351,8 @@ export default function ItemDetailCard({
         // If panel shows a different value, update it and persist (debounced)
         if ((localItem?.Type || '') !== inlineType) {
             setLocalItem(prev => ({ ...prev, Type: inlineType }));
-            commitUpdate({ Type: inlineType }); // debounced 2s
+            const upd = { ...(localItem || {}), id: item?.id ?? localItem?.id, Type: inlineType };
+            commitUpdate(withVisualBump(upd), { reposition: false });
         }
     }, [edges, item?.id, localItem?.['Category Item Type'], localItem?.Category]);
 
