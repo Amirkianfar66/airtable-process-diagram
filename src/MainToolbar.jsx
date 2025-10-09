@@ -37,11 +37,13 @@ export default function MainToolbar({
     }, []);
 
     const gotoAppTab = (name) => {
-        setAppTab(name);
-        if (typeof window !== "undefined" && typeof window.setAppTab === "function") {
-            window.setAppTab(name); // implemented in your AppTabs shell
+        const fn = typeof window !== "undefined" ? window.setAppTab : undefined;
+        if (typeof fn === "function") {
+            fn(name);
         } else {
-            console.warn("window.setAppTab is not defined. Ensure AppTabs exposes it.");
+            // Fallback: tell AppTabs via event; also update local highlight
+            window.dispatchEvent(new CustomEvent("tabs:set", { detail: name }));
+            setAppTab(name);
         }
     };
 
