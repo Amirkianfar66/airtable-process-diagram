@@ -5,17 +5,16 @@ import { ReactFlowProvider } from "reactflow";
 import AppTabs from "./AppTabs.jsx";
 import "./index.css";
 
-// Optional: define a stub before AppTabs mounts so toolbar calls are safe
+// (optional) stub so toolbar can switch tabs before AppTabs mounts
 if (typeof window !== "undefined" && typeof window.setAppTab !== "function") {
     window.setAppTab = (nameOrIndex) => { window.__pendingSetAppTab = nameOrIndex; };
     window.getAppTab = () => "canvas";
 }
 
-const el = document.getElementById("root"); // <-- matches your index.html
-if (!el) throw new Error('Could not find #root. Check index.html');
+const rootEl = document.getElementById("root");
+if (!rootEl) throw new Error('Missing <div id="root"></div> in index.html');
 
-createRoot(el).render(
-    // No StrictMode (avoids dev double-mount)
+createRoot(rootEl).render(
     <ReactFlowProvider>
         <AppTabs />
     </ReactFlowProvider>

@@ -1,15 +1,14 @@
 ﻿// AppTabs.jsx
 import React from "react";
 import AirtableItemsTable from "./AirtableItemsTable.jsx"; // Tab 1
-import ProcessDiagram from "./ProcessDiagram.jsx";
+const ProcessDiagram = React.lazy(() => import("./ProcessDiagram.jsx")); // Tab 2 (lazy)
+import ErrorBoundary from "./ErrorBoundary.jsx";
 
 // ---------- define safe globals ASAP (before React runs) ----------
 if (typeof window !== "undefined") {
-    // If toolbar calls this before AppTabs mounts, don't crash; queue desired tab
     if (typeof window.setAppTab !== "function") {
         window.setAppTab = (nameOrIndex) => {
             window.__pendingSetAppTab = nameOrIndex;
-            // also emit a generic event some code might listen for
             window.dispatchEvent(new CustomEvent("tabs:set", { detail: nameOrIndex }));
         };
     }
@@ -66,18 +65,15 @@ export default function AppTabs() {
             window.dispatchEvent(new CustomEvent("appTabChanged", { detail: { tab: INDEX_TO_TAB[idx] } }));
         };
 
-        // Expose real functions
         window.setAppTab = realSetAppTab;
         window.getAppTab = () => INDEX_TO_TAB[tab];
 
-        // Handle queued request (if toolbar called setAppTab before mount)
         if (window.__pendingSetAppTab !== undefined) {
             const pending = window.__pendingSetAppTab;
             delete window.__pendingSetAppTab;
             realSetAppTab(pending);
         }
 
-        // Optional convenience events
         const onSet = (e) => realSetAppTab(e?.detail);
         const onNext = () => realSetAppTab(tab + 1);
         const onPrev = () => realSetAppTab(tab - 1);
@@ -86,7 +82,6 @@ export default function AppTabs() {
         window.addEventListener("tabs:prev", onPrev);
 
         return () => {
-            // keep the stub if unmounted in HMR, but remove listeners
             window.removeEventListener("tabs:set", onSet);
             window.removeEventListener("tabs:next", onNext);
             window.removeEventListener("tabs:prev", onPrev);
@@ -104,15 +99,26 @@ export default function AppTabs() {
 
             {/* Tabs content */}
             <div style={{ flex: 1, minHeight: 0 }}>
-                <div style={{ display: tab === 0 ? "block" : "none", height: "100%" }}>
-                    <AirtableItemsTable />
-                </div>
-                <div style={{ display: tab === 1 ? "block" : "none", height: "100%" }}>
-                    <ProcessDiagram />
-                </div>
-                <div style={{ display: tab === 2 ? "block" : "none", padding: 16 }}>
-                    3D preview coming soon…
-                </div>
+                {/* Tab 1: Items table */}
+                {tab === 0 ? (
+                    <div style={{ height: "100%" }}>
+                        <AirtableItemsTable />
+                    </div>
+                ) : null}
+
+                {/* Tab 2: your 2D canvas (lazy + boundary; only mounts when active) */}
+                {tab === 1 ? (
+                    <div style={{ height: "100%" }}>
+                        <React.Suspense fallback={<div style={{ padding: 12 }}>Loading canvas…</div>}>
+                            <ErrorBoundary>
+                                <ProcessDiagram />
+                            </ErrorBoundary>
+                        </React.Suspense>
+                    </div>
+                ) : null}
+
+                {/* Tab 3: placeholder */}
+                {tab === 2 ? <div style={{ padding: 16 }}>3D preview coming soon…</div> : null}
             </div>
         </div>
     );
