@@ -245,9 +245,7 @@ export default function ItemDetailCard({
             const remoteType = await getTypeName(remoteType0); // ← always a name or ""
             if (!remoteType) return; // don't write unknowns
 
-
             const optionValue = (t) => t?.value ?? t?.name ?? String(t ?? "");
-
 
             // 3) Try to infer category for this type (so the select options contain it)
             const match = (allTypes || []).find((t) => optionValue(t) === remoteType);
@@ -255,39 +253,36 @@ export default function ItemDetailCard({
 
             // 4) Write state (update Category too if needed)
             const idForUpdate = item?.id ?? localItem?.id;
-            if (inferredCat && inferredCat !== (localItem?.['Category Item Type'] || localItem?.Category)) {
+
+            if (inferredCat && inferredCat !== (localItem?.["Category Item Type"] || localItem?.Category)) {
                 const updated = {
                     ...(localItem || {}),
                     id: idForUpdate,
                     "Category Item Type": inferredCat,
                     Category: inferredCat,
                     Type: remoteType,
-                    TypeKey: normalizeTypeKey(remoteType), // 👈 add this
+                    TypeKey: normalizeTypeKey(remoteType), // keep icons synced
                 };
                 commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
-            }
-
             } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
                 const updated = {
                     ...(localItem || {}),
                     id: idForUpdate,
-                    /* Category updates if any ... */
+                    // Category unchanged
                     Type: remoteType,
                     TypeKey: normalizeTypeKey(remoteType),
                 };
                 commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
-
             }
-
 
             if (DEBUG_SYNC) {
                 console.log("[Type sync] typeKey:", typeKey, "remoteType:", remoteType, "inferredCat:", inferredCat);
             }
-
         } catch (err) {
             console.warn("[Type sync] error", err);
         }
     };
+
 
     useEffect(() => {
         (async () => {
