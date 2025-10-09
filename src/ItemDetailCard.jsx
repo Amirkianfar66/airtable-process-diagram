@@ -288,20 +288,15 @@ export default function ItemDetailCard({
         (async () => {
             const v = localItem?.Type;
             if (isRecId(v)) {
-                const name = await getTypeName(v);            // e.g., "Tank"
+                const name = await getTypeName(v);
                 if (name && name !== v) {
-                    const idForUpdate = item?.id ?? localItem?.id;
-                    const typeKey = normalizeTypeKey(name);
-                    // 1) update the panel
-                    setLocalItem(prev => ({ ...(prev || {}), Type: name, TypeKey: typeKey }));
-                    // 2) push to items/nodes NOW so SVG recomputes
-                    const updated = { ...(localItem || {}), id: idForUpdate, Type: name, TypeKey: typeKey };
-                    commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
+                    // Update UI only; don't push upstream here
+                    setLocalItem(prev => ({ ...(prev || {}), Type: name, TypeKey: normalizeTypeKey(name) }));
+
                 }
             }
         })();
     }, [localItem?.Type, allTypes, currentCategory]);
-
 
 
     useEffect(() => {
