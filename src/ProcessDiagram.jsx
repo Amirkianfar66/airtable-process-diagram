@@ -441,6 +441,7 @@ export default function ProcessDiagram() {
                     const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
 
                     const rawType = Array.isArray(item.Type) ? (item.Type[0] ?? '') : String(item.Type || '');
+                    const labelType = rawType; // with cellFormat=string this is already e.g. "Tank"
                     const looksLikeRec = typeof rawType === 'string' && /^rec[a-z0-9]+/i.test(rawType);
                     const safeType = looksLikeRec ? '' : rawType;
 

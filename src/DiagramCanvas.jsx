@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
+﻿import ReactFlow, { Controls, Background, useReactFlow } from 'reactflow';
 import ReactFlow, { Controls, Background } from 'reactflow';
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
@@ -346,6 +346,18 @@ export default function DiagramCanvas({
             );
         }
     };
+    const { fitView } = useReactFlow();
+    const firstFitDone = useRef(false);
+
+    useEffect(() => {
+        if (!firstFitDone.current && Array.isArray(nodes) && nodes.length > 0) {
+            // wait a tick so RF has measured the canvas
+            requestAnimationFrame(() => {
+                try { fitView({ padding: 0.2, includeHiddenNodes: true }); } catch { }
+                firstFitDone.current = true;
+            });
+        }
+    }, [nodes?.length, fitView]);
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
