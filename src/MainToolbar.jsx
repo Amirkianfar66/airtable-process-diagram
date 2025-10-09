@@ -37,15 +37,28 @@ export default function MainToolbar({
     }, []);
 
     const gotoAppTab = (name) => {
-        const fn = typeof window !== "undefined" ? window.setAppTab : undefined;
-        if (typeof fn === "function") {
-            fn(name);
-        } else {
-            // Fallback: tell AppTabs via event; also update local highlight
-            window.dispatchEvent(new CustomEvent("tabs:set", { detail: name }));
-            setAppTab(name);
+        // Open/close the overlay page
+        if (name === "data") {
+            window.openDataPanel?.();
+            setAppTab("data");
+            return;
         }
+        if (name === "canvas") {
+            window.closeDataPanel?.();
+            setAppTab("canvas");
+            return;
+        }
+        if (name === "3d") {
+            // future
+            setAppTab("3d");
+            return;
+        }
+
+        // fallback to global tab setter if you keep it around
+        const fn = (typeof window !== "undefined") ? window.setAppTab : undefined;
+        if (typeof fn === "function") fn(name);
     };
+
 
     // anchor positioning (panel shows under clicked tab button)
     const wrapperRef = useRef(null);
