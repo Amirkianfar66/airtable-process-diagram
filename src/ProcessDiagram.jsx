@@ -155,10 +155,7 @@ export const fetchData = async () => {
 export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const onConnect = React.useCallback(
-           (params) => setEdges((eds) => addEdge({ type: 'step', animated: true, ...params }, eds)),
-           []
-    );
+    
     // ---- Autosave (no notes) ----
     const DIAGRAM_KEY = 'global'; // or derive from project/URL
     const debounce = (fn, ms = 800) => {
@@ -668,6 +665,21 @@ export default function ProcessDiagram() {
                         builtNodes
                     )
                 );
+                // 4.1) Restore autosaved layout (positions/edges/unit grid)
+                try {
+                    const cloud = await loadLayoutFromAirtable();
+                    const local = JSON.parse(localStorage.getItem('diagram:autoSave') || 'null');
+                    const snap = cloud || local;
+                    if (snap) {
+                        setNodes(prev => applySnapshotToCurrentNodes(prev, snap));
+                        if (Array.isArray(snap.edges) && snap.edges.length) {
+                            setEdges(_ => (snap.edges || []).filter(e => validIdsInit.has(e.source) && validIdsInit.has(e.target)));
+                        }
+                        if (Array.isArray(snap.unitLayoutOrder) && snap.unitLayoutOrder.length) {
+                            setUnitLayoutOrder(snap.unitLayoutOrder);
+                        }
+                    }
+                } catch { }
 
                 // 5) Mirror positions back to items
                 const posById = Object.fromEntries((builtNodes || []).map((n) => [String(n.id), n.position || {}]));
