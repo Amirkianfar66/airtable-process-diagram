@@ -1,13 +1,21 @@
-﻿//ScalableIconNode.jsx
-import React from "react";
+﻿// ScalableIconNode.jsx
+import React, { useMemo } from "react";
 import { getItemIcon } from "./IconManager";
 
-export default function ScalableIconNode({ data }) {
-    const renderIcon = () => {
-        if (!data.item) return <div style={{ width: 40, height: 40 }} />;
+export default function ScalableIconNode({ data = {} }) {
+    const item = data?.item || null;
 
-        return getItemIcon(data.item, { width: 40, height: 40 });
-    };
+    // Remount the icon when important props change
+    const revKey = useMemo(() => {
+        if (!item) return "empty";
+        return [
+            item.TypeKey || "",
+            item.Type || "",
+            item.__iconRev || "",      // optional manual bump if you ever need it
+            item.Icon || "",           // in case you switch by explicit icon name
+            item.Category || "",       // safe extra dimension
+        ].join("|");
+    }, [item]);
 
     return (
         <div
@@ -23,8 +31,11 @@ export default function ScalableIconNode({ data }) {
                 minHeight: 60,
                 cursor: "pointer",
             }}
+            title={item?.Type || ""}
         >
-            {renderIcon()}
+            <div key={revKey} style={{ width: 40, height: 40 }}>
+                {item ? getItemIcon(item, { width: 40, height: 40 }) : <div style={{ width: 40, height: 40 }} />}
+            </div>
             <div style={{ fontSize: 12, textAlign: "center" }}>{data.label}</div>
         </div>
     );

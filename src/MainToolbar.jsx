@@ -12,12 +12,38 @@ export default function MainToolbar({
     deleteNode,
     onUndo,
     onRedo,
-    // for Unit layjjhout onfig
+    // for Unit layout config
     availableUnits = [],
     onUnitLayoutChange = () => { },
 }) {
-    const [activeTab, setActiveTab] = useState('File');
+    const [activeTab, setActiveTab] = useState("File");
     const [panelOpen, setPanelOpen] = useState(false);
+
+    // ---- App-level tabs (Data / 2D / 3D) ----
+    const [appTab, setAppTab] = useState(() => {
+        if (typeof window !== "undefined" && typeof window.getAppTab === "function") {
+            return window.getAppTab();
+        }
+        return "canvas"; // default highlight = 2D
+    });
+
+    useEffect(() => {
+        const onAppTabChanged = (e) => {
+            const name = e?.detail?.tab;
+            if (name) setAppTab(name);
+        };
+        window.addEventListener("appTabChanged", onAppTabChanged);
+        return () => window.removeEventListener("appTabChanged", onAppTabChanged);
+    }, []);
+
+    const gotoAppTab = (name) => {
+        setAppTab(name);
+        if (typeof window !== "undefined" && typeof window.setAppTab === "function") {
+            window.setAppTab(name); // implemented in your AppTabs shell
+        } else {
+            console.warn("window.setAppTab is not defined. Ensure AppTabs exposes it.");
+        }
+    };
 
     // anchor positioning (panel shows under clicked tab button)
     const wrapperRef = useRef(null);
@@ -80,59 +106,59 @@ export default function MainToolbar({
 
     // --- File actions ---
     const handleSave = () => {
-        if (!setNodes || !setEdges) return alert('Save requires access to setNodes and setEdges.');
+        if (!setNodes || !setEdges) return alert("Save requires access to setNodes and setEdges.");
         try {
             const payload = { nodes, edges };
-            localStorage.setItem('diagram-saved', JSON.stringify(payload));
-            alert('Canvas saved to localStorage (diagram-saved)');
+            localStorage.setItem("diagram-saved", JSON.stringify(payload));
+            alert("Canvas saved to localStorage (diagram-saved)");
         } catch {
-            alert('Save failed');
+            alert("Save failed");
         }
     };
 
     const handleLoad = () => {
-        if (!setNodes || !setEdges) return alert('Load requires access to setNodes and setEdges.');
+        if (!setNodes || !setEdges) return alert("Load requires access to setNodes and setEdges.");
         try {
-            const raw = localStorage.getItem('diagram-saved');
-            if (!raw) return alert('No saved canvas found (localStorage key: diagram-saved)');
+            const raw = localStorage.getItem("diagram-saved");
+            if (!raw) return alert("No saved canvas found (localStorage key: diagram-saved)");
             const parsed = JSON.parse(raw);
             setNodes(parsed.nodes || []);
             setEdges(parsed.edges || []);
-            alert('Canvas loaded');
+            alert("Canvas loaded");
         } catch {
-            alert('Load failed');
+            alert("Load failed");
         }
     };
 
     const handleReset = () => {
-        if (!setNodes || !setEdges) return alert('Reset requires access to setNodes and setEdges.');
-        if (!confirm('Reset canvas? This will clear nodes and edges.')) return;
+        if (!setNodes || !setEdges) return alert("Reset requires access to setNodes and setEdges.");
+        if (!confirm("Reset canvas? This will clear nodes and edges.")) return;
         setNodes([]);
         setEdges([]);
     };
 
     // --- Edit actions ---
-    const handleUndo = () => (typeof onUndo === 'function' ? onUndo() : alert('Undo not available'));
-    const handleRedo = () => (typeof onRedo === 'function' ? onRedo() : alert('Redo not available'));
+    const handleUndo = () => (typeof onUndo === "function" ? onUndo() : alert("Undo not available"));
+    const handleRedo = () => (typeof onRedo === "function" ? onRedo() : alert("Redo not available"));
 
     const handleCopy = () => {
-        if (!selectedNodes?.length) return alert('Select nodes to copy');
+        if (!selectedNodes?.length) return alert("Select nodes to copy");
         navigator.clipboard?.writeText(JSON.stringify(selectedNodes)).catch(() => { });
         alert(`Copied ${selectedNodes.length} node(s) to clipboard JSON`);
     };
 
     const handleCut = () => {
-        if (!selectedNodes?.length) return alert('Select nodes to cut');
-        if (!setNodes) return alert('Cut requires setNodes');
+        if (!selectedNodes?.length) return alert("Select nodes to cut");
+        if (!setNodes) return alert("Cut requires setNodes");
         setNodes((nds) => nds.filter((n) => !selectedNodes.some((s) => s.id === n.id)));
     };
 
     const handlePaste = async () => {
-        if (!setNodes) return alert('Paste requires setNodes');
+        if (!setNodes) return alert("Paste requires setNodes");
         try {
             const txt = await navigator.clipboard.readText();
             const arr = JSON.parse(txt);
-            if (!Array.isArray(arr)) return alert('Clipboard does not contain nodes JSON');
+            if (!Array.isArray(arr)) return alert("Clipboard does not contain nodes JSON");
             const copied = arr.map((orig) => ({
                 ...orig,
                 id: `${orig.id}-copy-${Date.now()}`,
@@ -144,53 +170,57 @@ export default function MainToolbar({
             setNodes((nds) => [...nds, ...copied]);
             alert(`Pasted ${copied.length} node(s)`);
         } catch {
-            alert('Failed to paste nodes from clipboard');
+            alert("Failed to paste nodes from clipboard");
         }
     };
 
     const handleGroup = () => {
-        if (!selectedNodes || selectedNodes.length < 2) return alert('Select at least 2 nodes to group.');
+        if (!selectedNodes || selectedNodes.length < 2) return alert("Select at least 2 nodes to group.");
         const minX = Math.min(...selectedNodes.map((n) => n.position.x));
         const minY = Math.min(...selectedNodes.map((n) => n.position.y));
         const maxX = Math.max(...selectedNodes.map((n) => n.position.x + (n.style?.width || 100)));
         const maxY = Math.max(...selectedNodes.map((n) => n.position.y + (n.style?.height || 40)));
         const groupId = `group-${Date.now()}`;
-        if (!setNodes) return alert('Grouping requires setNodes');
+        if (!setNodes) return alert("Grouping requires setNodes");
         setNodes((nds) => [
             ...nds,
             {
                 id: groupId,
-                type: 'groupLabel',
+                type: "groupLabel",
                 position: { x: minX - 20, y: minY - 40 },
                 data: {
-                    label: 'New Group',
-                    groupName: 'New Group',
+                    label: "New Group",
+                    groupName: "New Group",
                     rect: { width: maxX - minX + 40, height: maxY - minY + 60 },
                     children: selectedNodes.map((n) => n.id),
                 },
-                style: { background: 'transparent', border: '1px dashed red' },
+                style: { background: "transparent", border: "1px dashed red" },
             },
         ]);
     };
 
     const handleUngroup = () => {
-        if (!selectedNodes?.length) return alert('Select a group to ungroup.');
+        if (!selectedNodes?.length) return alert("Select a group to ungroup.");
         selectedNodes.forEach((node) => {
-            if (node.type === 'groupLabel') {
-                if (typeof deleteNode === 'function') deleteNode(node.id);
+            if (node.type === "groupLabel") {
+                if (typeof deleteNode === "function") deleteNode(node.id);
                 else if (setNodes) setNodes((nds) => nds.filter((n) => n.id !== node.id));
             }
         });
     };
 
     const handleRename = () => {
-        if (!selectedNodes || selectedNodes.length !== 1) return alert('Select exactly one group to rename.');
+        if (!selectedNodes || selectedNodes.length !== 1) return alert("Select exactly one group to rename.");
         const node = selectedNodes[0];
-        if (node.type !== 'groupLabel') return alert('Only group nodes can be renamed.');
-        const newName = prompt('Enter new group name:', node.data?.groupName || node.data?.label);
+        if (node.type !== "groupLabel") return alert("Only group nodes can be renamed.");
+        const newName = prompt("Enter new group name:", node.data?.groupName || node.data?.label);
         if (!newName) return;
-        if (typeof updateNode === 'function') updateNode(node.id, { groupName: newName, data: { ...node.data, groupName: newName, label: newName } });
-        else if (setNodes) setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, groupName: newName, label: newName } } : n)));
+        if (typeof updateNode === "function")
+            updateNode(node.id, { groupName: newName, data: { ...node.data, groupName: newName, label: newName } });
+        else if (setNodes)
+            setNodes((nds) =>
+                nds.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, groupName: newName, label: newName } } : n))
+            );
     };
 
     const panelStyle = {
@@ -209,6 +239,15 @@ export default function MainToolbar({
     const sectionTitle = { fontSize: 12, color: "#666", marginBottom: 6 };
     const actionBtn = { padding: "6px 8px", marginRight: 8, marginBottom: 8 };
 
+    // small helper for the App-segment buttons on the right
+    const segBtn = (active) => ({
+        padding: "6px 10px",
+        border: "1px solid #ccc",
+        borderRadius: 6,
+        background: active ? "#e8f2ff" : "#fff",
+        fontWeight: active ? 700 : 400,
+    });
+
     return (
         <div ref={wrapperRef} style={{ position: "relative" }}>
             {/* Top bar */}
@@ -222,10 +261,48 @@ export default function MainToolbar({
                     borderBottom: "1px solid #ccc",
                 }}
             >
-                <button ref={btnRefs.current.File} onClick={() => openTab("File")} style={{ fontWeight: activeTab === "File" ? "700" : "400" }}>File</button>
-                <button ref={btnRefs.current.Edit} onClick={() => openTab("Edit")} style={{ fontWeight: activeTab === "Edit" ? "700" : "400" }}>Edit</button>
-                <button ref={btnRefs.current.Group} onClick={() => openTab("Group")} style={{ fontWeight: activeTab === "Group" ? "700" : "400" }}>Group</button>
-                <button ref={btnRefs.current.View} onClick={() => openTab("View")} style={{ fontWeight: activeTab === "View" ? "700" : "400" }}>View</button>
+                <button
+                    ref={btnRefs.current.File}
+                    onClick={() => openTab("File")}
+                    style={{ fontWeight: activeTab === "File" ? "700" : "400" }}
+                >
+                    File
+                </button>
+                <button
+                    ref={btnRefs.current.Edit}
+                    onClick={() => openTab("Edit")}
+                    style={{ fontWeight: activeTab === "Edit" ? "700" : "400" }}
+                >
+                    Edit
+                </button>
+                <button
+                    ref={btnRefs.current.Group}
+                    onClick={() => openTab("Group")}
+                    style={{ fontWeight: activeTab === "Group" ? "700" : "400" }}
+                >
+                    Group
+                </button>
+                <button
+                    ref={btnRefs.current.View}
+                    onClick={() => openTab("View")}
+                    style={{ fontWeight: activeTab === "View" ? "700" : "400" }}
+                >
+                    View
+                </button>
+
+                {/* ---- App-level tabs (right side) ---- */}
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "#666" }}>App</span>
+                    <button onClick={() => gotoAppTab("data")} style={segBtn(appTab === "data")}>
+                        Data
+                    </button>
+                    <button onClick={() => gotoAppTab("canvas")} style={segBtn(appTab === "canvas")}>
+                        2D
+                    </button>
+                    <button onClick={() => gotoAppTab("3d")} style={segBtn(appTab === "3d")} disabled title="Coming soon">
+                        3D
+                    </button>
+                </div>
             </div>
 
             {/* Anchored panel under the active tab button */}
@@ -235,9 +312,15 @@ export default function MainToolbar({
                         <div>
                             <div style={sectionTitle}>File</div>
                             <div>
-                                <button style={actionBtn} onClick={handleSave}>Save</button>
-                                <button style={actionBtn} onClick={handleLoad}>Load</button>
-                                <button style={actionBtn} onClick={handleReset}>Reset Canvas</button>
+                                <button style={actionBtn} onClick={handleSave}>
+                                    Save
+                                </button>
+                                <button style={actionBtn} onClick={handleLoad}>
+                                    Load
+                                </button>
+                                <button style={actionBtn} onClick={handleReset}>
+                                    Reset Canvas
+                                </button>
                             </div>
                         </div>
                     )}
@@ -246,11 +329,21 @@ export default function MainToolbar({
                         <div>
                             <div style={sectionTitle}>Edit</div>
                             <div>
-                                <button style={actionBtn} onClick={handleUndo}>Back</button>
-                                <button style={actionBtn} onClick={handleRedo}>Forward</button>
-                                <button style={actionBtn} onClick={handleCut}>Cut</button>
-                                <button style={actionBtn} onClick={handleCopy}>Copy</button>
-                                <button style={actionBtn} onClick={handlePaste}>Paste</button>
+                                <button style={actionBtn} onClick={handleUndo}>
+                                    Back
+                                </button>
+                                <button style={actionBtn} onClick={handleRedo}>
+                                    Forward
+                                </button>
+                                <button style={actionBtn} onClick={handleCut}>
+                                    Cut
+                                </button>
+                                <button style={actionBtn} onClick={handleCopy}>
+                                    Copy
+                                </button>
+                                <button style={actionBtn} onClick={handlePaste}>
+                                    Paste
+                                </button>
                             </div>
                         </div>
                     )}
@@ -259,9 +352,15 @@ export default function MainToolbar({
                         <div>
                             <div style={sectionTitle}>Group</div>
                             <div>
-                                <button style={actionBtn} onClick={handleGroup}>Create Group</button>
-                                <button style={actionBtn} onClick={handleUngroup}>Delete Group</button>
-                                <button style={actionBtn} onClick={handleRename}>Rename Group</button>
+                                <button style={actionBtn} onClick={handleGroup}>
+                                    Create Group
+                                </button>
+                                <button style={actionBtn} onClick={handleUngroup}>
+                                    Delete Group
+                                </button>
+                                <button style={actionBtn} onClick={handleRename}>
+                                    Rename Group
+                                </button>
                             </div>
                         </div>
                     )}
@@ -269,10 +368,7 @@ export default function MainToolbar({
                     {activeTab === "View" && (
                         <div>
                             <div style={sectionTitle}>View</div>
-                            <UnitLayoutConfig
-                                availableUnits={availableUnits}
-                                onChange={onUnitLayoutChange}
-                            />
+                            <UnitLayoutConfig availableUnits={availableUnits} onChange={onUnitLayoutChange} />
                         </div>
                     )}
                 </div>

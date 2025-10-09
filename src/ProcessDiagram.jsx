@@ -36,6 +36,58 @@ const normalizeTypeKey = (s) =>
         .replace(/\s+/g, "_")
         .replace(/[^a-z0-9_-]/g, "");
 
+// --- Type resolvers (resolve Airtable rec ids -> readable names) ---
+const isRecId = (s) => typeof s === 'string' && s.startsWith('rec');
+
+async function buildTypeIdToNameMap() {
+    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+    const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+    const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+    const headers = { Authorization: `Bearer ${token}` };
+    const map = new Map();
+
+    async function loadTable(tableId) {
+        if (!tableId) return;
+        let offset = null;
+        do {
+            const url = `https://api.airtable.com/v0/${baseId}/${tableId}?pageSize=100${offset ? `&offset=${offset}` : ''}`;
+            const res = await fetch(url, { headers });
+            if (!res.ok) break;
+            const data = await res.json();
+            (data.records || []).forEach(r => {
+                const name =
+                    r?.fields?.['Still Pipe'] ||
+                    r?.fields?.['Name'] ||
+                    r?.fields?.['Type'] ||
+                    '';
+                if (name) map.set(r.id, String(name));
+            });
+            offset = data.offset;
+        } while (offset);
+    }
+
+    await loadTable(equipTypesTableId);
+    await loadTable(valveTypesTableId);
+    return map;
+}
+
+async function resolveTypesInItems(items) {
+    try {
+        const idMap = await buildTypeIdToNameMap();
+        return items.map((it) => {
+            const raw = Array.isArray(it.Type) ? (it.Type[0] ?? '') : (it.Type ?? '');
+            if (isRecId(raw) && idMap.has(raw)) {
+                const name = idMap.get(raw);
+                return { ...it, Type: name, TypeKey: normalizeTypeKey(name) };
+            }
+            return it;
+        });
+    } catch {
+        return items;
+    }
+}
+
 // --- Helper: drop direct src->dst edges when a valve node routes between them ---
 const pruneDirectEdgesIfValvePresent = (edges = [], nodes = []) => {
     const E = Array.isArray(edges) ? edges : [];
