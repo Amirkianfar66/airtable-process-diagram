@@ -155,8 +155,7 @@ export const fetchData = async () => {
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (res.status === 401 || res.status === 403) { console.warn('[Layouts] No permission; using local fallback.'); return null; }
-        if (!res.ok) { console.warn('[Layouts] fetch failed', res.status); return null; }
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         offset = data.offset;
@@ -176,9 +175,7 @@ export default function ProcessDiagram() {
     };
 
     async function loadLayoutFromAirtable() {
-        const baseId =
-           import.meta.env.VITE_AIRTABLE_LAYOUTS_BASE_ID ||
-           import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
         const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_LAYOUTS_TABLE_ID || 'Layouts');
         if (!baseId || !token) return null;
@@ -192,17 +189,13 @@ export default function ProcessDiagram() {
     }
 
     async function saveLayoutToAirtable(snapshot) {
-        const baseId =
-              import.meta.env.VITE_AIRTABLE_LAYOUTS_BASE_ID ||
-              import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
         const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_LAYOUTS_TABLE_ID || 'Layouts');
         if (!baseId || !token) return;
         const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
         const filter = encodeURIComponent(`{Key}='${DIAGRAM_KEY}'`);
         const find = await fetch(`https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${filter}`, { headers });
-        if (find.status === 401 || find.status === 403) { console.warn('[Layouts] Save skipped (no permission).'); return; }
-        if (!find.ok) { console.warn('[Layouts] precheck failed', find.status); return; }
         const data = await find.json();
         const fields = { Key: DIAGRAM_KEY, Data: JSON.stringify(snapshot) };
         if (data?.records?.[0]?.id) {
