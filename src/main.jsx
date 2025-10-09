@@ -1,14 +1,6 @@
-﻿// src/main.jsx  ← replace entire file with this
-import React from "react";
+﻿import React from "react";
 import ReactDOM from "react-dom/client";
 import AppTabs from "./AppTabs.jsx";
-import "./index.css";
-
-// optional: early stub so toolbar calls are safe pre-mount
-if (typeof window !== "undefined" && typeof window.setAppTab !== "function") {
-    window.setAppTab = (nameOrIndex) => { window.__pendingSetAppTab = nameOrIndex; };
-    window.getAppTab = () => "canvas";
-}
 
 ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
