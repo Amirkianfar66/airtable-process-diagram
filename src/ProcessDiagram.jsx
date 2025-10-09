@@ -28,6 +28,14 @@ const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => 
     return merged;
 };
 
+const normalizeTypeKey = (s) =>
+    (s || "")
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^a-z0-9_-]/g, "");
+
 // --- Helper: drop direct src->dst edges when a valve node routes between them ---
 const pruneDirectEdgesIfValvePresent = (edges = [], nodes = []) => {
     const E = Array.isArray(edges) ? edges : [];
@@ -442,10 +450,12 @@ export default function ProcessDiagram() {
                         Category: cat,
                         'Category Item Type': cat,
                         Type: rawType,
+                        TypeKey: normalizeTypeKey(rawType),   // 👈 add this
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
                     };
                 });
+
 
                 const uniqueUnits = [...new Set(normalizedItems.map((i) => i.Unit))];
                 const unitLayout2D = [uniqueUnits];
