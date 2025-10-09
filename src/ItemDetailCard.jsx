@@ -259,8 +259,15 @@ export default function ItemDetailCard({
                 const updated = { ...(localItem || {}), id: idForUpdate, "Category Item Type": inferredCat, Category: inferredCat, Type: remoteType };
                 commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
             } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
-                const updated = { ...(localItem || {}), id: idForUpdate, Type: remoteType };
+                const updated = {
+                    ...(localItem || {}),
+                    id: idForUpdate,
+                    /* Category updates if any ... */
+                    Type: remoteType,
+                    TypeKey: normalizeTypeKey(remoteType),
+                };
                 commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
+
             }
 
 
@@ -428,6 +435,11 @@ export default function ItemDetailCard({
         } else {
             debounceRef.current = setTimeout(run, 2000);
         }
+        // If Type is present, also compute a normalized TypeKey the icons can use
+        if (Object.prototype.hasOwnProperty.call(updatedObj, "Type")) {
+            updatedObj.TypeKey = normalizeTypeKey(updatedObj.Type);
+        }
+
     };
 
     // Cleanup debounce on unmount
