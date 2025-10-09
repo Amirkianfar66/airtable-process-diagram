@@ -70,7 +70,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 15,
+          "SelectedChildIndex": 14,
           "Children": [
             {
               "$type": "Document",
@@ -185,6 +185,19 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "DiagramCanvas.jsx",
+              "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx",
+              "RelativeDocumentMoniker": "src\\DiagramCanvas.jsx",
+              "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx",
+              "RelativeToolTip": "src\\DiagramCanvas.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-06T02:15:02.259Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 7,
               "Title": "EquipmentIcon.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\Icons\\EquipmentIcon.jsx",
@@ -194,19 +207,6 @@
               "ViewState": "AgIAAEMAAAAAAAAAAAAcwGIAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-10-09T07:39:09.509Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "DiagramCanvas.jsx",
-              "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx",
-              "RelativeDocumentMoniker": "src\\DiagramCanvas.jsx",
-              "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx",
-              "RelativeToolTip": "src\\DiagramCanvas.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAKAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-06T02:15:02.259Z",
               "EditorCaption": ""
             },
             {
