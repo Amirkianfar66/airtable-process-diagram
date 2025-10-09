@@ -5,6 +5,15 @@ import InlineValveIcon from "./Icons/InlineValveIcon";
 import PipeIcon from "./Icons/PipeIcon";
 import ElectricalIcon from "./Icons/ElectricalIcon";
 
+// Normalize a type label into a stable key used by icon lookup
+const normalizeTypeKey = (s) =>
+    (s || "")
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^a-z0-9_-]/g, "");
+
 /** Map Category → ReactFlow node type (must match keys in `nodeTypes` in ProcessDiagram) */
 export const categoryTypeMap = {
     Pipe: "pipe",
@@ -140,7 +149,7 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     let prevItem = {};
     setItems((prev) => {
         prevItem = prev.find((it) => it.id === updatedItem.id) || {};
-        return prev;
+        return prev; // no change yet
     });
 
     const next = {
@@ -150,29 +159,18 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
 
     // --- Normalize Category to a clean string ---
     const rawCategory = next.Category ?? next['Category Item Type'] ?? '';
-    next.Category = Array.isArray(rawCategory) ? (rawCategory[0] ?? '') : String(rawCategory);
+    next.Category = Array.isArray(rawCategory) ? (rawCategory[0] ?? '') : String(rawCategory || '');
     next['Category Item Type'] = next.Category;
 
     // --- Normalize Type ---
     if (Array.isArray(next.Type)) next.Type = next.Type[0] ?? '';
     next.Type = String(next.Type ?? '');
 
-    // ✅ Add this:
-    const normalizeTypeKey = (s) =>
-        (s || "").toString().trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, "");
+    // --- Stable key for SVG lookup ---
     next.TypeKey = normalizeTypeKey(next.Type);
 
-
-    // (put this helper near the top of the file)
-    function normalizeTypeKey(s) {
-        return (s || "")
-            .toString()
-            .trim()
-            .toLowerCase()
-            .replace(/\s+/g, "_")
-            .replace(/[^a-z0-9_-]/g, "");
-    }
-
+    // Optional: bump to help force icon recompute where memoized
+    next.__iconRev = Date.now();
 
     // --- Normalize code fields ---
     if (!next.Code && next['Item Code']) next.Code = next['Item Code'];
@@ -181,47 +179,25 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     // ✅ Update items array
     setItems((prev) => prev.map((it) => (it.id === next.id ? next : it)));
 
-    // Helper for positioning if Unit/SubUnit changed
-    function getUnitSubunitPosition(unit, subUnit, nodesArr) {
-        const subUnitNode = nodesArr.find((n) => n.id === `sub-${unit}-${subUnit}`);
-        if (!subUnitNode) return { x: 100, y: 100 };
-
-        const siblings = nodesArr.filter(
-            (n) => n.data?.item?.Unit === unit && n.data?.item?.SubUnit === subUnit && n.id !== next.id
-        );
-
-        const itemWidth = 160;
-        const itemGap = 30;
-
-        return {
-            x: subUnitNode.position.x + 40 + siblings.length * (itemWidth + itemGap),
-            y: subUnitNode.position.y + 40,
-        };
-    }
-
-    // ✅ Update nodes safely
-    setNodes((nds) =>
-        nds.map((node) => {
+    // ✅ Update the corresponding node (label, item, and icon)
+    setNodes((prevNodes) =>
+        prevNodes.map((node) => {
             if (node.id !== next.id) return node;
-
-            // keep old position unless Unit/SubUnit changed
-            const oldPos = node.position;
-            const shouldReposition = next.Unit !== prevItem.Unit || next.SubUnit !== prevItem.SubUnit;
-            const newPos = shouldReposition ? getUnitSubunitPosition(next.Unit, next.SubUnit, nds) : oldPos;
-
+            const newData = {
+                ...node.data,
+                label: `${next.Code || ""} - ${next.Name || ""}`,
+                item: next,
+                // If you use a helper, recompute the icon here:
+                icon: getItemIcon ? getItemIcon(next, { width: 40, height: 40 }) : node.data?.icon,
+                __iconRev: next.__iconRev, // carry through if your node listens to it
+            };
             return {
                 ...node,
-                position: newPos,
-                data: {
-                    ...node.data,
-                    label: `${next.Code || ""} - ${next.Name || ""}`,
-                    item: next,
-                    icon: getItemIcon(next, { width: 40, height: 40 }),
-                },
+                data: newData,
             };
         })
     );
 
-
-    setSelectedItem(next);
+    // Keep currently selected item fresh (optional)
+    if (typeof setSelectedItem === "function") setSelectedItem(next);
 }
