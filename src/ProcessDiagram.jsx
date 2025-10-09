@@ -211,6 +211,71 @@ export default function ProcessDiagram() {
         },
         [items]
     );
+    // --- Persist canvas edges -> Airtable "Connections" (debounced) ---
+const persistDebounceRef = React.useRef(null);
+
+const persistConnectionsToAirtable = React.useCallback(async (records) => {
+  const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+  const token  = import.meta.env.VITE_AIRTABLE_TOKEN;
+  const table  = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+  if (!baseId || !token || !table || !records?.length) return;
+
+  // Batch PATCH
+  await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ records }),
+  });
+}, []);
+
+useEffect(() => {
+  if (!items.length) return;
+
+  // Build: sourceId -> [targetCodes]
+  const byId = new Map(items.map(it => [String(it.id), it]));
+  const nextMap = new Map();
+
+  (edges || []).forEach(e => {
+    const srcId = String(e.source);
+    const tgt   = byId.get(String(e.target));
+    const tgtCode = tgt?.Code || tgt?.['Item Code'] || '';
+    if (!tgtCode) return;
+    if (!nextMap.has(srcId)) nextMap.set(srcId, []);
+    const arr = nextMap.get(srcId);
+    if (!arr.includes(tgtCode)) arr.push(tgtCode);
+  });
+
+  // Compute changed records only
+  const records = [];
+  // updates / inserts
+  nextMap.forEach((codes, srcId) => {
+    const cur = byId.get(srcId);
+    const curCodes = Array.isArray(cur?.Connections) ? cur.Connections : [];
+    const same = curCodes.length === codes.length && curCodes.every(c => codes.includes(c));
+    if (!same) records.push({ id: srcId, fields: { Connections: codes } });
+  });
+  // clears (had connections but now no outgoing edges)
+  items.forEach(it => {
+    const hasEdges = nextMap.has(String(it.id));
+    const curCodes = Array.isArray(it.Connections) ? it.Connections : [];
+    if (!hasEdges && curCodes.length) {
+      records.push({ id: String(it.id), fields: { Connections: [] } });
+    }
+  });
+
+  if (!records.length) return;
+
+  // debounce to avoid hammering Airtable as you drag/connect
+  if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
+  persistDebounceRef.current = setTimeout(() => {
+    persistConnectionsToAirtable(records).catch(console.error);
+  }, 600);
+
+  return () => clearTimeout(persistDebounceRef.current);
+}, [edges, items, persistConnectionsToAirtable]);
 
     // ---------- Connect ----------
     const onConnect = useCallback((params) => {
@@ -505,7 +570,12 @@ export default function ProcessDiagram() {
                         Type: rawType,
                         TypeKey: normalizeTypeKey(rawType),
                         Sequence: item.Sequence || 0,
-                        Connections: Array.isArray(item.Connections) ? item.Connections : [],
+                        Connections: Array.isArray(item.Connections)
+                            ? item.Connections
+                            : (typeof item.Connections === 'string'
+                                ? item.Connections.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+                                : []),
+
                     };
                 });
 
