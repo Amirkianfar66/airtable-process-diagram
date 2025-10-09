@@ -30,6 +30,33 @@ const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => 
 };
 const [showData, setShowData] = React.useState(false);
 
+// Merge snapshot edges (with full label/style/data) into current edges
+const mergeSnapshotEdges = (existingEdges = [], snapshotEdges = [], validNodeIds = new Set()) => {
+    const safeSnap = (snapshotEdges || []).filter(e =>
+        e && validNodeIds.has(String(e.source)) && validNodeIds.has(String(e.target))
+    );
+    const sig = (e) => `${e.source}->${e.target}`;
+
+    const bySig = new Map((existingEdges || []).map(e => [sig(e), e]));
+    for (const se of safeSnap) {
+        const k = sig(se);
+        const prev = bySig.get(k);
+        // prefer snapshot edge’s cosmetics; keep existing id if present
+        const merged = {
+            id: prev?.id || se.id || `edge-${se.source}-${se.target}`,
+            source: se.source,
+            target: se.target,
+            type: se.type ?? prev?.type ?? 'smoothstep',
+            animated: typeof se.animated === 'boolean' ? se.animated : (prev?.animated ?? true),
+            label: se.label ?? prev?.label,
+            style: { ...(prev?.style || {}), ...(se.style || {}) },
+            data: { ...(prev?.data || {}), ...(se.data || {}) },
+        };
+        bySig.set(k, merged);
+    }
+    return [...bySig.values()];
+};
+
 // expose global helpers for the toolbar (and anywhere else)
 React.useEffect(() => {
     window.openDataPanel = () => setShowData(true);
@@ -206,10 +233,30 @@ export default function ProcessDiagram() {
     }
 
     function makeSnapshot(nodes, edges, unitLayoutOrder) {
-        const nodeSnap = (nodes || []).map(n => ({ id: n.id, type: n.type, position: n.position }));
-        const edgeSnap = (edges || []).map(e => ({ id: e.id, source: e.source, target: e.target, type: e.type, animated: !!e.animated }));
-        return { key: DIAGRAM_KEY, unitLayoutOrder, nodes: nodeSnap, edges: edgeSnap, updatedAt: new Date().toISOString() };
+        const nodeSnap = (nodes || []).map(n => ({
+            id: n.id,
+            type: n.type,
+            position: n.position
+        }));
+        const edgeSnap = (edges || []).map(e => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            type: e.type,
+            animated: !!e.animated,
+            label: e.label ?? null,
+            style: e.style ?? null,
+            data: e.data ?? null
+        }));
+        return {
+            key: DIAGRAM_KEY,
+            unitLayoutOrder,
+            nodes: nodeSnap,
+            edges: edgeSnap,
+            updatedAt: new Date().toISOString()
+        };
     }
+
 
     function applySnapshotToCurrentNodes(prevNodes, snap) {
         const pos = new Map((snap?.nodes || []).map(n => [String(n.id), n.position || {}]));
@@ -596,7 +643,7 @@ export default function ProcessDiagram() {
             const validIds = new Set(built.nodes.map(n => n.id));
             setEdges(prev => pruneDirectEdgesIfValvePresent(mergeEdges(prev, built.edges, validIds), built.nodes));
 
-            // ---- restore autosaved layout (positions/edges/unit grid)
+            // 4.1) Restore autosaved layout (positions/edges/unit grid)
             try {
                 const cloud = await loadLayoutFromAirtable();
                 const local = JSON.parse(localStorage.getItem('diagram:autoSave') || 'null');
@@ -604,13 +651,20 @@ export default function ProcessDiagram() {
                 if (snap) {
                     setNodes(prev => applySnapshotToCurrentNodes(prev, snap));
                     if (Array.isArray(snap.edges) && snap.edges.length) {
-                        setEdges(_ => (snap.edges || []).filter(e => validIds.has(e.source) && validIds.has(e.target)));
+                        
+                                setEdges(prev =>
+                                        pruneDirectEdgesIfValvePresent(
+                                                 mergeSnapshotEdges(prev, snap.edges, validIdsInit),
+                                                 builtNodes
+                                            )
+                                     );
                     }
                     if (Array.isArray(snap.unitLayoutOrder) && snap.unitLayoutOrder.length) {
                         setUnitLayoutOrder(snap.unitLayoutOrder);
                     }
                 }
             } catch { }
+
 
 
             // 6) Commit items and auto-select a new node if any
@@ -678,6 +732,7 @@ export default function ProcessDiagram() {
                     )
                 );
                 // 4.1) Restore autosaved layout (positions/edges/unit grid)
+                // ---- restore autosaved layout (positions/edges/unit grid)
                 try {
                     const cloud = await loadLayoutFromAirtable();
                     const local = JSON.parse(localStorage.getItem('diagram:autoSave') || 'null');
@@ -685,13 +740,20 @@ export default function ProcessDiagram() {
                     if (snap) {
                         setNodes(prev => applySnapshotToCurrentNodes(prev, snap));
                         if (Array.isArray(snap.edges) && snap.edges.length) {
-                            setEdges(_ => (snap.edges || []).filter(e => validIdsInit.has(e.source) && validIdsInit.has(e.target)));
+                          
+                                     setEdges(prev =>
+                                             pruneDirectEdgesIfValvePresent(
+                                                     mergeSnapshotEdges(prev, snap.edges, validIds),
+                                                     built.nodes
+                                                 )
+                                         );
                         }
                         if (Array.isArray(snap.unitLayoutOrder) && snap.unitLayoutOrder.length) {
                             setUnitLayoutOrder(snap.unitLayoutOrder);
                         }
                     }
                 } catch { }
+
 
                 // 5) Mirror positions back to items
                 const posById = Object.fromEntries((builtNodes || []).map((n) => [String(n.id), n.position || {}]));
