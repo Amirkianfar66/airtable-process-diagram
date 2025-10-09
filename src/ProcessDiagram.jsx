@@ -440,8 +440,6 @@ export default function ProcessDiagram() {
                     const rawCat = item['Category Item Type'] ?? item.Category ?? '';
                     const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
                     const rawType = Array.isArray(item.Type) ? (item.Type[0] ?? '') : String(item.Type || '');
-                    const looksLikeRec = typeof rawType === 'string' && /^rec[a-z0-9]+/i.test(rawType);
-                    const safeType = looksLikeRec ? '' : rawType;
                     return {
                         id: item.id || `${item.Name}-${Date.now()}`,
                         Name: item.Name || '',
@@ -451,9 +449,8 @@ export default function ProcessDiagram() {
                         SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                         Category: cat,
                         'Category Item Type': cat,
-                        Type: safeType,
-                        TypeKey: safeType ? normalizeTypeKey(safeType) : '',
-
+                        Type: rawType,
+                        TypeKey: normalizeTypeKey(rawType),   // 👈 add this
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
                     };
