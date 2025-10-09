@@ -1,8 +1,11 @@
 {
   "ExpandedNodes": [
     "",
-    "\\src"
+    "\\api",
+    "\\api\\airtable",
+    "\\src",
+    "\\src\\Icons"
   ],
-  "SelectedNode": "\\src\\ItemDetailCard.jsx",
+  "SelectedNode": "\\index.html",
   "PreviewInSolutionExplorer": false
 }
