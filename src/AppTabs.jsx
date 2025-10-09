@@ -1,7 +1,7 @@
 ﻿// AppTabs.jsx
 import React from "react";
 import AirtableItemsTable from "./AirtableItemsTable.jsx"; // Tab 1
-import PNIDCanvas from "./pnidCanvas.jsx";                 // Tab 2
+import ProcessDiagram from "./ProcessDiagram.jsx";
 
 // ---------- define safe globals ASAP (before React runs) ----------
 if (typeof window !== "undefined") {
@@ -108,7 +108,7 @@ export default function AppTabs() {
                     <AirtableItemsTable />
                 </div>
                 <div style={{ display: tab === 1 ? "block" : "none", height: "100%" }}>
-                    <PNIDCanvas pnid={pnid} />
+                    <ProcessDiagram />
                 </div>
                 <div style={{ display: tab === 2 ? "block" : "none", padding: 16 }}>
                     3D preview coming soon…
