@@ -36,6 +36,20 @@ const normalizeTypeKey = (s) =>
         .replace(/\s+/g, "_")
         .replace(/[^a-z0-9_-]/g, "");
 
+
+// --- HTTP + path helpers ---
+const tableSegment = (s) => encodeURIComponent(String(s || "").trim());
+
+async function fetchJson(url, options = {}) {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        console.error("Airtable error", res.status, res.statusText, { url, body });
+        throw new Error(`${res.status} ${res.statusText} :: ${body}`);
+    }
+    return res.json();
+}
+
 // --- Helper: drop direct src->dst edges when a valve node routes between them ---
 const pruneDirectEdgesIfValvePresent = (edges = [], nodes = []) => {
     const E = Array.isArray(edges) ? edges : [];
@@ -82,11 +96,14 @@ export const nodeTypes = {
 export const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-    const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+    // Prefer table ID; fall back to display name
+    const table =
+    import.meta.env.VITE_AIRTABLE_TABLE_ID ||
+    import.meta.env.VITE_AIRTABLE_TABLE_NAME;
 
     let allRecords = [];
     let offset = null;
-    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100&cellFormat=string`;
+    const initialUrl = `https://api.airtable.com/v0/${baseId}/${tableSegment(table)}?pageSize=100&cellFormat=string`;
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
@@ -440,15 +457,19 @@ export default function ProcessDiagram() {
                 // 2) Also fetch a map of { recId -> Type Name } so we resolve linked Type ids up-front
                 const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
                 const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-                const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+                const equipTypesTableId =
+                      import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID ||        // your current var
+                      import.meta.env.VITE_AIRTABLE_EQUIP_TYPES_TABLE_ID;    // alternate name support
+                const valveTypesTableId =
+                      import.meta.env.VITE_AIRTABLE_VALVE_TYPES_TABLE_ID ||  // canonical name
+                      import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;     // your current var (mixed case)
 
                 const fetchTypesMap = async (tableId) => {
                     if (!tableId) return {};
-                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}?pageSize=100`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
-                    const data = await res.json();
+                    const data = await fetchJson(
+                           `https://api.airtable.com/v0/${baseId}/${tableSegment(tableId)}?pageSize=100`,
+                           { headers: { Authorization: `Bearer ${token}` } }
+                    );
                     const out = {};
                     (data.records || []).forEach(r => {
                         // prefer 'Name', fall back to 'Still Pipe'
