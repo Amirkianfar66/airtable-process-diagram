@@ -488,6 +488,7 @@ export default function ProcessDiagram() {
             try {
                 const itemsRaw = await fetchData();
 
+                // 1) Normalize what comes from Airtable
                 const normalizedItems = itemsRaw.map((item) => {
                     const rawCat = item['Category Item Type'] ?? item.Category ?? '';
                     const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
@@ -502,19 +503,24 @@ export default function ProcessDiagram() {
                         Category: cat,
                         'Category Item Type': cat,
                         Type: rawType,
-                        TypeKey: normalizeTypeKey(rawType),   // 👈 add this
+                        TypeKey: normalizeTypeKey(rawType),
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
                     };
                 });
 
+                // 2) NEW: resolve recXXXX Type ids -> readable names (Tank, Pump, …)
+                const resolvedItems = await resolveTypesInItems(normalizedItems);
 
-                const uniqueUnits = [...new Set(normalizedItems.map((i) => i.Unit))];
+                // 3) Units/layout
+                const uniqueUnits = [...new Set(resolvedItems.map((i) => i.Unit))];
                 const unitLayout2D = [uniqueUnits];
                 setUnitLayoutOrder(unitLayout2D);
 
-                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
+                // 4) Build nodes/edges using the resolved items
+                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(resolvedItems, unitLayout2D);
                 setNodes(builtNodes);
+
                 const validIdsInit = new Set((builtNodes || []).map((n) => n.id));
                 setEdges((prev) =>
                     pruneDirectEdgesIfValvePresent(
@@ -523,14 +529,14 @@ export default function ProcessDiagram() {
                     )
                 );
 
-                // Backfill x/y onto items from built node positions
+                // 5) Mirror positions back to items
                 const posById = Object.fromEntries((builtNodes || []).map((n) => [String(n.id), n.position || {}]));
-                const itemsWithPos = normalizedItems.map((it) => {
+                const itemsWithPos = resolvedItems.map((it) => {
                     const p = posById[String(it.id)];
                     return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { ...it, x: p.x, y: p.y } : it;
                 });
 
-                setItems(itemsWithPos);                 // ✅ use itemsWithPos (not normalizedItems)
+                setItems(itemsWithPos);
                 prevItemsRef.current = itemsWithPos;
 
                 const uniqueUnitsObjects = uniqueUnits.map((u) => ({ id: u, Name: u }));
@@ -539,6 +545,7 @@ export default function ProcessDiagram() {
                 console.error('Error loading items:', err);
             }
         };
+
 
         loadItems();
     }, []);
