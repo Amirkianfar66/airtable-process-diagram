@@ -1,19 +1,22 @@
 ﻿// src/main.jsx
 import React from "react";
-import ReactDOM from "react-dom/client";
+import { createRoot } from "react-dom/client";
+import { ReactFlowProvider } from "reactflow";
 import AppTabs from "./AppTabs.jsx";
 import "./index.css";
 
-// Optional: early stub so toolbar calls are safe before AppTabs mounts
+// Optional: define a stub before AppTabs mounts so toolbar calls are safe
 if (typeof window !== "undefined" && typeof window.setAppTab !== "function") {
     window.setAppTab = (nameOrIndex) => { window.__pendingSetAppTab = nameOrIndex; };
     window.getAppTab = () => "canvas";
 }
 
-const rootEl = document.getElementById("root");
-if (!rootEl) {
-    throw new Error('Root element "#root" not found. Check index.html.');
-}
+const el = document.getElementById("root"); // <-- matches your index.html
+if (!el) throw new Error('Could not find #root. Check index.html');
 
-// Mount WITHOUT StrictMode (avoids dev double-mount)
-ReactDOM.createRoot(rootEl).render(<AppTabs />);
+createRoot(el).render(
+    // No StrictMode (avoids dev double-mount)
+    <ReactFlowProvider>
+        <AppTabs />
+    </ReactFlowProvider>
+);
