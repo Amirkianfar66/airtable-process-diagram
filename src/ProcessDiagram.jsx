@@ -86,7 +86,7 @@ export const fetchData = async () => {
 
     let allRecords = [];
     let offset = null;
-    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
+    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100&cellFormat=string`;
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
@@ -434,16 +434,43 @@ export default function ProcessDiagram() {
     useEffect(() => {
         const loadItems = async () => {
             try {
+                // 1) Fetch raw items (with stringified cells if possible)
                 const itemsRaw = await fetchData();
 
+                // 2) Also fetch a map of { recId -> Type Name } so we resolve linked Type ids up-front
+                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+                const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
+                const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+
+                const fetchTypesMap = async (tableId) => {
+                    if (!tableId) return {};
+                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}?pageSize=100`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json();
+                    const out = {};
+                    (data.records || []).forEach(r => {
+                        // prefer 'Name', fall back to 'Still Pipe'
+                        const nm = r?.fields?.['Name'] || r?.fields?.['Still Pipe'] || '';
+                        if (nm) out[r.id] = String(nm);
+                    });
+                    return out;
+                };
+
+                const [equipMap, valveMap] = await Promise.all([
+                    fetchTypesMap(equipTypesTableId),
+                    fetchTypesMap(valveTypesTableId),
+                ]);
+                const typeIdToName = { ...equipMap, ...valveMap };
+
+                // 3) Normalize items; resolve Type from recId→name; compute TypeKey from the NAME
                 const normalizedItems = itemsRaw.map((item) => {
                     const rawCat = item['Category Item Type'] ?? item.Category ?? '';
                     const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
 
                     const rawType = Array.isArray(item.Type) ? (item.Type[0] ?? '') : String(item.Type || '');
-                    const labelType = rawType; // with cellFormat=string this is already e.g. "Tank"
-                    const looksLikeRec = typeof rawType === 'string' && /^rec[a-z0-9]+/i.test(rawType);
-                    const safeType = looksLikeRec ? '' : rawType;
+                    const resolvedType = /^rec[a-z0-9]+/i.test(rawType) ? (typeIdToName[rawType] || '') : rawType;
 
                     return {
                         id: item.id || `${item.Name}-${Date.now()}`,
@@ -454,48 +481,43 @@ export default function ProcessDiagram() {
                         SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                         Category: cat,
                         'Category Item Type': cat,
-                        // IMPORTANT: use safeType here so we don't store a recXXXX as Type/TypeKey
-                        Type: rawType,
-                        TypeKey: normalizeTypeKey(rawType),
-
+                        Type: resolvedType,                              // <-- use the resolved NAME
+                        TypeKey: normalizeTypeKey(resolvedType),         // <-- normalize from NAME, not recId
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
                     };
                 });
 
-                // 1) Update items state
+                // 4) Commit items
                 setItems(normalizedItems);
 
-                // 2) ⬇⬇⬇ Put THIS right here ⬇⬇⬇
-                // Sync the freshly resolved Type/TypeKey into existing nodes
-                setNodes((prev) =>
-                    prev.map((n) => {
-                        const nid = n?.data?.item?.id || n?.id;
-                        const it = normalizedItems.find((i) => i.id === nid);
-                        if (!it) return n;
-                        return {
-                            ...n,
-                            data: {
-                                ...n.data,
-                                item: {
-                                    ...n.data.item,
-                                    Type: it.Type,
-                                    TypeKey: it.TypeKey,
-                                },
-                                // Nudge memoized nodes to re-render icon (optional)
-                                _rev: (n.data?._rev || 0) + 1,
-                            },
-                        };
-                    })
+                // 5) Ensure we have a unit layout (add all units into row 0)
+                const unitsInData = [...new Set(normalizedItems.map(i => i.Unit))];
+                const initialLayout = unitsInData.length ? [unitsInData] : [[]];
+                setUnitLayoutOrder(initialLayout);
+                setAvailableUnitsForConfig(unitsInData);
+
+                // 6) Build nodes/edges immediately so the canvas is populated on first open
+                const built = buildDiagram(normalizedItems, initialLayout, { prevNodes: [] });
+                setNodes(built.nodes);
+
+                // 7) Merge/prune edges safely
+                const validIds = new Set(built.nodes.map(n => n.id));
+                setEdges(prev =>
+                    pruneDirectEdgesIfValvePresent(
+                        // first render: just use built edges
+                        (built.edges || []).filter(e => validIds.has(String(e.source)) && validIds.has(String(e.target))),
+                        built.nodes
+                    )
                 );
-                // 2) ⬆⬆⬆ END of the exact place ⬆⬆⬆
             } catch (e) {
                 console.error(e);
             }
         };
 
         loadItems();
-    }, [fetchData, setItems, setNodes]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
 
     // ---------- Rebuild on unit layout change; mirror positions back to items ----------
