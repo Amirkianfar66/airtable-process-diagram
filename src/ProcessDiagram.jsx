@@ -36,20 +36,6 @@ const normalizeTypeKey = (s) =>
         .replace(/\s+/g, "_")
         .replace(/[^a-z0-9_-]/g, "");
 
-
-// --- HTTP + path helpers ---
-const tableSegment = (s) => encodeURIComponent(String(s || "").trim());
-
-async function fetchJson(url, options = {}) {
-    const res = await fetch(url, options);
-    if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        console.error("Airtable error", res.status, res.statusText, { url, body });
-        throw new Error(`${res.status} ${res.statusText} :: ${body}`);
-    }
-    return res.json();
-}
-
 // --- Helper: drop direct src->dst edges when a valve node routes between them ---
 const pruneDirectEdgesIfValvePresent = (edges = [], nodes = []) => {
     const E = Array.isArray(edges) ? edges : [];
@@ -96,14 +82,11 @@ export const nodeTypes = {
 export const fetchData = async () => {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-    // Prefer table ID; fall back to display name
-    const table =
-    import.meta.env.VITE_AIRTABLE_TABLE_ID ||
-    import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+    const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
 
     let allRecords = [];
     let offset = null;
-    const initialUrl = `https://api.airtable.com/v0/${baseId}/${tableSegment(table)}?pageSize=100&cellFormat=string`;
+    const initialUrl = `https://api.airtable.com/v0/${baseId}/${table}?pageSize=100`;
 
     do {
         const url = offset ? `${initialUrl}&offset=${offset}` : initialUrl;
@@ -451,48 +434,14 @@ export default function ProcessDiagram() {
     useEffect(() => {
         const loadItems = async () => {
             try {
-                // 1) Fetch raw items (with stringified cells if possible)
                 const itemsRaw = await fetchData();
 
-                // 2) Also fetch a map of { recId -> Type Name } so we resolve linked Type ids up-front
-                const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-                const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-                const equipTypesTableId =
-                      import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID ||        // your current var
-                      import.meta.env.VITE_AIRTABLE_EQUIP_TYPES_TABLE_ID;    // alternate name support
-                const valveTypesTableId =
-                      import.meta.env.VITE_AIRTABLE_VALVE_TYPES_TABLE_ID ||  // canonical name
-                      import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;     // your current var (mixed case)
-
-                const fetchTypesMap = async (tableId) => {
-                    if (!tableId) return {};
-                    const data = await fetchJson(
-                           `https://api.airtable.com/v0/${baseId}/${tableSegment(tableId)}?pageSize=100`,
-                           { headers: { Authorization: `Bearer ${token}` } }
-                    );
-                    const out = {};
-                    (data.records || []).forEach(r => {
-                        // prefer 'Name', fall back to 'Still Pipe'
-                        const nm = r?.fields?.['Name'] || r?.fields?.['Still Pipe'] || '';
-                        if (nm) out[r.id] = String(nm);
-                    });
-                    return out;
-                };
-
-                const [equipMap, valveMap] = await Promise.all([
-                    fetchTypesMap(equipTypesTableId),
-                    fetchTypesMap(valveTypesTableId),
-                ]);
-                const typeIdToName = { ...equipMap, ...valveMap };
-
-                // 3) Normalize items; resolve Type from recId→name; compute TypeKey from the NAME
                 const normalizedItems = itemsRaw.map((item) => {
                     const rawCat = item['Category Item Type'] ?? item.Category ?? '';
                     const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
-
                     const rawType = Array.isArray(item.Type) ? (item.Type[0] ?? '') : String(item.Type || '');
-                    const resolvedType = /^rec[a-z0-9]+/i.test(rawType) ? (typeIdToName[rawType] || '') : rawType;
-
+                    const looksLikeRec = typeof rawType === 'string' && /^rec[a-z0-9]+/i.test(rawType);
+                    const safeType = looksLikeRec ? '' : rawType;
                     return {
                         id: item.id || `${item.Name}-${Date.now()}`,
                         Name: item.Name || '',
@@ -502,44 +451,48 @@ export default function ProcessDiagram() {
                         SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                         Category: cat,
                         'Category Item Type': cat,
-                        Type: resolvedType,                              // <-- use the resolved NAME
-                        TypeKey: normalizeTypeKey(resolvedType),         // <-- normalize from NAME, not recId
+                        Type: safeType,
+                        TypeKey: safeType ? normalizeTypeKey(safeType) : '',
+
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
                     };
                 });
 
-                // 4) Commit items
-                setItems(normalizedItems);
 
-                // 5) Ensure we have a unit layout (add all units into row 0)
-                const unitsInData = [...new Set(normalizedItems.map(i => i.Unit))];
-                const initialLayout = unitsInData.length ? [unitsInData] : [[]];
-                setUnitLayoutOrder(initialLayout);
-                setAvailableUnitsForConfig(unitsInData);
+                const uniqueUnits = [...new Set(normalizedItems.map((i) => i.Unit))];
+                const unitLayout2D = [uniqueUnits];
+                setUnitLayoutOrder(unitLayout2D);
 
-                // 6) Build nodes/edges immediately so the canvas is populated on first open
-                const built = buildDiagram(normalizedItems, initialLayout, { prevNodes: [] });
-                setNodes(built.nodes);
-
-                // 7) Merge/prune edges safely
-                const validIds = new Set(built.nodes.map(n => n.id));
-                setEdges(prev =>
+                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
+                setNodes(builtNodes);
+                const validIdsInit = new Set((builtNodes || []).map((n) => n.id));
+                setEdges((prev) =>
                     pruneDirectEdgesIfValvePresent(
-                        // first render: just use built edges
-                        (built.edges || []).filter(e => validIds.has(String(e.source)) && validIds.has(String(e.target))),
-                        built.nodes
+                        mergeEdges(prev, builtEdges, validIdsInit),
+                        builtNodes
                     )
                 );
-            } catch (e) {
-                console.error(e);
+
+                // Backfill x/y onto items from built node positions
+                const posById = Object.fromEntries((builtNodes || []).map((n) => [String(n.id), n.position || {}]));
+                const itemsWithPos = normalizedItems.map((it) => {
+                    const p = posById[String(it.id)];
+                    return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { ...it, x: p.x, y: p.y } : it;
+                });
+
+                setItems(itemsWithPos);                 // ✅ use itemsWithPos (not normalizedItems)
+                prevItemsRef.current = itemsWithPos;
+
+                const uniqueUnitsObjects = uniqueUnits.map((u) => ({ id: u, Name: u }));
+                setAvailableUnitsForConfig(uniqueUnitsObjects);
+            } catch (err) {
+                console.error('Error loading items:', err);
             }
         };
 
         loadItems();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
 
     // ---------- Rebuild on unit layout change; mirror positions back to items ----------
     useEffect(() => {
