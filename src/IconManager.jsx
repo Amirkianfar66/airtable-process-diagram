@@ -156,6 +156,19 @@ export function handleItemChangeNode(updatedItem, setItems, setNodes, setSelecte
     // --- Normalize Type ---
     if (Array.isArray(next.Type)) next.Type = next.Type[0] ?? '';
     next.Type = String(next.Type ?? '');
+    // Also keep a normalized TypeKey for icon lookup
+    next.TypeKey = normalizeTypeKey(next.Type);
+
+    // (put this helper near the top of the file)
+    function normalizeTypeKey(s) {
+        return (s || "")
+            .toString()
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "_")
+            .replace(/[^a-z0-9_-]/g, "");
+    }
+
 
     // --- Normalize code fields ---
     if (!next.Code && next['Item Code']) next.Code = next['Item Code'];
