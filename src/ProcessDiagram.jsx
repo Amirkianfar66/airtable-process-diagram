@@ -453,14 +453,19 @@ export default function ProcessDiagram() {
                         SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                         Category: cat,
                         'Category Item Type': cat,
-                        // IMPORTANT: use safeType here so we don't store a recXXXX as Type/TypeKey
-                        Type: rawType,
-                        TypeKey: normalizeTypeKey(rawType),
+
+                        // 🔑 keep the linked record id separately
+                        TypeRef: looksLikeRec ? rawType : '',
+
+                        // use human-friendly type for rendering
+                        Type: safeType,
+                        TypeKey: safeType ? normalizeTypeKey(safeType) : '',
 
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
                     };
                 });
+
 
                 // 1) Update items state
                 setItems(normalizedItems);
