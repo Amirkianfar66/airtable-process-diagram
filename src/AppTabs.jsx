@@ -97,9 +97,9 @@ export default function AppTabs() {
         <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
             {/* Tabs header */}
             <div style={{ display: "flex", gap: 6, padding: 8, borderBottom: "1px solid #e1e1e1" }}>
-                <TabButton active={tab === 0} onClick={() => setTab(0)}>Items (Airtable)</TabButton>
-                <TabButton active={tab === 1} onClick={() => setTab(1)}>2D Canvas</TabButton>
-                <TabButton active={tab === 2} onClick={() => setTab(2)}>3D View (soon)</TabButton>
+                <TabButton active={tab === 0} onClick={() => window.setAppTab(0)}>Items (Airtable)</TabButton>
+                <TabButton active={tab === 1} onClick={() => window.setAppTab(1)}>2D Canvas</TabButton>
+                <TabButton active={tab === 2} onClick={() => window.setAppTab(2)}>3D View (soon)</TabButton>
             </div>
 
             {/* Tabs content */}
