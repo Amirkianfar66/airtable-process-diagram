@@ -15,7 +15,7 @@ import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
-import DataOverlay from "../components/DataOverlay.jsx";
+
 
 const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => {
     const key = (e) => `${e.source}->${e.target}`;
