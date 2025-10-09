@@ -439,11 +439,9 @@ export default function ProcessDiagram() {
                 const normalizedItems = itemsRaw.map((item) => {
                     const rawCat = item['Category Item Type'] ?? item.Category ?? '';
                     const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
-
                     const rawType = Array.isArray(item.Type) ? (item.Type[0] ?? '') : String(item.Type || '');
                     const looksLikeRec = typeof rawType === 'string' && /^rec[a-z0-9]+/i.test(rawType);
                     const safeType = looksLikeRec ? '' : rawType;
-
                     return {
                         id: item.id || `${item.Name}-${Date.now()}`,
                         Name: item.Name || '',
@@ -453,48 +451,48 @@ export default function ProcessDiagram() {
                         SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                         Category: cat,
                         'Category Item Type': cat,
-                        // IMPORTANT: use safeType here so we don't store a recXXXX as Type/TypeKey
                         Type: safeType,
                         TypeKey: safeType ? normalizeTypeKey(safeType) : '',
+
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
                     };
                 });
 
-                // 1) Update items state
-                setItems(normalizedItems);
 
-                // 2) ⬇⬇⬇ Put THIS right here ⬇⬇⬇
-                // Sync the freshly resolved Type/TypeKey into existing nodes
-                setNodes((prev) =>
-                    prev.map((n) => {
-                        const nid = n?.data?.item?.id || n?.id;
-                        const it = normalizedItems.find((i) => i.id === nid);
-                        if (!it) return n;
-                        return {
-                            ...n,
-                            data: {
-                                ...n.data,
-                                item: {
-                                    ...n.data.item,
-                                    Type: it.Type,
-                                    TypeKey: it.TypeKey,
-                                },
-                                // Nudge memoized nodes to re-render icon (optional)
-                                _rev: (n.data?._rev || 0) + 1,
-                            },
-                        };
-                    })
+                const uniqueUnits = [...new Set(normalizedItems.map((i) => i.Unit))];
+                const unitLayout2D = [uniqueUnits];
+                setUnitLayoutOrder(unitLayout2D);
+
+                const { nodes: builtNodes, edges: builtEdges } = buildDiagram(normalizedItems, unitLayout2D);
+                setNodes(builtNodes);
+                const validIdsInit = new Set((builtNodes || []).map((n) => n.id));
+                setEdges((prev) =>
+                    pruneDirectEdgesIfValvePresent(
+                        mergeEdges(prev, builtEdges, validIdsInit),
+                        builtNodes
+                    )
                 );
-                // 2) ⬆⬆⬆ END of the exact place ⬆⬆⬆
-            } catch (e) {
-                console.error(e);
+
+                // Backfill x/y onto items from built node positions
+                const posById = Object.fromEntries((builtNodes || []).map((n) => [String(n.id), n.position || {}]));
+                const itemsWithPos = normalizedItems.map((it) => {
+                    const p = posById[String(it.id)];
+                    return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { ...it, x: p.x, y: p.y } : it;
+                });
+
+                setItems(itemsWithPos);                 // ✅ use itemsWithPos (not normalizedItems)
+                prevItemsRef.current = itemsWithPos;
+
+                const uniqueUnitsObjects = uniqueUnits.map((u) => ({ id: u, Name: u }));
+                setAvailableUnitsForConfig(uniqueUnitsObjects);
+            } catch (err) {
+                console.error('Error loading items:', err);
             }
         };
 
         loadItems();
-    }, [fetchData, setItems, setNodes]);
-
+    }, []);
 
     // ---------- Rebuild on unit layout change; mirror positions back to items ----------
     useEffect(() => {
