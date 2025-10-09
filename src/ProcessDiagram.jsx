@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useNodesState, useEdgesState, addEdge } from 'reactflow';
+import { addEdge, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
 import 'react-resizable/css/styles.css';
 
@@ -155,6 +155,55 @@ export const fetchData = async () => {
 export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+    // ---- Autosave (no notes) ----
+    const DIAGRAM_KEY = 'global'; // or derive from project/URL
+    const debounce = (fn, ms = 800) => {
+        let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+    };
+
+    async function loadLayoutFromAirtable() {
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+        const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_LAYOUTS_TABLE_ID || 'Layouts');
+        if (!baseId || !token) return null;
+        const filter = encodeURIComponent(`{Key}='${DIAGRAM_KEY}'`);
+        const res = await fetch(`https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${filter}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const rec = data?.records?.[0];
+        try { return rec?.fields?.Data ? JSON.parse(rec.fields.Data) : null; } catch { return null; }
+    }
+
+    async function saveLayoutToAirtable(snapshot) {
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+        const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_LAYOUTS_TABLE_ID || 'Layouts');
+        if (!baseId || !token) return;
+        const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+        const filter = encodeURIComponent(`{Key}='${DIAGRAM_KEY}'`);
+        const find = await fetch(`https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${filter}`, { headers });
+        const data = await find.json();
+        const fields = { Key: DIAGRAM_KEY, Data: JSON.stringify(snapshot) };
+        if (data?.records?.[0]?.id) {
+            await fetch(`https://api.airtable.com/v0/${baseId}/${table}/${data.records[0].id}`, { method: 'PATCH', headers, body: JSON.stringify({ fields }) });
+        } else {
+            await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, { method: 'POST', headers, body: JSON.stringify({ records: [{ fields }] }) });
+        }
+    }
+
+    function makeSnapshot(nodes, edges, unitLayoutOrder) {
+        const nodeSnap = (nodes || []).map(n => ({ id: n.id, type: n.type, position: n.position }));
+        const edgeSnap = (edges || []).map(e => ({ id: e.id, source: e.source, target: e.target, type: e.type, animated: !!e.animated }));
+        return { key: DIAGRAM_KEY, unitLayoutOrder, nodes: nodeSnap, edges: edgeSnap, updatedAt: new Date().toISOString() };
+    }
+
+    function applySnapshotToCurrentNodes(prevNodes, snap) {
+        const pos = new Map((snap?.nodes || []).map(n => [String(n.id), n.position || {}]));
+        return prevNodes.map(n => pos.has(String(n.id)) ? { ...n, position: pos.get(String(n.id)) } : n);
+    }
+
     const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
     const [items, setItems] = useState([]);
@@ -212,70 +261,78 @@ export default function ProcessDiagram() {
         [items]
     );
     // --- Persist canvas edges -> Airtable "Connections" (debounced) ---
-const persistDebounceRef = React.useRef(null);
+    const persistDebounceRef = React.useRef(null);
 
-const persistConnectionsToAirtable = React.useCallback(async (records) => {
-  const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-  const token  = import.meta.env.VITE_AIRTABLE_TOKEN;
-  const table  = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
-  if (!baseId || !token || !table || !records?.length) return;
+    const persistConnectionsToAirtable = React.useCallback(async (records) => {
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+        const table = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+        if (!baseId || !token || !table || !records?.length) return;
 
-  // Batch PATCH
-  await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ records }),
-  });
-}, []);
+        // Batch PATCH
+        await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, {
+            method: 'PATCH',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ records }),
+        });
+    }, []);
 
-useEffect(() => {
-  if (!items.length) return;
+    // ---- autosave whenever nodes/edges/unit layout change
+    const debouncedSave = React.useRef(debounce((snap) => { saveLayoutToAirtable(snap).catch(() => { }); }, 800));
+    useEffect(() => {
+        const snap = makeSnapshot(nodes, edges, unitLayoutOrder);
+        try { localStorage.setItem('diagram:autoSave', JSON.stringify(snap)); } catch { }
+        debouncedSave.current(snap);
+    }, [nodes, edges, unitLayoutOrder]);
 
-  // Build: sourceId -> [targetCodes]
-  const byId = new Map(items.map(it => [String(it.id), it]));
-  const nextMap = new Map();
+    useEffect(() => {
+        if (!items.length) return;
 
-  (edges || []).forEach(e => {
-    const srcId = String(e.source);
-    const tgt   = byId.get(String(e.target));
-    const tgtCode = tgt?.Code || tgt?.['Item Code'] || '';
-    if (!tgtCode) return;
-    if (!nextMap.has(srcId)) nextMap.set(srcId, []);
-    const arr = nextMap.get(srcId);
-    if (!arr.includes(tgtCode)) arr.push(tgtCode);
-  });
+        // Build: sourceId -> [targetCodes]
+        const byId = new Map(items.map(it => [String(it.id), it]));
+        const nextMap = new Map();
 
-  // Compute changed records only
-  const records = [];
-  // updates / inserts
-  nextMap.forEach((codes, srcId) => {
-    const cur = byId.get(srcId);
-    const curCodes = Array.isArray(cur?.Connections) ? cur.Connections : [];
-    const same = curCodes.length === codes.length && curCodes.every(c => codes.includes(c));
-    if (!same) records.push({ id: srcId, fields: { Connections: codes } });
-  });
-  // clears (had connections but now no outgoing edges)
-  items.forEach(it => {
-    const hasEdges = nextMap.has(String(it.id));
-    const curCodes = Array.isArray(it.Connections) ? it.Connections : [];
-    if (!hasEdges && curCodes.length) {
-      records.push({ id: String(it.id), fields: { Connections: [] } });
-    }
-  });
+        (edges || []).forEach(e => {
+            const srcId = String(e.source);
+            const tgt = byId.get(String(e.target));
+            const tgtCode = tgt?.Code || tgt?.['Item Code'] || '';
+            if (!tgtCode) return;
+            if (!nextMap.has(srcId)) nextMap.set(srcId, []);
+            const arr = nextMap.get(srcId);
+            if (!arr.includes(tgtCode)) arr.push(tgtCode);
+        });
 
-  if (!records.length) return;
+        // Compute changed records only
+        const records = [];
+        // updates / inserts
+        nextMap.forEach((codes, srcId) => {
+            const cur = byId.get(srcId);
+            const curCodes = Array.isArray(cur?.Connections) ? cur.Connections : [];
+            const same = curCodes.length === codes.length && curCodes.every(c => codes.includes(c));
+            if (!same) records.push({ id: srcId, fields: { Connections: codes } });
+        });
+        // clears (had connections but now no outgoing edges)
+        items.forEach(it => {
+            const hasEdges = nextMap.has(String(it.id));
+            const curCodes = Array.isArray(it.Connections) ? it.Connections : [];
+            if (!hasEdges && curCodes.length) {
+                records.push({ id: String(it.id), fields: { Connections: [] } });
+            }
+        });
 
-  // debounce to avoid hammering Airtable as you drag/connect
-  if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
-  persistDebounceRef.current = setTimeout(() => {
-    persistConnectionsToAirtable(records).catch(console.error);
-  }, 600);
+        if (!records.length) return;
 
-  return () => clearTimeout(persistDebounceRef.current);
-}, [edges, items, persistConnectionsToAirtable]);
+        // debounce to avoid hammering Airtable as you drag/connect
+        if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
+        persistDebounceRef.current = setTimeout(() => {
+            persistConnectionsToAirtable(records).catch(console.error);
+        }, 600);
+
+        return () => clearTimeout(persistDebounceRef.current);
+    }, [edges, items, persistConnectionsToAirtable]);
 
     // ---------- Connect ----------
     const onConnect = useCallback((params) => {
@@ -524,15 +581,25 @@ useEffect(() => {
             // 4) Build nodes/edges via your builder (keeps unit frames + positions)
             const built = buildDiagram(nextItems, patchedLayout, { prevNodes: nodes });
             setNodes(built.nodes);
-
-            // 5) Merge edges safely THEN prune
             const validIds = new Set(built.nodes.map(n => n.id));
-            setEdges(prev =>
-                pruneDirectEdgesIfValvePresent(
-                    mergeEdges(prev, built.edges, validIds),
-                    built.nodes
-                )
-            );
+            setEdges(prev => pruneDirectEdgesIfValvePresent(mergeEdges(prev, built.edges, validIds), built.nodes));
+
+            // ---- restore autosaved layout (positions/edges/unit grid)
+            try {
+                const cloud = await loadLayoutFromAirtable();
+                const local = JSON.parse(localStorage.getItem('diagram:autoSave') || 'null');
+                const snap = cloud || local;
+                if (snap) {
+                    setNodes(prev => applySnapshotToCurrentNodes(prev, snap));
+                    if (Array.isArray(snap.edges) && snap.edges.length) {
+                        setEdges(_ => (snap.edges || []).filter(e => validIds.has(e.source) && validIds.has(e.target)));
+                    }
+                    if (Array.isArray(snap.unitLayoutOrder) && snap.unitLayoutOrder.length) {
+                        setUnitLayoutOrder(snap.unitLayoutOrder);
+                    }
+                }
+            } catch { }
+
 
             // 6) Commit items and auto-select a new node if any
             setItems(nextItems);
@@ -598,6 +665,21 @@ useEffect(() => {
                         builtNodes
                     )
                 );
+                // 4.1) Restore autosaved layout (positions/edges/unit grid)
+                try {
+                    const cloud = await loadLayoutFromAirtable();
+                    const local = JSON.parse(localStorage.getItem('diagram:autoSave') || 'null');
+                    const snap = cloud || local;
+                    if (snap) {
+                        setNodes(prev => applySnapshotToCurrentNodes(prev, snap));
+                        if (Array.isArray(snap.edges) && snap.edges.length) {
+                            setEdges(_ => (snap.edges || []).filter(e => validIdsInit.has(e.source) && validIdsInit.has(e.target)));
+                        }
+                        if (Array.isArray(snap.unitLayoutOrder) && snap.unitLayoutOrder.length) {
+                            setUnitLayoutOrder(snap.unitLayoutOrder);
+                        }
+                    }
+                } catch { }
 
                 // 5) Mirror positions back to items
                 const posById = Object.fromEntries((builtNodes || []).map((n) => [String(n.id), n.position || {}]));
