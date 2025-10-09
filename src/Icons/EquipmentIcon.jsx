@@ -1,4 +1,4 @@
-//EquipmentIcon
+﻿//EquipmentIcon
 import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 
@@ -63,9 +63,39 @@ export default function EquipmentIcon({ id, data }) {
         return () => clearTimeout(timeoutRef.current);
     }, []);
 
-    // Normalize: lookup by Type case-insensitive
-    const key = data?.Type?.toLowerCase();
-    const Icon = key && typeIcons[key] ? typeIcons[key] : null;
+    // --- tolerant type key lookup (TypeKey preferred) ---
+    const normalizeKey = (s) =>
+        (s || "")
+            .toString()
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "_")
+            .replace(/[^a-z0-9_-]/g, "");
+
+    const primary = (data?.TypeKey || normalizeKey(data?.Type || "")).toLowerCase();
+
+    // extra tolerant variants (handles “Tank – Vertical”, “Tank (from Types)”, etc.)
+    const cleaned = primary
+        .replace(/\(.+?\)/g, "")          // strip parentheticals
+        .replace(/_+from_.+$/, "")        // strip “_from_types” tails
+        .replace(/[_-]+$/, "")             // strip trailing separators
+        .trim();
+
+    const baseWord = cleaned.split(/[_-]/)[0] || cleaned;
+
+    const keysToTry = [
+        primary,
+        cleaned,
+        cleaned.replace(/[_-]/g, ""), // no separators
+        cleaned.replace(/_/g, "-"),
+        cleaned.replace(/-/g, "_"),
+        baseWord,                     // first token → e.g. "tank_vertical" → "tank"
+    ];
+
+    let Icon = null;
+    for (const k of keysToTry) {
+        if (k && typeIcons[k]) { Icon = typeIcons[k]; break; }
+    }
 
     return (
         <div
@@ -193,7 +223,7 @@ export default function EquipmentIcon({ id, data }) {
                     }}
                 >
                     <button onClick={onScale} style={{ fontSize: 12, cursor: 'pointer' }}>
-                        �2
+                        ×2
                     </button>
                     <button onClick={onReset} style={{ fontSize: 12, cursor: 'pointer' }}>
                         Reset
