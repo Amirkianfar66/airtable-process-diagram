@@ -3,6 +3,21 @@ import React from "react";
 import AirtableItemsTable from "./AirtableItemsTable.jsx"; // Tab 1
 import PNIDCanvas from "./pnidCanvas.jsx";                 // Tab 2
 
+// ---------- define safe globals ASAP (before React runs) ----------
+if (typeof window !== "undefined") {
+    // If toolbar calls this before AppTabs mounts, don't crash; queue desired tab
+    if (typeof window.setAppTab !== "function") {
+        window.setAppTab = (nameOrIndex) => {
+            window.__pendingSetAppTab = nameOrIndex;
+            // also emit a generic event some code might listen for
+            window.dispatchEvent(new CustomEvent("tabs:set", { detail: nameOrIndex }));
+        };
+    }
+    if (typeof window.getAppTab !== "function") {
+        window.getAppTab = () => "canvas";
+    }
+}
+
 function TabButton({ active, onClick, children }) {
     return (
         <button
@@ -27,10 +42,10 @@ const INDEX_TO_TAB = ["data", "canvas", "3d"];
 export default function AppTabs() {
     const [tab, setTab] = React.useState(0); // 0=Data, 1=2D, 2=3D
 
-    // Keep PNID state inside React; start from global if present
+    // Keep PNID in React; start from global if present
     const [pnid, setPnid] = React.useState(() => window.__pnid || { nodes: [], edges: [] });
 
-    // Mirror for /api/ai-generate context
+    // Mirror PNID for /api/ai-generate context
     React.useEffect(() => {
         window.__pnid = pnid;
     }, [pnid]);
@@ -42,27 +57,36 @@ export default function AppTabs() {
         return () => window.removeEventListener("pnid:update", onUpdate);
     }, []);
 
-    // 🔌 Expose global tab controls (toolbar calls these)
+    // Install the REAL global tab API once mounted
     React.useEffect(() => {
-        window.setAppTab = (nameOrIndex) => {
+        const realSetAppTab = (nameOrIndex) => {
             let idx = typeof nameOrIndex === "number" ? nameOrIndex : TAB_TO_INDEX[nameOrIndex] ?? 1;
             idx = Math.max(0, Math.min(2, idx));
             setTab(idx);
             window.dispatchEvent(new CustomEvent("appTabChanged", { detail: { tab: INDEX_TO_TAB[idx] } }));
         };
+
+        // Expose real functions
+        window.setAppTab = realSetAppTab;
         window.getAppTab = () => INDEX_TO_TAB[tab];
 
-        // Optional event fallbacks
-        const onSet = (e) => window.setAppTab?.(e?.detail);
-        const onNext = () => window.setAppTab?.(tab + 1);
-        const onPrev = () => window.setAppTab?.(tab - 1);
+        // Handle queued request (if toolbar called setAppTab before mount)
+        if (window.__pendingSetAppTab !== undefined) {
+            const pending = window.__pendingSetAppTab;
+            delete window.__pendingSetAppTab;
+            realSetAppTab(pending);
+        }
+
+        // Optional convenience events
+        const onSet = (e) => realSetAppTab(e?.detail);
+        const onNext = () => realSetAppTab(tab + 1);
+        const onPrev = () => realSetAppTab(tab - 1);
         window.addEventListener("tabs:set", onSet);
         window.addEventListener("tabs:next", onNext);
         window.addEventListener("tabs:prev", onPrev);
 
         return () => {
-            delete window.setAppTab;
-            delete window.getAppTab;
+            // keep the stub if unmounted in HMR, but remove listeners
             window.removeEventListener("tabs:set", onSet);
             window.removeEventListener("tabs:next", onNext);
             window.removeEventListener("tabs:prev", onPrev);
