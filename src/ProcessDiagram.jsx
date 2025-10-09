@@ -434,16 +434,16 @@ export default function ProcessDiagram() {
     useEffect(() => {
         const loadItems = async () => {
             try {
-                const itemsRaw = await fetchData(); // If you control this, add &cellFormat=string to its Airtable URL.
+                const itemsRaw = await fetchData();
 
                 const normalizedItems = itemsRaw.map((item) => {
                     const rawCat = item['Category Item Type'] ?? item.Category ?? '';
                     const cat = Array.isArray(rawCat) ? (rawCat[0] ?? '') : String(rawCat || '');
 
                     const rawType = Array.isArray(item.Type) ? (item.Type[0] ?? '') : String(item.Type || '');
-                    const isRec = typeof rawType === 'string' && /^rec[a-z0-9]+/i.test(rawType);
-                    // If fetchData() already used &cellFormat=string, rawType is the label ("Tank") and isRec will be false.
-                    const labelType = isRec ? '' : rawType;
+                    const labelType = rawType; // with cellFormat=string this is already e.g. "Tank"
+                    const looksLikeRec = typeof rawType === 'string' && /^rec[a-z0-9]+/i.test(rawType);
+                    const safeType = looksLikeRec ? '' : rawType;
 
                     return {
                         id: item.id || `${item.Name}-${Date.now()}`,
@@ -454,23 +454,20 @@ export default function ProcessDiagram() {
                         SubUnit: item.SubUnit || item['Sub Unit'] || 'Default SubUnit',
                         Category: cat,
                         'Category Item Type': cat,
-
-                        // 🔑 keep link id so the panel can resolve later (ItemDetailCard reads TypeRef)
-                        TypeRef: isRec ? rawType : '',
-
-                        // ✅ use label (or blank) for rendering
-                        Type: labelType,
-                        TypeKey: labelType ? normalizeTypeKey(labelType) : '',
+                        // IMPORTANT: use safeType here so we don't store a recXXXX as Type/TypeKey
+                        Type: rawType,
+                        TypeKey: normalizeTypeKey(rawType),
 
                         Sequence: item.Sequence || 0,
                         Connections: Array.isArray(item.Connections) ? item.Connections : [],
                     };
                 });
 
-                // 1) update items
+                // 1) Update items state
                 setItems(normalizedItems);
 
-                // 2) sync Type/TypeKey/TypeRef into existing nodes (in case nodes already exist)
+                // 2) ⬇⬇⬇ Put THIS right here ⬇⬇⬇
+                // Sync the freshly resolved Type/TypeKey into existing nodes
                 setNodes((prev) =>
                     prev.map((n) => {
                         const nid = n?.data?.item?.id || n?.id;
@@ -484,27 +481,21 @@ export default function ProcessDiagram() {
                                     ...n.data.item,
                                     Type: it.Type,
                                     TypeKey: it.TypeKey,
-                                    TypeRef: it.TypeRef,
                                 },
-                                _rev: (n.data?._rev || 0) + 1, // nudge re-render
+                                // Nudge memoized nodes to re-render icon (optional)
+                                _rev: (n.data?._rev || 0) + 1,
                             },
                         };
                     })
                 );
-
-                // 3) 👇 IMPORTANT: ensure unit layout exists so buildDiagram runs
-                setUnitLayoutOrder((prevLayout) => {
-                    if (Array.isArray(prevLayout) && prevLayout.length) return prevLayout;
-                    const units = Array.from(new Set(normalizedItems.map((i) => i.Unit || 'Unit 1')));
-                    return units.length ? [units] : [[]];
-                });
+                // 2) ⬆⬆⬆ END of the exact place ⬆⬆⬆
             } catch (e) {
                 console.error(e);
             }
         };
 
         loadItems();
-    }, [fetchData, setItems, setNodes, setUnitLayoutOrder]);
+    }, [fetchData, setItems, setNodes]);
 
 
     // ---------- Rebuild on unit layout change; mirror positions back to items ----------

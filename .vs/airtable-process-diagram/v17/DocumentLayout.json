@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\DiagramCanvas.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ProcessDiagram.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\ProcessDiagram.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\DiagramCanvas.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ItemDetailCard.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
@@ -70,7 +70,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 14,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Document",
@@ -127,13 +127,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "ProcessDiagram.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ProcessDiagram.jsx",
               "RelativeDocumentMoniker": "src\\ProcessDiagram.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ProcessDiagram.jsx",
               "RelativeToolTip": "src\\ProcessDiagram.jsx",
-              "ViewState": "AgIAANwBAAAAAAAAAAAcwPsBAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAKkBAAAAAAAAAAAAALgBAAAiAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-10-09T07:28:23.098Z",
               "EditorCaption": ""
@@ -185,7 +185,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "DiagramCanvas.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx",
               "RelativeDocumentMoniker": "src\\DiagramCanvas.jsx",
