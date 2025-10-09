@@ -1,5 +1,5 @@
 ﻿import ReactFlow, { Controls, Background, useReactFlow } from 'reactflow';
-import ReactFlow, { Controls, Background } from 'reactflow';
+
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
