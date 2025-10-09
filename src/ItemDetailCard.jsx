@@ -255,9 +255,18 @@ export default function ItemDetailCard({
 
             // 4) Write state (update Category too if needed)
             const idForUpdate = item?.id ?? localItem?.id;
-            if (inferredCat && inferredCat !== (localItem?.["Category Item Type"] || localItem?.Category)) {
-                const updated = { ...(localItem || {}), id: idForUpdate, "Category Item Type": inferredCat, Category: inferredCat, Type: remoteType };
+            if (inferredCat && inferredCat !== (localItem?.['Category Item Type'] || localItem?.Category)) {
+                const updated = {
+                    ...(localItem || {}),
+                    id: idForUpdate,
+                    "Category Item Type": inferredCat,
+                    Category: inferredCat,
+                    Type: remoteType,
+                    TypeKey: normalizeTypeKey(remoteType), // 👈 add this
+                };
                 commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
+            }
+
             } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
                 const updated = {
                     ...(localItem || {}),
@@ -287,7 +296,8 @@ export default function ItemDetailCard({
                 const name = await getTypeName(v);
                 if (name && name !== v) {
                     // Update UI only; don't push upstream here
-                    setLocalItem(prev => ({ ...(prev || {}), Type: name }));
+                    setLocalItem(prev => ({ ...(prev || {}), Type: name, TypeKey: normalizeTypeKey(name) }));
+
                 }
             }
         })();
@@ -363,8 +373,14 @@ export default function ItemDetailCard({
         // If panel shows a different value, update it and persist (debounced)
         if ((localItem?.Type || '') !== inlineType) {
             setLocalItem(prev => ({ ...prev, Type: inlineType }));
-            const upd = { ...(localItem || {}), id: item?.id ?? localItem?.id, Type: inlineType };
+            const upd = {
+                ...(localItem || {}),
+                id: item?.id ?? localItem?.id,
+                Type: inlineType,
+                TypeKey: normalizeTypeKey(inlineType), // 👈 add this
+            };
             commitUpdate(withVisualBump(upd), { reposition: false, immediate: true });
+
         }
 
     }, [edges, item?.id, localItem?.['Category Item Type'], localItem?.Category]);
@@ -397,6 +413,7 @@ export default function ItemDetailCard({
 
 
     // Commit with 2s debounce to avoid live-updating canvas while typing
+    // Commit with 2s debounce to avoid live-updating canvas while typing
     const commitUpdate = (updatedObj = {}, options = { reposition: false, immediate: false }) => {
         const authoritativeId =
             updatedObj?.id ?? item?.id ?? localItem?.id;
@@ -411,6 +428,11 @@ export default function ItemDetailCard({
                 : typeof item?.y === 'number' ? item.y
                     : undefined;
 
+        // 👉 If Type is present, compute TypeKey FIRST (so it lands in payload & local state)
+        if (Object.prototype.hasOwnProperty.call(updatedObj, "Type")) {
+            updatedObj.TypeKey = normalizeTypeKey(updatedObj.Type);
+        }
+
         const payload = { ...updatedObj, id: authoritativeId };
 
         if (!options.reposition) {
@@ -418,7 +440,7 @@ export default function ItemDetailCard({
             if (typeof chosenY === 'number') payload.y = Number(chosenY);
         }
 
-        // update local panel immediately
+        // update local panel immediately (now includes TypeKey)
         setLocalItem(prev => ({ ...prev, ...updatedObj }));
 
         if (options.reposition) payload._repositionRequest = true;
@@ -435,12 +457,8 @@ export default function ItemDetailCard({
         } else {
             debounceRef.current = setTimeout(run, 2000);
         }
-        // If Type is present, also compute a normalized TypeKey the icons can use
-        if (Object.prototype.hasOwnProperty.call(updatedObj, "Type")) {
-            updatedObj.TypeKey = normalizeTypeKey(updatedObj.Type);
-        }
-
     };
+
 
     // Cleanup debounce on unmount
     useEffect(() => {
@@ -584,7 +602,10 @@ export default function ItemDetailCard({
                         <select
                             style={inputStyle}
                             value={localItem.Type || ''}
-                            onChange={(e) => handleFieldChange('Type', e.target.value)}
+                            onChange={(e) => commitUpdate(
+                                { Type: e.target.value },               // TypeKey is auto-added by commitUpdate now
+                                { reposition: false, immediate: true }  // 👈 instant canvas update
+                            )}
                             onFocus={() => setIsTypeFocused(true)}
                             onBlur={() => setIsTypeFocused(false)}
                         >
