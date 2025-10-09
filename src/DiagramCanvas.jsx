@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
-import ReactFlow, { Controls, Background, useReactFlow } from 'reactflow';
+import ReactFlow, { Controls, Background } from 'reactflow';
 
 
 import MainToolbar from './MainToolbar';
@@ -348,18 +348,25 @@ export default function DiagramCanvas({
             );
         }
     };
-    const { fitView } = useReactFlow();
+    const rfInstanceRef = useRef(null);
     const firstFitDone = useRef(false);
 
     useEffect(() => {
-        if (!firstFitDone.current && Array.isArray(nodes) && nodes.length > 0) {
-            // wait a tick so RF has measured the canvas
+        if (
+            !firstFitDone.current &&
+            Array.isArray(nodes) &&
+            nodes.length > 0 &&
+            rfInstanceRef.current
+        ) {
             requestAnimationFrame(() => {
-                try { fitView({ padding: 0.2, includeHiddenNodes: true }); } catch { }
+                try {
+                    rfInstanceRef.current.fitView({ padding: 0.2, includeHiddenNodes: true });
+                } catch { }
                 firstFitDone.current = true;
             });
         }
-    }, [nodes?.length, fitView]);
+    }, [nodes?.length]);
+
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -401,6 +408,7 @@ export default function DiagramCanvas({
 
             <div style={{ flex: 1, position: 'relative' }}>
                 <ReactFlow
+                    onInit={(inst) => { rfInstanceRef.current = inst; }}
                     nodes={Array.isArray(nodes) ? nodes : []}
                     edges={enhancedEdges}
                     onNodesChange={onNodesChange}
