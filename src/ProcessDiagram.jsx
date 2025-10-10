@@ -74,7 +74,7 @@ async function buildTypeIdToNameMap() {
     const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
     const token = import.meta.env.VITE_AIRTABLE_TOKEN;
     const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-    const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+    const valveTypesTableId = import.meta.env.VITE_AIRTABLE_VALVE_TYPES_TABLE_ID;
     const headers = { Authorization: `Bearer ${token}` };
     const map = new Map();
 
@@ -198,40 +198,87 @@ export default function ProcessDiagram() {
         };
     }, []);
 
-    // ---- Autosave (no notes) ----
-    const DIAGRAM_KEY = 'global'; // or derive from project/URL
-    const debounce = (fn, ms = 800) => {
-        let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
-    };
+    // ---- Autosave (hardened) ----
+    const DIAGRAM_KEY = (() => {
+        // build a unique key per project/diagram/base; tweak to your needs
+        try {
+            const url = new URL(window.location?.href ?? "", window.location?.origin ?? "http://localhost");
+            const proj = url.searchParams.get("project") || url.pathname.split("/").filter(Boolean).pop() || "";
+            const diagram = url.searchParams.get("diagram") || "";
+            const base = import.meta.env.VITE_AIRTABLE_BASE_ID || "";
+            return [base, proj, diagram].filter(Boolean).join(":") || "global";
+        } catch {
+            return "global";
+        }
+    })();
+
+    const LS_KEY = `diagram:autoSave:${DIAGRAM_KEY}`;
+    const escapeAirtable = (s) => String(s).replace(/'/g, "''");
+
+    const debounce = (fn, ms = 800) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
     async function loadLayoutFromAirtable() {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-        const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_LAYOUTS_TABLE_ID || 'Layouts');
+        const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_LAYOUTS_TABLE_ID || "Layouts");
         if (!baseId || !token) return null;
-        const filter = encodeURIComponent(`{Key}='${DIAGRAM_KEY}'`);
-        const res = await fetch(`https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${filter}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
-        const rec = data?.records?.[0];
-        try { return rec?.fields?.Data ? JSON.parse(rec.fields.Data) : null; } catch { return null; }
+
+        const filter = encodeURIComponent(`{Key}='${escapeAirtable(DIAGRAM_KEY)}'`);
+        try {
+            const res = await fetch(
+                `https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${filter}&maxRecords=1`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            const data = await res.json();
+            const rec = data?.records?.[0];
+            const str = rec?.fields?.Data;
+            if (!str) return null;
+            try { return JSON.parse(str); } catch { return null; }
+        } catch {
+            return null;
+        }
+    }
+
+    async function loadBestSnapshot() {
+        // Compare cloud vs local; pick the freshest
+        const cloud = await loadLayoutFromAirtable();
+        let local = null;
+        try { local = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch { }
+        if (cloud && local) {
+            const ct = Date.parse(cloud.updatedAt || "") || 0;
+            const lt = Date.parse(local.updatedAt || "") || 0;
+            return lt > ct ? local : cloud;
+        }
+        return cloud || local || null;
     }
 
     async function saveLayoutToAirtable(snapshot) {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-        const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_LAYOUTS_TABLE_ID || 'Layouts');
+        const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_LAYOUTS_TABLE_ID || "Layouts");
         if (!baseId || !token) return;
-        const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-        const filter = encodeURIComponent(`{Key}='${DIAGRAM_KEY}'`);
-        const find = await fetch(`https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${filter}`, { headers });
-        const data = await find.json();
-        const fields = { Key: DIAGRAM_KEY, Data: JSON.stringify(snapshot) };
-        if (data?.records?.[0]?.id) {
-            await fetch(`https://api.airtable.com/v0/${baseId}/${table}/${data.records[0].id}`, { method: 'PATCH', headers, body: JSON.stringify({ fields }) });
-        } else {
-            await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, { method: 'POST', headers, body: JSON.stringify({ records: [{ fields }] }) });
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+        const filter = encodeURIComponent(`{Key}='${escapeAirtable(DIAGRAM_KEY)}'`);
+        try {
+            const find = await fetch(
+                `https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${filter}&maxRecords=1`,
+                { headers }
+            );
+            const data = await find.json();
+            const fields = { Key: DIAGRAM_KEY, Data: JSON.stringify(snapshot), UpdatedAt: snapshot.updatedAt };
+
+            if (data?.records?.[0]?.id) {
+                await fetch(`https://api.airtable.com/v0/${baseId}/${table}/${data.records[0].id}`, {
+                    method: "PATCH", headers, body: JSON.stringify({ fields })
+                });
+            } else {
+                await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, {
+                    method: "POST", headers, body: JSON.stringify({ records: [{ fields }] })
+                });
+            }
+        } catch (e) {
+            console.warn("[autosave] save failed", e);
         }
     }
 
@@ -239,7 +286,8 @@ export default function ProcessDiagram() {
         const nodeSnap = (nodes || []).map(n => ({
             id: n.id,
             type: n.type,
-            position: n.position
+            position: { x: Math.round(n.position?.x || 0), y: Math.round(n.position?.y || 0) },
+            width: n.width, height: n.height, // keep size if present (ResizableNode)
         }));
         const edgeSnap = (edges || []).map(e => ({
             id: e.id,
@@ -249,22 +297,30 @@ export default function ProcessDiagram() {
             animated: !!e.animated,
             label: e.label ?? null,
             style: e.style ?? null,
-            data: e.data ?? null
+            data: e.data ?? null,
         }));
         return {
             key: DIAGRAM_KEY,
             unitLayoutOrder,
             nodes: nodeSnap,
             edges: edgeSnap,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
         };
     }
 
-
     function applySnapshotToCurrentNodes(prevNodes, snap) {
         const pos = new Map((snap?.nodes || []).map(n => [String(n.id), n.position || {}]));
-        return prevNodes.map(n => pos.has(String(n.id)) ? { ...n, position: pos.get(String(n.id)) } : n);
+        const size = new Map((snap?.nodes || []).map(n => [String(n.id), { w: n.width, h: n.height }]));
+        return prevNodes.map(n => {
+            const id = String(n.id);
+            const p = pos.get(id);
+            const s = size.get(id);
+            return p
+                ? { ...n, position: p, width: s?.w ?? n.width, height: s?.h ?? n.height }
+                : n;
+        });
     }
+
 
     const [selectedNodes, setSelectedNodes] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
@@ -341,12 +397,58 @@ export default function ProcessDiagram() {
             body: JSON.stringify({ records }),
         });
     }, []);
+    // --- interval autosave: only save if something really changed since last save ---
+    const AUTOSAVE_INTERVAL_MS = 10000;
+    const saveTimerRef = useRef(null);
+    const dirtyRef = useRef(false);
+    const currentSigRef = useRef('');
+    const lastSavedSigRef = useRef('');
+
+    const computeSnapshotSig = useCallback((n, e, layout) => {
+        const np = (n || []).map(x => `${x.id}:${Math.round(x.position?.x || 0)},${Math.round(x.position?.y || 0)}`).sort().join('|');
+        const ep = (e || []).map(x => `${x.source}->${x.target}:${x.type || ''}:${x.animated ? 1 : 0}:${x.style?.stroke || ''}:${x.label || ''}`).sort().join('|');
+        const up = JSON.stringify(layout || []);
+        return `${np}#${ep}#${up}`;
+    }, []);
+
+    useEffect(() => {
+        currentSigRef.current = computeSnapshotSig(nodes, edges, unitLayoutOrder);
+        dirtyRef.current = true;
+    }, [nodes, edges, unitLayoutOrder, computeSnapshotSig]);
+
+    useEffect(() => {
+        clearInterval(saveTimerRef.current);
+        saveTimerRef.current = setInterval(async () => {
+            if (!dirtyRef.current) return;
+            const sig = currentSigRef.current;
+            if (!sig || sig === lastSavedSigRef.current) {
+                dirtyRef.current = false;
+                return;
+            }
+            const snap = makeSnapshot(nodes, edges, unitLayoutOrder);
+            try { localStorage.setItem(LS_KEY, JSON.stringify(snap)); } catch { }
+            try { await saveLayoutToAirtable(snap); } catch { }
+            lastSavedSigRef.current = sig;
+            dirtyRef.current = false;
+        }, AUTOSAVE_INTERVAL_MS);
+        return () => clearInterval(saveTimerRef.current);
+    }, [nodes, edges, unitLayoutOrder]);
+
+    // save once to local on tab close (network is unreliable here)
+    useEffect(() => {
+        const onBeforeUnload = () => {
+            const snap = makeSnapshot(nodes, edges, unitLayoutOrder);
+            try { localStorage.setItem(LS_KEY, JSON.stringify(snap)); } catch { }
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [nodes, edges, unitLayoutOrder]);
 
     // ---- autosave whenever nodes/edges/unit layout change
     const debouncedSave = React.useRef(debounce((snap) => { saveLayoutToAirtable(snap).catch(() => { }); }, 800));
     useEffect(() => {
         const snap = makeSnapshot(nodes, edges, unitLayoutOrder);
-        try { localStorage.setItem('diagram:autoSave', JSON.stringify(snap)); } catch { }
+        try { localStorage.setItem(LS_KEY, JSON.stringify(snap)); } catch { }
         debouncedSave.current(snap);
     }, [nodes, edges, unitLayoutOrder]);
 
@@ -398,11 +500,14 @@ export default function ProcessDiagram() {
 
     // ---------- Connect ----------
     const onConnect = useCallback((params) => {
-        const updatedEdges = addEdge(
-            { ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } },
-            edges
+        setEdges(prev =>
+            addEdge(
+                { ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } },
+                prev
+            )
         );
-        setEdges(updatedEdges);
+    }, [setEdges]);
+
         setItems((prev) => {
             const src = prev.find((it) => String(it.id) === String(params.source));
             const dst = prev.find((it) => String(it.id) === String(params.target));
@@ -411,39 +516,36 @@ export default function ProcessDiagram() {
             if (!dstCode) return prev;
             return prev.map((it) => {
                 if (String(it.id) !== String(src.id)) return it;
-                const cur = Array.isArray(it.Connections) ? it.Connections : [];
+                const cur = Array.isArray(it.Connections) ? Array.from(new Set(it.Connections)) : [];
                 if (cur.includes(dstCode)) return it;
                 return { ...it, Connections: [...cur, dstCode] };
             });
         });
-    }, [edges]);
+     }, []);
 
     // ---------- Group drag (shift children live) ----------
     const onNodeDrag = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
 
-        setNodes((nds) =>
-            nds.map((n) => {
+        setNodes(nds => {
+            const moved = nds.map(n => {
                 if (!n?.data) return n;
                 const isChild =
                     (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
                     n.data.groupId === draggedNode.id ||
                     n.data.parentId === draggedNode.id;
                 if (!isChild) return n;
-
                 const dx = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
                 const dy = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
                 return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
-            })
-        );
-
-        setNodes((nds) =>
-            nds.map((n) =>
+            });
+            return moved.map(n =>
                 n.id === draggedNode.id
                     ? { ...n, data: { ...n.data, prevX: draggedNode.position.x, prevY: draggedNode.position.y } }
                     : n
-            )
-        );
+            );
+        });
+
     }, [setNodes]);
 
     // ---------- Drag stop: clear markers for group; persist x/y for normal nodes ----------
@@ -518,6 +620,50 @@ export default function ProcessDiagram() {
             targetPosition: "left",
             style: { background: "transparent" },
         };
+        const upsertItemToAirtable = useCallback(async (localItem) => {
+            const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+            const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+            const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_TABLE_NAME || 'Table 13');
+            if (!baseId || !token) return null;
+            const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+            const fields = {
+                'Item Code': localItem['Item Code'] || localItem.Code || '',
+                Code: localItem.Code || localItem['Item Code'] || '',
+                Name: localItem.Name || 'Inline Valve',
+                Unit: localItem.Unit || 'No Unit',
+                SubUnit: localItem.SubUnit || 'Default SubUnit',
+                'Category Item Type': localItem['Category Item Type'] || localItem.Category || 'Inline Valve',
+                Category: localItem['Category Item Type'] || localItem.Category || 'Inline Valve',
+                Type: localItem.Type || '',
+                Connections: Array.isArray(localItem.Connections) ? localItem.Connections : [],
+                x: Number.isFinite(localItem.x) ? localItem.x : undefined,
+                y: Number.isFinite(localItem.y) ? localItem.y : undefined,
+                edgeId: localItem.edgeId || undefined,
+                from: localItem.from || undefined,
+                to: localItem.to || undefined,
+            };
+            const res = await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, {
+                method: 'POST', headers, body: JSON.stringify({ records: [{ fields }] })
+            });
+            const data = await res.json();
+            return data?.records?.[0]?.id || null;
+        }, []);
+
+        const remapItemIdEverywhere = useCallback((oldId, newId) => {
+            if (!oldId || !newId || oldId === newId) return;
+            setItems(prev => prev.map(it => it.id === oldId ? { ...it, id: newId } : it));
+            setNodes(prev => prev.map(n => n.id === oldId
+                ? { ...n, id: newId, data: { ...n.data, item: { ...(n.data?.item || {}), id: newId } } }
+                : n
+            ));
+            setEdges(prev => prev.map(e => ({
+                ...e,
+                source: e.source === oldId ? newId : e.source,
+                target: e.target === oldId ? newId : e.target,
+                id: `edge-${e.source === oldId ? newId : e.source}-${e.target === oldId ? newId : e.target}`,
+            })));
+            setSelectedItem(cur => cur && cur.id === oldId ? { ...cur, id: newId } : cur);
+        }, [setItems, setNodes, setEdges, setSelectedItem]);
 
         // Add the valve node
         setNodes((nds) => [...nds, newNode]);
@@ -649,7 +795,7 @@ export default function ProcessDiagram() {
             // 4.1) Restore autosaved layout (positions/edges/unit grid)
             try {
                 const cloud = await loadLayoutFromAirtable();
-                const local = JSON.parse(localStorage.getItem('diagram:autoSave') || 'null');
+                const local = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
                 const snap = cloud || local;
                 if (snap) {
                     setNodes(prev => applySnapshotToCurrentNodes(prev, snap));
@@ -738,7 +884,8 @@ export default function ProcessDiagram() {
                 // ---- restore autosaved layout (positions/edges/unit grid)
                 try {
                     const cloud = await loadLayoutFromAirtable();
-                    const local = JSON.parse(localStorage.getItem('diagram:autoSave') || 'null');
+                    const local = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+
                     const snap = cloud || local;
                     if (snap) {
                         setNodes(prev => applySnapshotToCurrentNodes(prev, snap));
