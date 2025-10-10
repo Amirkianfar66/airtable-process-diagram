@@ -98,7 +98,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 15,
+          "SelectedChildIndex": 14,
           "Children": [
             {
               "$type": "Bookmark",
@@ -140,18 +140,6 @@
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-10-10T14:25:24.894Z",
               "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "ErrorBoundary.jsx",
-              "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ErrorBoundary.jsx",
-              "RelativeDocumentMoniker": "src\\ErrorBoundary.jsx",
-              "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ErrorBoundary.jsx",
-              "RelativeToolTip": "src\\ErrorBoundary.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-10-09T14:08:54.644Z"
             },
             {
               "$type": "Document",
@@ -234,10 +222,22 @@
               "RelativeDocumentMoniker": "src\\DiagramCanvas.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx",
               "RelativeToolTip": "src\\DiagramCanvas.jsx",
-              "ViewState": "AgIAABQCAAAAAAAAAAAcwDMCAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAABQCAAAAAAAAAAAcwBcCAAAQAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-09-06T02:15:02.259Z",
               "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "ErrorBoundary.jsx",
+              "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ErrorBoundary.jsx",
+              "RelativeDocumentMoniker": "src\\ErrorBoundary.jsx",
+              "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ErrorBoundary.jsx",
+              "RelativeToolTip": "src\\ErrorBoundary.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-10-09T14:08:54.644Z"
             },
             {
               "$type": "Document",

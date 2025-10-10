@@ -2,10 +2,8 @@
   "ExpandedNodes": [
     "",
     "\\api",
-    "\\api\\airtable",
-    "\\src",
-    "\\src\\Icons"
+    "\\src"
   ],
-  "SelectedNode": "\\index.html",
+  "SelectedNode": "\\src\\DiagramCanvas.jsx",
   "PreviewInSolutionExplorer": false
 }
