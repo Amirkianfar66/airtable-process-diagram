@@ -15,7 +15,7 @@ import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
-import DataOverlay from './components/DataOverlay';
+import DataOverlay from './Components/DataOverlay.jsx';
 
 
 
