@@ -28,7 +28,7 @@ const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => 
     for (const e of newFiltered) if (!seen.has(key(e))) merged.push(e);
     return merged;
 };
-const [showData, setShowData] = React.useState(false);
+
 
 // Merge snapshot edges (with full label/style/data) into current edges
 const mergeSnapshotEdges = (existingEdges = [], snapshotEdges = [], validNodeIds = new Set()) => {
@@ -57,15 +57,7 @@ const mergeSnapshotEdges = (existingEdges = [], snapshotEdges = [], validNodeIds
     return [...bySig.values()];
 };
 
-// expose global helpers for the toolbar (and anywhere else)
-React.useEffect(() => {
-    window.openDataPanel = () => setShowData(true);
-    window.closeDataPanel = () => setShowData(false);
-    return () => {
-        delete window.openDataPanel;
-        delete window.closeDataPanel;
-    };
-}, []);
+
 
 const normalizeTypeKey = (s) =>
     (s || "")
@@ -194,6 +186,17 @@ export const fetchData = async () => {
 export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [showData, setShowData] = useState(false);
+
+    // expose global helpers for the toolbar (now safe inside a component)
+    useEffect(() => {
+        window.openDataPanel = () => setShowData(true);
+        window.closeDataPanel = () => setShowData(false);
+        return () => {
+            delete window.openDataPanel;
+            delete window.closeDataPanel;
+        };
+    }, []);
 
     // ---- Autosave (no notes) ----
     const DIAGRAM_KEY = 'global'; // or derive from project/URL
@@ -654,8 +657,8 @@ export default function ProcessDiagram() {
                         
                                 setEdges(prev =>
                                         pruneDirectEdgesIfValvePresent(
-                                                 mergeSnapshotEdges(prev, snap.edges, validIdsInit),
-                                                 builtNodes
+                                            mergeSnapshotEdges(prev, snap.edges, validIds),
+                                             built.nodes
                                             )
                                      );
                     }
@@ -743,8 +746,8 @@ export default function ProcessDiagram() {
                           
                                      setEdges(prev =>
                                              pruneDirectEdgesIfValvePresent(
-                                                     mergeSnapshotEdges(prev, snap.edges, validIds),
-                                                     built.nodes
+                                                 mergeSnapshotEdges(prev, snap.edges, validIdsInit),
+                                                 builtNodes
                                                  )
                                          );
                         }
