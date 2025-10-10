@@ -1106,7 +1106,9 @@ export default function ProcessDiagram() {
                         onDeleteEdge={(id) => {
                             if (!id) return;
                             setEdges((eds) => eds.filter((e) => e.id !== id));
-                            setNodes((nds) => nds.filter((n) => !(n?.data?.item?.edgeId && n.data.item.edgeId === id)));
+                            setNodes((nds) =>
+                                nds.filter((n) => !(n?.data?.item?.edgeId && n.data.item.edgeId === id))
+                            );
                             setSelectedItem((cur) => (cur?.edgeId === id ? null : cur));
                         }}
                         onUpdateEdge={handleUpdateEdge}
@@ -1117,11 +1119,10 @@ export default function ProcessDiagram() {
                         Select an item or group to see details
                     </div>
                 )}
-            </div> {/* RIGHT: Sidebar */}
+            </div>
 
-            {/* ⬇️ Add this exactly here */}
+            {/* Overlay lives inside the root container */}
             <DataOverlay open={showData} onClose={() => setShowData(false)} />
-        </div> {/* Outer container */ }
+        </div>
     );
 }
-
