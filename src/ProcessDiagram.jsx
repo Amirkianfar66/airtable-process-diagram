@@ -1113,7 +1113,7 @@ export default function ProcessDiagram() {
                         onCreateInlineValve={(edgeId) => handleCreateInlineValve(edgeId)}
                     />
                 ) : (
-                    <div style={{ padding: 20, color: "#888" }}>
+                    <div style={{ padding: 20, color: "#788" }}>
                         Select an item or group to see details
                     </div>
                 )}
