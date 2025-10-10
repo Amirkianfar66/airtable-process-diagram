@@ -1,22 +1,37 @@
 ﻿// src/components/DataOverlay.jsx
 import React from "react";
-import ReactDOM from "react-dom";
+import { createPortal } from "react-dom";
 import AirtableItemsTable from "../AirtableItemsTable.jsx";
 
 export default function DataOverlay({ open, onClose }) {
+    // Close on ESC
     React.useEffect(() => {
+        if (!open) return;
         const onEsc = (e) => e.key === "Escape" && onClose?.();
-        if (open) document.addEventListener("keydown", onEsc);
+        document.addEventListener("keydown", onEsc);
         return () => document.removeEventListener("keydown", onEsc);
     }, [open, onClose]);
 
+    // Lock background scroll while open
+    React.useEffect(() => {
+        if (!open) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => { document.body.style.overflow = prev; };
+    }, [open]);
+
     if (!open) return null;
 
-    const body = document.body;
-    return ReactDOM.createPortal(
+    // SSR / safety guard
+    const portalTarget = typeof document !== "undefined" ? document.body : null;
+    if (!portalTarget) return null;
+
+    return createPortal(
         <div
             role="dialog"
+            aria-modal="true"
             aria-label="Items (Airtable)"
+            onClick={onClose}
             style={{
                 position: "fixed",
                 inset: 0,
@@ -25,10 +40,9 @@ export default function DataOverlay({ open, onClose }) {
                 display: "grid",
                 placeItems: "center",
             }}
-            onMouseDown={onClose}
         >
             <div
-                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                     width: "min(1200px, 96vw)",
                     height: "min(750px, 90vh)",
@@ -51,7 +65,9 @@ export default function DataOverlay({ open, onClose }) {
                 >
                     <strong style={{ fontSize: 14 }}>Items (Airtable)</strong>
                     <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                        <button onClick={onClose} style={{ padding: "6px 10px" }}>Close</button>
+                        <button onClick={onClose} style={{ padding: "6px 10px" }}>
+                            Close
+                        </button>
                     </div>
                 </div>
 
@@ -60,6 +76,6 @@ export default function DataOverlay({ open, onClose }) {
                 </div>
             </div>
         </div>,
-        body
+        portalTarget
     );
 }
