@@ -1,0 +1,15 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "cylinder",
+      "args": [
+        18,
+        18,
+        6,
+        24
+      ],
+      "color": "#777"
+    }
+  ]
+}

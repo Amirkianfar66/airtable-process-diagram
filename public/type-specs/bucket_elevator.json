@@ -1,0 +1,43 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "roundedBox",
+      "args": [
+        30,
+        120,
+        24
+      ],
+      "radius": 2,
+      "color": "#94a3b8"
+    },
+    {
+      "type": "box",
+      "args": [
+        20,
+        10,
+        8
+      ],
+      "position": [
+        0,
+        -40,
+        12
+      ],
+      "color": "#64748b"
+    },
+    {
+      "type": "box",
+      "args": [
+        20,
+        10,
+        8
+      ],
+      "position": [
+        0,
+        40,
+        12
+      ],
+      "color": "#64748b"
+    }
+  ]
+}

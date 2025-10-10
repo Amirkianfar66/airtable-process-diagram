@@ -1,0 +1,45 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "roundedBox",
+      "args": [
+        40,
+        18,
+        24
+      ],
+      "radius": 2,
+      "color": "#7dd3fc"
+    },
+    {
+      "type": "torus",
+      "args": [
+        10,
+        1.5,
+        12,
+        24
+      ],
+      "position": [
+        -12,
+        12,
+        0
+      ],
+      "color": "#38bdf8"
+    },
+    {
+      "type": "torus",
+      "args": [
+        10,
+        1.5,
+        12,
+        24
+      ],
+      "position": [
+        12,
+        12,
+        0
+      ],
+      "color": "#38bdf8"
+    }
+  ]
+}

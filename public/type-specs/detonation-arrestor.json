@@ -1,0 +1,45 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "cylinder",
+      "args": [
+        10,
+        10,
+        60,
+        24
+      ],
+      "rotation": [
+        0,
+        0,
+        1.5707963267948966
+      ],
+      "color": "#aaa"
+    },
+    {
+      "type": "roundedBox",
+      "args": [
+        34,
+        26,
+        26
+      ],
+      "radius": 2,
+      "color": "#ef4444"
+    },
+    {
+      "type": "torus",
+      "args": [
+        12,
+        2,
+        12,
+        24
+      ],
+      "position": [
+        0,
+        18,
+        0
+      ],
+      "color": "#ef4444"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "sphere",
+      "args": [
+        40,
+        32,
+        24
+      ],
+      "color": "#eab308"
+    }
+  ]
+}

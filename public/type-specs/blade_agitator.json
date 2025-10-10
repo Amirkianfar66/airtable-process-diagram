@@ -1,0 +1,58 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "cylinder",
+      "args": [
+        18,
+        18,
+        30,
+        16
+      ],
+      "color": "#94a3b8"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        2,
+        2,
+        30,
+        12
+      ],
+      "position": [
+        0,
+        30,
+        0
+      ],
+      "color": "#94a3b8"
+    },
+    {
+      "type": "box",
+      "args": [
+        2,
+        10,
+        28
+      ],
+      "position": [
+        0,
+        15,
+        0
+      ],
+      "color": "#64748b"
+    },
+    {
+      "type": "box",
+      "args": [
+        28,
+        10,
+        2
+      ],
+      "position": [
+        0,
+        15,
+        0
+      ],
+      "color": "#64748b"
+    }
+  ]
+}

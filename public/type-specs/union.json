@@ -1,0 +1,40 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "cylinder",
+      "args": [
+        10,
+        10,
+        60,
+        24
+      ],
+      "rotation": [
+        0,
+        0,
+        1.5707963267948966
+      ],
+      "color": "#aaa"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        14,
+        14,
+        16,
+        24
+      ],
+      "color": "#bbb"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        12,
+        12,
+        10,
+        24
+      ],
+      "color": "#888"
+    }
+  ]
+}

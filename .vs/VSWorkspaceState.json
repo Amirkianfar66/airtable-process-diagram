@@ -2,8 +2,9 @@
   "ExpandedNodes": [
     "",
     "\\api",
-    "\\src"
+    "\\src",
+    "\\src\\Components"
   ],
-  "SelectedNode": "\\src\\DiagramCanvas.jsx",
+  "SelectedNode": "\\src\\Components\\DataOverlay.jsx",
   "PreviewInSolutionExplorer": false
 }

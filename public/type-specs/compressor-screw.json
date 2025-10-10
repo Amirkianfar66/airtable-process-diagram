@@ -1,0 +1,55 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "roundedBox",
+      "args": [
+        80,
+        30,
+        30
+      ],
+      "radius": 4,
+      "color": "#10b981"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        10,
+        10,
+        40,
+        16
+      ],
+      "position": [
+        -20,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "color": "#059669"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        10,
+        10,
+        40,
+        16
+      ],
+      "position": [
+        20,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "color": "#059669"
+    }
+  ]
+}

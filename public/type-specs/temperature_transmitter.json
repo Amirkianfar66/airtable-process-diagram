@@ -1,0 +1,35 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "cylinder",
+      "args": [
+        2,
+        2,
+        26,
+        12
+      ],
+      "position": [
+        0,
+        13,
+        0
+      ],
+      "color": "#666"
+    },
+    {
+      "type": "roundedBox",
+      "args": [
+        16,
+        16,
+        10
+      ],
+      "radius": 2,
+      "position": [
+        0,
+        26,
+        0
+      ],
+      "color": "#9333ea"
+    }
+  ]
+}

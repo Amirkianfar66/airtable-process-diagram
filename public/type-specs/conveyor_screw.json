@@ -1,0 +1,30 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "roundedBox",
+      "args": [
+        120,
+        14,
+        20
+      ],
+      "radius": 2,
+      "color": "#94a3b8"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        10,
+        10,
+        120,
+        16
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "color": "#64748b"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "cylinder",
+      "args": [
+        30,
+        30,
+        90,
+        24
+      ],
+      "color": "#22c55e"
+    },
+    {
+      "type": "sphere",
+      "args": [
+        30,
+        24,
+        16
+      ],
+      "position": [
+        0,
+        45,
+        0
+      ],
+      "color": "#22c55e"
+    }
+  ]
+}

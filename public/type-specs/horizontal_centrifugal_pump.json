@@ -1,0 +1,59 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "cylinder",
+      "args": [
+        20,
+        20,
+        50,
+        24
+      ],
+      "color": "#3b82f6"
+    },
+    {
+      "type": "box",
+      "args": [
+        50,
+        20,
+        24
+      ],
+      "position": [
+        0,
+        20,
+        0
+      ],
+      "color": "#3b82f6"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        6,
+        6,
+        60,
+        16
+      ],
+      "rotation": [
+        0,
+        0,
+        1.5707963267948966
+      ],
+      "color": "#3b82f6"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        6,
+        6,
+        60,
+        16
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "color": "#3b82f6"
+    }
+  ]
+}

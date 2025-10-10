@@ -1,0 +1,95 @@
+{
+  "type": "group",
+  "children": [
+    {
+      "type": "roundedBox",
+      "args": [
+        60,
+        8,
+        60
+      ],
+      "radius": 2,
+      "position": [
+        0,
+        -20,
+        0
+      ],
+      "color": "#334155"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        2,
+        2,
+        40,
+        10
+      ],
+      "position": [
+        -26,
+        -10,
+        26
+      ],
+      "color": "#64748b"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        2,
+        2,
+        40,
+        10
+      ],
+      "position": [
+        26,
+        -10,
+        26
+      ],
+      "color": "#64748b"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        2,
+        2,
+        40,
+        10
+      ],
+      "position": [
+        -26,
+        -10,
+        -26
+      ],
+      "color": "#64748b"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        2,
+        2,
+        40,
+        10
+      ],
+      "position": [
+        26,
+        -10,
+        -26
+      ],
+      "color": "#64748b"
+    },
+    {
+      "type": "cylinder",
+      "args": [
+        20,
+        10,
+        30,
+        16
+      ],
+      "position": [
+        0,
+        -10,
+        0
+      ],
+      "color": "#94a3b8"
+    }
+  ]
+}
