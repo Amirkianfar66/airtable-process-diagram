@@ -500,28 +500,32 @@ export default function ProcessDiagram() {
 
     // ---------- Connect ----------
     const onConnect = useCallback((params) => {
+        // add the edge
         setEdges(prev =>
             addEdge(
                 { ...params, type: 'step', animated: true, style: { stroke: 'blue', strokeWidth: 2 } },
                 prev
             )
         );
-    }, [setEdges]);
 
-        setItems((prev) => {
-            const src = prev.find((it) => String(it.id) === String(params.source));
-            const dst = prev.find((it) => String(it.id) === String(params.target));
+        // update Connections on the source item
+        setItems(prev => {
+            const src = prev.find(it => String(it.id) === String(params.source));
+            const dst = prev.find(it => String(it.id) === String(params.target));
             if (!src || !dst) return prev;
+
             const dstCode = dst.Code || dst['Item Code'] || '';
             if (!dstCode) return prev;
-            return prev.map((it) => {
+
+            return prev.map(it => {
                 if (String(it.id) !== String(src.id)) return it;
                 const cur = Array.isArray(it.Connections) ? Array.from(new Set(it.Connections)) : [];
                 if (cur.includes(dstCode)) return it;
                 return { ...it, Connections: [...cur, dstCode] };
             });
         });
-     }, []);
+    }, []); // no deps needed; we use functional setState
+
 
     // ---------- Group drag (shift children live) ----------
     const onNodeDrag = useCallback((event, draggedNode) => {
@@ -572,6 +576,50 @@ export default function ProcessDiagram() {
             );
         }
     }, [setNodes, setItems, setSelectedItem]);
+    const upsertItemToAirtable = useCallback(async (localItem) => {
+        const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+        const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+        const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_TABLE_NAME || 'Table 13');
+        if (!baseId || !token) return null;
+        const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+        const fields = {
+            'Item Code': localItem['Item Code'] || localItem.Code || '',
+            Code: localItem.Code || localItem['Item Code'] || '',
+            Name: localItem.Name || 'Inline Valve',
+            Unit: localItem.Unit || 'No Unit',
+            SubUnit: localItem.SubUnit || 'Default SubUnit',
+            'Category Item Type': localItem['Category Item Type'] || localItem.Category || 'Inline Valve',
+            Category: localItem['Category Item Type'] || localItem.Category || 'Inline Valve',
+            Type: localItem.Type || '',
+            Connections: Array.isArray(localItem.Connections) ? localItem.Connections : [],
+            x: Number.isFinite(localItem.x) ? localItem.x : undefined,
+            y: Number.isFinite(localItem.y) ? localItem.y : undefined,
+            edgeId: localItem.edgeId || undefined,
+            from: localItem.from || undefined,
+            to: localItem.to || undefined,
+        };
+        const res = await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, {
+            method: 'POST', headers, body: JSON.stringify({ records: [{ fields }] })
+        });
+        const data = await res.json();
+        return data?.records?.[0]?.id || null;
+    }, []);
+
+    const remapItemIdEverywhere = useCallback((oldId, newId) => {
+        if (!oldId || !newId || oldId === newId) return;
+        setItems(prev => prev.map(it => it.id === oldId ? { ...it, id: newId } : it));
+        setNodes(prev => prev.map(n => n.id === oldId
+            ? { ...n, id: newId, data: { ...n.data, item: { ...(n.data?.item || {}), id: newId } } }
+            : n
+        ));
+        setEdges(prev => prev.map(e => ({
+            ...e,
+            source: e.source === oldId ? newId : e.source,
+            target: e.target === oldId ? newId : e.target,
+            id: `edge-${e.source === oldId ? newId : e.source}-${e.target === oldId ? newId : e.target}`,
+        })));
+        setSelectedItem(cur => cur && cur.id === oldId ? { ...cur, id: newId } : cur);
+    }, [setItems, setNodes, setEdges, setSelectedItem]);
 
     // ---------- Edge helpers ----------
     const handleUpdateEdge = useCallback((edgeId, patch) => {
@@ -620,51 +668,7 @@ export default function ProcessDiagram() {
             targetPosition: "left",
             style: { background: "transparent" },
         };
-        const upsertItemToAirtable = useCallback(async (localItem) => {
-            const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
-            const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-            const table = encodeURIComponent(import.meta.env.VITE_AIRTABLE_TABLE_NAME || 'Table 13');
-            if (!baseId || !token) return null;
-            const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-            const fields = {
-                'Item Code': localItem['Item Code'] || localItem.Code || '',
-                Code: localItem.Code || localItem['Item Code'] || '',
-                Name: localItem.Name || 'Inline Valve',
-                Unit: localItem.Unit || 'No Unit',
-                SubUnit: localItem.SubUnit || 'Default SubUnit',
-                'Category Item Type': localItem['Category Item Type'] || localItem.Category || 'Inline Valve',
-                Category: localItem['Category Item Type'] || localItem.Category || 'Inline Valve',
-                Type: localItem.Type || '',
-                Connections: Array.isArray(localItem.Connections) ? localItem.Connections : [],
-                x: Number.isFinite(localItem.x) ? localItem.x : undefined,
-                y: Number.isFinite(localItem.y) ? localItem.y : undefined,
-                edgeId: localItem.edgeId || undefined,
-                from: localItem.from || undefined,
-                to: localItem.to || undefined,
-            };
-            const res = await fetch(`https://api.airtable.com/v0/${baseId}/${table}`, {
-                method: 'POST', headers, body: JSON.stringify({ records: [{ fields }] })
-            });
-            const data = await res.json();
-            return data?.records?.[0]?.id || null;
-        }, []);
-
-        const remapItemIdEverywhere = useCallback((oldId, newId) => {
-            if (!oldId || !newId || oldId === newId) return;
-            setItems(prev => prev.map(it => it.id === oldId ? { ...it, id: newId } : it));
-            setNodes(prev => prev.map(n => n.id === oldId
-                ? { ...n, id: newId, data: { ...n.data, item: { ...(n.data?.item || {}), id: newId } } }
-                : n
-            ));
-            setEdges(prev => prev.map(e => ({
-                ...e,
-                source: e.source === oldId ? newId : e.source,
-                target: e.target === oldId ? newId : e.target,
-                id: `edge-${e.source === oldId ? newId : e.source}-${e.target === oldId ? newId : e.target}`,
-            })));
-            setSelectedItem(cur => cur && cur.id === oldId ? { ...cur, id: newId } : cur);
-        }, [setItems, setNodes, setEdges, setSelectedItem]);
-
+        
         // Add the valve node
         setNodes((nds) => [...nds, newNode]);
 
