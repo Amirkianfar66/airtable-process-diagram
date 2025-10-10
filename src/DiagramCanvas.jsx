@@ -48,7 +48,11 @@ export default function DiagramCanvas({
 
     // expose globals so your MainToolbar "3D" tab can toggle
     useEffect(() => {
-        window.setCanvasView = (v) => setView(v === '3d' ? '3d' : '2d');
+        window.setCanvasView = (v) => {
+             const next = v === '3d' ? '3d' : '2d';
+              setView(next);
+              window.dispatchEvent(new CustomEvent("canvas:view", { detail: { view: next } }));
+        };
         window.open3DView = () => setView('3d');
         window.open2DView = () => setView('2d');
         return () => {
@@ -66,7 +70,7 @@ export default function DiagramCanvas({
     useEffect(() => {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
-        const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+        const valveTypesTableId = import.meta.env.VITE_AIRTABLE_VALVE_TYPES_TABLE_ID;
         if (!baseId || !token || !valveTypesTableId) return;
 
         let alive = true;
@@ -379,6 +383,11 @@ export default function DiagramCanvas({
             });
         }
     }, [nodes?.length]);
+    // Pick edges for the 3D view (prefer enhancedEdges if present)
+    const __edgesFor3D = React.useMemo(() => {
+        if (typeof enhancedEdges !== "undefined" && Array.isArray(enhancedEdges)) return enhancedEdges;
+        return Array.isArray(edges) ? edges : [];
+    }, [enhancedEdges, edges]);
 
 
     return (
