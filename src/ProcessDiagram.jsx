@@ -15,6 +15,7 @@ import AIPNIDGenerator, { ChatBox } from './AIPNIDGenerator';
 import DiagramCanvas from './DiagramCanvas';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
+import DataOverlay from './DataOverlay';
 
 
 const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => {
@@ -1112,9 +1113,15 @@ export default function ProcessDiagram() {
                         onCreateInlineValve={(edgeId) => handleCreateInlineValve(edgeId)}
                     />
                 ) : (
-                    <div style={{ padding: 20, color: "#888" }}>Select an item or group to see details</div>
+                    <div style={{ padding: 20, color: "#888" }}>
+                        Select an item or group to see details
+                    </div>
                 )}
-            </div>
-        </div>
+            </div> {/* RIGHT: Sidebar */}
+
+            {/* ⬇️ Add this exactly here */}
+            <DataOverlay open={showData} onClose={() => setShowData(false)} />
+        </div> {/* Outer container */ }
     );
 }
+
