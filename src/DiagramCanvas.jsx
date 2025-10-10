@@ -9,7 +9,7 @@ import { getItemIcon, categoryTypeMap } from "./IconManager";
 import ScalableIconNode from './ScalableIconNode';
 import ResizableNode from './ResizableNode';
 import CustomItemNode from './CustomItemNode';
-
+import ThreeDView from './ThreeDView';
 export default function DiagramCanvas({
     nodes,
     edges,
@@ -44,6 +44,19 @@ export default function DiagramCanvas({
     const [selectedEdge, setSelectedEdge] = useState(null);
     const [valveTypeOptions, setValveTypeOptions] = useState([]);
     const panelRef = useRef(null);
+    const [view, setView] = useState('2d');
+
+    // expose globals so your MainToolbar "3D" tab can toggle
+    useEffect(() => {
+        window.setCanvasView = (v) => setView(v === '3d' ? '3d' : '2d');
+        window.open3DView = () => setView('3d');
+        window.open2DView = () => setView('2d');
+        return () => {
+            delete window.setCanvasView;
+            delete window.open3DView;
+            delete window.open2DView;
+        };
+    }, []);
 
     useEffect(() => {
         console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
@@ -407,28 +420,47 @@ export default function DiagramCanvas({
             </div>
 
             <div style={{ flex: 1, position: 'relative' }}>
-                <ReactFlow
-                    onInit={(inst) => { rfInstanceRef.current = inst; }}
-                    nodes={Array.isArray(nodes) ? nodes : []}
-                    edges={enhancedEdges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
-                    onEdgeClick={handleEdgeClick}
-                    onNodeDrag={onNodeDrag}
-                    onNodeDragStop={onNodeDragStop}
-                    fitView
-                    selectionOnDrag
-                    minZoom={0.02}
-                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                    nodeTypes={nodeTypes}
-                    style={{ background: 'transparent' }}
-                >
-                    <Background />
-                    <Controls />
-                </ReactFlow>
+                {/* Full-size layer for either 2D or 3D */}
+                <div style={{ position: 'absolute', inset: 0 }}>
+                    {/* Canvas area: 2D (ReactFlow) or 3D */}
+                    {view === '3d' ? (
+                        <ThreeDView
+                            nodes={Array.isArray(nodes) ? nodes : []}
+                            edges={__edgesFor3D}
+                            onSelectNode={(nodeId) => {
+                                const n = (Array.isArray(nodes) ? nodes : []).find(
+                                    (nn) => String(nn.id) === String(nodeId)
+                                );
+                                // bubble selection up just like RF does:
+                                onSelectionChange?.({ nodes: n ? [n] : [], edges: [] });
+                            }}
+                        />
+                    ) : (
+                        <ReactFlow
+                            onInit={(inst) => { rfInstanceRef.current = inst; }}
+                            nodes={Array.isArray(nodes) ? nodes : []}
+                            edges={enhancedEdges}
+                            onNodesChange={onNodesChange}
+                            onEdgesChange={onEdgesChange}
+                            onConnect={onConnect}
+                            onSelectionChange={onSelectionChange}
+                            onEdgeClick={handleEdgeClick}
+                            onNodeDrag={onNodeDrag}
+                            onNodeDragStop={onNodeDragStop}
+                            fitView
+                            selectionOnDrag
+                            minZoom={0.02}
+                            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                            nodeTypes={nodeTypes}
+                            style={{ width: '100%', height: '100%', background: 'transparent' }}
+                        >
+                            <Background />
+                            <Controls />
+                        </ReactFlow>
+                    )}
+                </div>
 
+                {/* Edge inspector (overlay on the right, available in both views) */}
                 <aside
                     ref={panelRef}
                     aria-hidden={!selectedEdge}
@@ -486,7 +518,7 @@ export default function DiagramCanvas({
                                     <label style={{ display: 'block', fontSize: 12, marginTop: 8 }}>Inline Valve Type</label>
                                     <select
                                         value={selectedEdge?.data?.inlineValveType || ''}
-                                        onChange={(e) => setEdgeInlineValveType(e.target.value)}   // ⬅️ changed
+                                        onChange={(e) => setEdgeInlineValveType(e.target.value)}
                                         style={{ padding: 8, width: '100%' }}
                                     >
                                         <option value="">Select type...</option>
@@ -499,7 +531,6 @@ export default function DiagramCanvas({
                                         )}
                                     </select>
 
-                                    {/* Optional: let user insert the inline valve node after picking the type */}
                                     <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                                         <button onClick={toggleEdgeAnimated}>
                                             {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
@@ -510,7 +541,6 @@ export default function DiagramCanvas({
                                             }>
                                             Insert Inline Valve Node
                                         </button>
-
                                     </div>
                                 </div>
                             )}
@@ -531,6 +561,7 @@ export default function DiagramCanvas({
                     )}
                 </aside>
             </div>
+
         </div>
     );
 }
