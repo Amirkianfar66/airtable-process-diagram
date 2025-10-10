@@ -37,7 +37,6 @@ export default function MainToolbar({
     }, []);
 
     const gotoAppTab = (name) => {
-        // Open/close the overlay page
         if (name === "data") {
             window.openDataPanel?.();
             setAppTab("data");
@@ -45,19 +44,22 @@ export default function MainToolbar({
         }
         if (name === "canvas") {
             window.closeDataPanel?.();
+            window.setCanvasView?.("2d");     // ⬅ switch to 2D canvas
             setAppTab("canvas");
             return;
         }
         if (name === "3d") {
-            // future
+            window.closeDataPanel?.();
+            window.setCanvasView?.("3d");     // ⬅ switch to 3D view
             setAppTab("3d");
             return;
         }
 
-        // fallback to global tab setter if you keep it around
+        // fallback if you still keep a global tab setter around
         const fn = (typeof window !== "undefined") ? window.setAppTab : undefined;
         if (typeof fn === "function") fn(name);
     };
+
 
 
     // anchor positioning (panel shows under clicked tab button)
@@ -314,9 +316,10 @@ export default function MainToolbar({
                     <button onClick={() => gotoAppTab("canvas")} style={segBtn(appTab === "canvas")}>
                         2D
                     </button>
-                    <button onClick={() => gotoAppTab("3d")} style={segBtn(appTab === "3d")} disabled title="Coming soon">
+                    <button onClick={() => gotoAppTab("3d")} style={segBtn(appTab === "3d")}>
                         3D
                     </button>
+
                 </div>
             </div>
 
