@@ -1,12 +1,14 @@
 ﻿// src/ThreeDView.jsx
-import React, { useEffect, useMemo, useState, Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
+import React, { useEffect, useMemo, useState, Suspense, useRef } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Line, Html } from "@react-three/drei";
+import * as THREE from "three";
 import { JsonShape, fetchTypeSpec, guessSpecUrl, normalizeKey } from "./three/TypeShapeRuntime.jsx";
 
-
-/** Lift 2D x,y into 3D x,z with a Y height */
+/** lift 2D x,y into 3D x,z with a Y height */
 const to3 = (p = { x: 0, y: 0 }, y = 0) => [p.x || 0, y, -(p.y || 0)];
+/** back to 2D (React Flow) */
+const to2 = ([x, _y, z]) => ({ x, y: -z });
 
 const colorFor = (cat = "") =>
     cat === "Equipment" ? "#4e79a7" :
@@ -48,7 +50,16 @@ function CategoryFallback({ cat, color }) {
     );
 }
 
-function NodeMesh({ node, onPick }) {
+/** ----- NodeMesh with drag handlers ----- */
+function NodeMesh({
+    node,
+    isDragging,
+    startDrag,
+    moveDrag,
+    endDrag,
+    intersectGround,
+    onPick,
+}) {
     const item = node?.data?.item;
     if (!item) return null;
 
@@ -60,7 +71,6 @@ function NodeMesh({ node, onPick }) {
     const [spec, setSpec] = useState(null);
     const [triedUrl, setTriedUrl] = useState("");
 
-    // pick a URL: item override (ModelJSON) or conventional path
     const specUrl = item.ModelJSON || guessSpecUrl(typeKey);
 
     useEffect(() => {
@@ -76,6 +86,30 @@ function NodeMesh({ node, onPick }) {
         };
     }, [specUrl]);
 
+    const onPointerDown = (e) => {
+        e.stopPropagation();
+        // compute ground intersection point at y=0
+        const hit = intersectGround(e.ray);
+        if (!hit) return;
+        // offset between node center and hit point (so cursor stays relative)
+        const nodeWorld = new THREE.Vector3(...pos);
+        const offset = new THREE.Vector3().subVectors(nodeWorld, hit);
+        startDrag(node.id, offset);
+    };
+
+    const onPointerUp = (e) => {
+        e.stopPropagation();
+        endDrag();
+    };
+
+    const onPointerMove = (e) => {
+        if (!isDragging) return;
+        e.stopPropagation();
+        const p = intersectGround(e.ray);
+        if (!p) return;
+        moveDrag(node.id, p);
+    };
+
     return (
         <group
             position={pos}
@@ -83,6 +117,9 @@ function NodeMesh({ node, onPick }) {
                 e.stopPropagation();
                 onPick?.(node.id);
             }}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerMove={onPointerMove}
         >
             {spec ? (
                 <JsonShape spec={spec} item={item} fallbackColor={color} />
@@ -111,7 +148,15 @@ function NodeMesh({ node, onPick }) {
     );
 }
 
-function Scene({ nodes = [], edges = [], onPick }) {
+/** Scene wrapper with drag logic and edge lines */
+function Scene({
+    nodes = [],
+    edges = [],
+    onPick,
+    onMoveNode,
+    setControlsEnabled,
+    gridSnap = 10,
+}) {
     const byId = useMemo(() => new Map(nodes.map((n) => [String(n.id), n])), [nodes]);
 
     const edgePoints = useMemo(
@@ -127,6 +172,52 @@ function Scene({ nodes = [], edges = [], onPick }) {
         [edges, byId]
     );
 
+    // Ground plane y=0
+    const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
+    const tmp = useRef(new THREE.Vector3());
+    const intersectGround = (ray) => {
+        const hit = tmp.current;
+        const ok = ray.intersectPlane(plane, hit);
+        return ok ? hit.clone() : null;
+    };
+
+    // Drag state
+    const [dragging, setDragging] = useState(null); // { id, offset: Vector3 }
+    const [coarse, setCoarse] = useState(false); // shift for coarse snap
+
+    const startDrag = (id, offset) => {
+        setDragging({ id, offset: offset.clone() });
+        setControlsEnabled?.(false);
+    };
+    const endDrag = () => {
+        setDragging(null);
+        setControlsEnabled?.(true);
+    };
+
+    // Move: compute snapped world pos, convert to 2D, call parent
+    const moveDrag = (id, worldPoint, shiftKey = coarse) => {
+        if (!dragging || dragging.id !== id) return;
+        const desired = worldPoint.clone().add(dragging.offset); // keep cursor-relative offset
+        const snap = shiftKey ? 50 : gridSnap;
+        if (snap > 0) {
+            desired.x = Math.round(desired.x / snap) * snap;
+            desired.z = Math.round(desired.z / snap) * snap;
+        }
+        const pos2 = to2([desired.x, 0, desired.z]);
+        onMoveNode?.(id, pos2);
+    };
+
+    // capture Shift key to toggle coarse snapping
+    useEffect(() => {
+        const onKey = (e) => setCoarse(e.shiftKey);
+        window.addEventListener("keydown", onKey);
+        window.addEventListener("keyup", onKey);
+        return () => {
+            window.removeEventListener("keydown", onKey);
+            window.removeEventListener("keyup", onKey);
+        };
+    }, []);
+
     return (
         <>
             <ambientLight intensity={1} />
@@ -134,8 +225,18 @@ function Scene({ nodes = [], edges = [], onPick }) {
             <Grid args={[2000, 2000]} cellSize={50} sectionSize={250} />
 
             {nodes.map((n) => (
-                <NodeMesh key={n.id} node={n} onPick={onPick} />
+                <NodeMesh
+                    key={n.id}
+                    node={n}
+                    isDragging={!!dragging && dragging.id === n.id}
+                    startDrag={startDrag}
+                    moveDrag={(id, p) => moveDrag(id, p, coarse)}
+                    endDrag={endDrag}
+                    intersectGround={intersectGround}
+                    onPick={onPick}
+                />
             ))}
+
             {edgePoints.map((pts, i) => (
                 <Line key={i} points={pts} lineWidth={2} />
             ))}
@@ -143,16 +244,34 @@ function Scene({ nodes = [], edges = [], onPick }) {
     );
 }
 
-export default function ThreeDView({ nodes = [], edges = [], onSelectNode }) {
+export default function ThreeDView({
+    nodes = [],
+    edges = [],
+    onSelectNode,
+    /** IMPORTANT: wire this to setNodes in your parent */
+    onMoveNode,
+    gridSnap = 10,
+}) {
+    const [controlsEnabled, setControlsEnabled] = useState(true);
     const handlePick = (id) => onSelectNode?.(id);
 
     return (
-        <Canvas camera={{ position: [0, 400, 600], fov: 50 }}>
+        <Canvas
+            camera={{ position: [0, 400, 600], fov: 50 }}
+            onPointerMissed={() => setControlsEnabled(true)}
+        >
             <color attach="background" args={["#f7f7f7"]} />
             <Suspense fallback={null}>
-                <Scene nodes={nodes} edges={edges} onPick={handlePick} />
+                <Scene
+                    nodes={nodes}
+                    edges={edges}
+                    onPick={handlePick}
+                    onMoveNode={onMoveNode}
+                    setControlsEnabled={setControlsEnabled}
+                    gridSnap={gridSnap}
+                />
             </Suspense>
-            <OrbitControls makeDefault enableDamping />
+            <OrbitControls makeDefault enabled={controlsEnabled} enableDamping />
         </Canvas>
     );
 }
