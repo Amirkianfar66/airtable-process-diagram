@@ -433,17 +433,20 @@ export default function DiagramCanvas({
                 <div style={{ position: 'absolute', inset: 0 }}>
                     {/* Canvas area: 2D (ReactFlow) or 3D */}
                     {view === '3d' ? (
+                        // inside the component that keeps `nodes` in state
                         <ThreeDView
-                            nodes={Array.isArray(nodes) ? nodes : []}
-                            edges={__edgesFor3D}
-                            onSelectNode={(nodeId) => {
-                                const n = (Array.isArray(nodes) ? nodes : []).find(
-                                    (nn) => String(nn.id) === String(nodeId)
+                            nodes={nodes}
+                            edges={edges}
+                            onSelectNode={(id) => setSelectedItem(id)}  // already had this
+                            onMoveNode={(id, pos2D) => {
+                                // pos2D is { x, y } in your React-Flow coordinate system
+                                setNodes((prev) =>
+                                    prev.map((n) => (String(n.id) === String(id) ? { ...n, position: pos2D } : n))
                                 );
-                                // bubble selection up just like RF does:
-                                onSelectionChange?.({ nodes: n ? [n] : [], edges: [] });
                             }}
+                            gridSnap={10} // optional: change default grid size here
                         />
+
                     ) : (
                         <ReactFlow
                             onInit={(inst) => { rfInstanceRef.current = inst; }}
