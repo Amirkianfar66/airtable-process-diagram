@@ -1,7 +1,7 @@
 ﻿// src/ThreeDView.jsx
 import React, { useEffect, useMemo, useState, Suspense, useRef } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls, Grid, Line, Html } from "@react-three/drei";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, Grid, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { JsonShape, fetchTypeSpec, guessSpecUrl, normalizeKey } from "./three/TypeShapeRuntime.jsx";
 
@@ -46,6 +46,32 @@ function CategoryFallback({ cat, color }) {
         <mesh>
             <boxGeometry args={[60, 40, 60]} />
             <meshStandardMaterial color={color} />
+        </mesh>
+    );
+}
+
+/** ----- New: Pipe3D (tube along a path) ----- */
+function Pipe3D({
+    points = [],                  // array of [x,y,z]
+    radius = 8,                   // pipe radius in your scene units (px-like)
+    radialSegments = 16,
+    color = "#8a8a8a",
+    metalness = 0.2,
+    roughness = 0.6,
+}) {
+    // Build a curve from the provided points
+    const curve = useMemo(
+        () => new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p))),
+        [points]
+    );
+
+    // Segment count scales with curve length (looks smoother on long runs)
+    const segments = useMemo(() => Math.max(8, Math.floor(curve.getLength() / 25)), [curve]);
+
+    return (
+        <mesh>
+            <tubeGeometry args={[curve, segments, radius, radialSegments, false]} />
+            <meshStandardMaterial color={color} metalness={metalness} roughness={roughness} />
         </mesh>
     );
 }
@@ -148,7 +174,7 @@ function NodeMesh({
     );
 }
 
-/** Scene wrapper with drag logic and edge lines */
+/** Scene wrapper with drag logic and *pipe* edges */
 function Scene({
     nodes = [],
     edges = [],
@@ -159,18 +185,45 @@ function Scene({
 }) {
     const byId = useMemo(() => new Map(nodes.map((n) => [String(n.id), n])), [nodes]);
 
-    const edgePoints = useMemo(
-        () =>
-            (edges || [])
-                .map((e) => {
-                    const a = byId.get(String(e.source));
-                    const b = byId.get(String(e.target));
-                    if (!a || !b) return null;
-                    return [to3(a.position, 0), to3(b.position, 0)];
-                })
-                .filter(Boolean),
-        [edges, byId]
-    );
+    // Choose a path for each edge. Priority:
+    // 1) edge.data.points (array of {x,y} or [x,y])
+    // 2) L-shaped route for step/smoothstep
+    // 3) straight
+    const pipeY = 10; // slightly above ground so it’s visible and doesn’t z-fight
+    const edgePaths = useMemo(() => {
+        const toVec3 = (p2) => new THREE.Vector3(...to3({ x: p2.x ?? p2[0], y: p2.y ?? p2[1] }, pipeY));
+        return (edges || [])
+            .map((e) => {
+                const a = byId.get(String(e.source));
+                const b = byId.get(String(e.target));
+                if (!a || !b) return null;
+
+                // (1) explicit points from edge.data.points
+                const pts = e?.data?.points;
+                if (Array.isArray(pts) && pts.length >= 2) {
+                    const path = pts.map((p) => toVec3(p).toArray());
+                    return { id: e.id, color: e?.style?.stroke || "#888", radius: e?.data?.pipeRadius ?? 8, path };
+                }
+
+                // (2) L-route for step/smoothstep edges
+                const A = new THREE.Vector3(...to3(a.position, pipeY));
+                const B = new THREE.Vector3(...to3(b.position, pipeY));
+                let mid;
+                if (e.type === "step" || e.type === "smoothstep") {
+                    // pick the longer axis to bend across; keeps bends tidy
+                    if (Math.abs(A.x - B.x) > Math.abs(A.z - B.z)) {
+                        mid = new THREE.Vector3(B.x, pipeY, A.z);
+                    } else {
+                        mid = new THREE.Vector3(A.x, pipeY, B.z);
+                    }
+                    return { id: e.id, color: e?.style?.stroke || "#888", radius: e?.data?.pipeRadius ?? 8, path: [A.toArray(), mid.toArray(), B.toArray()] };
+                }
+
+                // (3) straight
+                return { id: e.id, color: e?.style?.stroke || "#888", radius: e?.data?.pipeRadius ?? 8, path: [A.toArray(), B.toArray()] };
+            })
+            .filter(Boolean);
+    }, [edges, byId]);
 
     // Ground plane y=0
     const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
@@ -237,8 +290,9 @@ function Scene({
                 />
             ))}
 
-            {edgePoints.map((pts, i) => (
-                <Line key={i} points={pts} lineWidth={2} />
+            {/* Pipes between items */}
+            {edgePaths.map(({ id, path, color, radius }) => (
+                <Pipe3D key={id} points={path} color={color} radius={radius} />
             ))}
         </>
     );
