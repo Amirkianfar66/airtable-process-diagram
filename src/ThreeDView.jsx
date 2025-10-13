@@ -1,13 +1,12 @@
 ﻿// src/ThreeDView.jsx
-import React, { useEffect, useMemo, useState, Suspense, useRef } from "react";
+import React, { useEffect, useMemo, useState, Suspense, useRef, useLayoutEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Grid, Html } from "@react-three/drei";
 import * as THREE from "three";
-import { JsonShape, fetchTypeSpec, guessSpecUrl, normalizeKey } from "./three/TypeShapeRuntime.jsx";
+import { JsonShape, fetchTypeSpec, guessSpecUrl, normalizeKey } from "./TypeShapeRuntime.jsx";
 
-/** lift 2D x,y into 3D x,z with a Y height */
+/** ---------- helpers ---------- */
 const to3 = (p = { x: 0, y: 0 }, y = 0) => [p.x || 0, y, -(p.y || 0)];
-/** back to 2D (React Flow) */
 const to2 = ([x, _y, z]) => ({ x, y: -z });
 
 const colorFor = (cat = "") =>
@@ -16,16 +15,7 @@ const colorFor = (cat = "") =>
             cat === "Inline Valve" ? "#e15759" :
                 cat === "Pipe" ? "#76b7b2" : "#9c9c9c";
 
-/** very simple fallback so empty/missing specs still render */
 function CategoryFallback({ cat, color }) {
-    if (cat === "Instrument") {
-        return (
-            <mesh>
-                <sphereGeometry args={[30, 24, 16]} />
-                <meshStandardMaterial color={color} />
-            </mesh>
-        );
-    }
     if (cat === "Inline Valve") {
         return (
             <mesh rotation={[Math.PI / 2, 0, 0]}>
@@ -42,6 +32,14 @@ function CategoryFallback({ cat, color }) {
             </mesh>
         );
     }
+    if (cat === "Instrument") {
+        return (
+            <mesh>
+                <sphereGeometry args={[30, 24, 16]} />
+                <meshStandardMaterial color={color} />
+            </mesh>
+        );
+    }
     return (
         <mesh>
             <boxGeometry args={[60, 40, 60]} />
@@ -50,24 +48,10 @@ function CategoryFallback({ cat, color }) {
     );
 }
 
-/** ----- New: Pipe3D (tube along a path) ----- */
-function Pipe3D({
-    points = [],                  // array of [x,y,z]
-    radius = 8,                   // pipe radius in your scene units (px-like)
-    radialSegments = 16,
-    color = "#8a8a8a",
-    metalness = 0.2,
-    roughness = 0.6,
-}) {
-    // Build a curve from the provided points
-    const curve = useMemo(
-        () => new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p))),
-        [points]
-    );
-
-    // Segment count scales with curve length (looks smoother on long runs)
+/** Tube pipe along a path of points */
+function Pipe3D({ points = [], radius = 8, radialSegments = 16, color = "#8a8a8a", metalness = 0.2, roughness = 0.6 }) {
+    const curve = useMemo(() => new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p))), [points]);
     const segments = useMemo(() => Math.max(8, Math.floor(curve.getLength() / 25)), [curve]);
-
     return (
         <mesh>
             <tubeGeometry args={[curve, segments, radius, radialSegments, false]} />
@@ -76,16 +60,65 @@ function Pipe3D({
     );
 }
 
-/** ----- NodeMesh with drag handlers ----- */
-function NodeMesh({
-    node,
-    isDragging,
-    startDrag,
-    moveDrag,
-    endDrag,
-    intersectGround,
-    onPick,
-}) {
+/** Try to parse item.Size like "DN50", "2 in", "50mm" → approximate bore radius in scene units */
+function boreFromSize(size) {
+    if (!size) return null;
+    const s = String(size).toLowerCase();
+    let mm = null;
+    const dn = s.match(/dn\s*([0-9.]+)/);
+    const mmx = s.match(/([0-9.]+)\s*mm/);
+    const inch = s.match(/([0-9.]+)\s*(in|inch|inches|")/);
+    const justNum = s.match(/^([0-9.]+)$/);
+    if (dn) mm = parseFloat(dn[1]);
+    else if (mmx) mm = parseFloat(mmx[1]);
+    else if (inch) mm = parseFloat(inch[1]) * 25.4;
+    else if (justNum) mm = parseFloat(justNum[1]);
+    if (!isFinite(mm)) return null;
+    // scale to your scene (tweak the 0.6 factor to taste)
+    return (mm * 0.6) / 2;
+}
+
+/** Compute bbox for a group (meshes only) */
+function computeBBox(root) {
+    const box = new THREE.Box3();
+    root.traverse((obj) => {
+        if (obj.isMesh && obj.geometry) {
+            obj.geometry.computeBoundingBox?.();
+            const b = obj.geometry.boundingBox;
+            if (b) {
+                const bb = b.clone();
+                bb.applyMatrix4(obj.matrixWorld);
+                box.union(bb);
+            }
+        }
+    });
+    if (isFinite(box.min.x) && isFinite(box.max.x)) return box;
+    return new THREE.Box3(new THREE.Vector3(-30, -20, -30), new THREE.Vector3(30, 20, 30));
+}
+
+/** Create default port layout from bbox + category (WORLD positions) */
+function defaultPortsFor(cat, bbox) {
+    const center = bbox.getCenter(new THREE.Vector3());
+    const size = bbox.getSize(new THREE.Vector3());
+    const y = center.y;
+    const L = size.x / 2, W = size.z / 2;
+
+    if (cat === "Inline Valve" || cat === "Pipe") {
+        return [
+            { id: "in", pos: new THREE.Vector3(center.x - L, y, center.z), normal: new THREE.Vector3(-1, 0, 0) },
+            { id: "out", pos: new THREE.Vector3(center.x + L, y, center.z), normal: new THREE.Vector3(1, 0, 0) },
+        ];
+    }
+    return [
+        { id: "left", pos: new THREE.Vector3(center.x - L, y, center.z), normal: new THREE.Vector3(-1, 0, 0) },
+        { id: "right", pos: new THREE.Vector3(center.x + L, y, center.z), normal: new THREE.Vector3(1, 0, 0) },
+        { id: "back", pos: new THREE.Vector3(center.x, y, center.z - W), normal: new THREE.Vector3(0, 0, -1) },
+        { id: "front", pos: new THREE.Vector3(center.x, y, center.z + W), normal: new THREE.Vector3(0, 0, 1) },
+    ];
+}
+
+/** ---------- NodeMesh ---------- */
+function NodeMesh({ node, reportPorts, isDragging, startDrag, moveDrag, endDrag, intersectGround, onPick }) {
     const item = node?.data?.item;
     if (!item) return null;
 
@@ -94,40 +127,57 @@ function NodeMesh({
     const pos = to3(node.position, 20);
     const color = colorFor(cat);
 
+    const groupRef = useRef();
     const [spec, setSpec] = useState(null);
-    const [triedUrl, setTriedUrl] = useState("");
-
     const specUrl = item.ModelJSON || guessSpecUrl(typeKey);
 
     useEffect(() => {
         let alive = true;
         setSpec(null);
-        setTriedUrl(specUrl);
-        fetchTypeSpec(specUrl).then((s) => {
-            if (!alive) return;
-            setSpec(s);
-        });
-        return () => {
-            alive = false;
-        };
+        fetchTypeSpec(specUrl).then((s) => alive && setSpec(s));
+        return () => { alive = false; };
     }, [specUrl]);
+
+    // compute and report ports from geometry (WORLD coords), or from item.PortsJSON if provided
+    useLayoutEffect(() => {
+        if (!groupRef.current) return;
+        const bbox = computeBBox(groupRef.current);
+
+        let ports = null;
+        try {
+            if (item.PortsJSON) {
+                const arr = Array.isArray(item.PortsJSON) ? item.PortsJSON : JSON.parse(item.PortsJSON);
+                if (Array.isArray(arr) && arr.length) {
+                    // interpret as LOCAL coords; convert to WORLD
+                    ports = arr.map((p, i) => ({
+                        id: p.id || String(i),
+                        pos: new THREE.Vector3().fromArray(p.pos),
+                        normal: new THREE.Vector3().fromArray(p.normal || [0, 0, 0]).normalize(),
+                    }));
+                    ports.forEach((p) => {
+                        p.pos.applyMatrix4(groupRef.current.matrixWorld);
+                        if (p.normal.lengthSq() === 0) p.normal.set(1, 0, 0);
+                    });
+                }
+            }
+        } catch { /* ignore parse errors */ }
+
+        if (!ports) ports = defaultPortsFor(cat, bbox);
+
+        const bore = boreFromSize(item.Size || item["Nominal Size"] || item.NPS || item.DN);
+        reportPorts?.(node.id, { ports, bore, centerY: bbox.getCenter(new THREE.Vector3()).y });
+    });
 
     const onPointerDown = (e) => {
         e.stopPropagation();
-        // compute ground intersection point at y=0
         const hit = intersectGround(e.ray);
         if (!hit) return;
-        // offset between node center and hit point (so cursor stays relative)
         const nodeWorld = new THREE.Vector3(...pos);
         const offset = new THREE.Vector3().subVectors(nodeWorld, hit);
         startDrag(node.id, offset);
     };
 
-    const onPointerUp = (e) => {
-        e.stopPropagation();
-        endDrag();
-    };
-
+    const onPointerUp = (e) => { e.stopPropagation(); endDrag(); };
     const onPointerMove = (e) => {
         if (!isDragging) return;
         e.stopPropagation();
@@ -138,11 +188,9 @@ function NodeMesh({
 
     return (
         <group
+            ref={groupRef}
             position={pos}
-            onClick={(e) => {
-                e.stopPropagation();
-                onPick?.(node.id);
-            }}
+            onClick={(e) => { e.stopPropagation(); onPick?.(node.id); }}
             onPointerDown={onPointerDown}
             onPointerUp={onPointerUp}
             onPointerMove={onPointerMove}
@@ -153,79 +201,24 @@ function NodeMesh({
                 <CategoryFallback cat={cat} color={color} />
             )}
 
-            <Html
-                distanceFactor={8}
-                position={[0, 40, 0]}
-                center
-                style={{
-                    pointerEvents: "none",
-                    fontSize: 12,
-                    background: "rgba(255,255,255,0.85)",
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                }}
-            >
+            <Html distanceFactor={8} position={[0, 40, 0]} center style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}>
                 {(item["Item Code"] || item.Code || "") + " " + (item.Name || "")}
-                {!spec && triedUrl ? (
-                    <span style={{ color: "#999", marginLeft: 6 }}>({typeKey})</span>
-                ) : null}
             </Html>
         </group>
     );
 }
 
-/** Scene wrapper with drag logic and *pipe* edges */
-function Scene({
-    nodes = [],
-    edges = [],
-    onPick,
-    onMoveNode,
-    setControlsEnabled,
-    gridSnap = 10,
-}) {
+/** ---------- Scene: builds port-aware tube paths ---------- */
+function Scene({ nodes = [], edges = [], onPick, onMoveNode, setControlsEnabled, gridSnap = 10 }) {
     const byId = useMemo(() => new Map(nodes.map((n) => [String(n.id), n])), [nodes]);
 
-    // Choose a path for each edge. Priority:
-    // 1) edge.data.points (array of {x,y} or [x,y])
-    // 2) L-shaped route for step/smoothstep
-    // 3) straight
-    const pipeY = 10; // slightly above ground so it’s visible and doesn’t z-fight
-    const edgePaths = useMemo(() => {
-        const toVec3 = (p2) => new THREE.Vector3(...to3({ x: p2.x ?? p2[0], y: p2.y ?? p2[1] }, pipeY));
-        return (edges || [])
-            .map((e) => {
-                const a = byId.get(String(e.source));
-                const b = byId.get(String(e.target));
-                if (!a || !b) return null;
+    // id -> { ports: [{id,pos,normal}], bore, centerY }
+    const portsRef = useRef(new Map());
+    const reportPorts = (id, payload) => {
+        portsRef.current.set(String(id), payload);
+    };
 
-                // (1) explicit points from edge.data.points
-                const pts = e?.data?.points;
-                if (Array.isArray(pts) && pts.length >= 2) {
-                    const path = pts.map((p) => toVec3(p).toArray());
-                    return { id: e.id, color: e?.style?.stroke || "#888", radius: e?.data?.pipeRadius ?? 8, path };
-                }
-
-                // (2) L-route for step/smoothstep edges
-                const A = new THREE.Vector3(...to3(a.position, pipeY));
-                const B = new THREE.Vector3(...to3(b.position, pipeY));
-                let mid;
-                if (e.type === "step" || e.type === "smoothstep") {
-                    // pick the longer axis to bend across; keeps bends tidy
-                    if (Math.abs(A.x - B.x) > Math.abs(A.z - B.z)) {
-                        mid = new THREE.Vector3(B.x, pipeY, A.z);
-                    } else {
-                        mid = new THREE.Vector3(A.x, pipeY, B.z);
-                    }
-                    return { id: e.id, color: e?.style?.stroke || "#888", radius: e?.data?.pipeRadius ?? 8, path: [A.toArray(), mid.toArray(), B.toArray()] };
-                }
-
-                // (3) straight
-                return { id: e.id, color: e?.style?.stroke || "#888", radius: e?.data?.pipeRadius ?? 8, path: [A.toArray(), B.toArray()] };
-            })
-            .filter(Boolean);
-    }, [edges, byId]);
-
-    // Ground plane y=0
+    // Ground plane for dragging
     const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
     const tmp = useRef(new THREE.Vector3());
     const intersectGround = (ray) => {
@@ -235,22 +228,13 @@ function Scene({
     };
 
     // Drag state
-    const [dragging, setDragging] = useState(null); // { id, offset: Vector3 }
-    const [coarse, setCoarse] = useState(false); // shift for coarse snap
-
-    const startDrag = (id, offset) => {
-        setDragging({ id, offset: offset.clone() });
-        setControlsEnabled?.(false);
-    };
-    const endDrag = () => {
-        setDragging(null);
-        setControlsEnabled?.(true);
-    };
-
-    // Move: compute snapped world pos, convert to 2D, call parent
+    const [dragging, setDragging] = useState(null);
+    const [coarse, setCoarse] = useState(false);
+    const startDrag = (id, offset) => { setDragging({ id, offset: offset.clone() }); setControlsEnabled?.(false); };
+    const endDrag = () => { setDragging(null); setControlsEnabled?.(true); };
     const moveDrag = (id, worldPoint, shiftKey = coarse) => {
         if (!dragging || dragging.id !== id) return;
-        const desired = worldPoint.clone().add(dragging.offset); // keep cursor-relative offset
+        const desired = worldPoint.clone().add(dragging.offset);
         const snap = shiftKey ? 50 : gridSnap;
         if (snap > 0) {
             desired.x = Math.round(desired.x / snap) * snap;
@@ -260,7 +244,6 @@ function Scene({
         onMoveNode?.(id, pos2);
     };
 
-    // capture Shift key to toggle coarse snapping
     useEffect(() => {
         const onKey = (e) => setCoarse(e.shiftKey);
         window.addEventListener("keydown", onKey);
@@ -270,6 +253,77 @@ function Scene({
             window.removeEventListener("keyup", onKey);
         };
     }, []);
+
+    // Build port-aware pipe segments
+    const pipeSegments = useMemo(() => {
+        const out = [];
+        for (const e of edges || []) {
+            const a = byId.get(String(e.source));
+            const b = byId.get(String(e.target));
+            if (!a || !b) continue;
+
+            const pa = portsRef.current.get(String(a.id));
+            const pb = portsRef.current.get(String(b.id));
+
+            const Acenter = new THREE.Vector3(...to3(a.position, 10));
+            const Bcenter = new THREE.Vector3(...to3(b.position, 10));
+
+            let srcPt = Acenter.clone();
+            let dstPt = Bcenter.clone();
+            let srcNormal = new THREE.Vector3(1, 0, 0);
+            let dstNormal = new THREE.Vector3(-1, 0, 0);
+            let radius = e?.data?.pipeRadius ?? 8;
+
+            const dirAB = Bcenter.clone().sub(Acenter).normalize();
+
+            if (pa?.ports?.length) {
+                let bestDot = -Infinity, best = null;
+                for (const p of pa.ports) {
+                    const d = p.normal.clone().normalize().dot(dirAB);
+                    if (d > bestDot) { bestDot = d; best = p; }
+                }
+                if (best) { srcPt = best.pos.clone(); srcNormal = best.normal.clone().normalize(); }
+                if (pa.bore) radius = Math.min(radius, pa.bore);
+            }
+            if (pb?.ports?.length) {
+                const dirBA = Acenter.clone().sub(Bcenter).normalize();
+                let bestDot = -Infinity, best = null;
+                for (const p of pb.ports) {
+                    const d = p.normal.clone().normalize().dot(dirBA);
+                    if (d > bestDot) { bestDot = d; best = p; }
+                }
+                if (best) { dstPt = best.pos.clone(); dstNormal = best.normal.clone().normalize(); }
+                if (pb.bore) radius = Math.min(radius, pb.bore);
+            }
+
+            // Respect explicit polylines if provided in 2D edge.data.points
+            const pts2d = e?.data?.points;
+            if (Array.isArray(pts2d) && pts2d.length >= 2) {
+                const poly = pts2d.map((p) => new THREE.Vector3(...to3({ x: p.x ?? p[0], y: p.y ?? p[1] }, (pa?.centerY ?? 10))));
+                out.push({ id: e.id, color: e?.style?.stroke || "#888", radius, path: poly.map((v) => v.toArray()) });
+                continue;
+            }
+
+            // lead-outs so the pipe visibly exits/enters bodies
+            const lead = Math.max(20, radius * 3);
+            const p0 = srcPt.clone();
+            const p1 = srcPt.clone().add(srcNormal.clone().multiplyScalar(lead));
+            const p3 = dstPt.clone().add(dstNormal.clone().multiplyScalar(lead));
+            const p4 = dstPt.clone();
+
+            // Clean Manhattan bend
+            let mid;
+            if (Math.abs(p1.x - p3.x) > Math.abs(p1.z - p3.z)) {
+                mid = new THREE.Vector3(p3.x, (pa?.centerY ?? p1.y), p1.z);
+            } else {
+                mid = new THREE.Vector3(p1.x, (pa?.centerY ?? p1.y), p3.z);
+            }
+
+            const path = [p0, p1, mid, p3, p4].map((v) => v.toArray());
+            out.push({ id: e.id, color: e?.style?.stroke || "#888", radius, path });
+        }
+        return out;
+    }, [edges, byId, nodes]);
 
     return (
         <>
@@ -281,7 +335,8 @@ function Scene({
                 <NodeMesh
                     key={n.id}
                     node={n}
-                    isDragging={!!dragging && dragging.id === n.id}
+                    reportPorts={reportPorts}
+                    isDragging={false}
                     startDrag={startDrag}
                     moveDrag={(id, p) => moveDrag(id, p, coarse)}
                     endDrag={endDrag}
@@ -290,30 +345,19 @@ function Scene({
                 />
             ))}
 
-            {/* Pipes between items */}
-            {edgePaths.map(({ id, path, color, radius }) => (
+            {pipeSegments.map(({ id, path, color, radius }) => (
                 <Pipe3D key={id} points={path} color={color} radius={radius} />
             ))}
         </>
     );
 }
 
-export default function ThreeDView({
-    nodes = [],
-    edges = [],
-    onSelectNode,
-    /** IMPORTANT: wire this to setNodes in your parent */
-    onMoveNode,
-    gridSnap = 10,
-}) {
+export default function ThreeDView({ nodes = [], edges = [], onSelectNode, onMoveNode, gridSnap = 10 }) {
     const [controlsEnabled, setControlsEnabled] = useState(true);
     const handlePick = (id) => onSelectNode?.(id);
 
     return (
-        <Canvas
-            camera={{ position: [0, 400, 600], fov: 50 }}
-            onPointerMissed={() => setControlsEnabled(true)}
-        >
+        <Canvas camera={{ position: [0, 400, 600], fov: 50 }} onPointerMissed={() => setControlsEnabled(true)}>
             <color attach="background" args={["#f7f7f7"]} />
             <Suspense fallback={null}>
                 <Scene
