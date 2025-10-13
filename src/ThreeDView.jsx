@@ -124,9 +124,9 @@ function NodeMesh({ node, pivot, selected, onSetPivot, reportPorts, isDragging, 
 
     const cat = String(item["Category Item Type"] ?? item.Category ?? "");
     const typeKey = normalizeKey(item.TypeKey || item.Type || "");
-    const pos = to3(node.position, 20);
     const base = to3(node.position, 20);
     const pos = [base[0] + (pivot?.x || 0), base[1] + (pivot?.y || 0), base[2] + (pivot?.z || 0)];
+
     const color = colorFor(cat);
 
     const groupRef = useRef();
