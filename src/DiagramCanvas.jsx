@@ -440,13 +440,23 @@ export default function DiagramCanvas({
                                 const n = (Array.isArray(nodes) ? nodes : []).find(
                                     (nn) => String(nn.id) === String(nodeId)
                                 );
-                                onMoveNode = {(id, pos2D) => {
-                        // pos2D is { x, y } in your React-Flow coordinate system
-                        setNodes((prev) =>
-                            prev.map((n) => (String(n.id) === String(id) ? { ...n, position: pos2D } : n))
-                        );
-                                // bubble selection up just like RF does:
+                                // mirror RF behavior: select in sidebar
                                 onSelectionChange?.({ nodes: n ? [n] : [], edges: [] });
+                            }}
+                            onMoveNode={(id, pos2D) => {
+                                // pos2D is { x, y } in React Flow coords
+                                setNodes((prev) =>
+                                    prev.map((n) =>
+                                        String(n.id) === String(id)
+                                            ? { ...n, position: { x: pos2D.x, y: pos2D.y } }
+                                            : n
+                                    )
+                                );
+                                // (optional) also update selection to the moved node
+                                const moved = (Array.isArray(nodes) ? nodes : []).find(
+                                    (nn) => String(nn.id) === String(id)
+                                );
+                                onSelectionChange?.({ nodes: moved ? [moved] : [], edges: [] });
                             }}
                         />
                     ) : (
@@ -472,6 +482,7 @@ export default function DiagramCanvas({
                             <Controls />
                         </ReactFlow>
                     )}
+
                 </div>
 
                 {/* Edge inspector (overlay on the right, available in both views) */}
