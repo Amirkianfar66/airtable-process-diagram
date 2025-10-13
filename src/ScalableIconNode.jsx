@@ -1,42 +1,49 @@
 ﻿// ScalableIconNode.jsx
-import React, { useMemo } from "react";
+import React from "react";
 import { getItemIcon } from "./IconManager";
 
-export default function ScalableIconNode({ data = {} }) {
-    const item = data?.item || null;
+export default function ScalableIconNode({ data }) {
+    const code =
+        data?.item?.Code ||
+        data?.item?.["Item Code"] ||
+        (data?.label ? String(data.label).split(" - ")[0] : "");
 
-    // Remount the icon when important props change
-    const revKey = useMemo(() => {
-        if (!item) return "empty";
-        return [
-            item.TypeKey || "",
-            item.Type || "",
-            item.__iconRev || "",      // optional manual bump if you ever need it
-            item.Icon || "",           // in case you switch by explicit icon name
-            item.Category || "",       // safe extra dimension
-        ].join("|");
-    }, [item]);
+    const iconEl = data?.item ? getItemIcon(data.item, { width: 40, height: 40 }) : null;
 
     return (
         <div
             style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 6,
-                borderRadius: 6,
+                position: "relative",
+                display: "inline-block", // wrapper will size to the icon
                 background: "transparent",
-                minWidth: 60,
-                minHeight: 60,
                 cursor: "pointer",
             }}
-            title={item?.Type || ""}
         >
-            <div key={revKey} style={{ width: 40, height: 40 }}>
-                {item ? getItemIcon(item, { width: 40, height: 40 }) : <div style={{ width: 40, height: 40 }} />}
-            </div>
-            <div style={{ fontSize: 12, textAlign: "center" }}>{data.label}</div>
+            {/* Top-centered code badge */}
+            {code ? (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 0,
+                        left: "50%",
+                        transform: "translate(-50%, -100%)", // sit just above icon top
+                        fontSize: 12,
+                        lineHeight: 1,
+                        padding: "2px 6px",
+                        background: "rgba(255,255,255,0.85)",
+                        border: "1px solid #ddd",
+                        borderRadius: 4,
+                        whiteSpace: "nowrap",
+                        pointerEvents: "none",
+                    }}
+                >
+                    {code}
+                </div>
+            ) : null}
+
+            {iconEl}
+
+            {/* remove the old bottom text label entirely */}
         </div>
     );
 }
