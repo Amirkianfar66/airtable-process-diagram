@@ -529,76 +529,73 @@ export default function ProcessDiagram() {
     }, []); // no deps needed; we use functional setState
 
 
-    // ---------- Group drag (shift children live) ----------
+    // ---------- Group/Unit drag (shift children live) ----------
     const onNodeDrag = useCallback((event, draggedNode) => {
-        if (!draggedNode || draggedNode.type !== 'groupLabel') return;
-        const onNodeDrag = useCallback((event, draggedNode) => {
-            if (!draggedNode) return;
+        if (!draggedNode) return;
 
-            // --- A) Dragging a Unit frame: move its sub-cells and all item nodes in that Unit
-            if (String(draggedNode.id || '').startsWith('unit-')) {
-                const unitName = String(draggedNode.id).slice(5);
-                const dx = draggedNode.position.x - (draggedNode.data?.prevX ?? draggedNode.position.x);
-                const dy = draggedNode.position.y - (draggedNode.data?.prevY ?? draggedNode.position.y);
+        // A) Dragging a Unit frame: move its sub-cells and all item nodes in that Unit
+        if (String(draggedNode.id || '').startsWith('unit-')) {
+            const unitName = String(draggedNode.id).slice(5);
+            const prevX = draggedNode.data?.prevX ?? draggedNode.position.x;
+            const prevY = draggedNode.data?.prevY ?? draggedNode.position.y;
+            const dx = draggedNode.position.x - prevX;
+            const dy = draggedNode.position.y - prevY;
 
-                setNodes((nds) =>
-                    nds.map((n) => {
-                        if (!n) return n;
-                        // sub-rectangles of this unit
-                        const isSubRect = String(n.id || '').startsWith(`sub-${unitName}-`);
-                        // item nodes that belong to this unit
-                        const isItemInUnit = String(n?.data?.item?.Unit || '') === unitName;
-                        if (isSubRect || isItemInUnit) {
-                            return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
-                        }
-                        return n;
-                    })
-                );
+            setNodes((nds) =>
+                nds.map((n) => {
+                    if (!n) return n;
+                    const isSubRect = String(n.id || '').startsWith(`sub-${unitName}-`);
+                    const isItemInUnit = String(n?.data?.item?.Unit || '') === unitName;
+                    return (isSubRect || isItemInUnit)
+                        ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }
+                        : n;
+                })
+            );
 
-                // remember last position to compute next incremental delta
-                setNodes((nds) =>
-                    nds.map((n) =>
-                        n.id === draggedNode.id
-                            ? { ...n, data: { ...(n.data || {}), prevX: draggedNode.position.x, prevY: draggedNode.position.y } }
-                            : n
-                    )
-                );
-                return;
-            }
+            // store new baseline for incremental dx/dy
+            setNodes((nds) =>
+                nds.map((n) =>
+                    n.id === draggedNode.id
+                        ? { ...n, data: { ...(n.data || {}), prevX: draggedNode.position.x, prevY: draggedNode.position.y } }
+                        : n
+                )
+            );
+            return;
+        }
 
-            // --- B) (existing) dragging a group label
-       
+        // B) Dragging a group label
+        if (draggedNode.type !== 'groupLabel') return;
 
+        const prevX = draggedNode.data?.prevX ?? draggedNode.position.x;
+        const prevY = draggedNode.data?.prevY ?? draggedNode.position.y;
+        const dx = draggedNode.position.x - prevX;
+        const dy = draggedNode.position.y - prevY;
 
-        setNodes(nds => {
-            const moved = nds.map(n => {
+        setNodes((nds) => {
+            const moved = nds.map((n) => {
                 if (!n?.data) return n;
                 const isChild =
                     (Array.isArray(draggedNode.data?.children) && draggedNode.data.children.includes(n.id)) ||
                     n.data.groupId === draggedNode.id ||
                     n.data.parentId === draggedNode.id;
-                if (!isChild) return n;
-                const dx = draggedNode.position.x - (draggedNode.data.prevX ?? draggedNode.position.x);
-                const dy = draggedNode.position.y - (draggedNode.data.prevY ?? draggedNode.position.y);
-                return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
+                return isChild ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n;
             });
-            return moved.map(n =>
+            return moved.map((n) =>
                 n.id === draggedNode.id
                     ? { ...n, data: { ...n.data, prevX: draggedNode.position.x, prevY: draggedNode.position.y } }
                     : n
             );
         });
-
     }, [setNodes]);
 
     // ---------- Drag stop: clear markers for group; persist x/y for normal nodes ----------
     const onNodeDragStop = useCallback((event, draggedNode) => {
         if (!draggedNode) return;
-        // A) Unit frame: clear prev markers and persist all item positions in that unit
+
+        // A) Unit frame released: clear prev markers & persist item positions in that Unit
         if (String(draggedNode.id || '').startsWith('unit-')) {
             const unitName = String(draggedNode.id).slice(5);
 
-            // clear prevX/prevY on the unit node
             setNodes((nds) =>
                 nds.map((n) =>
                     n.id === draggedNode.id
@@ -607,9 +604,7 @@ export default function ProcessDiagram() {
                 )
             );
 
-            // capture current node positions -> push into items[]
             setItems((prev) => {
-                // build a quick map id -> position for items in this unit
                 const byId = new Map();
                 (Array.isArray(nodes) ? nodes : []).forEach((n) => {
                     if (String(n?.data?.item?.Unit || '') === unitName) {
@@ -624,7 +619,7 @@ export default function ProcessDiagram() {
             return;
         }
 
-
+        // B) Group label released
         if (draggedNode.type === 'groupLabel') {
             setNodes((nds) =>
                 nds.map((n) =>
@@ -634,17 +629,21 @@ export default function ProcessDiagram() {
             return;
         }
 
+        // C) Normal item node released → persist its own x/y
         if (!draggedNode?.data?.item) return;
         const { x, y } = draggedNode.position || {};
         if (Number.isFinite(x) && Number.isFinite(y)) {
             setItems((prev) =>
-                prev.map((it) => (String(it.id) === String(draggedNode.id) ? { ...it, x, y } : it))
+                (Array.isArray(prev) ? prev : []).map((it) =>
+                    String(it.id) === String(draggedNode.id) ? { ...it, x, y } : it
+                )
             );
             setSelectedItem((cur) =>
                 cur && String(cur.id) === String(draggedNode.id) ? { ...cur, x, y } : cur
             );
         }
-    }, [setNodes, setItems, setSelectedItem]);
+    }, [setNodes, setItems, setSelectedItem, nodes]);
+
     const upsertItemToAirtable = useCallback(async (localItem) => {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
