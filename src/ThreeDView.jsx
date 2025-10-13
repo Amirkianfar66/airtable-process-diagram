@@ -118,13 +118,15 @@ function defaultPortsFor(cat, bbox) {
 }
 
 /** ---------- NodeMesh ---------- */
-function NodeMesh({ node, reportPorts, isDragging, startDrag, moveDrag, endDrag, intersectGround, onPick }) {
+function NodeMesh({ node, pivot, selected, onSetPivot, reportPorts, isDragging, startDrag, moveDrag, endDrag, intersectGround, onPick }) {
     const item = node?.data?.item;
     if (!item) return null;
 
     const cat = String(item["Category Item Type"] ?? item.Category ?? "");
     const typeKey = normalizeKey(item.TypeKey || item.Type || "");
     const pos = to3(node.position, 20);
+    const base = to3(node.position, 20);
+    const pos = [base[0] + (pivot?.x || 0), base[1] + (pivot?.y || 0), base[2] + (pivot?.z || 0)];
     const color = colorFor(cat);
 
     const groupRef = useRef();
@@ -204,12 +206,82 @@ function NodeMesh({ node, reportPorts, isDragging, startDrag, moveDrag, endDrag,
             <Html distanceFactor={8} position={[0, 40, 0]} center style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}>
                 {(item["Item Code"] || item.Code || "") + " " + (item.Name || "")}
             </Html>
+            {/* --- PIVOT PANEL (only when selected) --- */}
+            {selected && (
+                <Html distanceFactor={8} position={[0, 100, 0]} center transform>
+                    <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "auto 80px 80px 80px",
+                        gap: 6,
+                        padding: 8,
+                        background: "rgba(255,255,255,0.95)",
+                        border: "1px solid #ddd",
+                        borderRadius: 8,
+                        boxShadow: "0 6px 16px rgba(0,0,0,0.1)",
+                        fontSize: 12
+                    }}>
+                        <div style={{ opacity: 0.7, paddingRight: 6 }}>Pivot</div>
+                        {["x", "y", "z"].map((axis) => (
+                            <input
+                                key={axis}
+                                type="number"
+                                step="1"
+                                value={Number(pivot?.[axis] || 0)}
+                                onChange={(e) => {
+                                    const v = Number.isFinite(parseFloat(e.target.value)) ? parseFloat(e.target.value) : 0;
+                                    onSetPivot?.(node.id, { ...pivot, [axis]: v });
+                                }}
+                                style={{ width: 70, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
+                            />
+                        ))}
+                        <div />
+                        {["X", "Y", "Z"].map((axis, i) => {
+                            const key = axis.toLowerCase();
+                            return (
+                                <div key={axis} style={{ display: "flex", gap: 4 }}>
+                                    <button
+                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 10 })}
+                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#f7f7f7" }}
+                                    >−10</button>
+                                    <button
+                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 1 })}
+                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#f7f7f7" }}
+                                    >−1</button>
+                                    <button
+                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: 0 })}
+                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#fff" }}
+                                    >0</button>
+                                    <button
+                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 1 })}
+                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#f7f7f7" }}
+                                    >+1</button>
+                                    <button
+                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 10 })}
+                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#f7f7f7" }}
+                                    >+10</button>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </Html>
+            )}
+
         </group>
     );
 }
 
 /** ---------- Scene: builds port-aware tube paths ---------- */
-function Scene({ nodes = [], edges = [], onPick, onMoveNode, setControlsEnabled, gridSnap = 10 }) {
+function Scene({
+    nodes = [],
+    edges = [],
+    onPick,
+    onMoveNode,
+    setControlsEnabled,
+    gridSnap = 10,
+    selectedNodeId,               // NEW
+    onSetNodePivot,               // NEW
+}) {
+
     const byId = useMemo(() => new Map(nodes.map((n) => [String(n.id), n])), [nodes]);
 
     // id -> { ports: [{id,pos,normal}], bore, centerY }
@@ -332,9 +404,13 @@ function Scene({ nodes = [], edges = [], onPick, onMoveNode, setControlsEnabled,
             <Grid args={[2000, 2000]} cellSize={50} sectionSize={250} />
 
             {nodes.map((n) => (
+                const pivot = (n.data && n.data.pivot) || { x: 0, y: 0, z: 0 };
                 <NodeMesh
                     key={n.id}
                     node={n}
+                    pivot={pivot}
+                    selected={String(n.id) === String(selectedNodeId)}
+                    onSetPivot={(id, p) => onSetNodePivot?.(id, p)}
                     reportPorts={reportPorts}
                     isDragging={!!dragging && dragging.id === n.id}
                     startDrag={startDrag}
@@ -369,7 +445,15 @@ function Scene({ nodes = [], edges = [], onPick, onMoveNode, setControlsEnabled,
     );
 }
 
-export default function ThreeDView({ nodes = [], edges = [], onSelectNode, onMoveNode, gridSnap = 10 }) {
+export default function ThreeDView({ nodes = [],
+    edges = [],
+    onSelectNode,
+    onMoveNode,
+    gridSnap = 10,
+    selectedNodeId,                 // NEW: which node is selected (to show the panel)
+    onSetNodePivot,                 // NEW: (id, {x,y,z}) -> update node.data.pivot in parent
+}) {
+
     const [controlsEnabled, setControlsEnabled] = useState(true);
     const handlePick = (id) => onSelectNode?.(id);
 
@@ -384,6 +468,8 @@ export default function ThreeDView({ nodes = [], edges = [], onSelectNode, onMov
                     onMoveNode={onMoveNode}
                     setControlsEnabled={setControlsEnabled}
                     gridSnap={gridSnap}
+                    selectedNodeId={selectedNodeId}
+                    onSetNodePivot={onSetNodePivot}
                 />
             </Suspense>
             <OrbitControls makeDefault enabled={controlsEnabled} enableDamping />
