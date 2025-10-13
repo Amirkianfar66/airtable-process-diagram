@@ -773,7 +773,7 @@ export default function ProcessDiagram() {
             return pruneDirectEdgesIfValvePresent(next, allNodes);
         });
 
-        // Persist connections: src->valve, valve->dst; remove src->dst and dst->src (if present)
+        // Persist connections: src->valve, valve->dst; remove src->dst and dst->src
         setItems((prev) => {
             const arr = Array.isArray(prev) ? [...prev] : [];
             const srcIdx = arr.findIndex((it) => String(it.id) === String(edge.source));
