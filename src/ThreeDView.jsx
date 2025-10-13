@@ -404,11 +404,10 @@ function Scene({
             <Grid args={[2000, 2000]} cellSize={50} sectionSize={250} />
 
             {nodes.map((n) => (
-                const pivot = (n.data && n.data.pivot) || { x: 0, y: 0, z: 0 };
                 <NodeMesh
                     key={n.id}
                     node={n}
-                    pivot={pivot}
+                    pivot={(n.data && n.data.pivot) || { x: 0, y: 0, z: 0 }}
                     selected={String(n.id) === String(selectedNodeId)}
                     onSetPivot={(id, p) => onSetNodePivot?.(id, p)}
                     reportPorts={reportPorts}
@@ -420,6 +419,7 @@ function Scene({
                     onPick={onPick}
                 />
             ))}
+
             <Grid args={[2000, 2000]} cellSize={50} sectionSize={250} />
 
             {/* Invisible ground that keeps drag alive even off the node */}
