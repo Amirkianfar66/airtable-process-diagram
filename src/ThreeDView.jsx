@@ -336,7 +336,7 @@ function Scene({ nodes = [], edges = [], onPick, onMoveNode, setControlsEnabled,
                     key={n.id}
                     node={n}
                     reportPorts={reportPorts}
-                    isDragging={false}
+                    isDragging={!!dragging && dragging.id === n.id}
                     startDrag={startDrag}
                     moveDrag={(id, p) => moveDrag(id, p, coarse)}
                     endDrag={endDrag}
@@ -344,9 +344,26 @@ function Scene({ nodes = [], edges = [], onPick, onMoveNode, setControlsEnabled,
                     onPick={onPick}
                 />
             ))}
+            <Grid args={[2000, 2000]} cellSize={50} sectionSize={250} />
+
+            {/* Invisible ground that keeps drag alive even off the node */}
+            <mesh
+                rotation={[-Math.PI / 2, 0, 0]}
+                position={[0, 0, 0]}
+                onPointerMove={(e) => {
+                    if (!dragging) return;
+                    const p = intersectGround(e.ray);
+                    if (p) moveDrag(dragging.id, p, coarse);
+                }}
+                onPointerUp={() => endDrag()}
+            >
+                <planeGeometry args={[10000, 10000]} />
+                <meshBasicMaterial transparent opacity={0} />
+            </mesh>
 
             {pipeSegments.map(({ id, path, color, radius }) => (
                 <Pipe3D key={id} points={path} color={color} radius={radius} />
+
             ))}
         </>
     );
