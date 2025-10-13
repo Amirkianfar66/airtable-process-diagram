@@ -142,7 +142,7 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
                     width: unitWidth,
                     height: unitHeight,
                     background: 'transparent',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
                     border: '4px dashed #444',
                     borderRadius: '10px',
                 },
