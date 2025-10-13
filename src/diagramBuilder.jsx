@@ -67,9 +67,19 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
 
     const allUnits = [...new Set(normalized.map(i => i.Unit))];
     if (!safeLayout.length) safeLayout = [[]];
-    allUnits.forEach(u => {
-        if (!safeLayout.some(row => row.includes(u))) safeLayout[0].push(u);
-    });
+    // Sort only the first row left→right by number (keeps multi-row custom layouts intact)
+    const key = (u) => {
+        const m = String(u).match(/\d+/);
+        return m ? [Number(m[0]), String(u)] : [Number.POSITIVE_INFINITY, String(u)];
+    };
+    if (Array.isArray(safeLayout[0])) {
+        safeLayout[0].sort((a, b) => {
+            const [an, as] = key(a);
+            const [bn, bs] = key(b);
+            return an !== bn ? an - bn : as.localeCompare(bs, undefined, { numeric: true, sensitivity: "base" });
+        });
+    }
+
 
     // group by Unit/SubUnit
     const grouped = {};

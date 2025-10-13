@@ -853,8 +853,18 @@ export default function ProcessDiagram() {
                 const out = Array.isArray(layout) && layout.length ? layout.map(r => [...r]) : [[]];
                 const flat = new Set(out.flat());
                 units.forEach(u => { if (!flat.has(u)) out[0].push(u); });
+                // sort left→right by unit number, fallback natural
+                const key = (u) => {
+                    const m = String(u).match(/\d+/);
+                    return m ? [Number(m[0]), String(u)] : [Number.POSITIVE_INFINITY, String(u)];
+                };
+                out[0].sort((a, b) => {
+                    const [an, as] = key(a); const [bn, bs] = key(b);
+                    return an !== bn ? an - bn : as.localeCompare(bs, undefined, { numeric: true, sensitivity: "base" });
+                });
                 return out;
             };
+
             const unitsInData = [...new Set(nextItems.map(i => i.Unit))];
             const patchedLayout = ensureUnits(unitLayoutOrder, unitsInData);
             if (patchedLayout !== unitLayoutOrder) setUnitLayoutOrder(patchedLayout);
@@ -938,8 +948,20 @@ export default function ProcessDiagram() {
                 const resolvedItems = await resolveTypesInItems(normalizedItems);
 
                 // 3) Units/layout
-                const uniqueUnits = [...new Set(resolvedItems.map((i) => i.Unit))];
+                const unitSortKey = (u) => {
+                    const m = String(u).match(/\d+/);
+                    return m ? [Number(m[0]), String(u)] : [Number.POSITIVE_INFINITY, String(u)];
+                };
+
+                const uniqueUnits = [...new Set(resolvedItems.map((i) => i.Unit))]
+                    .sort((a, b) => {
+                        const [an, as] = unitSortKey(a);
+                        const [bn, bs] = unitSortKey(b);
+                        return an !== bn ? an - bn : as.localeCompare(bs, undefined, { numeric: true, sensitivity: "base" });
+                    });
+
                 const unitLayout2D = [uniqueUnits];
+
                 setUnitLayoutOrder(unitLayout2D);
 
                 // 4) Build nodes/edges using the resolved items
@@ -1083,15 +1105,24 @@ export default function ProcessDiagram() {
 
             const nextItems = [...prevItems, normalizedItem];
             const ensureUnitInLayout = (layout, unit) => {
+                const key = (u) => {
+                    const m = String(u).match(/\d+/);
+                    return m ? [Number(m[0]), String(u)] : [Number.POSITIVE_INFINITY, String(u)];
+                };
                 if (!Array.isArray(layout) || !layout.length) return [[unit]];
                 const flat = new Set(layout.flat());
                 if (!flat.has(unit)) {
                     const copy = layout.map((row) => [...row]);
                     copy[0].push(unit);
+                    copy[0].sort((a, b) => {
+                        const [an, as] = key(a); const [bn, bs] = key(b);
+                        return an !== bn ? an - bn : as.localeCompare(bs, undefined, { numeric: true, sensitivity: "base" });
+                    });
                     return copy;
                 }
                 return layout;
             };
+
 
             const currentLayout = (Array.isArray(unitLayoutOrder) && unitLayoutOrder.length) ? unitLayoutOrder : [[]];
             const patchedLayout = ensureUnitInLayout(currentLayout, normalizedItem.Unit);
