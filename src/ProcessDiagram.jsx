@@ -532,6 +532,43 @@ export default function ProcessDiagram() {
     // ---------- Group drag (shift children live) ----------
     const onNodeDrag = useCallback((event, draggedNode) => {
         if (!draggedNode || draggedNode.type !== 'groupLabel') return;
+        const onNodeDrag = useCallback((event, draggedNode) => {
+            if (!draggedNode) return;
+
+            // --- A) Dragging a Unit frame: move its sub-cells and all item nodes in that Unit
+            if (String(draggedNode.id || '').startsWith('unit-')) {
+                const unitName = String(draggedNode.id).slice(5);
+                const dx = draggedNode.position.x - (draggedNode.data?.prevX ?? draggedNode.position.x);
+                const dy = draggedNode.position.y - (draggedNode.data?.prevY ?? draggedNode.position.y);
+
+                setNodes((nds) =>
+                    nds.map((n) => {
+                        if (!n) return n;
+                        // sub-rectangles of this unit
+                        const isSubRect = String(n.id || '').startsWith(`sub-${unitName}-`);
+                        // item nodes that belong to this unit
+                        const isItemInUnit = String(n?.data?.item?.Unit || '') === unitName;
+                        if (isSubRect || isItemInUnit) {
+                            return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
+                        }
+                        return n;
+                    })
+                );
+
+                // remember last position to compute next incremental delta
+                setNodes((nds) =>
+                    nds.map((n) =>
+                        n.id === draggedNode.id
+                            ? { ...n, data: { ...(n.data || {}), prevX: draggedNode.position.x, prevY: draggedNode.position.y } }
+                            : n
+                    )
+                );
+                return;
+            }
+
+            // --- B) (existing) dragging a group label
+       
+
 
         setNodes(nds => {
             const moved = nds.map(n => {
@@ -557,6 +594,36 @@ export default function ProcessDiagram() {
     // ---------- Drag stop: clear markers for group; persist x/y for normal nodes ----------
     const onNodeDragStop = useCallback((event, draggedNode) => {
         if (!draggedNode) return;
+        // A) Unit frame: clear prev markers and persist all item positions in that unit
+        if (String(draggedNode.id || '').startsWith('unit-')) {
+            const unitName = String(draggedNode.id).slice(5);
+
+            // clear prevX/prevY on the unit node
+            setNodes((nds) =>
+                nds.map((n) =>
+                    n.id === draggedNode.id
+                        ? { ...n, data: { ...(n.data || {}), prevX: undefined, prevY: undefined } }
+                        : n
+                )
+            );
+
+            // capture current node positions -> push into items[]
+            setItems((prev) => {
+                // build a quick map id -> position for items in this unit
+                const byId = new Map();
+                (Array.isArray(nodes) ? nodes : []).forEach((n) => {
+                    if (String(n?.data?.item?.Unit || '') === unitName) {
+                        byId.set(String(n.id), { x: n.position.x, y: n.position.y });
+                    }
+                });
+                return (Array.isArray(prev) ? prev : []).map((it) => {
+                    const pos = byId.get(String(it.id));
+                    return pos ? { ...it, x: pos.x, y: pos.y } : it;
+                });
+            });
+            return;
+        }
+
 
         if (draggedNode.type === 'groupLabel') {
             setNodes((nds) =>

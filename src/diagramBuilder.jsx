@@ -124,16 +124,20 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
                     fontFamily: 'Arial, sans-serif',
                     offsetX: 200,
                     offsetY: -300,
+                    prevX: undefined,
+                    prevY: undefined
+
                 },
                 style: {
                     width: unitWidth,
                     height: unitHeight,
                     background: 'transparent',
+                    pointerEvents: 'none'
                     border: '4px dashed #444',
                     borderRadius: '10px',
                 },
-                draggable: false,
-                selectable: false,
+                draggable: true,
+                selectable: true,
             });
 
             // 3×3 geometry inside unit

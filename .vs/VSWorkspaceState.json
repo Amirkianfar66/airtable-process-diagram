@@ -3,8 +3,9 @@
     "",
     "\\api",
     "\\src",
-    "\\src\\Components"
+    "\\src\\Components",
+    "\\src\\three"
   ],
-  "SelectedNode": "\\src\\Components\\DataOverlay.jsx",
+  "SelectedNode": "\\src\\ThreeDView.jsx",
   "PreviewInSolutionExplorer": false
 }
