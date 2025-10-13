@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState, Suspense, useRef, useLayoutEffect 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Grid, Html } from "@react-three/drei";
 import * as THREE from "three";
-import { JsonShape, fetchTypeSpec, guessSpecUrl, normalizeKey } from "./TypeShapeRuntime.jsx";
+import { JsonShape, fetchTypeSpec, guessSpecUrl, normalizeKey } from "./three/TypeShapeRuntime.jsx";
 
 /** ---------- helpers ---------- */
 const to3 = (p = { x: 0, y: 0 }, y = 0) => [p.x || 0, y, -(p.y || 0)];
