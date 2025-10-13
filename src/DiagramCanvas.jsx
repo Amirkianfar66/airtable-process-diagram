@@ -458,12 +458,18 @@ export default function DiagramCanvas({
                                 );
                                 onSelectionChange?.({ nodes: moved ? [moved] : [], edges: [] });
                             }}
-                            selectedNodeId={selectedNodes?.[0]?.id}           // NEW: show panel for selected
-                            onSetNodePivot={(id, pivot) => {                  // NEW: persist pivot on the node
-                                setNodes((ns) => ns.map(n =>
-                                    String(n.id) === String(id) ? { ...n, data: { ...n.data, pivot } } : n
-                                ));
+                            selectedNodeId={selectedNodes?.[0]?.id}         // show pivot panel for selected node
+                            onSetNodePivot={(id, pivot) => {                // persist pivot on the node
+                                setNodes((ns) =>
+                                    ns.map((n) =>
+                                        String(n.id) === String(id)
+                                            ? { ...n, data: { ...n.data, pivot } }
+                                            : n
+                                    )
+                                );
+                            }}
                         />
+
                     ) : (
                         <ReactFlow
                             onInit={(inst) => { rfInstanceRef.current = inst; }}
