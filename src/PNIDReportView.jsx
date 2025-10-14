@@ -30,6 +30,40 @@ export default function PNIDReportView() {
             return JSON.parse(localStorage.getItem("pnidReport:groups") || "null") || DEFAULT_GROUPS;
         } catch { return DEFAULT_GROUPS; }
     });
+    // add near other state
+    const [mode, setMode] = useState(() => localStorage.getItem("pnidReport:mode") || "report"); // 'report' | 'simple' | 'embedded'
+    const [embedUrl, setEmbedUrl] = useState(
+        () => localStorage.getItem("pnidReport:embedUrl") || import.meta.env.VITE_PNID_REPORT_EMBED_URL || ""
+    );
+
+// in your top bar "View" select, add option:
+<option value="embedded">Embedded (RC HTML/PDF)</option>
+
+// somewhere in the controls:
+<input
+  value={embedUrl}
+  onChange={(e) => setEmbedUrl(e.target.value)}
+  placeholder="https://intranet/reports/linelist.html or .pdf"
+  style={{ width: 360, padding: "6px 8px", border: "1px solid #ddd", borderRadius: 6 }}
+/>
+<button
+  onClick={() => { localStorage.setItem("pnidReport:embedUrl", embedUrl); setMode("embedded"); }}
+  style={{ padding: "6px 10px", border: "1px solid #ddd", borderRadius: 8 }}
+>
+  Save & Open
+</button>
+
+    // in the body render:
+    {
+        mode === "embedded" ? (
+            // Works for both HTML and PDF; browsers handle PDFs natively
+            <iframe
+                title="PNID Report"
+                src={embedUrl}
+                style={{ width: "100%", height: "100%", border: "none" }}
+            />
+        ) : /* existing modes */ null
+    }
 
     // restore last loaded CSV
     useEffect(() => {
