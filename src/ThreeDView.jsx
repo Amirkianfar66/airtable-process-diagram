@@ -536,9 +536,24 @@ export default function ThreeDView({ nodes = [],
           () => (Array.isArray(nodes) ? nodes.find(n => String(n.id) === String(selectedNodeId)) : null),
           [nodes, selectedNodeId]
     );
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === "Escape") {
+                onSelectNode?.(null);
+                setControlsEnabled(true);
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [onSelectNode]);
+
     return (
-        <div style={{ position: "relative", width: "100%", height: "100%" }}>
-          <Canvas camera={{ position: [0, 400, 600], fov: 50 }} onPointerMissed={() => setControlsEnabled(true)}>
+        <div style = {{ position: "relative", width: "100%", height: "100%" }}
+             onContextMenu={ (e) => { e.preventDefault(); onSelectNode?.(null); setControlsEnabled(true); } }
+        >
+            <Canvas camera={{ position: [0, 400, 600], fov: 50 }}
+             onPointerMissed={() => { setControlsEnabled(true); onSelectNode?.(null); }}
+            >
             <color attach="background" args={["#f7f7f7"]} />
             <Suspense fallback={null}>
                 <Scene
