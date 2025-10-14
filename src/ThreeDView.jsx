@@ -250,112 +250,7 @@ function NodeMesh({
             {selected && <axesHelper args={[100]} />}
 
             {selected && (
-                <Html distanceFactor={8} position={[0, 110, 0]} center transform>
-                    <div style={{
-                        width: 370,
-                        background: "rgba(255,255,255,0.96)",
-                        border: "1px solid #ddd",
-                        borderRadius: 10,
-                        boxShadow: "0 10px 24px rgba(0,0,0,0.12)",
-                        fontSize: 12,
-                        overflow: "hidden"
-                    }}>
-                        <div style={{ display: "flex", borderBottom: "1px solid #eee" }}>
-                            {["move", "pivot"].map((t) => (
-                                <button
-                                    key={t}
-                                    onClick={() => setUiTab(t)}
-                                    style={{
-                                        flex: 1, padding: "8px 10px", fontWeight: 600, border: "none",
-                                        background: uiTab === t ? "#f5f7ff" : "transparent",
-                                        color: uiTab === t ? "#243B80" : "#222", cursor: "pointer"
-                                    }}
-                                >
-                                    {t === "move" ? "Move (X/Y/Z)" : "Pivot"}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div style={{ padding: 10 }}>
-                            {uiTab === "move" ? (
-                                <div style={{ display: "grid", gridTemplateColumns: "60px 1fr", rowGap: 8, columnGap: 8 }}>
-                                    <div style={{ gridColumn: "1 / span 2", display: "flex", alignItems: "center", gap: 8 }}>
-                                        <div style={{ opacity: 0.7, width: 60 }}>Step</div>
-                                        <input
-                                            type="number"
-                                            step="1"
-                                            value={step}
-                                            onChange={(e) => setStep(Number.parseFloat(e.target.value) || 1)}
-                                            style={{ width: 90, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
-                                        />
-                                        <div style={{ opacity: 0.6 }}>units per big step</div>
-                                    </div>
-
-                                    {["x", "y", "z"].map((axis) => (
-                                        <React.Fragment key={axis}>
-                                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                                <span style={{ width: 24, display: "inline-block", textAlign: "center", fontWeight: 700 }}>
-                                                    {axis.toUpperCase()}
-                                                </span>
-                                            </div>
-                                            <div style={{ display: "grid", gridTemplateColumns: "120px auto", columnGap: 6, alignItems: "center" }}>
-                                                <input
-                                                    type="number"
-                                                    step="1"
-                                                    value={Number(posUI[axis] ?? 0)}
-                                                    onChange={(e) => {
-                                                        const v = Number.parseFloat(e.target.value);
-                                                        setPosUI((s) => ({ ...s, [axis]: Number.isFinite(v) ? v : 0 }));
-                                                    }}
-                                                    onBlur={() => setAxis(axis, Number(posUI[axis] ?? 0))}
-                                                    onKeyDown={(e) => { if (e.key === "Enter") setAxis(axis, Number(posUI[axis] ?? 0)); }}
-                                                    style={{ width: 120, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
-                                                />
-                                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                                    <button onClick={() => setAxis(axis, (posUI[axis] ?? 0) - step)} style={btn()}>−{step}</button>
-                                                    <button onClick={() => setAxis(axis, (posUI[axis] ?? 0) - 1)} style={btn()}>−1</button>
-                                                    <button onClick={() => setAxis(axis, 0)} style={btn(true)}>0</button>
-                                                    <button onClick={() => setAxis(axis, (posUI[axis] ?? 0) + 1)} style={btn()}>+1</button>
-                                                    <button onClick={() => setAxis(axis, (posUI[axis] ?? 0) + step)} style={btn()}>+{step}</button>
-                                                </div>
-                                            </div>
-                                        </React.Fragment>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div style={{ display: "grid", gridTemplateColumns: "auto 80px 80px 80px", gap: 6 }}>
-                                    <div style={{ opacity: 0.7, paddingRight: 6, alignSelf: "center" }}>Pivot</div>
-                                    {["x", "y", "z"].map((axis) => (
-                                        <input
-                                            key={axis}
-                                            type="number"
-                                            step="1"
-                                            value={Number(pivot?.[axis] || 0)}
-                                            onChange={(e) => {
-                                                const v = Number.isFinite(parseFloat(e.target.value)) ? parseFloat(e.target.value) : 0;
-                                                onSetPivot?.(node.id, { ...pivot, [axis]: v });
-                                            }}
-                                            style={{ width: 70, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
-                                        />
-                                    ))}
-                                    <div />
-                                    {["X", "Y", "Z"].map((axis) => {
-                                        const key = axis.toLowerCase();
-                                        return (
-                                            <div key={axis} style={{ display: "flex", gap: 4 }}>
-                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 10 })} style={btn()}>−10</button>
-                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 1 })} style={btn()}>−1</button>
-                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: 0 })} style={btn(true)}>0</button>
-                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 1 })} style={btn()}>+1</button>
-                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 10 })} style={btn()}>+10</button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </Html>
+                
             )}
         </group>
     );
@@ -385,6 +280,92 @@ function btn(primary = false) {
     };
 }
 
+// ---------- Right-side Transform Overlay (normal DOM panel) ----------
+function TransformOverlay({
+    node,                 // selected RF node
+    onMoveNode,           // (id, {x,y})
+    onSetAltitude,        // (id, y)  OPTIONAL
+    onSetPivot,           // (id, {x,y,z})
+}) {
+    if (!node) return null;
+
+    const item = node?.data?.item || {};
+    const pivot = (node.data && node.data.pivot) || { x: 0, y: 0, z: 0 };
+    const altY = Number(node?.data?.altitude ?? 20);
+
+    // RF <-> world mapping (worldX = RF.x, worldZ = -RF.y)
+    const worldX = Number(node?.position?.x || 0);
+    const worldZ = -Number(node?.position?.y || 0);
+
+    const [mx, setMx] = React.useState(worldX);
+    const [my, setMy] = React.useState(altY);
+    const [mz, setMz] = React.useState(worldZ);
+    const [px, setPx] = React.useState(pivot.x || 0);
+    const [py, setPy] = React.useState(pivot.y || 0);
+    const [pz, setPz] = React.useState(pivot.z || 0);
+
+    React.useEffect(() => {
+        setMx(worldX); setMy(altY); setMz(worldZ);
+        setPx(pivot.x || 0); setPy(pivot.y || 0); setPz(pivot.z || 0);
+    }, [node?.id, worldX, worldZ, altY, pivot.x, pivot.y, pivot.z]);
+
+    const commitMove = (axis, val) => {
+        const v = Number.isFinite(val) ? val : 0;
+        if (axis === "x") onMoveNode?.(node.id, { x: v, y: node.position?.y || 0 });
+        if (axis === "z") onMoveNode?.(node.id, { x: node.position?.x || 0, y: -v });
+        if (axis === "y") onSetAltitude?.(node.id, v);
+    };
+
+    const Input = ({ value, setValue, onCommit, width = 140 }) => (
+        <input
+            type="number"
+            value={value}
+            onChange={(e) => setValue(parseFloat(e.target.value))}
+            onBlur={() => onCommit(value)}
+            onKeyDown={(e) => { if (e.key === "Enter") onCommit(value); }}
+            style={{ width, padding: "6px 8px", border: "1px solid #ccc", borderRadius: 8 }}
+        />
+    );
+
+    const Row = ({ label, children }) => (
+        <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "center", gap: 10 }}>
+            <strong style={{ textAlign: "center" }}>{label}</strong>
+            <div>{children}</div>
+        </div>
+    );
+
+    return (
+        <div style={{
+            position: "absolute", top: 12, right: 12, width: 360, zIndex: 10,
+            background: "#fff", border: "1px solid #eee", borderRadius: 12,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.08)", fontSize: 12, padding: 16
+        }}>
+            <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: "#667" }}>Selected item</div>
+                <div style={{ fontWeight: 600, lineHeight: 1.2 }}>
+                    {(item["Item Code"] || item.Code || node.id)} {item.Name || ""}
+                </div>
+            </div>
+
+            <div style={{ margin: "10px 0 8px", fontWeight: 600 }}>Move (World X / Y / Z)</div>
+            <div style={{ display: "grid", rowGap: 10 }}>
+                <Row label="X"><Input value={mx} setValue={setMx} onCommit={(v) => commitMove("x", v)} /></Row>
+                <Row label="Y"><Input value={my} setValue={setMy} onCommit={(v) => commitMove("y", v)} /></Row>
+                <Row label="Z"><Input value={mz} setValue={setMz} onCommit={(v) => commitMove("z", v)} /></Row>
+            </div>
+
+            <div style={{ margin: "16px 0 8px", fontWeight: 600 }}>Pivot (Local offset)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", rowGap: 8, columnGap: 10, alignItems: "center" }}>
+                <strong style={{ textAlign: "center" }}>X</strong>
+                <Input value={px} setValue={setPx} onCommit={(v) => onSetPivot?.(node.id, { x: v, y: py, z: pz })} />
+                <strong style={{ textAlign: "center" }}>Y</strong>
+                <Input value={py} setValue={setPy} onCommit={(v) => onSetPivot?.(node.id, { x: px, y: v, z: pz })} />
+                <strong style={{ textAlign: "center" }}>Z</strong>
+                <Input value={pz} setValue={setPz} onCommit={(v) => onSetPivot?.(node.id, { x: px, y: py, z: v })} />
+            </div>
+        </div>
+    );
+}
 
 
 
@@ -573,13 +554,18 @@ export default function ThreeDView({ nodes = [],
     gridSnap = 10,
     selectedNodeId,                 // NEW: which node is selected (to show the panel)
     onSetNodePivot,                 // NEW: (id, {x,y,z}) -> update node.data.pivot in parent
+    onSetNodeAltitude,
 }) {
 
     const [controlsEnabled, setControlsEnabled] = useState(true);
     const handlePick = (id) => onSelectNode?.(id);
-
+    const selectedNode = React.useMemo(
+          () => (Array.isArray(nodes) ? nodes.find(n => String(n.id) === String(selectedNodeId)) : null),
+          [nodes, selectedNodeId]
+    );
     return (
-        <Canvas camera={{ position: [0, 400, 600], fov: 50 }} onPointerMissed={() => setControlsEnabled(true)}>
+        <div style={{ position: "relative", width: "100%", height: "100%" }}>
+          <Canvas camera={{ position: [0, 400, 600], fov: 50 }} onPointerMissed={() => setControlsEnabled(true)}>
             <color attach="background" args={["#f7f7f7"]} />
             <Suspense fallback={null}>
                 <Scene
@@ -594,6 +580,14 @@ export default function ThreeDView({ nodes = [],
                 />
             </Suspense>
             <OrbitControls makeDefault enabled={controlsEnabled} enableDamping />
-        </Canvas>
+          </Canvas>
+            {/* Right-side overlay (normal DOM) */}
+                 <TransformOverlay
+                   node={selectedNode}
+                   onMoveNode={onMoveNode}
+                   onSetAltitude={onSetNodeAltitude}
+                   onSetPivot={onSetNodePivot}
+                 />
+        </div>
     );
 }
