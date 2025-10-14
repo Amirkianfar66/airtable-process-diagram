@@ -16,7 +16,7 @@ import DiagramCanvas from './DiagramCanvas';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import DataOverlay from './Components/DataOverlay.jsx';
-
+import PNIDReportView from './PNIDReportView.jsx';
 
 
 const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => {
@@ -189,6 +189,13 @@ export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [showData, setShowData] = useState(false);
+    // NEW: remember which view the user last selected
+    const [appView, setAppView] = useState(() => localStorage.getItem('appView') || 'canvas');
+    const switchView = useCallback((v) => {
+        const next = v === 'pnid-list' ? 'pnid-list' : 'canvas';
+        setAppView(next);
+        localStorage.setItem('appView', next);
+    }, []);
 
     // expose global helpers for the toolbar (now safe inside a component)
     useEffect(() => {
@@ -1142,85 +1149,126 @@ export default function ProcessDiagram() {
             return nextItems;
         });
     };
+    const topBtn = (active) => ({
+        padding: "6px 10px",
+        borderRadius: 8,
+        border: "1px solid #ddd",
+        background: active ? "#111" : "#fff",
+        color: active ? "#fff" : "#111",
+        cursor: "pointer",
+    });
+
+    // REPLACE your whole return(...) with this block
+    const reportMeta = useMemo(() => {
+        try { return JSON.parse(localStorage.getItem("pnidReport:meta") || "null"); } catch { return null; }
+    }, [appView]);
 
     return (
-        <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
-            {/* LEFT: Diagram */}
-            <div style={{ flex: 3, position: "relative", background: "transparent" }}>
-                <DiagramCanvas
-                    nodes={nodes}
-                    edges={edges}
-                    setNodes={setNodes}
-                    setEdges={setEdges}
-                    /* DO NOT pass setSelectedItem to avoid it being cleared inside DiagramCanvas */
-                    setItems={setItems}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onSelectionChange={onSelectionChange}
-                    nodeTypes={nodeTypes}
-                    /* we’re not using DiagramCanvas’s internal edge inspector here */
-                    showInlineEdgeInspector={false}
-                    AddItemButton={AddItemButton}
-                    addItem={handleAddItem}
-                    aiDescription={aiDescription}
-                    setAiDescription={setAiDescription}
-                    handleGeneratePNID={handleGeneratePNID}
-                    chatMessages={chatMessages}
-                    setChatMessages={setChatMessages}
-                    selectedNodes={selectedNodes}
-                    updateNode={updateNode}
-                    deleteNode={deleteNode}
-                    ChatBox={ChatBox}
-                    onNodeDrag={onNodeDrag}
-                    onNodeDragStop={onNodeDragStop}
-                    availableUnits={availableUnitsForConfig}
-                    onUnitLayoutChange={setUnitLayoutOrder}
-                    onCreateInlineValve={handleCreateInlineValve}
-                />
+        <div style={{ width: "100vw", height: "100vh", display: "grid", gridTemplateRows: "auto 1fr" }}>
+            {/* Header bar (view switch) */}
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 10px",
+                    borderBottom: "1px solid #eee",
+                    background: "#fafafa",
+                }}
+            >
+                <button onClick={() => switchView("canvas")} style={topBtn(appView === "canvas")}>Canvas</button>
+                <button onClick={() => switchView("pnid-list")} style={topBtn(appView === "pnid-list")}>PNID List</button>
+
+                {/* Optional: small status on the right showing last loaded CSV name */}
+                <div style={{ marginLeft: "auto", fontSize: 12, color: "#666" }}>
+                    {appView === "pnid-list" && reportMeta ? reportMeta.name : ""}
+                </div>
             </div>
 
-            {/* RIGHT: Sidebar */}
-            <div style={{ flex: 1, overflowY: "auto" }}>
-                {selectedGroupNode ? (
-                    <GroupDetailCard
-                        node={selectedGroupNode}
-                        childrenNodes={childrenNodesForGroup}
-                        childrenLabels={selectedGroupNode?.data?.children}
-                        allItems={itemsMap}
-                        startAddItemToGroup={() => { }}
-                        onAddItem={() => { }}
-                        onRemoveItem={() => { }}
-                        onDelete={() => { }}
-                    />
-                ) : selectedItem ? (
-                    <ItemDetailCard
-                        item={selectedItem}
-                        items={items}
-                        edges={edges}
-                        onChange={(updatedItem) =>
-                            handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
-                        }
-                        onDeleteEdge={(id) => {
-                            if (!id) return;
-                            setEdges((eds) => eds.filter((e) => e.id !== id));
-                            setNodes((nds) =>
-                                nds.filter((n) => !(n?.data?.item?.edgeId && n.data.item.edgeId === id))
-                            );
-                            setSelectedItem((cur) => (cur?.edgeId === id ? null : cur));
-                        }}
-                        onUpdateEdge={handleUpdateEdge}
-                        onCreateInlineValve={(edgeId) => handleCreateInlineValve(edgeId)}
-                    />
-                ) : (
-                    <div style={{ padding: 20, color: "#788" }}>
-                        Select an item or group to see details
+            {/* Body */}
+            {appView === "pnid-list" ? (
+                // Read-only CSV list from Plant 3D Report Creator
+                <PNIDReportView />
+            ) : (
+                // Your existing left/right canvas layout unchanged
+                <div style={{ display: "flex", minHeight: 0 }}>
+                    {/* LEFT: Diagram */}
+                    <div style={{ flex: 3, position: "relative", background: "transparent" }}>
+                        <DiagramCanvas
+                            nodes={nodes}
+                            edges={edges}
+                            setNodes={setNodes}
+                            setEdges={setEdges}
+                            /* DO NOT pass setSelectedItem to avoid it being cleared inside DiagramCanvas */
+                            setItems={setItems}
+                            onNodesChange={onNodesChange}
+                            onEdgesChange={onEdgesChange}
+                            onConnect={onConnect}
+                            onSelectionChange={onSelectionChange}
+                            nodeTypes={nodeTypes}
+                            /* we’re not using DiagramCanvas’s internal edge inspector here */
+                            showInlineEdgeInspector={false}
+                            AddItemButton={AddItemButton}
+                            addItem={handleAddItem}
+                            aiDescription={aiDescription}
+                            setAiDescription={setAiDescription}
+                            handleGeneratePNID={handleGeneratePNID}
+                            chatMessages={chatMessages}
+                            setChatMessages={setChatMessages}
+                            selectedNodes={selectedNodes}
+                            updateNode={updateNode}
+                            deleteNode={deleteNode}
+                            ChatBox={ChatBox}
+                            onNodeDrag={onNodeDrag}
+                            onNodeDragStop={onNodeDragStop}
+                            availableUnits={availableUnitsForConfig}
+                            onUnitLayoutChange={setUnitLayoutOrder}
+                            onCreateInlineValve={handleCreateInlineValve}
+                        />
                     </div>
-                )}
-            </div>
 
-            {/* Overlay lives inside the root container */}
+                    {/* RIGHT: Sidebar */}
+                    <div style={{ flex: 1, overflowY: "auto" }}>
+                        {selectedGroupNode ? (
+                            <GroupDetailCard
+                                node={selectedGroupNode}
+                                childrenNodes={childrenNodesForGroup}
+                                childrenLabels={selectedGroupNode?.data?.children}
+                                allItems={itemsMap}
+                                startAddItemToGroup={() => { }}
+                                onAddItem={() => { }}
+                                onRemoveItem={() => { }}
+                                onDelete={() => { }}
+                            />
+                        ) : selectedItem ? (
+                            <ItemDetailCard
+                                item={selectedItem}
+                                items={items}
+                                edges={edges}
+                                onChange={(updatedItem) =>
+                                    handleItemChangeNode(updatedItem, setItems, setNodes, setSelectedItem)
+                                }
+                                onDeleteEdge={(id) => {
+                                    if (!id) return;
+                                    setEdges((eds) => eds.filter((e) => e.id !== id));
+                                    setNodes((nds) =>
+                                        nds.filter((n) => !(n?.data?.item?.edgeId && n.data.item.edgeId === id))
+                                    );
+                                    setSelectedItem((cur) => (cur?.edgeId === id ? null : cur));
+                                }}
+                                onUpdateEdge={handleUpdateEdge}
+                                onCreateInlineValve={(edgeId) => handleCreateInlineValve(edgeId)}
+                            />
+                        ) : (
+                            <div style={{ padding: 20, color: "#788" }}>Select an item or group to see details</div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Overlay stays mounted for both views */}
             <DataOverlay open={showData} onClose={() => setShowData(false)} />
         </div>
     );
+
 }

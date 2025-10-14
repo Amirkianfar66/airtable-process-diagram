@@ -402,6 +402,8 @@ export default function DiagramCanvas({
                 deleteNode={deleteNode}
                 availableUnits={availableUnits}
                 onUnitLayoutChange={onUnitLayoutChange}
+                currentView={appView}      
+                onSwitchView={switchView}   
             />
 
             <div style={{ padding: 10 }}>

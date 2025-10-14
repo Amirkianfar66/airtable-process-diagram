@@ -14,6 +14,8 @@ export default function MainToolbar({
     onRedo,
     // for Unit layout config
     availableUnits = [],
+    currentView = 'canvas',
+    onSwitchView = () => { },
     onUnitLayoutChange = () => { },
 }) {
     const [activeTab, setActiveTab] = useState("File");
@@ -387,6 +389,33 @@ export default function MainToolbar({
                         <div>
                             <div style={sectionTitle}>View</div>
                             <UnitLayoutConfig availableUnits={availableUnits} onChange={onUnitLayoutChange} />
+                            {/* ---- Add view switch for Canvas / PNID List ---- */}
+                            <div style={{ marginTop: 12 }}>
+                                <div style={sectionTitle}>PNID Report</div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <button
+                                        onClick={() => onSwitchView('canvas')}
+                                        style={{
+                                            padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd",
+                                            background: currentView === 'canvas' ? '#111' : '#fff',
+                                            color: currentView === 'canvas' ? '#fff' : '#111'
+                                        }}
+                                    >
+                                        Canvas
+                                    </button>
+                                    <button
+                                        onClick={() => onSwitchView('pnid-list')}
+                                        style={{
+                                            padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd",
+                                            background: currentView === 'pnid-list' ? '#111' : '#fff',
+                                            color: currentView === 'pnid-list' ? '#fff' : '#111'
+                                        }}
+                                    >
+                                        PNID List
+                                    </button>
+                                </div>
+                            </div>
+
                         </div>
                     )}
                 </div>
