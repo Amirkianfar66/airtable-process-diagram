@@ -1,51 +1,49 @@
 ﻿// src/PNIDReportView.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export default function PNIDReportView() {
-    const urlFromQuery = (() => {
-        try {
-            const u = new URL(window.location.href);
-            return u.searchParams.get("reportUrl") || "";
-        } catch {
-            return "";
-        }
-    })();
-
-    const [reportUrl, setReportUrl] = useState(
-        () =>
-            urlFromQuery ||
-            localStorage.getItem("pnidReport:embedUrl") ||
-            import.meta.env.VITE_PNID_REPORT_EMBED_URL ||
-            ""
-    );
-
+    const fileInputRef = useRef(null);
+    const [blobUrl, setBlobUrl] = useState("");
+    const [fileName, setFileName] = useState("");
+    const [loading, setLoading] = useState(false);
     const [reloadKey, setReloadKey] = useState(0);
-    const [status, setStatus] = useState("idle"); // <-- fixed
 
-    useEffect(() => {
-        if (reportUrl) localStorage.setItem("pnidReport:embedUrl", reportUrl);
-    }, [reportUrl]);
+    const openPicker = () => fileInputRef.current?.click();
 
-    const iframeSrc = useMemo(() => reportUrl.trim(), [reportUrl]);
+    const onPickFile = (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
 
-    useEffect(() => {
-        if (!iframeSrc) return;
-        setStatus("loading");
-    }, [iframeSrc, reloadKey]);
+        // revoke old blob if any
+        if (blobUrl) {
+            try { URL.revokeObjectURL(blobUrl); } catch { }
+        }
 
-    const saveAndOpen = () => {
-        const v = reportUrl.trim();
-        if (!v) return;
-        localStorage.setItem("pnidReport:embedUrl", v);
+        const url = URL.createObjectURL(f);
+        setBlobUrl(url);
+        setFileName(f.name || "local.html");
+        setLoading(true);
+        setReloadKey((k) => k + 1);
+        e.target.value = ""; // allow selecting the same file again later
+    };
+
+    const clearFile = () => {
+        if (blobUrl) {
+            try { URL.revokeObjectURL(blobUrl); } catch { }
+        }
+        setBlobUrl("");
+        setFileName("");
         setReloadKey((k) => k + 1);
     };
 
-    const refresh = () => setReloadKey((k) => k + 1);
-
-    const openInNewTab = () => {
-        if (!iframeSrc) return;
-        window.open(iframeSrc, "_blank", "noopener,noreferrer");
-    };
+    // cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (blobUrl) {
+                try { URL.revokeObjectURL(blobUrl); } catch { }
+            }
+        };
+    }, [blobUrl]);
 
     const btn = {
         padding: "6px 10px",
@@ -64,46 +62,55 @@ export default function PNIDReportView() {
         cursor: "pointer",
     };
 
-    const hint =
-        "If the frame stays blank, the remote server blocks embedding (X-Frame-Options / frame-ancestors). Use Open in new tab.";
-
     return (
         <div style={{ width: "100%", height: "100%", display: "grid", gridTemplateRows: "auto 1fr" }}>
+            {/* Header */}
             <div
                 style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 8,
+                    gap: 10,
                     padding: "8px 10px",
                     borderBottom: "1px solid #eee",
                     background: "#fafafa",
+                    flexWrap: "wrap",
                 }}
             >
-                <div style={{ fontWeight: 600 }}>Embedded RC Report (HTML/PDF)</div>
+                <button onClick={openPicker} style={btn}>Load HTML from my PC</button>
                 <input
-                    value={reportUrl}
-                    onChange={(e) => setReportUrl(e.target.value)}
-                    placeholder="https://your-server/path/report.html or .pdf"
-                    style={{ flex: 1, padding: "6px 8px", border: "1px solid #ddd", borderRadius: 8, marginLeft: 8 }}
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".html,.htm"
+                    onChange={onPickFile}
+                    style={{ display: "none" }}
                 />
-                <button onClick={saveAndOpen} style={btnLight}>Save & Open</button>
-                <button onClick={refresh} style={btnLight} disabled={!iframeSrc}>Refresh</button>
-                <button onClick={openInNewTab} style={btnLight} disabled={!iframeSrc}>Open in new tab</button>
-
+                {blobUrl ? (
+                    <>
+                        <span style={{ fontSize: 12, color: "#555" }}>{fileName}</span>
+                        <button onClick={clearFile} style={btnLight}>Clear</button>
+                    </>
+                ) : (
+                    <span style={{ fontSize: 12, color: "#666" }}>
+                        Choose an HTML report exported by Report Creator.
+                    </span>
+                )}
                 <div style={{ marginLeft: "auto", fontSize: 12, color: "#666" }}>
-                    {status === "loading" && "Loading…"}
-                    {status === "error" && "Can’t display (blocked?)."}
+                    {loading && "Loading…"}
                 </div>
             </div>
 
-            {!iframeSrc ? (
-                <div style={{ padding: 16, color: "#666" }}>
-                    Paste the public <b>HTML/PDF</b> report URL exported by Report Creator and click <b>Save & Open</b>.
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#888" }}>{hint}</div>
+            {/* Body */}
+            {!blobUrl ? (
+                <div style={{ padding: 16, color: "#666", lineHeight: 1.5 }}>
+                    No report loaded. Click <b>Load HTML from my PC</b> and pick your Plant 3D Report Creator HTML file.
+                    <div style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+                        Tip: if your HTML references extra files (CSS/images/JS in sibling folders),
+                        browsers may block loading them from disk. Use a <b>single-file HTML</b> export, or export as <b>PDF</b>.
+                    </div>
                 </div>
             ) : (
                 <div style={{ position: "relative" }}>
-                    {status === "loading" && (
+                    {loading && (
                         <div
                             style={{
                                 position: "absolute",
@@ -121,29 +128,13 @@ export default function PNIDReportView() {
                             </div>
                         </div>
                     )}
-
                     <iframe
                         key={reloadKey}
-                        title="PNID Report"
-                        src={iframeSrc}
+                        title="PNID Report (Local HTML)"
+                        src={blobUrl}
                         style={{ width: "100%", height: "100vh", border: "none" }}
-                        onLoad={() => setStatus("ok")}
+                        onLoad={() => setLoading(false)}
                     />
-
-                    {status === "ok" ? null : (
-                        <div style={{ position: "absolute", bottom: 8, left: 12, right: 12, fontSize: 12, color: "#666" }}>
-                            {hint}{" "}
-                            {iframeSrc && (
-                                <>
-                                    <span> </span>
-                                    <a href={iframeSrc} target="_blank" rel="noopener noreferrer">
-                                        Open now
-                                    </a>
-                                    .
-                                </>
-                            )}
-                        </div>
-                    )}
                 </div>
             )}
         </div>
