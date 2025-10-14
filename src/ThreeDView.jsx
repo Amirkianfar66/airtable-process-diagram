@@ -551,8 +551,8 @@ export default function ThreeDView({ nodes = [],
         <div style = {{ position: "relative", width: "100%", height: "100%" }}
              onContextMenu={ (e) => { e.preventDefault(); onSelectNode?.(null); setControlsEnabled(true); } }
         >
-            <Canvas camera={{ position: [0, 400, 600], fov: 50 }}
-             onPointerMissed={() => { setControlsEnabled(true); onSelectNode?.(null); }}
+            <Canvas camera={{ position: [0, 400, 600], fov: 50, near: 0.5, far: 20000 }}
+                onPointerMissed={() => { setControlsEnabled(true); onSelectNode?.(null); }}
             >
             <color attach="background" args={["#f7f7f7"]} />
             <Suspense fallback={null}>
@@ -567,7 +567,12 @@ export default function ThreeDView({ nodes = [],
                     onSetNodePivot={onSetNodePivot}
                 />
             </Suspense>
-            <OrbitControls makeDefault enabled={controlsEnabled} enableDamping />
+                <OrbitControls
+                   makeDefault
+                   enabled={controlsEnabled}
+                   enableDamping
+                   minDistance={50}
+                   maxDistance={8000} />
           </Canvas>
             {/* Right-side overlay (normal DOM) */}
                  <TransformOverlay
