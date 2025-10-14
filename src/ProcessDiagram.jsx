@@ -1226,6 +1226,9 @@ export default function ProcessDiagram() {
                             availableUnits={availableUnitsForConfig}
                             onUnitLayoutChange={setUnitLayoutOrder}
                             onCreateInlineValve={handleCreateInlineValve}
+                            currentView={test}
+                            onSwitchView={switchTest}
+
                         />
                     </div>
 

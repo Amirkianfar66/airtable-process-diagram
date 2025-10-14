@@ -39,6 +39,8 @@ export default function DiagramCanvas({
     onCreateInlineValve,
     showInlineEdgeInspector = true,
     availableUnits = [],
+    currentView = 'canvas', 
+    onSwitchView = () => { },
     onUnitLayoutChange = () => { },
 }) {
     const [selectedEdge, setSelectedEdge] = useState(null);
@@ -402,8 +404,8 @@ export default function DiagramCanvas({
                 deleteNode={deleteNode}
                 availableUnits={availableUnits}
                 onUnitLayoutChange={onUnitLayoutChange}
-                currentView={appView}      
-                onSwitchView={switchView}   
+                currentView={currentView}      
+                onSwitchView={onSwitchView}   
             />
 
             <div style={{ padding: 10 }}>
