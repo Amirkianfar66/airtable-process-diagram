@@ -1,26 +1,28 @@
-﻿// TransformCard.jsx
+﻿// TransformCard.jsx (minimal pivot UI)
 import React from "react";
 
 export default function TransformCard({
-    node,                      // the selected RF node
-    onMoveNode,                // (id, {x,y})
-    onSetAltitude,             // (id, altitudeY)
-    onSetPivot,                // (id, {x,y,z})
-    step = 10,
+    node,                   // selected RF node
+    onMoveNode,             // (id, {x,y})
+    onSetAltitude,          // (id, altitudeY)
+    onSetPivot,             // (id, {x,y,z})
+    step = 10,              // move step for X/Z/Y buttons
 }) {
     if (!node) return null;
-    const pivot = (node.data && node.data.pivot) || { x: 0, y: 0, z: 0 };
-    const altitude = Number(node?.data?.altitude ?? 20);
 
-    // World X = RF x; World Z = -RF y
+    const item = node?.data?.item || {};
+    const pivot = (node.data && node.data.pivot) || { x: 0, y: 0, z: 0 };
+    const altY = Number(node?.data?.altitude ?? 20);
+
+    // RF <-> world mapping (worldX = RF.x, worldZ = -RF.y)
     const worldX = Number(node?.position?.x || 0);
     const worldZ = -Number(node?.position?.y || 0);
 
     const setAxis = (axis, val) => {
         const v = Number.isFinite(val) ? val : 0;
         if (axis === "x") onMoveNode?.(node.id, { x: v, y: node.position?.y || 0 });
-        else if (axis === "z") onMoveNode?.(node.id, { x: node.position?.x || 0, y: -v });
-        else if (axis === "y") onSetAltitude?.(node.id, v);
+        if (axis === "z") onMoveNode?.(node.id, { x: node.position?.x || 0, y: -v });
+        if (axis === "y") onSetAltitude?.(node.id, v);
     };
 
     const Btn = ({ children, onClick, primary }) => (
@@ -38,7 +40,7 @@ export default function TransformCard({
         </button>
     );
 
-    const Row = ({ axis, label, value, onChange }) => (
+    const MoveRow = ({ label, value, onChange }) => (
         <div style={{ display: "grid", gridTemplateColumns: "30px 120px auto", gap: 8, alignItems: "center" }}>
             <strong style={{ textAlign: "center" }}>{label}</strong>
             <input
@@ -59,37 +61,55 @@ export default function TransformCard({
     );
 
     return (
-        <div style={{ padding: 16, borderBottom: "1px solid #eee" }}>
-            <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 12, color: "#666" }}>Item</div>
+        <div style={{
+            padding: 16,
+            borderBottom: "1px solid #eee",
+            fontSize: 12,
+            background: "#fff",
+            borderRadius: 10,
+            boxShadow: "0 8px 20px rgba(0,0,0,0.06)",
+            margin: 12
+        }}>
+            {/* header */}
+            <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: "#667" }}>Selected item</div>
                 <div style={{ fontWeight: 600 }}>
-                    {(node?.data?.item?.["Item Code"] || node?.data?.item?.Code || node?.id) + " "}
-                    {(node?.data?.item?.Name || "")}
+                    {(item["Item Code"] || item.Code || node.id)} {item.Name || ""}
                 </div>
             </div>
 
-            <div style={{ marginBottom: 10, fontWeight: 600 }}>Move (X / Y / Z)</div>
+            {/* MOVE */}
+            <div style={{ margin: "10px 0 8px", fontWeight: 600 }}>Move (World X / Y / Z)</div>
             <div style={{ display: "grid", rowGap: 8 }}>
-                <Row axis="x" label="X" value={worldX} onChange={(v) => setAxis("x", v)} />
-                <Row axis="y" label="Y" value={altitude} onChange={(v) => setAxis("y", v)} />
-                <Row axis="z" label="Z" value={worldZ} onChange={(v) => setAxis("z", v)} />
+                <MoveRow label="X" value={worldX} onChange={(v) => setAxis("x", v)} />
+                <MoveRow label="Y" value={altY} onChange={(v) => setAxis("y", v)} />
+                <MoveRow label="Z" value={worldZ} onChange={(v) => setAxis("z", v)} />
             </div>
 
-            <div style={{ marginTop: 16, marginBottom: 10, fontWeight: 600 }}>Pivot (local)</div>
-            <div style={{ display: "grid", gridTemplateColumns: "auto 80px 80px 80px", gap: 6 }}>
-                <div style={{ opacity: 0.7, alignSelf: "center" }}>Offset</div>
-                {["x", "y", "z"].map((axis) => (
-                    <input
-                        key={axis}
-                        type="number"
-                        value={Number(pivot?.[axis] || 0)}
-                        onChange={(e) => {
-                            const v = Number.isFinite(parseFloat(e.target.value)) ? parseFloat(e.target.value) : 0;
-                            onSetPivot?.(node.id, { ...pivot, [axis]: v });
-                        }}
-                        style={{ width: 70, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
-                    />
-                ))}
+            {/* PIVOT — minimal: only 3 inputs, no helper buttons */}
+            <div style={{ margin: "16px 0 8px", fontWeight: 600 }}>Pivot (Local offset)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "30px 1fr 30px 1fr 30px 1fr", columnGap: 8, rowGap: 8 }}>
+                <div style={{ textAlign: "center", alignSelf: "center" }}>X</div>
+                <input
+                    type="number"
+                    value={Number(pivot.x || 0)}
+                    onChange={(e) => onSetPivot?.(node.id, { ...pivot, x: parseFloat(e.target.value) || 0 })}
+                    style={{ width: "100%", padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
+                />
+                <div style={{ textAlign: "center", alignSelf: "center" }}>Y</div>
+                <input
+                    type="number"
+                    value={Number(pivot.y || 0)}
+                    onChange={(e) => onSetPivot?.(node.id, { ...pivot, y: parseFloat(e.target.value) || 0 })}
+                    style={{ width: "100%", padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
+                />
+                <div style={{ textAlign: "center", alignSelf: "center" }}>Z</div>
+                <input
+                    type="number"
+                    value={Number(pivot.z || 0)}
+                    onChange={(e) => onSetPivot?.(node.id, { ...pivot, z: parseFloat(e.target.value) || 0 })}
+                    style={{ width: "100%", padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
+                />
             </div>
         </div>
     );
