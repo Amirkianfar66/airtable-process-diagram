@@ -458,4 +458,29 @@
   }
 
                     function uniqueCols(data){
-    const s
+    const s = new Set();
+    (data || []).forEach(row => Object.keys(row || { }).forEach(k => s.add(k)));
+                    return Array.from(s);
+  }
+
+                    function fileNameFromUrl(u){
+    try { const p = new URL(u).pathname; return decodeURIComponent(p.split('/').pop() || 'remote.csv'); }
+                    catch { return 'remote.csv'; }
+  }
+
+                    function setMsg(t){msgEl.textContent = t || ""; }
+
+                    function saveJSON(key, val){localStorage.setItem(key, JSON.stringify(val)); }
+                    function loadJSON(key){ try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; } }
+
+                    // Restore previous data on load (if any)
+                    const saved = loadJSON("pnid:data");
+                    const meta  = loadJSON("pnid:meta");
+                    if (saved && saved.rows && saved.columns) {
+                        rows = saved.rows; columns = saved.columns;
+                    setData(rows, columns, meta || {name: 'saved.csv', time: Date.now() });
+  }
+})();
+                </script>
+        </body>
+    </html>
