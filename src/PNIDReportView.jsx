@@ -321,7 +321,8 @@ const btnLight = {
     padding: "6px 10px",
     background: "#fff",
     color: "#111",
-    border: "1px solid "#ddd"",
+    border: "1px solid #ddd",
+
     borderRadius: 8,
     cursor: "pointer"
 };
