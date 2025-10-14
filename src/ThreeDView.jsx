@@ -261,40 +261,28 @@ function btn(primary = false) {
 }
 
 // ---------- Right-side Transform Overlay (normal DOM panel) ----------
+// ---------- Right-side Transform Overlay (Pivot only) ----------
 function TransformOverlay({
     node,                 // selected RF node
-    onMoveNode,           // (id, {x,y})
-    onSetAltitude,        // (id, y)  OPTIONAL
+    // onMoveNode,        // no longer used
+    // onSetAltitude,     // no longer used
     onSetPivot,           // (id, {x,y,z})
 }) {
     if (!node) return null;
 
     const item = node?.data?.item || {};
     const pivot = (node.data && node.data.pivot) || { x: 0, y: 0, z: 0 };
-    const altY = Number(node?.data?.altitude ?? 20);
 
-    // RF <-> world mapping (worldX = RF.x, worldZ = -RF.y)
-    const worldX = Number(node?.position?.x || 0);
-    const worldZ = -Number(node?.position?.y || 0);
-
-    const [mx, setMx] = React.useState(worldX);
-    const [my, setMy] = React.useState(altY);
-    const [mz, setMz] = React.useState(worldZ);
+    // local UI state for pivot inputs (commit on Enter/blur)
     const [px, setPx] = React.useState(pivot.x || 0);
     const [py, setPy] = React.useState(pivot.y || 0);
     const [pz, setPz] = React.useState(pivot.z || 0);
 
     React.useEffect(() => {
-        setMx(worldX); setMy(altY); setMz(worldZ);
-        setPx(pivot.x || 0); setPy(pivot.y || 0); setPz(pivot.z || 0);
-    }, [node?.id, worldX, worldZ, altY, pivot.x, pivot.y, pivot.z]);
-
-    const commitMove = (axis, val) => {
-        const v = Number.isFinite(val) ? val : 0;
-        if (axis === "x") onMoveNode?.(node.id, { x: v, y: node.position?.y || 0 });
-        if (axis === "z") onMoveNode?.(node.id, { x: node.position?.x || 0, y: -v });
-        if (axis === "y") onSetAltitude?.(node.id, v);
-    };
+        setPx(pivot.x || 0);
+        setPy(pivot.y || 0);
+        setPz(pivot.z || 0);
+    }, [node?.id, pivot.x, pivot.y, pivot.z]);
 
     const Input = ({ value, setValue, onCommit, width = 140 }) => (
         <input
@@ -327,26 +315,31 @@ function TransformOverlay({
                 </div>
             </div>
 
-            <div style={{ margin: "10px 0 8px", fontWeight: 600 }}>Move (World X / Y / Z)</div>
+            {/* Pivot only */}
+            <div style={{ margin: "4px 0 8px", fontWeight: 600 }}>Pivot (Local offset)</div>
             <div style={{ display: "grid", rowGap: 10 }}>
-                <Row label="X"><Input value={mx} setValue={setMx} onCommit={(v) => commitMove("x", v)} /></Row>
-                <Row label="Y"><Input value={my} setValue={setMy} onCommit={(v) => commitMove("y", v)} /></Row>
-                <Row label="Z"><Input value={mz} setValue={setMz} onCommit={(v) => commitMove("z", v)} /></Row>
-            </div>
-
-            <div style={{ margin: "16px 0 8px", fontWeight: 600 }}>Pivot (Local offset)</div>
-            <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", rowGap: 8, columnGap: 10, alignItems: "center" }}>
-                <strong style={{ textAlign: "center" }}>X</strong>
-                <Input value={px} setValue={setPx} onCommit={(v) => onSetPivot?.(node.id, { x: v, y: py, z: pz })} />
-                <strong style={{ textAlign: "center" }}>Y</strong>
-                <Input value={py} setValue={setPy} onCommit={(v) => onSetPivot?.(node.id, { x: px, y: v, z: pz })} />
-                <strong style={{ textAlign: "center" }}>Z</strong>
-                <Input value={pz} setValue={setPz} onCommit={(v) => onSetPivot?.(node.id, { x: px, y: py, z: v })} />
+                <Row label="X">
+                    <Input
+                        value={px} setValue={setPx}
+                        onCommit={(v) => onSetPivot?.(node.id, { x: Number.isFinite(v) ? v : 0, y: py, z: pz })}
+                    />
+                </Row>
+                <Row label="Y">
+                    <Input
+                        value={py} setValue={setPy}
+                        onCommit={(v) => onSetPivot?.(node.id, { x: px, y: Number.isFinite(v) ? v : 0, z: pz })}
+                    />
+                </Row>
+                <Row label="Z">
+                    <Input
+                        value={pz} setValue={setPz}
+                        onCommit={(v) => onSetPivot?.(node.id, { x: px, y: py, z: Number.isFinite(v) ? v : 0 })}
+                    />
+                </Row>
             </div>
         </div>
     );
 }
-
 
 
 /** ---------- Scene: builds port-aware tube paths ---------- */
