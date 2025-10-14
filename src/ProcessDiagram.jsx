@@ -189,13 +189,15 @@ export default function ProcessDiagram() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [showData, setShowData] = useState(false);
-    // NEW: remember which view the user last selected
-    const [appView, setAppView] = useState(() => localStorage.getItem('appView') || 'canvas');
-    const switchView = useCallback((v) => {
+    const [test, setTest] = useState(() =>
+        localStorage.getItem('test') || localStorage.getItem('appView') || 'canvas'
+    );
+    const switchTest = useCallback((v) => {
         const next = v === 'pnid-list' ? 'pnid-list' : 'canvas';
-        setAppView(next);
-        localStorage.setItem('appView', next);
+        setTest(next);
+        localStorage.setItem('test', next);
     }, []);
+
 
     // expose global helpers for the toolbar (now safe inside a component)
     useEffect(() => {
@@ -1161,7 +1163,7 @@ export default function ProcessDiagram() {
     // REPLACE your whole return(...) with this block
     const reportMeta = useMemo(() => {
         try { return JSON.parse(localStorage.getItem("pnidReport:meta") || "null"); } catch { return null; }
-    }, [appView]);
+    }, [test]);
 
     return (
         <div style={{ width: "100vw", height: "100vh", display: "grid", gridTemplateRows: "auto 1fr" }}>
@@ -1176,17 +1178,17 @@ export default function ProcessDiagram() {
                     background: "#fafafa",
                 }}
             >
-                <button onClick={() => switchView("canvas")} style={topBtn(appView === "canvas")}>Canvas</button>
-                <button onClick={() => switchView("pnid-list")} style={topBtn(appView === "pnid-list")}>PNID List</button>
+                <button onClick={() => switchTest("canvas")} style={topBtn(test === "canvas")}>Canvas</button>
+                <button onClick={() => switchTest("pnid-list")} style={topBtn(test === "pnid-list")}>PNID List</button>
 
                 {/* Optional: small status on the right showing last loaded CSV name */}
                 <div style={{ marginLeft: "auto", fontSize: 12, color: "#666" }}>
-                    {appView === "pnid-list" && reportMeta ? reportMeta.name : ""}
+                    {test === "pnid-list" && reportMeta ? reportMeta.name : ""}
                 </div>
             </div>
 
             {/* Body */}
-            {appView === "pnid-list" ? (
+            {test === "pnid-list" ? (
                 // Read-only CSV list from Plant 3D Report Creator
                 <PNIDReportView />
             ) : (
