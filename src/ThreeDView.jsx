@@ -117,7 +117,7 @@ function defaultPortsFor(cat, bbox) {
     ];
 }
 
-/** ---------- NodeMesh (pivot-aware + gizmo wrapper) ---------- */
+/** ---------- NodeMesh (numeric Move tabs + pivot-aware + gizmo wrapper) ---------- */
 function NodeMesh({
     node, pivot, selected,
     onSetPivot, reportPorts,
@@ -134,11 +134,18 @@ function NodeMesh({
     const cat = String(item["Category Item Type"] ?? item.Category ?? "");
     const typeKey = normalizeKey(item.TypeKey || item.Type || "");
     const base = to3(node.position, 20); // world-space from 2D
+    const [bx, by, bz] = base;
     const color = colorFor(cat);
 
     const groupRef = useRef(null);
     const [spec, setSpec] = useState(null);
     const specUrl = item.ModelJSON || guessSpecUrl(typeKey);
+
+    // UI tabs: "move" | "pivot"
+    const [uiTab, setUiTab] = useState("move");
+    // numeric move inputs
+    const [step, setStep] = useState(10);
+    const [posUI, setPosUI] = useState({ x: bx, y: by, z: bz });
 
     useEffect(() => {
         let alive = true;
@@ -146,6 +153,11 @@ function NodeMesh({
         fetchTypeSpec(specUrl).then((s) => alive && setSpec(s));
         return () => { alive = false; };
     }, [specUrl]);
+
+    // seed numeric UI from current base when selection or node changes
+    useEffect(() => {
+        setPosUI({ x: bx, y: by, z: bz });
+    }, [bx, by, bz, node?.id, selected]);
 
     // compute & report ports (WORLD coords)
     useLayoutEffect(() => {
@@ -169,14 +181,13 @@ function NodeMesh({
                 }
             }
         } catch { }
-
         if (!ports) ports = defaultPortsFor(cat, bbox);
 
         const bore = boreFromSize(item.Size || item["Nominal Size"] || item.NPS || item.DN);
         reportPorts?.(node.id, { ports, bore, centerY: bbox.getCenter(new THREE.Vector3()).y });
     });
 
-    // plane-drag fallback (disabled while gizmo is active)
+    // plane-drag fallback (disabled while gizmo active)
     const dragProps = selected
         ? {}
         : {
@@ -184,7 +195,7 @@ function NodeMesh({
                 e.stopPropagation();
                 const hit = intersectGround(e.ray);
                 if (!hit) return;
-                const nodeWorld = new THREE.Vector3(...base); // use base, not base+pivot
+                const nodeWorld = new THREE.Vector3(bx, by, bz);
                 const offset = new THREE.Vector3().subVectors(nodeWorld, hit);
                 startDrag(node.id, offset);
             },
@@ -198,7 +209,7 @@ function NodeMesh({
             },
         };
 
-    // update RF coords when gizmo moves the group
+    // commit world position -> 2D canvas
     const commitTo2D = () => {
         const p = groupRef.current?.position;
         if (!p) return;
@@ -206,81 +217,167 @@ function NodeMesh({
         onMoveNode?.(node.id, pos2);
     };
 
+    // helper to set world position from the numeric UI
+    const setWorldPos = (nx, ny, nz) => {
+        if (!groupRef.current) return;
+        groupRef.current.position.set(nx, ny, nz);
+        setPosUI({ x: nx, y: ny, z: nz });
+        commitTo2D();
+    };
+    const setAxis = (axis, val) => {
+        const nx = axis === "x" ? val : (groupRef.current?.position.x ?? bx);
+        const ny = axis === "y" ? val : (groupRef.current?.position.y ?? by);
+        const nz = axis === "z" ? val : (groupRef.current?.position.z ?? bz);
+        setWorldPos(nx, ny, nz);
+    };
+
+    // keep numeric UI in sync when gizmo moves
+    const onGizmoChange = () => {
+        const p = groupRef.current?.position;
+        if (!p) return;
+        setPosUI({ x: p.x, y: p.y, z: p.z });
+        commitTo2D();
+    };
+
     const px = pivot?.x || 0, py = pivot?.y || 0, pz = pivot?.z || 0;
 
-    // The world group stays at base (NO pivot added here).
-    // The mesh is shifted locally by -pivot so the group's origin is the true pivot.
+    // world group (NO pivot here; pivot applied locally to mesh)
     const WorldGroup = (
         <group
             ref={groupRef}
-            position={base}
+            position={[bx, by, bz]}
             onClick={(e) => { e.stopPropagation(); onPick?.(node.id); }}
             {...dragProps}
         >
-            {/* pivot-aware local shift */}
+            {/* shift mesh locally so group origin is the pivot */}
             <group position={[-px, -py, -pz]}>
-                {spec ? (
-                    <JsonShape spec={spec} item={item} fallbackColor={color} />
-                ) : (
-                    <CategoryFallback cat={cat} color={color} />
-                )}
+                {spec ? <JsonShape spec={spec} item={item} fallbackColor={color} />
+                    : <CategoryFallback cat={cat} color={color} />}
             </group>
 
             {/* label */}
-            <Html
-                distanceFactor={8}
-                position={[0, 40, 0]}
-                center
-                style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}
-            >
+            <Html distanceFactor={8} position={[0, 40, 0]} center
+                style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}>
                 {(item["Item Code"] || item.Code || "") + " " + (item.Name || "")}
             </Html>
 
-            {/* axes tripod + pivot panel only when selected */}
+            {/* axes tripod */}
             {selected && <axesHelper args={[100]} />}
 
+            {/* Panel with tabs */}
             {selected && (
-                <Html distanceFactor={8} position={[0, 100, 0]} center transform>
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "auto 80px 80px 80px",
-                            gap: 6,
-                            padding: 8,
-                            background: "rgba(255,255,255,0.95)",
-                            border: "1px solid #ddd",
-                            borderRadius: 8,
-                            boxShadow: "0 6px 16px rgba(0,0,0,0.1)",
-                            fontSize: 12,
-                        }}
-                    >
-                        <div style={{ opacity: 0.7, paddingRight: 6 }}>Pivot</div>
-                        {["x", "y", "z"].map((axis) => (
-                            <input
-                                key={axis}
-                                type="number"
-                                step="1"
-                                value={Number(pivot?.[axis] || 0)}
-                                onChange={(e) => {
-                                    const v = Number.isFinite(parseFloat(e.target.value)) ? parseFloat(e.target.value) : 0;
-                                    onSetPivot?.(node.id, { ...pivot, [axis]: v });
-                                }}
-                                style={{ width: 70, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
-                            />
-                        ))}
-                        <div />
-                        {["X", "Y", "Z"].map((axis) => {
-                            const key = axis.toLowerCase();
-                            return (
-                                <div key={axis} style={{ display: "flex", gap: 4 }}>
-                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 10 })}>−10</button>
-                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 1 })}>−1</button>
-                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: 0 })}>0</button>
-                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 1 })}>+1</button>
-                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 10 })}>+10</button>
+                <Html distanceFactor={8} position={[0, 110, 0]} center transform>
+                    <div style={{
+                        width: 370,
+                        background: "rgba(255,255,255,0.96)",
+                        border: "1px solid #ddd",
+                        borderRadius: 10,
+                        boxShadow: "0 10px 24px rgba(0,0,0,0.12)",
+                        fontSize: 12,
+                        overflow: "hidden"
+                    }}>
+                        {/* Tabs header */}
+                        <div style={{ display: "flex", borderBottom: "1px solid #eee" }}>
+                            {["move", "pivot"].map((t) => (
+                                <button
+                                    key={t}
+                                    onClick={() => setUiTab(t)}
+                                    style={{
+                                        flex: 1,
+                                        padding: "8px 10px",
+                                        fontWeight: 600,
+                                        border: "none",
+                                        background: uiTab === t ? "#f5f7ff" : "transparent",
+                                        color: uiTab === t ? "#243B80" : "#222",
+                                        cursor: "pointer"
+                                    }}
+                                >
+                                    {t === "move" ? "Move (X/Y/Z)" : "Pivot"}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Tab content */}
+                        <div style={{ padding: 10 }}>
+                            {uiTab === "move" ? (
+                                <div style={{ display: "grid", gridTemplateColumns: "60px 1fr", rowGap: 8, columnGap: 8 }}>
+                                    {/* step control */}
+                                    <div style={{ gridColumn: "1 / span 2", display: "flex", alignItems: "center", gap: 8 }}>
+                                        <div style={{ opacity: 0.7, width: 60 }}>Step</div>
+                                        <input
+                                            type="number"
+                                            step="1"
+                                            value={step}
+                                            onChange={(e) => setStep(Number.parseFloat(e.target.value) || 1)}
+                                            style={{ width: 90, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
+                                        />
+                                        <div style={{ opacity: 0.6 }}>units per big step</div>
+                                    </div>
+
+                                    {(["x", "y", "z"] as const).map((axis) => (
+                                        <React.Fragment key={axis}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                <span style={{ width: 24, display: "inline-block", textAlign: "center", fontWeight: 700 }}>
+                                                    {axis.toUpperCase()}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: "grid", gridTemplateColumns: "120px auto", columnGap: 6, alignItems: "center" }}>
+                                                <input
+                                                    type="number"
+                                                    step="1"
+                                                    value={Number(posUI[axis] ?? 0)}
+                                                    onChange={(e) => {
+                                                        const v = Number.parseFloat(e.target.value);
+                                                        setPosUI((s) => ({ ...s, [axis]: Number.isFinite(v) ? v : 0 }));
+                                                    }}
+                                                    onBlur={() => setAxis(axis, Number(posUI[axis] ?? 0))}
+                                                    onKeyDown={(e) => { if (e.key === "Enter") setAxis(axis, Number(posUI[axis] ?? 0)); }}
+                                                    style={{ width: 120, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
+                                                />
+                                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                                    <button onClick={() => setAxis(axis, (posUI[axis] ?? 0) - step)} style={btn()}>−{step}</button>
+                                                    <button onClick={() => setAxis(axis, (posUI[axis] ?? 0) - 1)} style={btn()}>−1</button>
+                                                    <button onClick={() => setAxis(axis, 0)} style={btn(true)}>0</button>
+                                                    <button onClick={() => setAxis(axis, (posUI[axis] ?? 0) + 1)} style={btn()}>+1</button>
+                                                    <button onClick={() => setAxis(axis, (posUI[axis] ?? 0) + step)} style={btn()}>+{step}</button>
+                                                </div>
+                                            </div>
+                                        </React.Fragment>
+                                    ))}
                                 </div>
-                            );
-                        })}
+                            ) : (
+                                // PIVOT TAB (unchanged logic)
+                                <div style={{ display: "grid", gridTemplateColumns: "auto 80px 80px 80px", gap: 6 }}>
+                                    <div style={{ opacity: 0.7, paddingRight: 6, alignSelf: "center" }}>Pivot</div>
+                                    {["x", "y", "z"].map((axis) => (
+                                        <input
+                                            key={axis}
+                                            type="number"
+                                            step="1"
+                                            value={Number(pivot?.[axis] || 0)}
+                                            onChange={(e) => {
+                                                const v = Number.isFinite(parseFloat(e.target.value)) ? parseFloat(e.target.value) : 0;
+                                                onSetPivot?.(node.id, { ...pivot, [axis]: v });
+                                            }}
+                                            style={{ width: 70, padding: "4px 6px", border: "1px solid #ccc", borderRadius: 6 }}
+                                        />
+                                    ))}
+                                    <div />
+                                    {["X", "Y", "Z"].map((axis) => {
+                                        const key = axis.toLowerCase();
+                                        return (
+                                            <div key={axis} style={{ display: "flex", gap: 4 }}>
+                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 10 })} style={btn()}>−10</button>
+                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 1 })} style={btn()}>−1</button>
+                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: 0 })} style={btn(true)}>0</button>
+                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 1 })} style={btn()}>+1</button>
+                                                <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 10 })} style={btn()}>+10</button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </Html>
             )}
@@ -294,7 +391,7 @@ function NodeMesh({
             translationSnap={gridSnap || 10}
             onMouseDown={() => setControlsEnabled?.(false)}
             onMouseUp={() => setControlsEnabled?.(true)}
-            onObjectChange={commitTo2D}
+            onObjectChange={onGizmoChange}
         >
             {WorldGroup}
         </TransformControls>
@@ -302,6 +399,18 @@ function NodeMesh({
         WorldGroup
     );
 }
+
+/* small helper for consistent button styles */
+function btn(primary = false) {
+    return {
+        padding: "2px 8px",
+        border: "1px solid #ccc",
+        borderRadius: 6,
+        background: primary ? "#fff" : "#f7f7f7",
+        cursor: "pointer",
+    };
+}
+
 
 
 
