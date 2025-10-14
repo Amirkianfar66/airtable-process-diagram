@@ -123,7 +123,6 @@ function NodeMesh({
     onSetPivot, reportPorts,
     isDragging, startDrag, moveDrag, endDrag,
     intersectGround, onPick,
-    // NEW:
     gridSnap = 10,
     setControlsEnabled,
     onMoveNode,
@@ -133,34 +132,30 @@ function NodeMesh({
 
     const cat = String(item["Category Item Type"] ?? item.Category ?? "");
     const typeKey = normalizeKey(item.TypeKey || item.Type || "");
-    const base = to3(node.position, 20); // world-space from 2D
+    const base = to3(node.position, 20);
     const [bx, by, bz] = base;
     const color = colorFor(cat);
 
-    const groupRef = useRef(null);
-    const [spec, setSpec] = useState(null);
+    const groupRef = React.useRef(null);
+    const [spec, setSpec] = React.useState(null);
     const specUrl = item.ModelJSON || guessSpecUrl(typeKey);
 
-    // UI tabs: "move" | "pivot"
-    const [uiTab, setUiTab] = useState("move");
-    // numeric move inputs
-    const [step, setStep] = useState(10);
-    const [posUI, setPosUI] = useState({ x: bx, y: by, z: bz });
+    const [uiTab, setUiTab] = React.useState("move");
+    const [step, setStep] = React.useState(10);
+    const [posUI, setPosUI] = React.useState({ x: bx, y: by, z: bz });
 
-    useEffect(() => {
+    React.useEffect(() => {
         let alive = true;
         setSpec(null);
         fetchTypeSpec(specUrl).then((s) => alive && setSpec(s));
         return () => { alive = false; };
     }, [specUrl]);
 
-    // seed numeric UI from current base when selection or node changes
-    useEffect(() => {
+    React.useEffect(() => {
         setPosUI({ x: bx, y: by, z: bz });
     }, [bx, by, bz, node?.id, selected]);
 
-    // compute & report ports (WORLD coords)
-    useLayoutEffect(() => {
+    React.useLayoutEffect(() => {
         if (!groupRef.current) return;
         const bbox = computeBBox(groupRef.current);
 
@@ -187,7 +182,6 @@ function NodeMesh({
         reportPorts?.(node.id, { ports, bore, centerY: bbox.getCenter(new THREE.Vector3()).y });
     });
 
-    // plane-drag fallback (disabled while gizmo active)
     const dragProps = selected
         ? {}
         : {
@@ -209,7 +203,6 @@ function NodeMesh({
             },
         };
 
-    // commit world position -> 2D canvas
     const commitTo2D = () => {
         const p = groupRef.current?.position;
         if (!p) return;
@@ -217,7 +210,6 @@ function NodeMesh({
         onMoveNode?.(node.id, pos2);
     };
 
-    // helper to set world position from the numeric UI
     const setWorldPos = (nx, ny, nz) => {
         if (!groupRef.current) return;
         groupRef.current.position.set(nx, ny, nz);
@@ -225,13 +217,10 @@ function NodeMesh({
         commitTo2D();
     };
     const setAxis = (axis, val) => {
-        const nx = axis === "x" ? val : (groupRef.current?.position.x ?? bx);
-        const ny = axis === "y" ? val : (groupRef.current?.position.y ?? by);
-        const nz = axis === "z" ? val : (groupRef.current?.position.z ?? bz);
-        setWorldPos(nx, ny, nz);
+        const cur = groupRef.current?.position || { x: bx, y: by, z: bz };
+        setWorldPos(axis === "x" ? val : cur.x, axis === "y" ? val : cur.y, axis === "z" ? val : cur.z);
     };
 
-    // keep numeric UI in sync when gizmo moves
     const onGizmoChange = () => {
         const p = groupRef.current?.position;
         if (!p) return;
@@ -241,7 +230,6 @@ function NodeMesh({
 
     const px = pivot?.x || 0, py = pivot?.y || 0, pz = pivot?.z || 0;
 
-    // world group (NO pivot here; pivot applied locally to mesh)
     const WorldGroup = (
         <group
             ref={groupRef}
@@ -249,22 +237,17 @@ function NodeMesh({
             onClick={(e) => { e.stopPropagation(); onPick?.(node.id); }}
             {...dragProps}
         >
-            {/* shift mesh locally so group origin is the pivot */}
             <group position={[-px, -py, -pz]}>
                 {spec ? <JsonShape spec={spec} item={item} fallbackColor={color} />
                     : <CategoryFallback cat={cat} color={color} />}
             </group>
 
-            {/* label */}
-            <Html distanceFactor={8} position={[0, 40, 0]} center
-                style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}>
+            <Html distanceFactor={8} position={[0, 40, 0]} center style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}>
                 {(item["Item Code"] || item.Code || "") + " " + (item.Name || "")}
             </Html>
 
-            {/* axes tripod */}
             {selected && <axesHelper args={[100]} />}
 
-            {/* Panel with tabs */}
             {selected && (
                 <Html distanceFactor={8} position={[0, 110, 0]} center transform>
                     <div style={{
@@ -276,20 +259,15 @@ function NodeMesh({
                         fontSize: 12,
                         overflow: "hidden"
                     }}>
-                        {/* Tabs header */}
                         <div style={{ display: "flex", borderBottom: "1px solid #eee" }}>
                             {["move", "pivot"].map((t) => (
                                 <button
                                     key={t}
                                     onClick={() => setUiTab(t)}
                                     style={{
-                                        flex: 1,
-                                        padding: "8px 10px",
-                                        fontWeight: 600,
-                                        border: "none",
+                                        flex: 1, padding: "8px 10px", fontWeight: 600, border: "none",
                                         background: uiTab === t ? "#f5f7ff" : "transparent",
-                                        color: uiTab === t ? "#243B80" : "#222",
-                                        cursor: "pointer"
+                                        color: uiTab === t ? "#243B80" : "#222", cursor: "pointer"
                                     }}
                                 >
                                     {t === "move" ? "Move (X/Y/Z)" : "Pivot"}
@@ -297,11 +275,9 @@ function NodeMesh({
                             ))}
                         </div>
 
-                        {/* Tab content */}
                         <div style={{ padding: 10 }}>
                             {uiTab === "move" ? (
                                 <div style={{ display: "grid", gridTemplateColumns: "60px 1fr", rowGap: 8, columnGap: 8 }}>
-                                    {/* step control */}
                                     <div style={{ gridColumn: "1 / span 2", display: "flex", alignItems: "center", gap: 8 }}>
                                         <div style={{ opacity: 0.7, width: 60 }}>Step</div>
                                         <input
@@ -314,7 +290,7 @@ function NodeMesh({
                                         <div style={{ opacity: 0.6 }}>units per big step</div>
                                     </div>
 
-                                    {(["x", "y", "z"] as const).map((axis) => (
+                                    {["x", "y", "z"].map((axis) => (
                                         <React.Fragment key={axis}>
                                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                                 <span style={{ width: 24, display: "inline-block", textAlign: "center", fontWeight: 700 }}>
@@ -346,7 +322,6 @@ function NodeMesh({
                                     ))}
                                 </div>
                             ) : (
-                                // PIVOT TAB (unchanged logic)
                                 <div style={{ display: "grid", gridTemplateColumns: "auto 80px 80px 80px", gap: 6 }}>
                                     <div style={{ opacity: 0.7, paddingRight: 6, alignSelf: "center" }}>Pivot</div>
                                     {["x", "y", "z"].map((axis) => (
@@ -384,7 +359,6 @@ function NodeMesh({
         </group>
     );
 
-    // Wrap with TransformControls ONLY when selected (no object prop!)
     return selected ? (
         <TransformControls
             mode="translate"
@@ -400,7 +374,6 @@ function NodeMesh({
     );
 }
 
-/* small helper for consistent button styles */
 function btn(primary = false) {
     return {
         padding: "2px 8px",
