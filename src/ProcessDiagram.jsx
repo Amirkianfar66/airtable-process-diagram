@@ -16,7 +16,7 @@ import DiagramCanvas from './DiagramCanvas';
 import AddItemButton from './AddItemButton';
 import { buildDiagram } from './diagramBuilder';
 import DataOverlay from './Components/DataOverlay.jsx';
-
+import TransformCard from "./TransformCard.jsx";
 
 
 const mergeEdges = (prevEdges = [], newEdges = [], validNodeIds = new Set()) => {
@@ -1142,7 +1142,12 @@ export default function ProcessDiagram() {
             return nextItems;
         });
     };
-
+      const [canvasView, setCanvasView] = useState("2d");
+      useEffect(() => {
+           const onView = (e) => setCanvasView(e?.detail?.view || "2d");
+           window.addEventListener("canvas:view", onView);
+            return () => window.removeEventListener("canvas:view", onView);
+      }, []);
     return (
         <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
             {/* LEFT: Diagram */}
@@ -1182,6 +1187,34 @@ export default function ProcessDiagram() {
 
             {/* RIGHT: Sidebar */}
             <div style={{ flex: 1, overflowY: "auto" }}>
+                {/* 3D transform panel (shown when in 3D and exactly one node selected) */}
+                {canvasView === "3d" && selectedNodes?.length === 1 && (
+                    <TransformCard
+                        node={selectedNodes[0]}
+                        onMoveNode={(id, pos2) => {
+                            setNodes((prev) => prev.map((n) =>
+                                String(n.id) === String(id)
+                                    ? { ...n, position: { x: pos2.x, y: pos2.y } }
+                                    : n
+                            ));
+                        }}
+                        onSetAltitude={(id, y) => {
+                            setNodes((prev) => prev.map((n) =>
+                                String(n.id) === String(id)
+                                    ? { ...n, data: { ...n.data, altitude: Number(y) } }
+                                    : n
+                            ));
+                        }}
+                        onSetPivot={(id, pivot) => {
+                            setNodes((prev) => prev.map((n) =>
+                                String(n.id) === String(id)
+                                    ? { ...n, data: { ...n.data, pivot } }
+                                    : n
+                            ));
+                        }}
+                    />
+                )}
+
                 {selectedGroupNode ? (
                     <GroupDetailCard
                         node={selectedGroupNode}

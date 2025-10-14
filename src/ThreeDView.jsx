@@ -132,7 +132,8 @@ function NodeMesh({
 
     const cat = String(item["Category Item Type"] ?? item.Category ?? "");
     const typeKey = normalizeKey(item.TypeKey || item.Type || "");
-    const base = to3(node.position, 20);
+    const altY = Number(node?.data?.altitude ?? 20);
+    const base = to3(node.position, altY); // world-space from 2D with stored altitude
     const [bx, by, bz] = base;
     const color = colorFor(cat);
 
