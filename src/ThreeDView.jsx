@@ -141,9 +141,7 @@ function NodeMesh({
     const [spec, setSpec] = React.useState(null);
     const specUrl = item.ModelJSON || guessSpecUrl(typeKey);
 
-    const [uiTab, setUiTab] = React.useState("move");
-    const [step, setStep] = React.useState(10);
-    const [posUI, setPosUI] = React.useState({ x: bx, y: by, z: bz });
+    
 
     React.useEffect(() => {
         let alive = true;
@@ -152,9 +150,7 @@ function NodeMesh({
         return () => { alive = false; };
     }, [specUrl]);
 
-    React.useEffect(() => {
-        setPosUI({ x: bx, y: by, z: bz });
-    }, [bx, by, bz, node?.id, selected]);
+   
 
     React.useLayoutEffect(() => {
         if (!groupRef.current) return;
@@ -211,24 +207,10 @@ function NodeMesh({
         onMoveNode?.(node.id, pos2);
     };
 
-    const setWorldPos = (nx, ny, nz) => {
-        if (!groupRef.current) return;
-        groupRef.current.position.set(nx, ny, nz);
-        setPosUI({ x: nx, y: ny, z: nz });
-        commitTo2D();
-    };
-    const setAxis = (axis, val) => {
-        const cur = groupRef.current?.position || { x: bx, y: by, z: bz };
-        setWorldPos(axis === "x" ? val : cur.x, axis === "y" ? val : cur.y, axis === "z" ? val : cur.z);
-    };
+    
 
-    const onGizmoChange = () => {
-        const p = groupRef.current?.position;
-        if (!p) return;
-        setPosUI({ x: p.x, y: p.y, z: p.z });
-        commitTo2D();
-    };
-
+    
+    const onGizmoChange = () => { commitTo2D(); };
     const px = pivot?.x || 0, py = pivot?.y || 0, pz = pivot?.z || 0;
 
     const WorldGroup = (
@@ -249,9 +231,7 @@ function NodeMesh({
 
             {selected && <axesHelper args={[100]} />}
 
-            {selected && (
-                
-            )}
+            
         </group>
     );
 
