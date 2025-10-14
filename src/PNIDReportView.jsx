@@ -2,10 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 export default function PNIDReportView() {
-    // 1) Where to load the report from:
-    //    - URL param ?reportUrl=...
-    //    - localStorage
-    //    - env var VITE_PNID_REPORT_EMBED_URL (default for everyone)
     const urlFromQuery = (() => {
         try {
             const u = new URL(window.location.href);
@@ -23,19 +19,15 @@ export default function PNIDReportView() {
             ""
     );
 
-    // simple way to force iframe reloads
     const [reloadKey, setReloadKey] = useState(0);
-    const [status, setStatus] = useState < "idle" | "loading" | "ok" | "error" > ("idle");
+    const [status, setStatus] = useState("idle"); // <-- fixed
 
-    // Persist URL
     useEffect(() => {
         if (reportUrl) localStorage.setItem("pnidReport:embedUrl", reportUrl);
     }, [reportUrl]);
 
-    // Build final src (you can append extra params if your report expects them)
     const iframeSrc = useMemo(() => reportUrl.trim(), [reportUrl]);
 
-    // Kick off loading state when src changes
     useEffect(() => {
         if (!iframeSrc) return;
         setStatus("loading");
@@ -55,17 +47,6 @@ export default function PNIDReportView() {
         window.open(iframeSrc, "_blank", "noopener,noreferrer");
     };
 
-    const hint =
-        "If the page stays blank, the remote server may block embedding (X-Frame-Options or Content-Security-Policy). Use Open in new tab.";
-
-    const topBtn = (active) => ({
-        padding: "6px 10px",
-        borderRadius: 8,
-        border: "1px solid #ddd",
-        background: active ? "#111" : "#fff",
-        color: active ? "#fff" : "#111",
-        cursor: "pointer",
-    });
     const btn = {
         padding: "6px 10px",
         borderRadius: 8,
@@ -83,9 +64,11 @@ export default function PNIDReportView() {
         cursor: "pointer",
     };
 
+    const hint =
+        "If the frame stays blank, the remote server blocks embedding (X-Frame-Options / frame-ancestors). Use Open in new tab.";
+
     return (
         <div style={{ width: "100%", height: "100%", display: "grid", gridTemplateRows: "auto 1fr" }}>
-            {/* Header / Controls */}
             <div
                 style={{
                     display: "flex",
@@ -100,7 +83,7 @@ export default function PNIDReportView() {
                 <input
                     value={reportUrl}
                     onChange={(e) => setReportUrl(e.target.value)}
-                    placeholder="https://your-server/path/to/report.html or .pdf"
+                    placeholder="https://your-server/path/report.html or .pdf"
                     style={{ flex: 1, padding: "6px 8px", border: "1px solid #ddd", borderRadius: 8, marginLeft: 8 }}
                 />
                 <button onClick={saveAndOpen} style={btnLight}>Save & Open</button>
@@ -113,7 +96,6 @@ export default function PNIDReportView() {
                 </div>
             </div>
 
-            {/* Body */}
             {!iframeSrc ? (
                 <div style={{ padding: 16, color: "#666" }}>
                     Paste the public <b>HTML/PDF</b> report URL exported by Report Creator and click <b>Save & Open</b>.
@@ -121,7 +103,6 @@ export default function PNIDReportView() {
                 </div>
             ) : (
                 <div style={{ position: "relative" }}>
-                    {/* Loading overlay */}
                     {status === "loading" && (
                         <div
                             style={{
@@ -141,17 +122,14 @@ export default function PNIDReportView() {
                         </div>
                     )}
 
-                    {/* Iframe showing the remote report */}
                     <iframe
                         key={reloadKey}
                         title="PNID Report"
                         src={iframeSrc}
-                        // Avoid sandbox unless you know the report needs it; sandbox can break scripts/styles.
                         style={{ width: "100%", height: "100vh", border: "none" }}
                         onLoad={() => setStatus("ok")}
                     />
 
-                    {/* Fallback hint (overlay link) if embedding is blocked */}
                     {status === "ok" ? null : (
                         <div style={{ position: "absolute", bottom: 8, left: 12, right: 12, fontSize: 12, color: "#666" }}>
                             {hint}{" "}
