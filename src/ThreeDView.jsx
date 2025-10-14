@@ -117,7 +117,7 @@ function defaultPortsFor(cat, bbox) {
     ];
 }
 
-/** ---------- NodeMesh (pivot-aware + gizmo) ---------- */
+/** ---------- NodeMesh (pivot-aware + gizmo wrapper) ---------- */
 function NodeMesh({
     node, pivot, selected,
     onSetPivot, reportPorts,
@@ -133,10 +133,10 @@ function NodeMesh({
 
     const cat = String(item["Category Item Type"] ?? item.Category ?? "");
     const typeKey = normalizeKey(item.TypeKey || item.Type || "");
-    const base = to3(node.position, 20);               // world-space from 2D
+    const base = to3(node.position, 20); // world-space from 2D
     const color = colorFor(cat);
 
-    const groupRef = useRef();
+    const groupRef = useRef(null);
     const [spec, setSpec] = useState(null);
     const specUrl = item.ModelJSON || guessSpecUrl(typeKey);
 
@@ -169,29 +169,34 @@ function NodeMesh({
                 }
             }
         } catch { }
+
         if (!ports) ports = defaultPortsFor(cat, bbox);
 
         const bore = boreFromSize(item.Size || item["Nominal Size"] || item.NPS || item.DN);
         reportPorts?.(node.id, { ports, bore, centerY: bbox.getCenter(new THREE.Vector3()).y });
     });
 
-    // keep your plane-drag as a fallback (click-drag anywhere on the body)
-    const onPointerDown = (e) => {
-        e.stopPropagation();
-        const hit = intersectGround(e.ray);
-        if (!hit) return;
-        const nodeWorld = new THREE.Vector3(...base); // use base, not base+pivot
-        const offset = new THREE.Vector3().subVectors(nodeWorld, hit);
-        startDrag(node.id, offset);
-    };
-    const onPointerUp = (e) => { e.stopPropagation(); endDrag(); };
-    const onPointerMove = (e) => {
-        if (!isDragging) return;
-        e.stopPropagation();
-        const p = intersectGround(e.ray);
-        if (!p) return;
-        moveDrag(node.id, p);
-    };
+    // plane-drag fallback (disabled while gizmo is active)
+    const dragProps = selected
+        ? {}
+        : {
+            onPointerDown: (e) => {
+                e.stopPropagation();
+                const hit = intersectGround(e.ray);
+                if (!hit) return;
+                const nodeWorld = new THREE.Vector3(...base); // use base, not base+pivot
+                const offset = new THREE.Vector3().subVectors(nodeWorld, hit);
+                startDrag(node.id, offset);
+            },
+            onPointerUp: (e) => { e.stopPropagation(); endDrag(); },
+            onPointerMove: (e) => {
+                if (!isDragging) return;
+                e.stopPropagation();
+                const p = intersectGround(e.ray);
+                if (!p) return;
+                moveDrag(node.id, p);
+            },
+        };
 
     // update RF coords when gizmo moves the group
     const commitTo2D = () => {
@@ -203,17 +208,16 @@ function NodeMesh({
 
     const px = pivot?.x || 0, py = pivot?.y || 0, pz = pivot?.z || 0;
 
-    return (
+    // The world group stays at base (NO pivot added here).
+    // The mesh is shifted locally by -pivot so the group's origin is the true pivot.
+    const WorldGroup = (
         <group
-            // IMPORTANT: world position does NOT include pivot
             ref={groupRef}
             position={base}
             onClick={(e) => { e.stopPropagation(); onPick?.(node.id); }}
-            onPointerDown={onPointerDown}
-            onPointerUp={onPointerUp}
-            onPointerMove={onPointerMove}
+            {...dragProps}
         >
-            {/* Shift mesh locally so the pivot is at the group origin */}
+            {/* pivot-aware local shift */}
             <group position={[-px, -py, -pz]}>
                 {spec ? (
                     <JsonShape spec={spec} item={item} fallbackColor={color} />
@@ -222,40 +226,34 @@ function NodeMesh({
                 )}
             </group>
 
-            {/* Floating label */}
-            <Html distanceFactor={8} position={[0, 40, 0]} center style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}>
+            {/* label */}
+            <Html
+                distanceFactor={8}
+                position={[0, 40, 0]}
+                center
+                style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}
+            >
                 {(item["Item Code"] || item.Code || "") + " " + (item.Name || "")}
             </Html>
 
-            {/* Axes + TransformControls when selected */}
-            {selected && (
-                <>
-                    <axesHelper args={[100]} />
-                    <TransformControls
-                        object={groupRef.current}
-                        mode="translate"
-                        translationSnap={gridSnap || 10}
-                        onMouseDown={() => setControlsEnabled?.(false)}
-                        onMouseUp={() => setControlsEnabled?.(true)}
-                        onObjectChange={commitTo2D}
-                    />
-                </>
-            )}
+            {/* axes tripod + pivot panel only when selected */}
+            {selected && <axesHelper args={[100]} />}
 
-            {/* Existing Pivot panel (unchanged) */}
             {selected && (
                 <Html distanceFactor={8} position={[0, 100, 0]} center transform>
-                    <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "auto 80px 80px 80px",
-                        gap: 6,
-                        padding: 8,
-                        background: "rgba(255,255,255,0.95)",
-                        border: "1px solid #ddd",
-                        borderRadius: 8,
-                        boxShadow: "0 6px 16px rgba(0,0,0,0.1)",
-                        fontSize: 12
-                    }}>
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "auto 80px 80px 80px",
+                            gap: 6,
+                            padding: 8,
+                            background: "rgba(255,255,255,0.95)",
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            boxShadow: "0 6px 16px rgba(0,0,0,0.1)",
+                            fontSize: 12,
+                        }}
+                    >
                         <div style={{ opacity: 0.7, paddingRight: 6 }}>Pivot</div>
                         {["x", "y", "z"].map((axis) => (
                             <input
@@ -288,7 +286,23 @@ function NodeMesh({
             )}
         </group>
     );
+
+    // Wrap with TransformControls ONLY when selected (no object prop!)
+    return selected ? (
+        <TransformControls
+            mode="translate"
+            translationSnap={gridSnap || 10}
+            onMouseDown={() => setControlsEnabled?.(false)}
+            onMouseUp={() => setControlsEnabled?.(true)}
+            onObjectChange={commitTo2D}
+        >
+            {WorldGroup}
+        </TransformControls>
+    ) : (
+        WorldGroup
+    );
 }
+
 
 
 /** ---------- Scene: builds port-aware tube paths ---------- */
