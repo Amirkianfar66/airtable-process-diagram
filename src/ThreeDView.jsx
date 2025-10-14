@@ -1,7 +1,7 @@
 ﻿// src/ThreeDView.jsx
 import React, { useEffect, useMemo, useState, Suspense, useRef, useLayoutEffect } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Grid, Html } from "@react-three/drei";
+import { OrbitControls, Grid, Html, TransformControls } from "@react-three/drei";
 import * as THREE from "three";
 import { JsonShape, fetchTypeSpec, guessSpecUrl, normalizeKey } from "./three/TypeShapeRuntime.jsx";
 
@@ -117,16 +117,23 @@ function defaultPortsFor(cat, bbox) {
     ];
 }
 
-/** ---------- NodeMesh ---------- */
-function NodeMesh({ node, pivot, selected, onSetPivot, reportPorts, isDragging, startDrag, moveDrag, endDrag, intersectGround, onPick }) {
+/** ---------- NodeMesh (pivot-aware + gizmo) ---------- */
+function NodeMesh({
+    node, pivot, selected,
+    onSetPivot, reportPorts,
+    isDragging, startDrag, moveDrag, endDrag,
+    intersectGround, onPick,
+    // NEW:
+    gridSnap = 10,
+    setControlsEnabled,
+    onMoveNode,
+}) {
     const item = node?.data?.item;
     if (!item) return null;
 
     const cat = String(item["Category Item Type"] ?? item.Category ?? "");
     const typeKey = normalizeKey(item.TypeKey || item.Type || "");
-    const base = to3(node.position, 20);
-    const pos = [base[0] + (pivot?.x || 0), base[1] + (pivot?.y || 0), base[2] + (pivot?.z || 0)];
-
+    const base = to3(node.position, 20);               // world-space from 2D
     const color = colorFor(cat);
 
     const groupRef = useRef();
@@ -140,7 +147,7 @@ function NodeMesh({ node, pivot, selected, onSetPivot, reportPorts, isDragging, 
         return () => { alive = false; };
     }, [specUrl]);
 
-    // compute and report ports from geometry (WORLD coords), or from item.PortsJSON if provided
+    // compute & report ports (WORLD coords)
     useLayoutEffect(() => {
         if (!groupRef.current) return;
         const bbox = computeBBox(groupRef.current);
@@ -150,7 +157,6 @@ function NodeMesh({ node, pivot, selected, onSetPivot, reportPorts, isDragging, 
             if (item.PortsJSON) {
                 const arr = Array.isArray(item.PortsJSON) ? item.PortsJSON : JSON.parse(item.PortsJSON);
                 if (Array.isArray(arr) && arr.length) {
-                    // interpret as LOCAL coords; convert to WORLD
                     ports = arr.map((p, i) => ({
                         id: p.id || String(i),
                         pos: new THREE.Vector3().fromArray(p.pos),
@@ -162,23 +168,22 @@ function NodeMesh({ node, pivot, selected, onSetPivot, reportPorts, isDragging, 
                     });
                 }
             }
-        } catch { /* ignore parse errors */ }
-
+        } catch { }
         if (!ports) ports = defaultPortsFor(cat, bbox);
 
         const bore = boreFromSize(item.Size || item["Nominal Size"] || item.NPS || item.DN);
         reportPorts?.(node.id, { ports, bore, centerY: bbox.getCenter(new THREE.Vector3()).y });
     });
 
+    // keep your plane-drag as a fallback (click-drag anywhere on the body)
     const onPointerDown = (e) => {
         e.stopPropagation();
         const hit = intersectGround(e.ray);
         if (!hit) return;
-        const nodeWorld = new THREE.Vector3(...pos);
+        const nodeWorld = new THREE.Vector3(...base); // use base, not base+pivot
         const offset = new THREE.Vector3().subVectors(nodeWorld, hit);
         startDrag(node.id, offset);
     };
-
     const onPointerUp = (e) => { e.stopPropagation(); endDrag(); };
     const onPointerMove = (e) => {
         if (!isDragging) return;
@@ -188,25 +193,56 @@ function NodeMesh({ node, pivot, selected, onSetPivot, reportPorts, isDragging, 
         moveDrag(node.id, p);
     };
 
+    // update RF coords when gizmo moves the group
+    const commitTo2D = () => {
+        const p = groupRef.current?.position;
+        if (!p) return;
+        const pos2 = to2([p.x, 0, p.z]);
+        onMoveNode?.(node.id, pos2);
+    };
+
+    const px = pivot?.x || 0, py = pivot?.y || 0, pz = pivot?.z || 0;
+
     return (
         <group
+            // IMPORTANT: world position does NOT include pivot
             ref={groupRef}
-            position={pos}
+            position={base}
             onClick={(e) => { e.stopPropagation(); onPick?.(node.id); }}
             onPointerDown={onPointerDown}
             onPointerUp={onPointerUp}
             onPointerMove={onPointerMove}
         >
-            {spec ? (
-                <JsonShape spec={spec} item={item} fallbackColor={color} />
-            ) : (
-                <CategoryFallback cat={cat} color={color} />
-            )}
+            {/* Shift mesh locally so the pivot is at the group origin */}
+            <group position={[-px, -py, -pz]}>
+                {spec ? (
+                    <JsonShape spec={spec} item={item} fallbackColor={color} />
+                ) : (
+                    <CategoryFallback cat={cat} color={color} />
+                )}
+            </group>
 
+            {/* Floating label */}
             <Html distanceFactor={8} position={[0, 40, 0]} center style={{ pointerEvents: "none", fontSize: 12, background: "rgba(255,255,255,0.85)", padding: "2px 6px", borderRadius: 4 }}>
                 {(item["Item Code"] || item.Code || "") + " " + (item.Name || "")}
             </Html>
-            {/* --- PIVOT PANEL (only when selected) --- */}
+
+            {/* Axes + TransformControls when selected */}
+            {selected && (
+                <>
+                    <axesHelper args={[100]} />
+                    <TransformControls
+                        object={groupRef.current}
+                        mode="translate"
+                        translationSnap={gridSnap || 10}
+                        onMouseDown={() => setControlsEnabled?.(false)}
+                        onMouseUp={() => setControlsEnabled?.(true)}
+                        onObjectChange={commitTo2D}
+                    />
+                </>
+            )}
+
+            {/* Existing Pivot panel (unchanged) */}
             {selected && (
                 <Html distanceFactor={8} position={[0, 100, 0]} center transform>
                     <div style={{
@@ -235,40 +271,25 @@ function NodeMesh({ node, pivot, selected, onSetPivot, reportPorts, isDragging, 
                             />
                         ))}
                         <div />
-                        {["X", "Y", "Z"].map((axis, i) => {
+                        {["X", "Y", "Z"].map((axis) => {
                             const key = axis.toLowerCase();
                             return (
                                 <div key={axis} style={{ display: "flex", gap: 4 }}>
-                                    <button
-                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 10 })}
-                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#f7f7f7" }}
-                                    >−10</button>
-                                    <button
-                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 1 })}
-                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#f7f7f7" }}
-                                    >−1</button>
-                                    <button
-                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: 0 })}
-                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#fff" }}
-                                    >0</button>
-                                    <button
-                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 1 })}
-                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#f7f7f7" }}
-                                    >+1</button>
-                                    <button
-                                        onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 10 })}
-                                        style={{ padding: "2px 6px", border: "1px solid #ccc", borderRadius: 6, background: "#f7f7f7" }}
-                                    >+10</button>
+                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 10 })}>−10</button>
+                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) - 1 })}>−1</button>
+                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: 0 })}>0</button>
+                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 1 })}>+1</button>
+                                    <button onClick={() => onSetPivot?.(node.id, { ...pivot, [key]: (pivot?.[key] || 0) + 10 })}>+10</button>
                                 </div>
-                            )
+                            );
                         })}
                     </div>
                 </Html>
             )}
-
         </group>
     );
 }
+
 
 /** ---------- Scene: builds port-aware tube paths ---------- */
 function Scene({
@@ -417,6 +438,9 @@ function Scene({
                     endDrag={endDrag}
                     intersectGround={intersectGround}
                     onPick={onPick}
+                    gridSnap={gridSnap}
+                    setControlsEnabled= { setControlsEnabled }
+                    onMoveNode= { onMoveNode }
                 />
             ))}
 
