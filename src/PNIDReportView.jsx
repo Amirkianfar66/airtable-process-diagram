@@ -12,30 +12,31 @@ const TABS = [
     { id: "manifold", label: "Manifold List" },
 ];
 
+const FIELD_BY_TAB = {
+    "line": "In Report: Line List",
+    "equipment": "In Report: Equipment List",
+    "valve": "In Report: Valve List",
+    "ctrl-valve": "In Report: Control Valve List",
+    "relief": "In Report: Relief Valve List",
+    "inline": "In Report: Inline List",
+    "manifold": "In Report: Manifold List",
+};
+
 const TOOLS = { NONE: "none", TEXT: "text", LINE: "line" };
 
 /* -------------------- Aggressive Asset Inliner (v2) -------------------- */
-// Normalize path to forward slashes, strip leading "./", decode %20, etc.
-function norm(p = "") {
-    return decodeURI(p).replace(/\\/g, "/").replace(/^\.\/+/, "");
-}
-function baseName(p = "") {
-    const n = norm(p);
-    return n.substring(n.lastIndexOf("/") + 1);
-}
+function norm(p = "") { return decodeURI(p).replace(/\\/g, "/").replace(/^\.\/+/, ""); }
+function baseName(p = "") { const n = norm(p); return n.substring(n.lastIndexOf("/") + 1); }
 function urlCandidates(raw = "") {
     if (!raw) return [];
     const u = norm(raw).toLowerCase();
     const out = new Set();
-
     out.add(u);
     const [noQ] = u.split(/[?#]/);
     out.add(noQ);
     out.add(noQ.replace(/^\/+/, "")); // drop leading /
     const base = noQ.substring(noQ.lastIndexOf("/") + 1);
     if (base) out.add(base);
-
-    // windows file:///C:/... and C:/...
     const fileUrlMatch = u.match(/^file:\/\/\/([a-z]:\/.*)$/i);
     if (fileUrlMatch) {
         const filePath = fileUrlMatch[1].replace(/\\/g, "/");
@@ -52,13 +53,8 @@ function urlCandidates(raw = "") {
         out.add(fromRoot.replace(/^\/+/, ""));
         out.add(win.substring(win.lastIndexOf("/") + 1));
     }
-
-    // progressively drop leading segments: a/b/c.png => add b/c.png, c.png
     const segs = noQ.split("/").filter(Boolean);
-    for (let i = 0; i < segs.length; i++) {
-        out.add(segs.slice(i).join("/"));
-    }
-
+    for (let i = 0; i < segs.length; i++) out.add(segs.slice(i).join("/"));
     return [...out];
 }
 function buildFileMaps(files) {
@@ -151,13 +147,11 @@ async function inlineAssetsIntoHtmlStrong(htmlText, maps) {
         el.setAttribute(attr, await fileToDataURL(f));
     };
 
-    // <img src>, <source src>, <object data>, <embed src>
     for (const img of doc.querySelectorAll("img[src]")) await setUrlAttr(img, "src");
     for (const s of doc.querySelectorAll("source[src]")) await setUrlAttr(s, "src");
     for (const o of doc.querySelectorAll("object[data]")) await setUrlAttr(o, "data");
     for (const em of doc.querySelectorAll("embed[src]")) await setUrlAttr(em, "src");
 
-    // srcset
     const fixSrcset = async (el) => {
         const srcset = el.getAttribute("srcset");
         if (!srcset) return;
@@ -176,7 +170,6 @@ async function inlineAssetsIntoHtmlStrong(htmlText, maps) {
     };
     for (const el of doc.querySelectorAll("img[srcset],source[srcset]")) await fixSrcset(el);
 
-    // SVG <image href|xlink:href>
     for (const im of doc.querySelectorAll("image[href], image[*|href]")) {
         const href = im.getAttribute("href") || im.getAttribute("xlink:href");
         if (!href || /^data:/i.test(href) || /^https?:/i.test(href)) continue;
@@ -188,7 +181,6 @@ async function inlineAssetsIntoHtmlStrong(htmlText, maps) {
         }
     }
 
-    // <link rel=stylesheet> -> <style> with url(...) inlined
     for (const link of Array.from(doc.querySelectorAll('link[rel="stylesheet"][href]'))) {
         const href = link.getAttribute("href");
         if (!href || /^https?:/i.test(href)) continue;
@@ -203,19 +195,16 @@ async function inlineAssetsIntoHtmlStrong(htmlText, maps) {
         link.replaceWith(style);
     }
 
-    // inline <style> url(...)
     for (const st of Array.from(doc.querySelectorAll("style"))) {
         st.textContent = await inlineCssUrls(st.textContent || "", maps, "");
     }
 
-    // inline style="background:url(...)"
     for (const el of Array.from(doc.querySelectorAll("[style]"))) {
         const raw = el.getAttribute("style") || "";
         const inlined = await inlineCssUrls(raw, maps, "");
         if (inlined !== raw) el.setAttribute("style", inlined);
     }
 
-    // (optional) inline <script src>
     for (const s of Array.from(doc.querySelectorAll("script[src]"))) {
         const src = s.getAttribute("src");
         if (!src || /^https?:/i.test(src)) continue;
@@ -231,19 +220,71 @@ async function inlineAssetsIntoHtmlStrong(htmlText, maps) {
     return "<!doctype html>\n" + doc.documentElement.outerHTML;
 }
 
-/* -------------------- Component -------------------- */
+/* -------------------- Airtable helpers -------------------- */
+async function fetchAllTableRecords() {
+    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+    const tableId = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+    if (!baseId || !token || !tableId) throw new Error("Missing Airtable env vars.");
+
+    let url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableId)}?pageSize=100`;
+    const headers = { Authorization: `Bearer ${token}` };
+    const all = [];
+    for (; ;) {
+        const res = await fetch(url, { headers });
+        if (!res.ok) throw new Error(`Airtable fetch failed: ${res.status}`);
+        const data = await res.json();
+        (data.records || []).forEach(r => all.push(r));
+        if (!data.offset) break;
+        url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableId)}?pageSize=100&offset=${data.offset}`;
+    }
+    return all;
+}
+
+async function patchCheckboxBatch(records) {
+    // records: [{ id, fields: { [checkboxField]: true/false } }]
+    if (!records || !records.length) return;
+    const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
+    const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+    const tableId = import.meta.env.VITE_AIRTABLE_TABLE_NAME;
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+    // Airtable: max 10 per request
+    for (let i = 0; i < records.length; i += 10) {
+        const chunk = records.slice(i, i + 10);
+        const res = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableId)}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ records: chunk }),
+        });
+        if (!res.ok) {
+            const t = await res.text().catch(() => "");
+            throw new Error(`Airtable PATCH failed: ${res.status} ${t}`);
+        }
+    }
+}
+
+/* -------------------- PNIDReportView -------------------- */
 export default function PNIDReportView() {
     const [activeTab, setActiveTab] = useState(() => localStorage.getItem("pnidReport:activeTab") || "line");
 
-    // per-tab state
-    const [htmlByTab, setHtmlByTab] = useState({});            // raw/edited html text
-    const [nameByTab, setNameByTab] = useState({});            // file name
-    const [reloadByTab, setReloadByTab] = useState({});        // bump to refresh iframe
-    const [editByTab, setEditByTab] = useState({});            // contentEditable flag
-    const [annByTab, setAnnByTab] = useState({});              // { lines:[], texts:[] }
-    const [mapsByTab, setMapsByTab] = useState({});            // file maps (from folder/assets)
-    const [tool, setTool] = useState(TOOLS.NONE);              // drawing tool (shared)
+    // per-tab content
+    const [htmlByTab, setHtmlByTab] = useState({});
+    const [nameByTab, setNameByTab] = useState({});
+    const [reloadByTab, setReloadByTab] = useState({});
+    const [editByTab, setEditByTab] = useState({});
+    const [annByTab, setAnnByTab] = useState({});
+    const [mapsByTab, setMapsByTab] = useState({});
+
+    // review tools
+    const [tool, setTool] = useState(TOOLS.NONE);
     const [inlining, setInlining] = useState(false);
+
+    // Airtable data + scan results
+    const [airtable, setAirtable] = useState({ loaded: false, records: [], byCode: new Map() });
+    const [scanResultByTab, setScanResultByTab] = useState({}); // { [tab]: { matched: {id,code}[], totalCodes, sample: [] } }
+    const [clearNonMatches, setClearNonMatches] = useState(false);
+    const [syncBusy, setSyncBusy] = useState(false);
 
     const iframeRef = useRef(null);
     const drawRef = useRef({ down: false, x1: 0, y1: 0 });
@@ -268,7 +309,7 @@ export default function PNIDReportView() {
     const setMapsForTab = setForTab(setMapsByTab);
     const bumpReload = () => setReloadByTab((p) => ({ ...p, [activeTab]: (p?.[activeTab] || 0) + 1 }));
 
-    /* ---------- UI Styles ---------- */
+    /* ---------- styles ---------- */
     const s = useMemo(() => {
         const btn = { padding: "6px 10px", borderRadius: 8, background: "#111", color: "#fff", border: "1px solid #111", cursor: "pointer" };
         const btnLight = { padding: "6px 10px", borderRadius: 8, background: "#fff", color: "#111", border: "1px solid #ddd", cursor: "pointer" };
@@ -294,7 +335,6 @@ export default function PNIDReportView() {
         const maps = buildFileMaps(files);
         setMapsForTab(maps);
 
-        // choose a .html to load (prefer one matching the tab name)
         let htmlFile =
             files.find((f) => /\.html?$/i.test(f.name) && f.name.toLowerCase().includes(TABS.find(t => t.id === activeTab)?.label.toLowerCase().split(" ")[0])) ||
             files.find((f) => /\.html?$/i.test(f.name)) ||
@@ -303,7 +343,7 @@ export default function PNIDReportView() {
         if (!htmlFile) {
             setHtmlForTab("");
             setNameForTab("");
-            alert("No HTML file found in that folder. Please pick the folder that contains your report HTML and its *_files assets.");
+            alert("No HTML file found in that folder.");
             return;
         }
 
@@ -329,15 +369,12 @@ export default function PNIDReportView() {
         if (!files.length) return;
         const maps = buildFileMaps(files);
         setMapsForTab(maps);
-        alert("Assets folder attached. Click ‘Inline assets’ to embed images/CSS/JS so they always show.");
+        alert("Assets folder attached. Click ‘Inline assets’ to embed images/CSS/JS.");
     };
 
     const onInlineAssets = async () => {
         if (!currentHtml) return;
-        if (!currentMaps) {
-            alert("Pick the report folder (recommended) or attach the assets folder first.");
-            return;
-        }
+        if (!currentMaps) { alert("Pick the report folder or assets folder first."); return; }
         setInlining(true);
         try {
             const inlined = await inlineAssetsIntoHtmlStrong(currentHtml, currentMaps);
@@ -345,19 +382,21 @@ export default function PNIDReportView() {
             bumpReload();
         } catch (e) {
             console.error(e);
-            alert("Inlining failed for some assets. Make sure you selected the correct folder that contains the *_files directory.");
+            alert("Inlining failed for some assets.");
         } finally {
             setInlining(false);
         }
     };
 
-    /* ---------- Review overlay inside iframe ---------- */
-    const ensureOverlay = () => {
-        const iframe = iframeRef.current;
-        if (!iframe) return null;
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (!doc) return null;
+    /* ---------- Review overlay + edits ---------- */
+    const iframeDoc = () => {
+        const ifr = iframeRef.current;
+        return ifr ? (ifr.contentDocument || ifr.contentWindow?.document) : null;
+    };
 
+    const ensureOverlay = () => {
+        const doc = iframeDoc();
+        if (!doc) return null;
         doc.body.contentEditable = isEditing ? "true" : "false";
         doc.body.style.caretColor = isEditing ? "auto" : "";
 
@@ -365,12 +404,7 @@ export default function PNIDReportView() {
         if (!host) {
             host = doc.createElement("div");
             host.id = "__pnid_overlay_host";
-            Object.assign(host.style, {
-                position: "fixed",
-                inset: "0",
-                zIndex: "2147483647",
-                pointerEvents: tool === TOOLS.NONE || isEditing ? "none" : "auto",
-            });
+            Object.assign(host.style, { position: "fixed", inset: "0", zIndex: "2147483647", pointerEvents: tool === TOOLS.NONE || isEditing ? "none" : "auto" });
             const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
             svg.setAttribute("id", "__pnid_overlay_svg");
             svg.setAttribute("width", "100%");
@@ -390,7 +424,8 @@ export default function PNIDReportView() {
         const { svg } = r;
         while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-        (currentAnn.lines || []).forEach((ln) => {
+        const ann = currentAnn;
+        (ann.lines || []).forEach((ln) => {
             const el = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "line");
             el.setAttribute("x1", String(ln.x1));
             el.setAttribute("y1", String(ln.y1));
@@ -402,7 +437,7 @@ export default function PNIDReportView() {
             svg.appendChild(el);
         });
 
-        (currentAnn.texts || []).forEach((tx) => {
+        (ann.texts || []).forEach((tx) => {
             const el = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "text");
             el.setAttribute("x", String(tx.x));
             el.setAttribute("y", String(tx.y));
@@ -438,13 +473,7 @@ export default function PNIDReportView() {
                 const y2 = ev.clientY - rect.top;
                 setAnnByTab((prev) => {
                     const per = prev[activeTab] || { lines: [], texts: [] };
-                    return {
-                        ...prev,
-                        [activeTab]: {
-                            ...per,
-                            lines: [...(per.lines || []), { x1: drawRef.current.x1, y1: drawRef.current.y1, x2, y2 }],
-                        },
-                    };
+                    return { ...prev, [activeTab]: { ...per, lines: [...(per.lines || []), { x1: drawRef.current.x1, y1: drawRef.current.y1, x2, y2 }] } };
                 });
             };
         } else if (tool === TOOLS.TEXT) {
@@ -472,10 +501,7 @@ export default function PNIDReportView() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, currentHtml, currentReload, tool, isEditing]);
 
-    useEffect(() => {
-        renderOverlay();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [annByTab, activeTab]);
+    useEffect(() => { renderOverlay(); /* eslint-disable-next-line */ }, [annByTab, activeTab]);
 
     const clearAnnotations = () =>
         setAnnByTab((prev) => ({ ...prev, [activeTab]: { lines: [], texts: [] } }));
@@ -487,11 +513,8 @@ export default function PNIDReportView() {
     };
 
     const saveAsAnnotated = () => {
-        const iframe = iframeRef.current;
-        if (!iframe) return;
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        const doc = iframeDoc();
         if (!doc) return;
-
         ensureOverlay();
         renderOverlay();
         const host = doc.getElementById("__pnid_overlay_host");
@@ -514,9 +537,164 @@ export default function PNIDReportView() {
         }, 0);
     };
 
+    /* ---------- Airtable loading ---------- */
+    const loadAirtableIfNeeded = async () => {
+        if (airtable.loaded) return airtable;
+        const records = await fetchAllTableRecords();
+        const byCode = new Map();
+        for (const r of records) {
+            const code = (r?.fields?.["Item Code"] || r?.fields?.Code || "").toString().trim();
+            if (!code) continue;
+            byCode.set(code.toLowerCase(), r);
+        }
+        const at = { loaded: true, records, byCode };
+        setAirtable(at);
+        return at;
+    };
+
+    /* ---------- Scan HTML vs Airtable ---------- */
+    const highlightCodesInIframe = (codes) => {
+        const doc = iframeDoc();
+        if (!doc || !codes || !codes.length) return;
+
+        // inject CSS for highlight
+        const styleId = "__pnid_hit_style";
+        if (!doc.getElementById(styleId)) {
+            const st = doc.createElement("style");
+            st.id = styleId;
+            st.textContent = `.pnid-hit{ background: #ffff00; color: #000; outline: 1px solid #f6a623; }`;
+            doc.head.appendChild(st);
+        }
+
+        // big regex (chunked to keep safe)
+        const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const chunks = [];
+        const sorted = [...codes].sort((a, b) => b.length - a.length).map(escape);
+        for (let i = 0; i < sorted.length; i += 50) chunks.push(new RegExp(`(${sorted.slice(i, i + 50).join("|")})`, "gi"));
+
+        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+        const toProcess = [];
+        while (true) {
+            const n = walker.nextNode();
+            if (!n) break;
+            const text = n.nodeValue || "";
+            if (!text.trim()) continue;
+            if (chunks.some(rx => rx.test(text))) toProcess.push(n);
+        }
+
+        for (const textNode of toProcess) {
+            const parent = textNode.parentNode;
+            if (!parent) continue;
+            const frag = doc.createDocumentFragment();
+            let s = textNode.nodeValue || "";
+            let cursor = 0;
+            let segments = [{ start: 0, end: s.length, hit: false }];
+
+            for (const rx of chunks) {
+                const nextSegs = [];
+                for (const seg of segments) {
+                    if (seg.hit) { nextSegs.push(seg); continue; }
+                    const slice = s.slice(seg.start, seg.end);
+                    let lastIdx = 0;
+                    for (let m; (m = rx.exec(slice));) {
+                        const st = seg.start + m.index;
+                        const en = st + m[0].length;
+                        if (st > seg.start + lastIdx) nextSegs.push({ start: seg.start + lastIdx, end: st, hit: false });
+                        nextSegs.push({ start: st, end: en, hit: true });
+                        lastIdx = m.index + m[0].length;
+                    }
+                    if (seg.start + lastIdx < seg.end) nextSegs.push({ start: seg.start + lastIdx, end: seg.end, hit: false });
+                }
+                segments = nextSegs;
+            }
+
+            for (const seg of segments) {
+                const chunk = s.slice(seg.start, seg.end);
+                if (!seg.hit) { frag.appendChild(doc.createTextNode(chunk)); }
+                else {
+                    const mark = doc.createElement("mark");
+                    mark.className = "pnid-hit";
+                    mark.textContent = chunk;
+                    frag.appendChild(mark);
+                }
+            }
+            parent.replaceChild(frag, textNode);
+        }
+    };
+
+    const onScan = async () => {
+        if (!currentHtml) { alert("Load a report first."); return; }
+        const at = await loadAirtableIfNeeded();
+
+        const htmlTextLower = currentHtml.toLowerCase();
+        const matched = [];
+        const matchedCodes = new Set();
+
+        // We simply check presence of each code inside HTML text (case-insensitive).
+        // For large bases, we could speed up, but this is usually fine.
+        for (const [codeLower, rec] of at.byCode.entries()) {
+            if (!codeLower) continue;
+            if (htmlTextLower.includes(codeLower)) {
+                matched.push({ id: rec.id, code: rec.fields["Item Code"] || rec.fields.Code || "" });
+                matchedCodes.add(rec.fields["Item Code"] || rec.fields.Code || "");
+            }
+        }
+
+        // Save result for this tab
+        setScanResultByTab((prev) => ({
+            ...prev,
+            [activeTab]: {
+                matched,
+                totalCodes: at.byCode.size,
+                sample: matched.slice(0, 20).map(m => m.code),
+            },
+        }));
+
+        // Visual highlight in the iframe
+        highlightCodesInIframe([...matchedCodes].filter(Boolean));
+    };
+
+    /* ---------- Apply checkbox updates to Airtable ---------- */
+    const onApplyCheckboxUpdates = async () => {
+        const res = scanResultByTab[activeTab];
+        if (!res || !res.matched) { alert("Run ‘Scan & highlight’ first."); return; }
+
+        const fieldName = FIELD_BY_TAB[activeTab] || "In Report";
+        const yesIds = new Set(res.matched.map(m => m.id));
+        const updates = [];
+
+        // Set TRUE for matches
+        for (const id of yesIds) updates.push({ id, fields: { [fieldName]: true } });
+
+        // Optionally clear non-matches to FALSE
+        if (clearNonMatches) {
+            const at = await loadAirtableIfNeeded();
+            for (const r of at.records) {
+                if (!yesIds.has(r.id)) updates.push({ id: r.id, fields: { [fieldName]: false } });
+            }
+        }
+
+        if (!updates.length) { alert("Nothing to update."); return; }
+
+        setSyncBusy(true);
+        try {
+            await patchCheckboxBatch(updates);
+            alert(`Updated ${updates.length} records in Airtable (${fieldName}).`);
+        } catch (e) {
+            console.error(e);
+            alert(`Airtable update failed. Ensure the checkbox field “${fieldName}” exists and your token has write access.`);
+        } finally {
+            setSyncBusy(false);
+        }
+    };
+
     /* -------------------- UI -------------------- */
+    const folderInputRef = useRef(null);
+    const htmlInputRef = useRef(null);
+    const assetsInputRef = useRef(null);
+
     return (
-        <div style={{ width: "100%", height: "100%", display: "grid", gridTemplateRows: "auto auto 1fr" }}>
+        <div style={{ width: "100%", height: "100%", display: "grid", gridTemplateRows: "auto auto auto 1fr" }}>
             {/* Tabs */}
             <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fafafa", flexWrap: "wrap" }}>
                 {TABS.map((t) => (
@@ -526,9 +704,8 @@ export default function PNIDReportView() {
                 ))}
             </div>
 
-            {/* Toolbar */}
+            {/* Load/Inline toolbar */}
             <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fff", flexWrap: "wrap" }}>
-                {/* Pickers */}
                 <label style={s.btn}>
                     <input
                         ref={folderInputRef}
@@ -570,9 +747,11 @@ export default function PNIDReportView() {
                     {inlining ? "Inlining…" : "Inline assets"}
                 </button>
 
-                <span style={{ width: 12 }} />
+                <span style={{ marginLeft: "auto", fontSize: 12, color: "#666" }}>{currentName || "No file loaded"}</span>
+            </div>
 
-                {/* Review tools */}
+            {/* Review + Airtable toolbar */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fff", flexWrap: "wrap" }}>
                 <button onClick={toggleEdit} style={s.btnLight} disabled={!currentHtml}>
                     {isEditing ? "Disable page text edit" : "Enable page text edit"}
                 </button>
@@ -581,16 +760,34 @@ export default function PNIDReportView() {
                 <button onClick={() => setTool(TOOLS.TEXT)} style={s.toolBtn(tool === TOOLS.TEXT)} disabled={!currentHtml || isEditing}>Text</button>
                 <button onClick={clearAnnotations} style={s.btnLight} disabled={!currentHtml || ((currentAnn.lines || []).length + (currentAnn.texts || []).length === 0)}>Clear annotations</button>
 
-                <span style={{ marginLeft: "auto", fontSize: 12, color: "#666" }}>{currentName || "No file loaded"}</span>
-                <button onClick={saveAsAnnotated} style={s.btnLight} disabled={!currentHtml}>Save As (.annotated.html)</button>
+                <span style={{ width: 16 }} />
+
+                <button onClick={onScan} style={s.btnLight} disabled={!currentHtml}>
+                    Scan & highlight vs Airtable
+                </button>
+
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                    <input type="checkbox" checked={clearNonMatches} onChange={(e) => setClearNonMatches(e.target.checked)} />
+                    Also clear non-matches to FALSE
+                </label>
+                <button onClick={onApplyCheckboxUpdates} style={s.btn} disabled={!scanResultByTab[activeTab] || syncBusy}>
+                    {syncBusy ? "Updating…" : `Apply checkbox updates (${FIELD_BY_TAB[activeTab] || "In Report"})`}
+                </button>
+
+                <span style={{ marginLeft: "auto", fontSize: 12, color: "#666" }}>
+                    {(() => {
+                        const r = scanResultByTab[activeTab];
+                        if (!r) return "";
+                        return `Matched ${r.matched.length} / ${r.totalCodes} codes`;
+                    })()}
+                </span>
             </div>
 
             {/* Viewer */}
             {!currentHtml ? (
                 <div style={{ padding: 16, color: "#666", lineHeight: 1.5 }}>
                     No report loaded for <b>{TABS.find(t => t.id === activeTab)?.label}</b>.<br />
-                    <b>Tip:</b> Click <b>Open report folder</b> and select the folder that contains the HTML and its <code>*_files</code> directory (e.g. <code>03_Line list.html</code> + <code>03_Line list_files/</code>).
-                    Then click <b>Inline assets</b> so images/styles are embedded and always visible.
+                    Tip: Click <b>Open report folder</b> and select the folder that contains the HTML and its <code>*_files</code> directory. Then click <b>Inline assets</b>.
                 </div>
             ) : (
                 <iframe
@@ -601,9 +798,17 @@ export default function PNIDReportView() {
                     style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
                     sandbox="allow-same-origin allow-scripts allow-forms"
                     onLoad={() => {
+                        // Ensure overlay ready and re-highlight after reload
                         ensureOverlay();
                         attachOverlayEvents();
                         renderOverlay();
+
+                        // Re-apply highlight if we already scanned
+                        const r = scanResultByTab[activeTab];
+                        if (r?.matched?.length) {
+                            const codes = r.matched.map(m => m.code).filter(Boolean);
+                            highlightCodesInIframe(codes);
+                        }
                     }}
                 />
             )}
