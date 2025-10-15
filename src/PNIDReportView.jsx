@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿// src/PNIDReportView.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-/** Tabs */
+/* -------------------- Tabs & Tools -------------------- */
 const TABS = [
     { id: "line", label: "Line List" },
     { id: "equipment", label: "Equipment List" },
@@ -11,27 +12,79 @@ const TABS = [
     { id: "manifold", label: "Manifold List" },
 ];
 
-/** Review tools */
 const TOOLS = { NONE: "none", TEXT: "text", LINE: "line" };
 
-/** Small path resolver for ../ and ./ */
-function resolveRelPath(baseDir, rel) {
-    if (/^https?:\/\//i.test(rel) || /^data:/i.test(rel)) return rel;
-    if (rel.startsWith("/")) return rel.replace(/^\/+/, "");
-    const base = (baseDir || "").split("/").filter(Boolean);
-    const parts = rel.split("/").filter(Boolean);
-    const out = [...base];
-    for (const p of parts) {
-        if (p === ".") continue;
-        if (p === "..") out.pop();
-        else out.push(p);
-    }
-    return out.join("/");
+/* -------------------- Aggressive Asset Inliner (v2) -------------------- */
+// Normalize path to forward slashes, strip leading "./", decode %20, etc.
+function norm(p = "") {
+    return decodeURI(p).replace(/\\/g, "/").replace(/^\.\/+/, "");
 }
+function baseName(p = "") {
+    const n = norm(p);
+    return n.substring(n.lastIndexOf("/") + 1);
+}
+function urlCandidates(raw = "") {
+    if (!raw) return [];
+    const u = norm(raw).toLowerCase();
+    const out = new Set();
 
-async function fileToDataURL(fileHandle) {
-    const file = await fileHandle.getFile();
+    out.add(u);
+    const [noQ] = u.split(/[?#]/);
+    out.add(noQ);
+    out.add(noQ.replace(/^\/+/, "")); // drop leading /
+    const base = noQ.substring(noQ.lastIndexOf("/") + 1);
+    if (base) out.add(base);
+
+    // windows file:///C:/... and C:/...
+    const fileUrlMatch = u.match(/^file:\/\/\/([a-z]:\/.*)$/i);
+    if (fileUrlMatch) {
+        const filePath = fileUrlMatch[1].replace(/\\/g, "/");
+        out.add(filePath);
+        const fromRoot = filePath.replace(/^([a-z]:\/)/i, "");
+        out.add(fromRoot);
+        out.add(fromRoot.replace(/^\/+/, ""));
+        out.add(filePath.substring(filePath.lastIndexOf("/") + 1));
+    } else if (/^[a-z]:\//i.test(u)) {
+        const win = u.replace(/\\/g, "/");
+        out.add(win);
+        const fromRoot = win.replace(/^([a-z]:\/)/i, "");
+        out.add(fromRoot);
+        out.add(fromRoot.replace(/^\/+/, ""));
+        out.add(win.substring(win.lastIndexOf("/") + 1));
+    }
+
+    // progressively drop leading segments: a/b/c.png => add b/c.png, c.png
+    const segs = noQ.split("/").filter(Boolean);
+    for (let i = 0; i < segs.length; i++) {
+        out.add(segs.slice(i).join("/"));
+    }
+
+    return [...out];
+}
+function buildFileMaps(files) {
+    const byPath = new Map();
+    const byBase = new Map();
+    for (const f of files) {
+        const rel = norm(f.webkitRelativePath || f.name).toLowerCase();
+        const base = baseName(rel).toLowerCase();
+        byPath.set(rel, f);
+        if (base && !byBase.has(base)) byBase.set(base, f);
+    }
+    return { byPath, byBase };
+}
+function resolveFile(raw, maps) {
+    if (!maps) return null;
+    const { byPath, byBase } = maps;
+    for (const key of urlCandidates(raw)) {
+        if (byPath.has(key)) return byPath.get(key);
+        const base = baseName(key).toLowerCase();
+        if (base && byBase.has(base)) return byBase.get(base);
+    }
+    return null;
+}
+async function fileToDataURL(file) {
     const buf = await file.arrayBuffer();
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
     const mime =
         file.type ||
         ({
@@ -39,235 +92,285 @@ async function fileToDataURL(fileHandle) {
             jpg: "image/jpeg",
             jpeg: "image/jpeg",
             gif: "image/gif",
-            svg: "image/svg+xml",
             webp: "image/webp",
+            svg: "image/svg+xml",
             css: "text/css",
             js: "text/javascript",
             html: "text/html",
-        }[file.name.split(".").pop().toLowerCase()] || "application/octet-stream");
+            ico: "image/x-icon",
+            cur: "image/x-icon",
+            bmp: "image/bmp",
+            tif: "image/tiff",
+            tiff: "image/tiff",
+            json: "application/json",
+            map: "application/json",
+            woff: "font/woff",
+            woff2: "font/woff2",
+            ttf: "font/ttf",
+            otf: "font/otf",
+            eot: "application/vnd.ms-fontobject",
+            mp4: "video/mp4",
+            webm: "video/webm",
+            ogg: "video/ogg",
+            mp3: "audio/mpeg",
+            wav: "audio/wav",
+            m4a: "audio/mp4",
+        }[ext] || "application/octet-stream");
     const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
     return `data:${mime};base64,${base64}`;
 }
-
-async function getHandleByPath(rootDirHandle, relPath) {
-    const parts = relPath.split("/").filter(Boolean);
-    if (!parts.length) return null;
-    let dir = rootDirHandle;
-    for (let i = 0; i < parts.length - 1; i++) {
-        try {
-            dir = await dir.getDirectoryHandle(parts[i], { create: false });
-        } catch {
-            return null;
-        }
-    }
-    try {
-        return await dir.getFileHandle(parts[parts.length - 1], { create: false });
-    } catch {
-        return null;
-    }
-}
-
-/** Inline url(...) in CSS text */
-async function inlineCssUrls(cssText, rootDirHandle, cssBaseDir) {
-    if (!rootDirHandle) return cssText;
-    const urlRe = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
-    const matches = [...cssText.matchAll(urlRe)];
-    let out = cssText;
-    for (let i = matches.length - 1; i >= 0; i--) {
-        const m = matches[i];
+async function inlineCssUrls(cssText, maps, cssBaseHint = "") {
+    const re = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
+    const out = [];
+    let last = 0;
+    for (let m; (m = re.exec(cssText));) {
+        out.push(cssText.slice(last, m.index));
         const raw = m[2];
-        if (!raw || /^data:/i.test(raw) || /^https?:\/\//i.test(raw)) continue;
-        const rel = resolveRelPath(cssBaseDir, raw);
-        const fh = await getHandleByPath(rootDirHandle, rel);
-        if (!fh) continue;
-        const dataUrl = await fileToDataURL(fh);
-        // replace this occurrence only
-        out = out.slice(0, m.index) + `url(${dataUrl})` + out.slice(m.index + m[0].length);
+        let dataUrl = null;
+        if (raw && !/^data:/i.test(raw) && !/^https?:/i.test(raw)) {
+            const joined = cssBaseHint ? norm(cssBaseHint + "/" + raw) : raw;
+            const f = resolveFile(joined, maps) || resolveFile(raw, maps);
+            if (f) dataUrl = await fileToDataURL(f);
+        }
+        out.push(`url(${dataUrl || raw})`);
+        last = m.index + m[0].length;
     }
-    return out;
+    out.push(cssText.slice(last));
+    return out.join("");
 }
-
-/** Inline images, CSS, and scripts into the HTML string using a chosen folder */
-async function inlineAssetsIntoHtml(htmlText, rootDirHandle) {
-    if (!rootDirHandle) return htmlText;
-
+async function inlineAssetsIntoHtmlStrong(htmlText, maps) {
+    if (!maps) return htmlText;
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlText, "text/html");
 
-    // <img>
-    const imgs = Array.from(doc.querySelectorAll("img[src]"));
-    for (const img of imgs) {
-        const src = img.getAttribute("src") || "";
-        if (!src || /^https?:\/\//i.test(src) || /^data:/i.test(src)) continue;
-        const fh = await getHandleByPath(rootDirHandle, resolveRelPath("", src));
-        if (!fh) continue;
-        img.setAttribute("src", await fileToDataURL(fh));
+    const setUrlAttr = async (el, attr) => {
+        const val = el.getAttribute(attr);
+        if (!val || /^data:/i.test(val) || /^https?:/i.test(val)) return;
+        const f = resolveFile(val, maps);
+        if (!f) return;
+        el.setAttribute(attr, await fileToDataURL(f));
+    };
+
+    // <img src>, <source src>, <object data>, <embed src>
+    for (const img of doc.querySelectorAll("img[src]")) await setUrlAttr(img, "src");
+    for (const s of doc.querySelectorAll("source[src]")) await setUrlAttr(s, "src");
+    for (const o of doc.querySelectorAll("object[data]")) await setUrlAttr(o, "data");
+    for (const em of doc.querySelectorAll("embed[src]")) await setUrlAttr(em, "src");
+
+    // srcset
+    const fixSrcset = async (el) => {
+        const srcset = el.getAttribute("srcset");
+        if (!srcset) return;
+        const parts = srcset.split(",").map((s) => s.trim()).filter(Boolean);
+        const rebuilt = await Promise.all(
+            parts.map(async (chunk) => {
+                const [url, ...rest] = chunk.split(/\s+/);
+                if (!url) return chunk;
+                const f = resolveFile(url, maps);
+                if (!f) return chunk;
+                const data = await fileToDataURL(f);
+                return [data, ...rest].join(" ");
+            })
+        );
+        el.setAttribute("srcset", rebuilt.join(", "));
+    };
+    for (const el of doc.querySelectorAll("img[srcset],source[srcset]")) await fixSrcset(el);
+
+    // SVG <image href|xlink:href>
+    for (const im of doc.querySelectorAll("image[href], image[*|href]")) {
+        const href = im.getAttribute("href") || im.getAttribute("xlink:href");
+        if (!href || /^data:/i.test(href) || /^https?:/i.test(href)) continue;
+        const f = resolveFile(href, maps);
+        if (f) {
+            const data = await fileToDataURL(f);
+            im.setAttribute("href", data);
+            im.setAttribute("xlink:href", data);
+        }
     }
 
-    // <link rel="stylesheet">
-    const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"][href]'));
-    for (const link of links) {
-        const href = link.getAttribute("href") || "";
-        if (!href || /^https?:\/\//i.test(href) || /^data:/i.test(href)) continue;
-
-        const relPath = resolveRelPath("", href);
-        const baseDir = relPath.split("/").slice(0, -1).join("/");
-
-        const fh = await getHandleByPath(rootDirHandle, relPath);
-        if (!fh) continue;
-
-        const file = await fh.getFile();
-        let cssText = await file.text();
-
-        // inline url(...) inside CSS
-        cssText = await inlineCssUrls(cssText, rootDirHandle, baseDir);
-
+    // <link rel=stylesheet> -> <style> with url(...) inlined
+    for (const link of Array.from(doc.querySelectorAll('link[rel="stylesheet"][href]'))) {
+        const href = link.getAttribute("href");
+        if (!href || /^https?:/i.test(href)) continue;
+        const f = resolveFile(href, maps);
+        if (!f) continue;
+        const css = await f.text();
+        const baseHint = norm(href).split("/").slice(0, -1).join("/");
+        const inlined = await inlineCssUrls(css, maps, baseHint);
         const style = doc.createElement("style");
         style.setAttribute("data-inlined-from", href);
-        style.textContent = cssText;
+        style.textContent = inlined;
         link.replaceWith(style);
     }
 
-    // <script src="..."> -> inline (optional)
-    const scripts = Array.from(doc.querySelectorAll("script[src]"));
-    for (const s of scripts) {
-        const src = s.getAttribute("src") || "";
-        if (!src || /^https?:\/\//i.test(src) || /^data:/i.test(src)) continue;
-        const fh = await getHandleByPath(rootDirHandle, resolveRelPath("", src));
-        if (!fh) continue;
-        const file = await fh.getFile();
-        const jsText = await file.text();
+    // inline <style> url(...)
+    for (const st of Array.from(doc.querySelectorAll("style"))) {
+        st.textContent = await inlineCssUrls(st.textContent || "", maps, "");
+    }
+
+    // inline style="background:url(...)"
+    for (const el of Array.from(doc.querySelectorAll("[style]"))) {
+        const raw = el.getAttribute("style") || "";
+        const inlined = await inlineCssUrls(raw, maps, "");
+        if (inlined !== raw) el.setAttribute("style", inlined);
+    }
+
+    // (optional) inline <script src>
+    for (const s of Array.from(doc.querySelectorAll("script[src]"))) {
+        const src = s.getAttribute("src");
+        if (!src || /^https?:/i.test(src)) continue;
+        const f = resolveFile(src, maps);
+        if (!f) continue;
+        const js = await f.text();
         const inline = doc.createElement("script");
-        inline.textContent = jsText;
-        // copy type/defer if any
         if (s.type) inline.type = s.type;
-        if (s.defer) inline.defer = true;
-        if (s.async) inline.async = true;
+        inline.textContent = js;
         s.replaceWith(inline);
     }
 
-    // Return serialized HTML (keep doctype)
     return "<!doctype html>\n" + doc.documentElement.outerHTML;
 }
 
+/* -------------------- Component -------------------- */
 export default function PNIDReportView() {
     const [activeTab, setActiveTab] = useState(() => localStorage.getItem("pnidReport:activeTab") || "line");
 
-    // Per-tab state
-    const [htmlText, setHtmlText] = useState({});          // raw/edited HTML
-    const [fileName, setFileName] = useState({});          // original file name
-    const [reloadKey, setReloadKey] = useState({});        // bump to refresh iframe
-    const [editEnabled, setEditEnabled] = useState({});    // contentEditable flag
-    const [ann, setAnn] = useState({});                    // { id: { lines:[], texts:[] } }
-    const [tool, setTool] = useState(TOOLS.NONE);          // current drawing tool (shared)
-    const [assetsDir, setAssetsDir] = useState({});        // { id: DirectoryHandle }
-    const [isInlining, setIsInlining] = useState(false);
+    // per-tab state
+    const [htmlByTab, setHtmlByTab] = useState({});            // raw/edited html text
+    const [nameByTab, setNameByTab] = useState({});            // file name
+    const [reloadByTab, setReloadByTab] = useState({});        // bump to refresh iframe
+    const [editByTab, setEditByTab] = useState({});            // contentEditable flag
+    const [annByTab, setAnnByTab] = useState({});              // { lines:[], texts:[] }
+    const [mapsByTab, setMapsByTab] = useState({});            // file maps (from folder/assets)
+    const [tool, setTool] = useState(TOOLS.NONE);              // drawing tool (shared)
+    const [inlining, setInlining] = useState(false);
 
-    const drawingRef = useRef({ isDown: false, x1: 0, y1: 0 });
-    const fileInputRef = useRef(null);
     const iframeRef = useRef(null);
+    const drawRef = useRef({ down: false, x1: 0, y1: 0 });
 
-    const supportsDirPicker = typeof window.showDirectoryPicker === "function";
+    const currentHtml = htmlByTab[activeTab] || "";
+    const currentName = nameByTab[activeTab] || "";
+    const currentReload = reloadByTab[activeTab] || 0;
+    const isEditing = !!editByTab[activeTab];
+    const currentAnn = annByTab[activeTab] || { lines: [], texts: [] };
+    const currentMaps = mapsByTab[activeTab] || null;
 
     useEffect(() => {
         localStorage.setItem("pnidReport:activeTab", activeTab);
     }, [activeTab]);
 
-    // Helpers (per-tab setters/getters)
-    const get = (obj, def) => obj[activeTab] ?? def;
-    const setForTab = (setter) => (valOrFn) =>
-        setter((prev) => ({ ...prev, [activeTab]: typeof valOrFn === "function" ? valOrFn(prev[activeTab]) : valOrFn }));
+    const setForTab = (setter) => (value) =>
+        setter((prev) => ({ ...prev, [activeTab]: value }));
 
-    const setHtmlForTab = setForTab(setHtmlText);
-    const setNameForTab = setForTab(setFileName);
-    const setEditForTab = setForTab(setEditEnabled);
-    const setDirForTab = setForTab(setAssetsDir);
-    const bumpReloadForTab = () => setReloadKey((p) => ({ ...p, [activeTab]: (p?.[activeTab] || 0) + 1 }));
+    const setHtmlForTab = setForTab(setHtmlByTab);
+    const setNameForTab = setForTab(setNameByTab);
+    const setEditForTab = setForTab(setEditByTab);
+    const setMapsForTab = setForTab(setMapsByTab);
+    const bumpReload = () => setReloadByTab((p) => ({ ...p, [activeTab]: (p?.[activeTab] || 0) + 1 }));
 
-    const currentHtml = get(htmlText, "");
-    const currentName = get(fileName, "");
-    const currentReload = get(reloadKey, 0);
-    const isEditingPage = !!get(editEnabled, false);
-    const currentAnn = get(ann, { lines: [], texts: [] });
-    const currentDir = get(assetsDir, null);
-
-    // Styles
-    const styles = useMemo(() => {
+    /* ---------- UI Styles ---------- */
+    const s = useMemo(() => {
         const btn = { padding: "6px 10px", borderRadius: 8, background: "#111", color: "#fff", border: "1px solid #111", cursor: "pointer" };
         const btnLight = { padding: "6px 10px", borderRadius: 8, background: "#fff", color: "#111", border: "1px solid #ddd", cursor: "pointer" };
-        const tab = (active) => ({ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd", background: active ? "#111" : "#fff", color: active ? "#fff" : "#111", cursor: "pointer", whiteSpace: "nowrap" });
-        const toolBtn = (active) => ({ padding: "6px 10px", borderRadius: 8, background: active ? "#111" : "#fff", color: active ? "#fff" : "#111", border: "1px solid #ddd", cursor: "pointer" });
+        const tab = (on) => ({ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd", background: on ? "#111" : "#fff", color: on ? "#fff" : "#111", cursor: "pointer", whiteSpace: "nowrap" });
+        const toolBtn = (on) => ({ padding: "6px 10px", borderRadius: 8, background: on ? "#111" : "#fff", color: on ? "#fff" : "#111", border: "1px solid #ddd", cursor: "pointer" });
         return { btn, btnLight, tab, toolBtn };
     }, []);
 
-    /** Load HTML file as text */
-    const openPicker = () => fileInputRef.current?.click();
-    const onPickFile = async (e) => {
-        const f = e.target.files?.[0];
-        if (!f) return;
+    /* ---------- File pickers ---------- */
+    const folderInputRef = useRef(null);
+    const htmlInputRef = useRef(null);
+    const assetsInputRef = useRef(null);
+
+    const pickFolder = () => folderInputRef.current?.click();
+    const pickHtml = () => htmlInputRef.current?.click();
+    const pickAssets = () => assetsInputRef.current?.click();
+
+    const onPickFolder = async (e) => {
+        const files = Array.from(e.target.files || []);
         e.target.value = "";
-        const text = await f.text().catch(() => "");
-        setHtmlForTab(text || "<!-- empty file -->");
-        setNameForTab(f.name || "report.html");
-        setEditForTab(false);
-        setAnn((prev) => ({ ...prev, [activeTab]: { lines: [], texts: [] } }));
-        bumpReloadForTab();
-    };
+        if (!files.length) return;
 
-    /** Pick the folder that contains images/CSS referenced by the HTML */
-    const pickAssetsFolder = async () => {
-        if (!supportsDirPicker) {
-            alert("Folder picker requires Chrome/Edge desktop over HTTPS.");
+        const maps = buildFileMaps(files);
+        setMapsForTab(maps);
+
+        // choose a .html to load (prefer one matching the tab name)
+        let htmlFile =
+            files.find((f) => /\.html?$/i.test(f.name) && f.name.toLowerCase().includes(TABS.find(t => t.id === activeTab)?.label.toLowerCase().split(" ")[0])) ||
+            files.find((f) => /\.html?$/i.test(f.name)) ||
+            null;
+
+        if (!htmlFile) {
+            setHtmlForTab("");
+            setNameForTab("");
+            alert("No HTML file found in that folder. Please pick the folder that contains your report HTML and its *_files assets.");
             return;
         }
-        try {
-            const dir = await window.showDirectoryPicker();
-            setDirForTab(dir);
-            alert("Assets folder attached. Click ‘Inline assets’ to embed images/CSS.");
-        } catch {
-            // cancelled
-        }
+
+        const text = await htmlFile.text();
+        setHtmlForTab(text);
+        setNameForTab(htmlFile.name);
+        bumpReload();
     };
 
-    /** Inline assets -> make HTML self-contained so images render */
-    const inlineAssets = async () => {
-        if (!currentDir) {
-            alert("Attach the assets folder first (the folder that has images/styles referenced by the report).");
-            return;
-        }
+    const onPickHtml = async (e) => {
+        const [file] = e.target.files || [];
+        e.target.value = "";
+        if (!file) return;
+        const text = await file.text();
+        setHtmlForTab(text);
+        setNameForTab(file.name);
+        bumpReload();
+    };
+
+    const onPickAssets = async (e) => {
+        const files = Array.from(e.target.files || []);
+        e.target.value = "";
+        if (!files.length) return;
+        const maps = buildFileMaps(files);
+        setMapsForTab(maps);
+        alert("Assets folder attached. Click ‘Inline assets’ to embed images/CSS/JS so they always show.");
+    };
+
+    const onInlineAssets = async () => {
         if (!currentHtml) return;
-        setIsInlining(true);
+        if (!currentMaps) {
+            alert("Pick the report folder (recommended) or attach the assets folder first.");
+            return;
+        }
+        setInlining(true);
         try {
-            const inlined = await inlineAssetsIntoHtml(currentHtml, currentDir);
+            const inlined = await inlineAssetsIntoHtmlStrong(currentHtml, currentMaps);
             setHtmlForTab(inlined);
-            bumpReloadForTab();
-            alert("Assets inlined. Images should now appear, and the saved HTML will be self-contained.");
+            bumpReload();
         } catch (e) {
             console.error(e);
-            alert("Failed to inline some assets. Check paths or attach the correct folder.");
+            alert("Inlining failed for some assets. Make sure you selected the correct folder that contains the *_files directory.");
         } finally {
-            setIsInlining(false);
+            setInlining(false);
         }
     };
 
-    /** Overlay creation/rendering inside the iframe */
+    /* ---------- Review overlay inside iframe ---------- */
     const ensureOverlay = () => {
         const iframe = iframeRef.current;
         if (!iframe) return null;
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
         if (!doc) return null;
 
-        doc.body.contentEditable = isEditingPage ? "true" : "false";
-        doc.body.style.caretColor = isEditingPage ? "auto" : "";
+        doc.body.contentEditable = isEditing ? "true" : "false";
+        doc.body.style.caretColor = isEditing ? "auto" : "";
 
         let host = doc.getElementById("__pnid_overlay_host");
         if (!host) {
             host = doc.createElement("div");
             host.id = "__pnid_overlay_host";
-            host.style.position = "fixed";
-            host.style.inset = "0";
-            host.style.zIndex = "2147483647";
-            host.style.pointerEvents = tool === TOOLS.NONE || isEditingPage ? "none" : "auto";
+            Object.assign(host.style, {
+                position: "fixed",
+                inset: "0",
+                zIndex: "2147483647",
+                pointerEvents: tool === TOOLS.NONE || isEditing ? "none" : "auto",
+            });
             const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
             svg.setAttribute("id", "__pnid_overlay_svg");
             svg.setAttribute("width", "100%");
@@ -276,9 +379,9 @@ export default function PNIDReportView() {
             host.appendChild(svg);
             doc.body.appendChild(host);
         } else {
-            host.style.pointerEvents = tool === TOOLS.NONE || isEditingPage ? "none" : "auto";
+            host.style.pointerEvents = tool === TOOLS.NONE || isEditing ? "none" : "auto";
         }
-        return { doc, host: host, svg: doc.getElementById("__pnid_overlay_svg") };
+        return { doc, host, svg: doc.getElementById("__pnid_overlay_svg") };
     };
 
     const renderOverlay = () => {
@@ -317,26 +420,31 @@ export default function PNIDReportView() {
         const { host } = r;
 
         host.onmousedown = null;
-        host.onmousemove = null;
         host.onmouseup = null;
         host.onclick = null;
 
         if (tool === TOOLS.LINE) {
             host.onmousedown = (ev) => {
-                drawingRef.current.isDown = true;
+                drawRef.current.down = true;
                 const rect = host.getBoundingClientRect();
-                drawingRef.current.x1 = ev.clientX - rect.left;
-                drawingRef.current.y1 = ev.clientY - rect.top;
+                drawRef.current.x1 = ev.clientX - rect.left;
+                drawRef.current.y1 = ev.clientY - rect.top;
             };
             host.onmouseup = (ev) => {
-                if (!drawingRef.current.isDown) return;
+                if (!drawRef.current.down) return;
+                drawRef.current.down = false;
                 const rect = host.getBoundingClientRect();
                 const x2 = ev.clientX - rect.left;
                 const y2 = ev.clientY - rect.top;
-                drawingRef.current.isDown = false;
-                setAnn((prev) => {
+                setAnnByTab((prev) => {
                     const per = prev[activeTab] || { lines: [], texts: [] };
-                    return { ...prev, [activeTab]: { ...per, lines: [...(per.lines || []), { x1: drawingRef.current.x1, y1: drawingRef.current.y1, x2, y2 }] } };
+                    return {
+                        ...prev,
+                        [activeTab]: {
+                            ...per,
+                            lines: [...(per.lines || []), { x1: drawRef.current.x1, y1: drawRef.current.y1, x2, y2 }],
+                        },
+                    };
                 });
             };
         } else if (tool === TOOLS.TEXT) {
@@ -346,7 +454,7 @@ export default function PNIDReportView() {
                 const y = ev.clientY - rect.top;
                 const text = window.prompt("Comment text:", "");
                 if (!text) return;
-                setAnn((prev) => {
+                setAnnByTab((prev) => {
                     const per = prev[activeTab] || { lines: [], texts: [] };
                     return { ...prev, [activeTab]: { ...per, texts: [...(per.texts || []), { x, y, text }] } };
                 });
@@ -362,19 +470,22 @@ export default function PNIDReportView() {
         }, 0);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, currentHtml, currentReload, tool, isEditingPage]);
+    }, [activeTab, currentHtml, currentReload, tool, isEditing]);
 
-    useEffect(() => { renderOverlay(); /* eslint-disable-next-line */ }, [ann, activeTab]);
+    useEffect(() => {
+        renderOverlay();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [annByTab, activeTab]);
 
-    const clearAnnotations = () => setAnn((prev) => ({ ...prev, [activeTab]: { lines: [], texts: [] } }));
+    const clearAnnotations = () =>
+        setAnnByTab((prev) => ({ ...prev, [activeTab]: { lines: [], texts: [] } }));
 
-    const toggleEditPage = () => {
-        setEditForTab((v) => !v);
+    const toggleEdit = () => {
+        setEditForTab(!isEditing);
         setTool(TOOLS.NONE);
-        bumpReloadForTab();
+        bumpReload();
     };
 
-    /** Save current (with annotations) as a self-contained .html (after you inline assets) */
     const saveAsAnnotated = () => {
         const iframe = iframeRef.current;
         if (!iframe) return;
@@ -398,54 +509,88 @@ export default function PNIDReportView() {
         setTimeout(() => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            doc.body.contentEditable = isEditingPage ? "true" : "false";
-            if (host) host.style.pointerEvents = tool === TOOLS.NONE || isEditingPage ? "none" : "auto";
+            doc.body.contentEditable = isEditing ? "true" : "false";
+            if (host) host.style.pointerEvents = tool === TOOLS.NONE || isEditing ? "none" : "auto";
         }, 0);
     };
 
+    /* -------------------- UI -------------------- */
     return (
         <div style={{ width: "100%", height: "100%", display: "grid", gridTemplateRows: "auto auto 1fr" }}>
             {/* Tabs */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fafafa", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fafafa", flexWrap: "wrap" }}>
                 {TABS.map((t) => (
-                    <button key={t.id} onClick={() => setActiveTab(t.id)} style={styles.tab(activeTab === t.id)} title={t.label}>
+                    <button key={t.id} onClick={() => setActiveTab(t.id)} style={s.tab(activeTab === t.id)} title={t.label}>
                         {t.label}
                     </button>
                 ))}
             </div>
 
-            {/* Controls */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fff", flexWrap: "wrap" }}>
-                <button onClick={openPicker} style={styles.btn}>Load HTML</button>
-                <input ref={fileInputRef} type="file" accept=".html,.htm" onChange={onPickFile} style={{ display: "none" }} />
-                {currentName ? <span style={{ fontSize: 12, color: "#555" }}>{currentName}</span> : <span style={{ fontSize: 12, color: "#666" }}>No file loaded</span>}
+            {/* Toolbar */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fff", flexWrap: "wrap" }}>
+                {/* Pickers */}
+                <label style={s.btn}>
+                    <input
+                        ref={folderInputRef}
+                        type="file"
+                        style={{ display: "none" }}
+                        webkitdirectory="true"
+                        directory=""
+                        multiple
+                        onChange={onPickFolder}
+                    />
+                    📁 Open report folder
+                </label>
 
-                <span style={{ width: 8 }} />
+                <label style={s.btn}>
+                    <input
+                        ref={htmlInputRef}
+                        type="file"
+                        accept=".html,.htm"
+                        style={{ display: "none" }}
+                        onChange={onPickHtml}
+                    />
+                    📄 Open HTML
+                </label>
 
-                <button onClick={toggleEditPage} style={styles.btnLight} disabled={!currentHtml}>
-                    {isEditingPage ? "Disable page text edit" : "Enable page text edit"}
+                <label style={s.btn}>
+                    <input
+                        ref={assetsInputRef}
+                        type="file"
+                        webkitdirectory="true"
+                        directory=""
+                        multiple
+                        style={{ display: "none" }}
+                        onChange={onPickAssets}
+                    />
+                    🖼️ Add assets folder
+                </label>
+
+                <button onClick={onInlineAssets} style={s.btn} disabled={!currentHtml || !currentMaps || inlining}>
+                    {inlining ? "Inlining…" : "Inline assets"}
                 </button>
 
-                {/* Drawing tools (disabled while editing page text) */}
-                <button onClick={() => setTool(TOOLS.NONE)} style={styles.toolBtn(tool === TOOLS.NONE)} disabled={!currentHtml || isEditingPage}>Pointer</button>
-                <button onClick={() => setTool(TOOLS.LINE)} style={styles.toolBtn(tool === TOOLS.LINE)} disabled={!currentHtml || isEditingPage}>Line</button>
-                <button onClick={() => setTool(TOOLS.TEXT)} style={styles.toolBtn(tool === TOOLS.TEXT)} disabled={!currentHtml || isEditingPage}>Text</button>
-                <button onClick={clearAnnotations} style={styles.btnLight} disabled={!currentHtml || ((currentAnn.lines || []).length + (currentAnn.texts || []).length === 0)}>Clear annotations</button>
+                <span style={{ width: 12 }} />
 
-                {/* Assets inlining */}
-                <span style={{ width: 8 }} />
-                <button onClick={pickAssetsFolder} style={styles.btnLight} disabled={!supportsDirPicker}>Attach assets folder</button>
-                <button onClick={inlineAssets} style={styles.btnLight} disabled={!currentHtml || !currentDir || isInlining}>{isInlining ? "Inlining…" : "Inline assets"}</button>
+                {/* Review tools */}
+                <button onClick={toggleEdit} style={s.btnLight} disabled={!currentHtml}>
+                    {isEditing ? "Disable page text edit" : "Enable page text edit"}
+                </button>
+                <button onClick={() => setTool(TOOLS.NONE)} style={s.toolBtn(tool === TOOLS.NONE)} disabled={!currentHtml || isEditing}>Pointer</button>
+                <button onClick={() => setTool(TOOLS.LINE)} style={s.toolBtn(tool === TOOLS.LINE)} disabled={!currentHtml || isEditing}>Line</button>
+                <button onClick={() => setTool(TOOLS.TEXT)} style={s.toolBtn(tool === TOOLS.TEXT)} disabled={!currentHtml || isEditing}>Text</button>
+                <button onClick={clearAnnotations} style={s.btnLight} disabled={!currentHtml || ((currentAnn.lines || []).length + (currentAnn.texts || []).length === 0)}>Clear annotations</button>
 
-                <span style={{ width: 8 }} />
-                <button onClick={saveAsAnnotated} style={styles.btnLight} disabled={!currentHtml}>Save As (.annotated.html)</button>
+                <span style={{ marginLeft: "auto", fontSize: 12, color: "#666" }}>{currentName || "No file loaded"}</span>
+                <button onClick={saveAsAnnotated} style={s.btnLight} disabled={!currentHtml}>Save As (.annotated.html)</button>
             </div>
 
             {/* Viewer */}
             {!currentHtml ? (
                 <div style={{ padding: 16, color: "#666", lineHeight: 1.5 }}>
-                    No report loaded for <b>{TABS.find(t => t.id === activeTab)?.label}</b>.
-                    Load the report HTML. If images don’t show, click <b>Attach assets folder</b> (pick the folder that contains the report’s <i>images / css</i>) and then <b>Inline assets</b>.
+                    No report loaded for <b>{TABS.find(t => t.id === activeTab)?.label}</b>.<br />
+                    <b>Tip:</b> Click <b>Open report folder</b> and select the folder that contains the HTML and its <code>*_files</code> directory (e.g. <code>03_Line list.html</code> + <code>03_Line list_files/</code>).
+                    Then click <b>Inline assets</b> so images/styles are embedded and always visible.
                 </div>
             ) : (
                 <iframe
@@ -454,6 +599,7 @@ export default function PNIDReportView() {
                     title={`PNID Review - ${TABS.find(t => t.id === activeTab)?.label}`}
                     srcDoc={currentHtml}
                     style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+                    sandbox="allow-same-origin allow-scripts allow-forms"
                     onLoad={() => {
                         ensureOverlay();
                         attachOverlayEvents();
