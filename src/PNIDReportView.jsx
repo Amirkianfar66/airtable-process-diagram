@@ -1,6 +1,6 @@
-﻿// src/PNIDReportView.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 
+/** Tabs */
 const TABS = [
     { id: "line", label: "Line List" },
     { id: "equipment", label: "Equipment List" },
@@ -11,73 +11,196 @@ const TABS = [
     { id: "manifold", label: "Manifold List" },
 ];
 
-const TOOLS = {
-    NONE: "none",
-    TEXT: "text",
-    LINE: "line",
-};
+/** Review tools */
+const TOOLS = { NONE: "none", TEXT: "text", LINE: "line" };
+
+/** Small path resolver for ../ and ./ */
+function resolveRelPath(baseDir, rel) {
+    if (/^https?:\/\//i.test(rel) || /^data:/i.test(rel)) return rel;
+    if (rel.startsWith("/")) return rel.replace(/^\/+/, "");
+    const base = (baseDir || "").split("/").filter(Boolean);
+    const parts = rel.split("/").filter(Boolean);
+    const out = [...base];
+    for (const p of parts) {
+        if (p === ".") continue;
+        if (p === "..") out.pop();
+        else out.push(p);
+    }
+    return out.join("/");
+}
+
+async function fileToDataURL(fileHandle) {
+    const file = await fileHandle.getFile();
+    const buf = await file.arrayBuffer();
+    const mime =
+        file.type ||
+        ({
+            png: "image/png",
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            gif: "image/gif",
+            svg: "image/svg+xml",
+            webp: "image/webp",
+            css: "text/css",
+            js: "text/javascript",
+            html: "text/html",
+        }[file.name.split(".").pop().toLowerCase()] || "application/octet-stream");
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+    return `data:${mime};base64,${base64}`;
+}
+
+async function getHandleByPath(rootDirHandle, relPath) {
+    const parts = relPath.split("/").filter(Boolean);
+    if (!parts.length) return null;
+    let dir = rootDirHandle;
+    for (let i = 0; i < parts.length - 1; i++) {
+        try {
+            dir = await dir.getDirectoryHandle(parts[i], { create: false });
+        } catch {
+            return null;
+        }
+    }
+    try {
+        return await dir.getFileHandle(parts[parts.length - 1], { create: false });
+    } catch {
+        return null;
+    }
+}
+
+/** Inline url(...) in CSS text */
+async function inlineCssUrls(cssText, rootDirHandle, cssBaseDir) {
+    if (!rootDirHandle) return cssText;
+    const urlRe = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
+    const matches = [...cssText.matchAll(urlRe)];
+    let out = cssText;
+    for (let i = matches.length - 1; i >= 0; i--) {
+        const m = matches[i];
+        const raw = m[2];
+        if (!raw || /^data:/i.test(raw) || /^https?:\/\//i.test(raw)) continue;
+        const rel = resolveRelPath(cssBaseDir, raw);
+        const fh = await getHandleByPath(rootDirHandle, rel);
+        if (!fh) continue;
+        const dataUrl = await fileToDataURL(fh);
+        // replace this occurrence only
+        out = out.slice(0, m.index) + `url(${dataUrl})` + out.slice(m.index + m[0].length);
+    }
+    return out;
+}
+
+/** Inline images, CSS, and scripts into the HTML string using a chosen folder */
+async function inlineAssetsIntoHtml(htmlText, rootDirHandle) {
+    if (!rootDirHandle) return htmlText;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlText, "text/html");
+
+    // <img>
+    const imgs = Array.from(doc.querySelectorAll("img[src]"));
+    for (const img of imgs) {
+        const src = img.getAttribute("src") || "";
+        if (!src || /^https?:\/\//i.test(src) || /^data:/i.test(src)) continue;
+        const fh = await getHandleByPath(rootDirHandle, resolveRelPath("", src));
+        if (!fh) continue;
+        img.setAttribute("src", await fileToDataURL(fh));
+    }
+
+    // <link rel="stylesheet">
+    const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"][href]'));
+    for (const link of links) {
+        const href = link.getAttribute("href") || "";
+        if (!href || /^https?:\/\//i.test(href) || /^data:/i.test(href)) continue;
+
+        const relPath = resolveRelPath("", href);
+        const baseDir = relPath.split("/").slice(0, -1).join("/");
+
+        const fh = await getHandleByPath(rootDirHandle, relPath);
+        if (!fh) continue;
+
+        const file = await fh.getFile();
+        let cssText = await file.text();
+
+        // inline url(...) inside CSS
+        cssText = await inlineCssUrls(cssText, rootDirHandle, baseDir);
+
+        const style = doc.createElement("style");
+        style.setAttribute("data-inlined-from", href);
+        style.textContent = cssText;
+        link.replaceWith(style);
+    }
+
+    // <script src="..."> -> inline (optional)
+    const scripts = Array.from(doc.querySelectorAll("script[src]"));
+    for (const s of scripts) {
+        const src = s.getAttribute("src") || "";
+        if (!src || /^https?:\/\//i.test(src) || /^data:/i.test(src)) continue;
+        const fh = await getHandleByPath(rootDirHandle, resolveRelPath("", src));
+        if (!fh) continue;
+        const file = await fh.getFile();
+        const jsText = await file.text();
+        const inline = doc.createElement("script");
+        inline.textContent = jsText;
+        // copy type/defer if any
+        if (s.type) inline.type = s.type;
+        if (s.defer) inline.defer = true;
+        if (s.async) inline.async = true;
+        s.replaceWith(inline);
+    }
+
+    // Return serialized HTML (keep doctype)
+    return "<!doctype html>\n" + doc.documentElement.outerHTML;
+}
 
 export default function PNIDReportView() {
-    const [activeTab, setActiveTab] = useState(
-        () => localStorage.getItem("pnidReport:activeTab") || "line"
-    );
+    const [activeTab, setActiveTab] = useState(() => localStorage.getItem("pnidReport:activeTab") || "line");
 
-    // Per-tab data
-    const [htmlText, setHtmlText] = useState({});         // { tabId: string (HTML) }
-    const [fileName, setFileName] = useState({});         // { tabId: string }
-    const [reloadKey, setReloadKey] = useState({});       // { tabId: number }
-    const [editEnabled, setEditEnabled] = useState({});   // { tabId: boolean } (contentEditable)
-    const [tool, setTool] = useState(TOOLS.NONE);         // active drawing tool (shared)
-    const [ann, setAnn] = useState({});                   // { tabId: { lines:[], texts:[] } }
+    // Per-tab state
+    const [htmlText, setHtmlText] = useState({});          // raw/edited HTML
+    const [fileName, setFileName] = useState({});          // original file name
+    const [reloadKey, setReloadKey] = useState({});        // bump to refresh iframe
+    const [editEnabled, setEditEnabled] = useState({});    // contentEditable flag
+    const [ann, setAnn] = useState({});                    // { id: { lines:[], texts:[] } }
+    const [tool, setTool] = useState(TOOLS.NONE);          // current drawing tool (shared)
+    const [assetsDir, setAssetsDir] = useState({});        // { id: DirectoryHandle }
+    const [isInlining, setIsInlining] = useState(false);
 
-    // for drawing state (not persisted)
     const drawingRef = useRef({ isDown: false, x1: 0, y1: 0 });
-
     const fileInputRef = useRef(null);
     const iframeRef = useRef(null);
+
+    const supportsDirPicker = typeof window.showDirectoryPicker === "function";
 
     useEffect(() => {
         localStorage.setItem("pnidReport:activeTab", activeTab);
     }, [activeTab]);
 
-    // Helpers to read/write per-tab values
+    // Helpers (per-tab setters/getters)
     const get = (obj, def) => obj[activeTab] ?? def;
-    const setForTab = (setter) => (valueOrFn) =>
-        setter((prev) => ({
-            ...prev,
-            [activeTab]: typeof valueOrFn === "function" ? valueOrFn(prev[activeTab]) : valueOrFn,
-        }));
+    const setForTab = (setter) => (valOrFn) =>
+        setter((prev) => ({ ...prev, [activeTab]: typeof valOrFn === "function" ? valOrFn(prev[activeTab]) : valOrFn }));
 
     const setHtmlForTab = setForTab(setHtmlText);
     const setNameForTab = setForTab(setFileName);
-    const bumpReloadForTab = () =>
-        setReloadKey((prev) => ({ ...prev, [activeTab]: (prev?.[activeTab] || 0) + 1 }));
     const setEditForTab = setForTab(setEditEnabled);
+    const setDirForTab = setForTab(setAssetsDir);
+    const bumpReloadForTab = () => setReloadKey((p) => ({ ...p, [activeTab]: (p?.[activeTab] || 0) + 1 }));
 
     const currentHtml = get(htmlText, "");
     const currentName = get(fileName, "");
     const currentReload = get(reloadKey, 0);
     const isEditingPage = !!get(editEnabled, false);
     const currentAnn = get(ann, { lines: [], texts: [] });
+    const currentDir = get(assetsDir, null);
 
+    // Styles
     const styles = useMemo(() => {
         const btn = { padding: "6px 10px", borderRadius: 8, background: "#111", color: "#fff", border: "1px solid #111", cursor: "pointer" };
         const btnLight = { padding: "6px 10px", borderRadius: 8, background: "#fff", color: "#111", border: "1px solid #ddd", cursor: "pointer" };
-        const tab = (active) => ({
-            padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd",
-            background: active ? "#111" : "#fff", color: active ? "#fff" : "#111",
-            cursor: "pointer", whiteSpace: "nowrap"
-        });
-        const toolBtn = (active) => ({
-            padding: "6px 10px", borderRadius: 8,
-            background: active ? "#111" : "#fff",
-            color: active ? "#fff" : "#111",
-            border: "1px solid #ddd", cursor: "pointer",
-        });
+        const tab = (active) => ({ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd", background: active ? "#111" : "#fff", color: active ? "#fff" : "#111", cursor: "pointer", whiteSpace: "nowrap" });
+        const toolBtn = (active) => ({ padding: "6px 10px", borderRadius: 8, background: active ? "#111" : "#fff", color: active ? "#fff" : "#111", border: "1px solid #ddd", cursor: "pointer" });
         return { btn, btnLight, tab, toolBtn };
     }, []);
 
-    // Load .html file as text for this tab
+    /** Load HTML file as text */
     const openPicker = () => fileInputRef.current?.click();
     const onPickFile = async (e) => {
         const f = e.target.files?.[0];
@@ -87,23 +210,56 @@ export default function PNIDReportView() {
         setHtmlForTab(text || "<!-- empty file -->");
         setNameForTab(f.name || "report.html");
         setEditForTab(false);
-        setAnn((prev) => ({ ...prev, [activeTab]: { lines: [], texts: [] } })); // clear annotations for new file
+        setAnn((prev) => ({ ...prev, [activeTab]: { lines: [], texts: [] } }));
         bumpReloadForTab();
     };
 
-    // Inject overlay div+svg inside the iframe document (so it scrolls with page)
+    /** Pick the folder that contains images/CSS referenced by the HTML */
+    const pickAssetsFolder = async () => {
+        if (!supportsDirPicker) {
+            alert("Folder picker requires Chrome/Edge desktop over HTTPS.");
+            return;
+        }
+        try {
+            const dir = await window.showDirectoryPicker();
+            setDirForTab(dir);
+            alert("Assets folder attached. Click ‘Inline assets’ to embed images/CSS.");
+        } catch {
+            // cancelled
+        }
+    };
+
+    /** Inline assets -> make HTML self-contained so images render */
+    const inlineAssets = async () => {
+        if (!currentDir) {
+            alert("Attach the assets folder first (the folder that has images/styles referenced by the report).");
+            return;
+        }
+        if (!currentHtml) return;
+        setIsInlining(true);
+        try {
+            const inlined = await inlineAssetsIntoHtml(currentHtml, currentDir);
+            setHtmlForTab(inlined);
+            bumpReloadForTab();
+            alert("Assets inlined. Images should now appear, and the saved HTML will be self-contained.");
+        } catch (e) {
+            console.error(e);
+            alert("Failed to inline some assets. Check paths or attach the correct folder.");
+        } finally {
+            setIsInlining(false);
+        }
+    };
+
+    /** Overlay creation/rendering inside the iframe */
     const ensureOverlay = () => {
         const iframe = iframeRef.current;
         if (!iframe) return null;
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
         if (!doc) return null;
 
-        // (1) contentEditable toggle
         doc.body.contentEditable = isEditingPage ? "true" : "false";
         doc.body.style.caretColor = isEditingPage ? "auto" : "";
-        doc.body.style.outline = isEditingPage ? "" : "";
 
-        // (2) overlay element
         let host = doc.getElementById("__pnid_overlay_host");
         if (!host) {
             host = doc.createElement("div");
@@ -112,7 +268,6 @@ export default function PNIDReportView() {
             host.style.inset = "0";
             host.style.zIndex = "2147483647";
             host.style.pointerEvents = tool === TOOLS.NONE || isEditingPage ? "none" : "auto";
-            // SVG inside for shapes
             const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
             svg.setAttribute("id", "__pnid_overlay_svg");
             svg.setAttribute("width", "100%");
@@ -123,19 +278,15 @@ export default function PNIDReportView() {
         } else {
             host.style.pointerEvents = tool === TOOLS.NONE || isEditingPage ? "none" : "auto";
         }
-        return { doc, host, svg: doc.getElementById("__pnid_overlay_svg") };
+        return { doc, host: host, svg: doc.getElementById("__pnid_overlay_svg") };
     };
 
-    // Render current annotations into the iframe's SVG overlay
     const renderOverlay = () => {
         const r = ensureOverlay();
         if (!r || !r.svg) return;
         const { svg } = r;
-
-        // clear
         while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-        // lines
         (currentAnn.lines || []).forEach((ln) => {
             const el = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "line");
             el.setAttribute("x1", String(ln.x1));
@@ -148,7 +299,6 @@ export default function PNIDReportView() {
             svg.appendChild(el);
         });
 
-        // texts
         (currentAnn.texts || []).forEach((tx) => {
             const el = svg.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "text");
             el.setAttribute("x", String(tx.x));
@@ -161,13 +311,11 @@ export default function PNIDReportView() {
         });
     };
 
-    // Attach drawing handlers on overlay host
     const attachOverlayEvents = () => {
         const r = ensureOverlay();
         if (!r || !r.host) return;
-        const { host, doc } = r;
+        const { host } = r;
 
-        // Remove previous to avoid doubling
         host.onmousedown = null;
         host.onmousemove = null;
         host.onmouseup = null;
@@ -186,17 +334,9 @@ export default function PNIDReportView() {
                 const x2 = ev.clientX - rect.left;
                 const y2 = ev.clientY - rect.top;
                 drawingRef.current.isDown = false;
-
                 setAnn((prev) => {
-                    const perTab = prev[activeTab] || { lines: [], texts: [] };
-                    const next = {
-                        ...prev,
-                        [activeTab]: {
-                            ...perTab,
-                            lines: [...(perTab.lines || []), { x1: drawingRef.current.x1, y1: drawingRef.current.y1, x2, y2 }],
-                        },
-                    };
-                    return next;
+                    const per = prev[activeTab] || { lines: [], texts: [] };
+                    return { ...prev, [activeTab]: { ...per, lines: [...(per.lines || []), { x1: drawingRef.current.x1, y1: drawingRef.current.y1, x2, y2 }] } };
                 });
             };
         } else if (tool === TOOLS.TEXT) {
@@ -207,23 +347,14 @@ export default function PNIDReportView() {
                 const text = window.prompt("Comment text:", "");
                 if (!text) return;
                 setAnn((prev) => {
-                    const perTab = prev[activeTab] || { lines: [], texts: [] };
-                    const next = {
-                        ...prev,
-                        [activeTab]: {
-                            ...perTab,
-                            texts: [...(perTab.texts || []), { x, y, text }],
-                        },
-                    };
-                    return next;
+                    const per = prev[activeTab] || { lines: [], texts: [] };
+                    return { ...prev, [activeTab]: { ...per, texts: [...(per.texts || []), { x, y, text }] } };
                 });
             };
         }
     };
 
-    // Recreate overlay + handlers on load / tool changes / page-edit toggle / reload
     useEffect(() => {
-        // small delay so iframe has rendered srcDoc
         const t = setTimeout(() => {
             ensureOverlay();
             attachOverlayEvents();
@@ -233,43 +364,27 @@ export default function PNIDReportView() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, currentHtml, currentReload, tool, isEditingPage]);
 
-    // Re-render overlay when annotations change
-    useEffect(() => {
-        renderOverlay();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ann, activeTab]);
+    useEffect(() => { renderOverlay(); /* eslint-disable-next-line */ }, [ann, activeTab]);
 
-    // Clear annotations for current tab
-    const clearAnnotations = () => {
-        setAnn((prev) => ({ ...prev, [activeTab]: { lines: [], texts: [] } }));
-    };
+    const clearAnnotations = () => setAnn((prev) => ({ ...prev, [activeTab]: { lines: [], texts: [] } }));
 
-    // Toggle editing text inside the page itself (contentEditable)
     const toggleEditPage = () => {
         setEditForTab((v) => !v);
-        setTool(TOOLS.NONE); // disable drawing when editing page text
-        // overlay pointerEvents will auto update via ensureOverlay()
-        // we also bump reload to re-run ensureOverlay under some browsers
+        setTool(TOOLS.NONE);
         bumpReloadForTab();
     };
 
-    // Save current page (with in-page text edits) + static overlay into a new .html
-    const saveAs = () => {
+    /** Save current (with annotations) as a self-contained .html (after you inline assets) */
+    const saveAsAnnotated = () => {
         const iframe = iframeRef.current;
         if (!iframe) return;
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
         if (!doc) return;
 
-        // ensure overlay exists & reflects current annotations
         ensureOverlay();
         renderOverlay();
-
-        // make overlay non-interactive for saved file
         const host = doc.getElementById("__pnid_overlay_host");
-        if (host) {
-            host.style.pointerEvents = "none";
-        }
-        // turn off contentEditable for saved version
+        if (host) host.style.pointerEvents = "none";
         doc.body.contentEditable = "false";
 
         const html = "<!doctype html>\n" + doc.documentElement.outerHTML;
@@ -283,7 +398,6 @@ export default function PNIDReportView() {
         setTimeout(() => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            // restore contentEditable flag in the live preview if it was on
             doc.body.contentEditable = isEditingPage ? "true" : "false";
             if (host) host.style.pointerEvents = tool === TOOLS.NONE || isEditingPage ? "none" : "auto";
         }, 0);
@@ -292,113 +406,46 @@ export default function PNIDReportView() {
     return (
         <div style={{ width: "100%", height: "100%", display: "grid", gridTemplateRows: "auto auto 1fr" }}>
             {/* Tabs */}
-            <div
-                style={{
-                    display: "flex", alignItems: "center", gap: 6, padding: "8px 10px",
-                    borderBottom: "1px solid #eee", background: "#fafafa", flexWrap: "wrap",
-                }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fafafa", flexWrap: "wrap" }}>
                 {TABS.map((t) => (
-                    <button
-                        key={t.id}
-                        onClick={() => setActiveTab(t.id)}
-                        style={styles.tab(activeTab === t.id)}
-                        title={t.label}
-                    >
+                    <button key={t.id} onClick={() => setActiveTab(t.id)} style={styles.tab(activeTab === t.id)} title={t.label}>
                         {t.label}
                     </button>
                 ))}
             </div>
 
             {/* Controls */}
-            <div
-                style={{
-                    display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
-                    borderBottom: "1px solid #eee", background: "#fff", flexWrap: "wrap",
-                }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderBottom: "1px solid #eee", background: "#fff", flexWrap: "wrap" }}>
                 <button onClick={openPicker} style={styles.btn}>Load HTML</button>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".html,.htm"
-                    onChange={onPickFile}
-                    style={{ display: "none" }}
-                />
+                <input ref={fileInputRef} type="file" accept=".html,.htm" onChange={onPickFile} style={{ display: "none" }} />
+                {currentName ? <span style={{ fontSize: 12, color: "#555" }}>{currentName}</span> : <span style={{ fontSize: 12, color: "#666" }}>No file loaded</span>}
 
-                {currentName ? (
-                    <span style={{ fontSize: 12, color: "#555" }}>{currentName}</span>
-                ) : (
-                    <span style={{ fontSize: 12, color: "#666" }}>No file loaded</span>
-                )}
+                <span style={{ width: 8 }} />
 
-                <span style={{ width: 12 }} />
-
-                <button
-                    onClick={toggleEditPage}
-                    style={styles.btnLight}
-                    disabled={!currentHtml}
-                    title="Toggle editing text inside the page"
-                >
+                <button onClick={toggleEditPage} style={styles.btnLight} disabled={!currentHtml}>
                     {isEditingPage ? "Disable page text edit" : "Enable page text edit"}
                 </button>
 
-                <span style={{ width: 6 }} />
+                {/* Drawing tools (disabled while editing page text) */}
+                <button onClick={() => setTool(TOOLS.NONE)} style={styles.toolBtn(tool === TOOLS.NONE)} disabled={!currentHtml || isEditingPage}>Pointer</button>
+                <button onClick={() => setTool(TOOLS.LINE)} style={styles.toolBtn(tool === TOOLS.LINE)} disabled={!currentHtml || isEditingPage}>Line</button>
+                <button onClick={() => setTool(TOOLS.TEXT)} style={styles.toolBtn(tool === TOOLS.TEXT)} disabled={!currentHtml || isEditingPage}>Text</button>
+                <button onClick={clearAnnotations} style={styles.btnLight} disabled={!currentHtml || ((currentAnn.lines || []).length + (currentAnn.texts || []).length === 0)}>Clear annotations</button>
 
-                {/* Tools */}
-                <button
-                    onClick={() => setTool(TOOLS.NONE)}
-                    style={styles.toolBtn(tool === TOOLS.NONE)}
-                    disabled={!currentHtml || isEditingPage}
-                    title="Pointer (no drawing)"
-                >
-                    Pointer
-                </button>
-                <button
-                    onClick={() => setTool(TOOLS.LINE)}
-                    style={styles.toolBtn(tool === TOOLS.LINE)}
-                    disabled={!currentHtml || isEditingPage}
-                    title="Draw line"
-                >
-                    Line
-                </button>
-                <button
-                    onClick={() => setTool(TOOLS.TEXT)}
-                    style={styles.toolBtn(tool === TOOLS.TEXT)}
-                    disabled={!currentHtml || isEditingPage}
-                    title="Place text comment"
-                >
-                    Text
-                </button>
+                {/* Assets inlining */}
+                <span style={{ width: 8 }} />
+                <button onClick={pickAssetsFolder} style={styles.btnLight} disabled={!supportsDirPicker}>Attach assets folder</button>
+                <button onClick={inlineAssets} style={styles.btnLight} disabled={!currentHtml || !currentDir || isInlining}>{isInlining ? "Inlining…" : "Inline assets"}</button>
 
-                <button
-                    onClick={clearAnnotations}
-                    style={styles.btnLight}
-                    disabled={!currentHtml || ((currentAnn.lines || []).length + (currentAnn.texts || []).length === 0)}
-                    title="Remove all annotations on this tab"
-                >
-                    Clear annotations
-                </button>
-
-                <button
-                    onClick={saveAs}
-                    style={styles.btnLight}
-                    disabled={!currentHtml}
-                    title="Save current HTML with annotations"
-                >
-                    Save As (.annotated.html)
-                </button>
+                <span style={{ width: 8 }} />
+                <button onClick={saveAsAnnotated} style={styles.btnLight} disabled={!currentHtml}>Save As (.annotated.html)</button>
             </div>
 
             {/* Viewer */}
             {!currentHtml ? (
                 <div style={{ padding: 16, color: "#666", lineHeight: 1.5 }}>
-                    No report loaded for <b>{TABS.find(t => t.id === activeTab)?.label}</b>. Click <b>Load HTML</b> to select
-                    your Report Creator export.
-                    <div style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
-                        Tip: Prefer a <b>single-file HTML</b> export so styles/images work locally.
-                        Use the toolbar to <b>edit text in the page</b>, drop <b>Text</b> comments, or draw a <b>Line</b>.
-                    </div>
+                    No report loaded for <b>{TABS.find(t => t.id === activeTab)?.label}</b>.
+                    Load the report HTML. If images don’t show, click <b>Attach assets folder</b> (pick the folder that contains the report’s <i>images / css</i>) and then <b>Inline assets</b>.
                 </div>
             ) : (
                 <iframe
@@ -408,7 +455,6 @@ export default function PNIDReportView() {
                     srcDoc={currentHtml}
                     style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
                     onLoad={() => {
-                        // after reload, rebuild overlay with current settings & annotations
                         ensureOverlay();
                         attachOverlayEvents();
                         renderOverlay();
