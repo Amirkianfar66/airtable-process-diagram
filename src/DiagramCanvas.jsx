@@ -47,6 +47,70 @@ export default function DiagramCanvas({
     const [valveTypeOptions, setValveTypeOptions] = useState([]);
     const panelRef = useRef(null);
     const [view, setView] = useState('2d');
+    // --- Canvas annotate state ---
+    const [annoActive, setAnnoActive] = useState(false);
+    const [annoTool, setAnnoTool] = useState('note'); // 'move' | 'line' | 'rect' | 'circle' | 'note'
+    const [annoColor, setAnnoColor] = useState('#222');
+    const [annoWidth, setAnnoWidth] = useState(2);
+
+    const [annotations, setAnnotations] = useState([]); // [{type, ...}]
+    const [annoDraft, setAnnoDraft] = useState(null);   // live drawing object
+    const [annoSelected, setAnnoSelected] = useState(null); // selected index (for Move/Note edit)
+    const annoMoveRef = useRef(null);  // { index, start:{x,y}, original:<shape> }
+    const svgAnnoRef = useRef(null);
+
+    // disable right-mouse panning while annotating
+    useEffect(() => {
+        window.rfDisableRightPan?.(annoActive);
+        return () => window.rfDisableRightPan?.(false);
+    }, [annoActive]);
+
+    // prevent nodes from being dragged while annotating (optional but nice)
+    useEffect(() => {
+        if (!setNodes) return;
+        setNodes(nds => nds.map(n => ({ ...n, draggable: !annoActive })));
+    }, [annoActive, setNodes]);
+
+    // convert pointer to local SVG coords
+    function svgPointFromEvent(evt, svgEl) {
+        const pt = svgEl.createSVGPoint();
+        pt.x = evt.clientX;
+        pt.y = evt.clientY;
+        const ctm = svgEl.getScreenCTM();
+        return ctm ? pt.matrixTransform(ctm.inverse()) : { x: 0, y: 0 };
+    }
+
+    // --- hit-test helpers for Move tool ---
+    function pointToSegmentDist(px, py, x1, y1, x2, y2) {
+        const vx = x2 - x1, vy = y2 - y1;
+        const wx = px - x1, wy = py - y1;
+        const c1 = wx * vx + wy * vy;
+        if (c1 <= 0) return Math.hypot(px - x1, py - y1);
+        const c2 = vx * vx + vy * vy;
+        if (c2 <= c1) return Math.hypot(px - x2, py - y2);
+        const b = c1 / c2;
+        const bx = x1 + b * vx, by = y1 + b * vy;
+        return Math.hypot(px - bx, py - by);
+    }
+
+    function hitTestIndex(p, list, tol = 6) {
+        for (let i = list.length - 1; i >= 0; i--) {
+            const o = list[i];
+            if (o.type === 'rect') {
+                if (p.x >= o.x && p.x <= o.x + o.w && p.y >= o.y && p.y <= o.y + o.h) return i;
+            } else if (o.type === 'circle') {
+                const dx = p.x - o.cx, dy = p.y - o.cy;
+                if (dx * dx + dy * dy <= (o.r + tol) * (o.r + tol)) return i;
+            } else if (o.type === 'line') {
+                if (pointToSegmentDist(p.x, p.y, o.x1, o.y1, o.x2, o.y2) <= tol) return i;
+            } else if (o.type === 'note') {
+                // treat note as a rect for hit-test
+                const w = o.w ?? 120, h = o.h ?? 60;
+                if (p.x >= o.x && p.x <= o.x + w && p.y >= o.y && p.y <= o.y + h) return i;
+            }
+        }
+        return -1;
+    }
 
     // expose globals so your MainToolbar "3D" tab can toggle
     useEffect(() => {
@@ -408,6 +472,129 @@ export default function DiagramCanvas({
         return Array.isArray(edges) ? edges : [];
     }, [enhancedEdges, edges]);
 
+    const onAnnoDown = (e) => {
+        if (!annoActive || !svgAnnoRef.current) return;
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
+
+        const p = svgPointFromEvent(e, svgAnnoRef.current);
+
+        if (annoTool === 'move') {
+            const idx = hitTestIndex(p, annotations, 6);
+            setAnnoSelected(idx >= 0 ? idx : null);
+            if (idx >= 0) {
+                annoMoveRef.current = { index: idx, start: p, original: { ...annotations[idx] } };
+            } else {
+                annoMoveRef.current = null;
+            }
+            return;
+        }
+
+        if (annoTool === 'line') {
+            setAnnoDraft({ type: 'line', x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: annoColor, strokeWidth: annoWidth });
+        } else if (annoTool === 'rect') {
+            setAnnoDraft({ type: 'rect', x: p.x, y: p.y, w: 0, h: 0, stroke: annoColor, strokeWidth: annoWidth, fill: 'none' });
+        } else if (annoTool === 'circle') {
+            setAnnoDraft({ type: 'circle', cx: p.x, cy: p.y, r: 0, stroke: annoColor, strokeWidth: annoWidth, fill: 'none' });
+        } else if (annoTool === 'note') {
+            // create a note immediately; allow moving afterward with Move tool or drag end
+            const note = { type: 'note', x: p.x, y: p.y, w: 140, h: 70, text: 'Note', stroke: '#888', fill: '#fff8c6', strokeWidth: 1.5 };
+            setAnnotations(prev => [...prev, note]);
+            setAnnoSelected(prev => (prev != null ? prev : annotations.length)); // select it
+        }
+    };
+
+    const onAnnoMove = (e) => {
+        if (!annoActive || !svgAnnoRef.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const p = svgPointFromEvent(e, svgAnnoRef.current);
+
+        // moving existing
+        if (annoTool === 'move' && annoMoveRef.current) {
+            const { index, start, original } = annoMoveRef.current;
+            const dx = p.x - start.x, dy = p.y - start.y;
+            const moved =
+                original.type === 'rect' ? { ...original, x: original.x + dx, y: original.y + dy } :
+                    original.type === 'circle' ? { ...original, cx: original.cx + dx, cy: original.cy + dy } :
+                        original.type === 'line' ? { ...original, x1: original.x1 + dx, y1: original.y1 + dy, x2: original.x2 + dx, y2: original.y2 + dy } :
+                            original.type === 'note' ? { ...original, x: original.x + dx, y: original.y + dy } :
+                                original;
+
+            setAnnotations(prev => prev.map((s, i) => (i === index ? moved : s)));
+            return;
+        }
+
+        // live draft
+        if (!annoDraft) return;
+        setAnnoDraft(d => {
+            if (!d) return d;
+            if (d.type === 'line') return { ...d, x2: p.x, y2: p.y };
+            if (d.type === 'rect') return { ...d, w: Math.max(0, p.x - d.x), h: Math.max(0, p.y - d.y) };
+            if (d.type === 'circle') return { ...d, r: Math.hypot(p.x - d.cx, p.y - d.cy) };
+            return d;
+        });
+    };
+
+    const onAnnoUp = (e) => {
+        if (!annoActive) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try { svgAnnoRef.current?.releasePointerCapture?.(e.pointerId); } catch { }
+
+        if (annoTool === 'move' && annoMoveRef.current) {
+            annoMoveRef.current = null;
+            // persist whole list (no-op if you later add autosave)
+            setAnnotations(prev => [...prev]);
+            return;
+        }
+
+        if (!annoDraft) return;
+        const fin = annoDraft;
+        setAnnoDraft(null);
+        setAnnotations(prev => [...prev, fin]);
+    };
+
+    // double-click to edit note text when selected + move tool
+    const onAnnoDoubleClick = (e) => {
+        if (!annoActive || annoTool !== 'move' || annoSelected == null) return;
+        const cur = annotations[annoSelected];
+        if (!cur || cur.type !== 'note') return;
+        e.preventDefault(); e.stopPropagation();
+        const nextText = prompt('Edit note text:', cur.text || 'Note');
+        if (nextText != null) {
+            setAnnotations(prev => prev.map((s, i) => (i === annoSelected ? { ...s, text: nextText } : s)));
+        }
+    };
+    // Expose simple controls for external toolbars (AddItemButton)
+    useEffect(() => {
+        window.annoControls = {
+            setActive: setAnnoActive,
+            setTool: setAnnoTool,
+            setWidth: setAnnoWidth,
+            setColor: setAnnoColor,
+            undo: () => setAnnotations(prev => prev.slice(0, -1)),
+            clear: () => setAnnotations([]),
+            deleteSelected: () => {
+                if (annoSelected == null) return;
+                setAnnotations(prev => prev.filter((_, i) => i !== annoSelected));
+                setAnnoSelected(null);
+            },
+            // optional readback for initial sync
+            getState: () => ({
+                active: annoActive,
+                tool: annoTool,
+                color: annoColor,
+                width: annoWidth,
+                selected: annoSelected,
+                count: annotations.length,
+            }),
+        };
+        return () => { delete window.annoControls; };
+    }, [annoActive, annoTool, annoColor, annoWidth, annoSelected, annotations.length]);
+
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -516,6 +703,61 @@ export default function DiagramCanvas({
                         >
                             <Background />
                             <Controls />
+                            {/* === Canvas annotation overlay === */}
+                                <svg
+                                    ref={svgAnnoRef}
+                                    width="100%"
+                                    height="100%"
+                                    viewBox={`0 0 2000 1200`}             // generous virtual space; or compute from bounds
+                                    style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        pointerEvents: annoActive ? 'all' : 'none',
+                                        cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default'
+                                    }}
+                                    onPointerDown={onAnnoDown}
+                                    onPointerMove={onAnnoMove}
+                                    onPointerUp={onAnnoUp}
+                                    onPointerCancel={onAnnoUp}
+                                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onDoubleClick={onAnnoDoubleClick}
+                                >
+                                    {/* highlight selected shape */}
+                                    {annoSelected != null && annotations[annoSelected] && (() => {
+                                        const s = annotations[annoSelected];
+                                        const dash = { strokeDasharray: '4 3', strokeWidth: (s.strokeWidth || 2) + 1.2, stroke: '#444', fill: 'none' };
+                                        if (s.type === 'line') return <line   {...dash} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
+                                        if (s.type === 'rect') return <rect   {...dash} x={s.x} y={s.y} width={s.w} height={s.h} />;
+                                        if (s.type === 'circle') return <circle {...dash} cx={s.cx} cy={s.cy} r={s.r} />;
+                                        if (s.type === 'note') return <rect   {...dash} x={s.x} y={s.y} width={s.w ?? 140} height={s.h ?? 70} />;
+                                        return null;
+                                    })()}
+
+                                    {/* committed annotations */}
+                                    {annotations.map((o, i) => {
+                                        const stroke = o.stroke ?? '#222';
+                                        const w = o.strokeWidth ?? 2;
+                                        if (o.type === 'line') return <line key={i} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} stroke={stroke} strokeWidth={w} />;
+                                        if (o.type === 'rect') return <rect key={i} x={o.x} y={o.y} width={o.w} height={o.h} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                        if (o.type === 'circle') return <circle key={i} cx={o.cx} cy={o.cy} r={o.r} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                        if (o.type === 'note') {
+                                            const bw = 1.5, pad = 6, noteW = o.w ?? 140, noteH = o.h ?? 70;
+                                            return (
+                                                <g key={i}>
+                                                    <rect x={o.x} y={o.y} width={noteW} height={noteH} rx={6} ry={6} fill={o.fill ?? '#fff8c6'} stroke={o.stroke ?? '#888'} strokeWidth={o.strokeWidth ?? bw} />
+                                                    <text x={o.x + pad} y={o.y + 20} style={{ fontSize: 12, fill: '#222' }}>{o.text || 'Note'}</text>
+                                                </g>
+                                            );
+                                        }
+                                        return null;
+                                    })}
+
+                                    {/* live draft preview */}
+                                    {annoDraft?.type === 'line' && <line x1={annoDraft.x1} y1={annoDraft.y1} x2={annoDraft.x2} y2={annoDraft.y2} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} />}
+                                    {annoDraft?.type === 'rect' && <rect x={annoDraft.x} y={annoDraft.y} width={annoDraft.w} height={annoDraft.h} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
+                                    {annoDraft?.type === 'circle' && <circle cx={annoDraft.cx} cy={annoDraft.cy} r={annoDraft.r || 0} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
+                                </svg>
+
                         </ReactFlow>
                     )}
 
