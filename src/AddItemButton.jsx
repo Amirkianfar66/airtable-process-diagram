@@ -47,7 +47,11 @@ export default function AddItemButton({
     // shorthands to talk to DiagramCanvas
     const api = () => window.annoControls || {};
     const setAnnoActive = (v) => { api().setActive?.(!!v); setActive(!!v); };
-    const setAnnoTool = (t) => { api().setTool?.(t); setTool(t); };
+    const setAnnoTool = (t) => {
+        api().setTool?.(t);
+        setTool(t);
+        if (!active) { api().setActive?.(true); setActive(true); } // auto-arm
+    };
     const setAnnoWidth = (w) => { api().setWidth?.(w); setPenWidth(w); };
     const setAnnoColor = (c) => { api().setColor?.(c); setColor(c); };
 
@@ -78,7 +82,10 @@ export default function AddItemButton({
 
             {/* toggle toolbar */}
             <button
-                onClick={() => setPanelOpen((v) => !v)}
+                onClick={() => {
+                    setPanelOpen((v) => !v);
+                    if (!active) { api().setActive?.(true); setActive(true); }
+                }}
                 title="Show annotate toolbar"
                 style={{
                     padding: '8px 12px',

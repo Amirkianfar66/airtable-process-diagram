@@ -712,6 +712,7 @@ export default function DiagramCanvas({
                                     style={{
                                         position: 'absolute',
                                         inset: 0,
+                                        zIndex: 8,
                                         pointerEvents: annoActive ? 'all' : 'none',
                                         cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default'
                                     }}
