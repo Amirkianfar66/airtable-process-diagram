@@ -373,9 +373,9 @@ export default function EquipmentIcon({ id, data }) {
                         })()}
 
                         {/* Live draft preview while drawing */}
-                        {draft?.type === "line" && <line x1={draft.x1} y1={draft.y1} x2={draft.x2} y2={draft.y2} stroke="#222" strokeWidth="2" />}
-                        {draft?.type === "rect" && <rect x={draft.x} y={draft.y} width={draft.w} height={draft.h} stroke="#222" strokeWidth="2" fill="none" />}
-                        {draft?.type === "circle" && <circle cx={draft.cx} cy={draft.cy} r={draft.r || 0} stroke="#222" strokeWidth="2" fill="none" />}
+                        {draft?.type === "line" && <line x1={draft.x1} y1={draft.y1} x2={draft.x2} y2={draft.y2} stroke="#222" strokeWidth="1" />}
+                        {draft?.type === "rect" && <rect x={draft.x} y={draft.y} width={draft.w} height={draft.h} stroke="#222" strokeWidth="1" fill="none" />}
+                        {draft?.type === "circle" && <circle cx={draft.cx} cy={draft.cy} r={draft.r || 0} stroke="#222" strokeWidth="1" fill="none" />}
                     </svg>
                 )}
 
