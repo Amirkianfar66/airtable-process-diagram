@@ -368,6 +368,23 @@ export default function DiagramCanvas({
         }
     };
     const rfInstanceRef = useRef(null);
+    // 🚫 disable right-mouse panning when true
+    const [disableRightPan, setDisableRightPan] = useState(false);
+
+    useEffect(() => {
+        // global setter any node can call
+        window.rfDisableRightPan = (v) => setDisableRightPan(!!v);
+
+        // optional custom event bus
+        const onEvt = (e) => setDisableRightPan(!!e.detail?.disabled);
+        window.addEventListener('rf:disableRightPan', onEvt);
+
+        return () => {
+            delete window.rfDisableRightPan;
+            window.removeEventListener('rf:disableRightPan', onEvt);
+        };
+    }, []);
+
     const firstFitDone = useRef(false);
 
     useEffect(() => {
@@ -491,7 +508,11 @@ export default function DiagramCanvas({
                             minZoom={0.02}
                             defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                             nodeTypes={nodeTypes}
+                            panOnDrag={disableRightPan ? [0, 1] : true}   // allow left+middle; block right when editing
+                            zoomOnScroll={true}
+                            zoomOnPinch={true}
                             style={{ width: '100%', height: '100%', background: 'transparent' }}
+
                         >
                             <Background />
                             <Controls />

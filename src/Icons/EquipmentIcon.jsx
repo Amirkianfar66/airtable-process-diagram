@@ -43,7 +43,12 @@ const pickIcon = (data) => {
 // ----- overlay renderer (reads saved shapes) -----
 function Overlay({ overlays = [] }) {
     return (
-        <svg width="150" height="150" viewBox="0 0 150 150" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <svg
+            width="150"
+            height="150"
+            viewBox="0 0 150 150"
+            style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+        >
             {overlays.map((o, i) => {
                 const common = {
                     key: i,
@@ -74,8 +79,8 @@ export default function EquipmentIcon({ id, data }) {
 
     // UI state
     const [hovered, setHovered] = useState(false);
-    const [editing, setEditing] = useState(false);  // toggled by the "Edit" button
-    const [tool, setTool] = useState("line");       // 'line' | 'circle' | 'rect'
+    const [editing, setEditing] = useState(false);       // toggled by the "Edit" button
+    const [tool, setTool] = useState("line");            // 'line' | 'circle' | 'rect'
     const [scale, setScale] = useState(data?.scale || 1);
 
     // overlay data
@@ -85,15 +90,30 @@ export default function EquipmentIcon({ id, data }) {
     const svgRef = useRef(null);
     const hoverHide = useRef(null);
 
+    // keep scale in sync with node data
     useEffect(() => {
         if (data?.scale !== undefined && data.scale !== scale) setScale(data.scale);
     }, [data?.scale]);
 
+    // pull overlays from node data on re-render
     useEffect(() => {
         if (Array.isArray(data?.overlays)) setOverlays(data.overlays);
     }, [data?.overlays]);
 
     useEffect(() => () => hoverHide.current && clearTimeout(hoverHide.current), []);
+
+    // ✅ when editing toggles, disable RIGHT pan on the canvas (zoom still works)
+    useEffect(() => {
+        window.rfDisableRightPan?.(editing);
+        return () => window.rfDisableRightPan?.(false);
+    }, [editing]);
+
+    // ✅ while editing, also prevent this node from being dragged
+    useEffect(() => {
+        setNodes((nodes) =>
+            nodes.map((n) => (n.id === id ? { ...n, draggable: !editing } : n))
+        );
+    }, [editing, id, setNodes]);
 
     const Icon = useMemo(() => pickIcon(data), [data?.TypeKey, data?.Type]);
 
@@ -127,6 +147,7 @@ export default function EquipmentIcon({ id, data }) {
     // drawing handlers
     const onPointerDown = (e) => {
         if (!editing || !svgRef.current) return;
+        e.preventDefault();
         e.stopPropagation();
         const p = svgPointFromEvent(e, svgRef.current);
 
@@ -141,6 +162,7 @@ export default function EquipmentIcon({ id, data }) {
 
     const onPointerMove = (e) => {
         if (!editing || !draft || !svgRef.current) return;
+        e.preventDefault();
         e.stopPropagation();
         const p = svgPointFromEvent(e, svgRef.current);
 
@@ -158,6 +180,7 @@ export default function EquipmentIcon({ id, data }) {
 
     const onPointerUp = (e) => {
         if (!editing || !draft) return;
+        e.preventDefault();
         e.stopPropagation();
         const finalized = draft;
         setDraft(null);
@@ -217,10 +240,15 @@ export default function EquipmentIcon({ id, data }) {
                         width="150"
                         height="150"
                         viewBox="0 0 150 150"
-                        style={{ position: "absolute", inset: 0, cursor: "crosshair" }}
+                        style={{ position: "absolute", inset: 0, cursor: "crosshair", pointerEvents: "all", touchAction: "none" }}
+                        // capture phase blocks RF before it hears the event
+                        onPointerDownCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onPointerMoveCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onPointerUpCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
                         onPointerDown={onPointerDown}
                         onPointerMove={onPointerMove}
                         onPointerUp={onPointerUp}
+                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     >
                         {/* Live draft preview */}
                         {draft?.type === "line" && (
@@ -235,19 +263,51 @@ export default function EquipmentIcon({ id, data }) {
                     </svg>
                 )}
 
-                {/* React Flow handles (unchanged) */}
-                <Handle type="target" position={Position.Left} id="left"
-                    style={{ position: "absolute", top: "50%", left: -7, background: "red", borderRadius: "50%", width: 14, height: 14, transform: "translateY(-50%)", opacity: hovered ? 1 : 0.01 }}
-                />
-                <Handle type="source" position={Position.Right} id="right"
-                    style={{ position: "absolute", top: "50%", right: -7, background: "blue", borderRadius: "50%", width: 14, height: 14, transform: "translateY(-50%)", opacity: hovered ? 1 : 0.01 }}
-                />
-                <Handle type="target" position={Position.Top} id="top"
-                    style={{ position: "absolute", top: -7, left: "50%", background: "green", borderRadius: "50%", width: 14, height: 14, transform: "translateX(-50%)", opacity: hovered ? 1 : 0.01 }}
-                />
-                <Handle type="source" position={Position.Bottom} id="bottom"
-                    style={{ position: "absolute", bottom: -7, left: "50%", background: "orange", borderRadius: "50%", width: 14, height: 14, transform: "translateX(-50%)", opacity: hovered ? 1 : 0.01 }}
-                />
+                {/* React Flow handles (hidden while editing) */}
+                {!editing && (
+                    <>
+                        <Handle
+                            type="target"
+                            position={Position.Left}
+                            id="left"
+                            style={{
+                                position: "absolute", top: "50%", left: -7, background: "red",
+                                borderRadius: "50%", width: 14, height: 14, transform: "translateY(-50%)",
+                                opacity: hovered ? 1 : 0.01
+                            }}
+                        />
+                        <Handle
+                            type="source"
+                            position={Position.Right}
+                            id="right"
+                            style={{
+                                position: "absolute", top: "50%", right: -7, background: "blue",
+                                borderRadius: "50%", width: 14, height: 14, transform: "translateY(-50%)",
+                                opacity: hovered ? 1 : 0.01
+                            }}
+                        />
+                        <Handle
+                            type="target"
+                            position={Position.Top}
+                            id="top"
+                            style={{
+                                position: "absolute", top: -7, left: "50%", background: "green",
+                                borderRadius: "50%", width: 14, height: 14, transform: "translateX(-50%)",
+                                opacity: hovered ? 1 : 0.01
+                            }}
+                        />
+                        <Handle
+                            type="source"
+                            position={Position.Bottom}
+                            id="bottom"
+                            style={{
+                                position: "absolute", bottom: -7, left: "50%", background: "orange",
+                                borderRadius: "50%", width: 14, height: 14, transform: "translateX(-50%)",
+                                opacity: hovered ? 1 : 0.01
+                            }}
+                        />
+                    </>
+                )}
             </div>
 
             {/* Top toolbar (appears on hover) */}
@@ -268,6 +328,7 @@ export default function EquipmentIcon({ id, data }) {
                         alignItems: "center",
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
                 >
                     {/* Scale */}
                     <button onClick={onScale} style={{ fontSize: 12 }}>×2</button>
@@ -275,7 +336,10 @@ export default function EquipmentIcon({ id, data }) {
 
                     {/* Edit toggle */}
                     <button
-                        onClick={() => setEditing((v) => !v)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setEditing((v) => !v);
+                        }}
                         style={{ fontSize: 12, fontWeight: 600 }}
                         title="Edit (draw overlays on this icon)"
                     >
@@ -286,15 +350,9 @@ export default function EquipmentIcon({ id, data }) {
                     {editing && (
                         <>
                             <span style={{ fontSize: 12, opacity: 0.75 }}>Tool:</span>
-                            <button onClick={() => setTool("line")} style={{ fontSize: 12, fontWeight: tool === "line" ? 700 : 400 }}>
-                                Line
-                            </button>
-                            <button onClick={() => setTool("circle")} style={{ fontSize: 12, fontWeight: tool === "circle" ? 700 : 400 }}>
-                                Circle
-                            </button>
-                            <button onClick={() => setTool("rect")} style={{ fontSize: 12, fontWeight: tool === "rect" ? 700 : 400 }}>
-                                Rect
-                            </button>
+                            <button onClick={() => setTool("line")} style={{ fontSize: 12, fontWeight: tool === "line" ? 700 : 400 }}>Line</button>
+                            <button onClick={() => setTool("circle")} style={{ fontSize: 12, fontWeight: tool === "circle" ? 700 : 400 }}>Circle</button>
+                            <button onClick={() => setTool("rect")} style={{ fontSize: 12, fontWeight: tool === "rect" ? 700 : 400 }}>Rect</button>
                             <button onClick={undoOne} style={{ fontSize: 12 }}>Undo</button>
                             <button onClick={clearAll} style={{ fontSize: 12, color: "#b00" }}>Clear</button>
                         </>
