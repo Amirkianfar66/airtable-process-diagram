@@ -605,6 +605,17 @@ export default function DiagramCanvas({
                 setAnnotations(prev => prev.filter((_, i) => i !== annoSelected));
                 setAnnoSelected(null);
             },
+            addVector: (vector) => {            // { type:'svg', transform, paths:[{d,stroke,fill,strokeWidth}] }
+                setAnnotations(prev => [...prev, vector]);
+                setAnnoActive(true);
+                setAnnoTool('move');              // ready to move it right away
+            },
+            addPaths: (paths, transform) => {   // convenience wrapper
+                setAnnotations(prev => [...prev, { type: 'svg', transform, paths }]);
+                setAnnoActive(true);
+                setAnnoTool('move');
+            },
+
             // optional readback for initial sync
             getState: () => ({
                 active: annoActive,
@@ -764,6 +775,25 @@ export default function DiagramCanvas({
                                         if (o.type === 'line') return <line key={i} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} stroke={stroke} strokeWidth={w} />;
                                         if (o.type === 'rect') return <rect key={i} x={o.x} y={o.y} width={o.w} height={o.h} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
                                         if (o.type === 'circle') return <circle key={i} cx={o.cx} cy={o.cy} r={o.r} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                        if (o.type === 'path')
+                                            return <path key={i} d={o.d} stroke={o.stroke ?? stroke} strokeWidth={o.strokeWidth ?? w} fill={o.fill ?? 'none'} transform={o.transform || undefined} />;
+
+                                        if (o.type === 'svg') {
+                                            return (
+                                                <g key={i} transform={o.transform || undefined}>
+                                                    {(o.paths || []).map((p, j) => (
+                                                        <path
+                                                            key={j}
+                                                            d={p.d}
+                                                            stroke={p.stroke ?? stroke}
+                                                            strokeWidth={p.strokeWidth ?? w}
+                                                            fill={p.fill ?? 'none'}
+                                                        />
+                                                    ))}
+                                                </g>
+                                            );
+                                        }
+
                                         if (o.type === 'note') {
                                             const bw = 1.5, pad = 6, noteW = o.w ?? 140, noteH = o.h ?? 70;
                                             return (

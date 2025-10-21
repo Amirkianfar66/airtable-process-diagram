@@ -17,6 +17,7 @@
     "@react-three/fiber": "^8.18.0",
     "airtable": "^0.12.2",
     "dotenv": "^17.2.1",
+    "imagetracerjs": "^1.2.6",
     "nanoid": "^5.1.5",
     "openai": "^5.12.2",
     "papaparse": "^5.5.3",
