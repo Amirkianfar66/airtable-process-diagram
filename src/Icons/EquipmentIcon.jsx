@@ -73,6 +73,32 @@ function svgPointFromEvent(evt, svgEl) {
     const ctm = svgEl.getScreenCTM();
     return ctm ? pt.matrixTransform(ctm.inverse()) : { x: 0, y: 0 };
 }
+function pointToSegmentDist(px, py, x1, y1, x2, y2) {
+    const vx = x2 - x1, vy = y2 - y1;
+    const wx = px - x1, wy = py - y1;
+    const c1 = wx * vx + wy * vy;
+    if (c1 <= 0) return Math.hypot(px - x1, py - y1);
+    const c2 = vx * vx + vy * vy;
+    if (c2 <= c1) return Math.hypot(px - x2, py - y2);
+    const b = c1 / c2;
+    const bx = x1 + b * vx, by = y1 + b * vy;
+    return Math.hypot(px - bx, py - by);
+}
+
+function hitTestIndex(p, overlays, tol = 6) {
+    for (let i = overlays.length - 1; i >= 0; i--) {
+        const o = overlays[i];
+        if (o.type === "rect") {
+            if (p.x >= o.x && p.x <= o.x + o.w && p.y >= o.y && p.y <= o.y + o.h) return i;
+        } else if (o.type === "circle") {
+            const dx = p.x - o.cx, dy = p.y - o.cy;
+            if (dx * dx + dy * dy <= (o.r + tol) * (o.r + tol)) return i;
+        } else if (o.type === "line") {
+            if (pointToSegmentDist(p.x, p.y, o.x1, o.y1, o.x2, o.y2) <= tol) return i;
+        }
+    }
+    return -1;
+}
 
 export default function EquipmentIcon({ id, data }) {
     const { setNodes } = useReactFlow();
@@ -89,6 +115,13 @@ export default function EquipmentIcon({ id, data }) {
 
     const svgRef = useRef(null);
     const hoverHide = useRef(null);
+    const [selected, setSelected] = useState(null);     // index of selected shape
+    const movingRef = useRef(null);                     // { index, start:{x,y}, original:<shape> }
+
+    // if user switches to Move tool, ensure no draw draft is pending
+    useEffect(() => {
+        if (tool === "move") setDraft(null);
+    }, [tool]);
 
     // keep scale in sync with node data
     useEffect(() => {
@@ -152,11 +185,11 @@ export default function EquipmentIcon({ id, data }) {
         const p = svgPointFromEvent(e, svgRef.current);
 
         if (tool === "line") {
-            setDraft({ type: "line", x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: "#222", strokeWidth: 2 });
+            setDraft({ type: "line", x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: "#222", strokeWidth: 1 });
         } else if (tool === "rect") {
-            setDraft({ type: "rect", x: p.x, y: p.y, w: 0, h: 0, stroke: "#222", strokeWidth: 2, fill: "none" });
+            setDraft({ type: "rect", x: p.x, y: p.y, w: 0, h: 0, stroke: "#222", strokeWidth: 1, fill: "none" });
         } else if (tool === "circle") {
-            setDraft({ type: "circle", cx: p.x, cy: p.y, r: 0, stroke: "#222", strokeWidth: 2, fill: "none" });
+            setDraft({ type: "circle", cx: p.x, cy: p.y, r: 0, stroke: "#222", strokeWidth: 1, fill: "none" });
         }
     };
 
@@ -198,14 +231,26 @@ export default function EquipmentIcon({ id, data }) {
     };
     const handleDown = (e) => {
         if (!editing || !svgRef.current) return;
-        if (e.button !== 0) return; // only left button draws
+        if (e.button !== 0) return; // left button only
         e.preventDefault();
         e.stopPropagation();
-
-        // keep receiving move/up even if pointer leaves the SVG
         try { svgRef.current.setPointerCapture(e.pointerId); } catch { }
 
         const p = svgPointFromEvent(e, svgRef.current);
+
+        if (tool === "move") {
+            const idx = hitTestIndex(p, overlays, 6);
+            if (idx >= 0) {
+                setSelected(idx);
+                movingRef.current = { index: idx, start: p, original: { ...overlays[idx] } };
+            } else {
+                setSelected(null);
+                movingRef.current = null;
+            }
+            return;
+        }
+
+        // draw tools
         if (tool === "line") {
             setDraft({ type: "line", x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: "#222", strokeWidth: 2 });
         } else if (tool === "rect") {
@@ -216,11 +261,29 @@ export default function EquipmentIcon({ id, data }) {
     };
 
     const handleMove = (e) => {
-        if (!editing || !draft || !svgRef.current) return;
+        if (!editing || !svgRef.current) return;
         e.preventDefault();
         e.stopPropagation();
-
         const p = svgPointFromEvent(e, svgRef.current);
+
+        // dragging existing shape
+        if (tool === "move" && movingRef.current) {
+            const { index, start, original } = movingRef.current;
+            const dx = p.x - start.x, dy = p.y - start.y;
+
+            const moved =
+                original.type === "rect"
+                    ? { ...original, x: original.x + dx, y: original.y + dy }
+                    : original.type === "circle"
+                        ? { ...original, cx: original.cx + dx, cy: original.cy + dy }
+                        : /* line */ { ...original, x1: original.x1 + dx, y1: original.y1 + dy, x2: original.x2 + dx, y2: original.y2 + dy };
+
+            setOverlays((prev) => prev.map((s, i) => (i === index ? moved : s)));
+            return;
+        }
+
+        // live draw preview
+        if (!draft) return;
         setDraft((d) => {
             if (!d) return d;
             if (d.type === "line") return { ...d, x2: p.x, y2: p.y };
@@ -231,10 +294,19 @@ export default function EquipmentIcon({ id, data }) {
     };
 
     const handleUp = (e) => {
-        if (!editing || !draft) return;
+        if (!editing) return;
         e.preventDefault();
         e.stopPropagation();
         try { svgRef.current?.releasePointerCapture?.(e.pointerId); } catch { }
+
+        if (tool === "move" && movingRef.current) {
+            movingRef.current = null;
+            // persist the moved position to the node once at end
+            persistOverlays([...overlays]);
+            return;
+        }
+
+        if (!draft) return;
         const finalized = draft;
         setDraft(null);
         persistOverlays([...overlays, finalized]);
@@ -283,13 +355,24 @@ export default function EquipmentIcon({ id, data }) {
                         width="150"
                         height="150"
                         viewBox="0 0 150 150"
-                        style={{ position: "absolute", inset: 0, cursor: "crosshair", pointerEvents: "all", touchAction: "none" }}
+                        style={{ position: "absolute", inset: 0, cursor: tool === "move" ? "grab" : "crosshair", pointerEvents: "all", touchAction: "none" }}
                         onPointerDown={handleDown}
                         onPointerMove={handleMove}
                         onPointerUp={handleUp}
                         onPointerCancel={handleUp}
                         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     >
+                        {/* show a dashed highlight on the selected shape (if any) */}
+                        {selected != null && overlays[selected] && (() => {
+                            const s = overlays[selected];
+                            const common = { strokeDasharray: "4 3", strokeWidth: 2.5, stroke: "#444", fill: "none" };
+                            if (s.type === "line") return <line   {...common} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
+                            if (s.type === "rect") return <rect   {...common} x={s.x} y={s.y} width={s.w} height={s.h} />;
+                            if (s.type === "circle") return <circle {...common} cx={s.cx} cy={s.cy} r={s.r} />;
+                            return null;
+                        })()}
+
+                        {/* Live draft preview while drawing */}
                         {draft?.type === "line" && <line x1={draft.x1} y1={draft.y1} x2={draft.x2} y2={draft.y2} stroke="#222" strokeWidth="2" />}
                         {draft?.type === "rect" && <rect x={draft.x} y={draft.y} width={draft.w} height={draft.h} stroke="#222" strokeWidth="2" fill="none" />}
                         {draft?.type === "circle" && <circle cx={draft.cx} cy={draft.cy} r={draft.r || 0} stroke="#222" strokeWidth="2" fill="none" />}
@@ -384,13 +467,26 @@ export default function EquipmentIcon({ id, data }) {
                     {editing && (
                         <>
                             <span style={{ fontSize: 12, opacity: 0.75 }}>Tool:</span>
+                            <button onClick={() => setTool("move")} style={{ fontSize: 12, fontWeight: tool === "move" ? 700 : 400 }}>Move</button>
                             <button onClick={() => setTool("line")} style={{ fontSize: 12, fontWeight: tool === "line" ? 700 : 400 }}>Line</button>
                             <button onClick={() => setTool("circle")} style={{ fontSize: 12, fontWeight: tool === "circle" ? 700 : 400 }}>Circle</button>
                             <button onClick={() => setTool("rect")} style={{ fontSize: 12, fontWeight: tool === "rect" ? 700 : 400 }}>Rect</button>
                             <button onClick={undoOne} style={{ fontSize: 12 }}>Undo</button>
-                            <button onClick={clearAll} style={{ fontSize: 12, color: "#b00" }}>Clear</button>
+                            <button
+                                onClick={() => {
+                                    if (selected == null) return;
+                                    const next = overlays.filter((_, i) => i !== selected);
+                                    setSelected(null);
+                                    persistOverlays(next);
+                                }}
+                                disabled={selected == null}
+                                style={{ fontSize: 12, color: "#b00", opacity: selected == null ? 0.5 : 1 }}
+                            >
+                                Delete
+                            </button>
                         </>
                     )}
+
                 </div>
             )}
 
