@@ -108,6 +108,14 @@ export default function DiagramCanvas({
                 const w = o.w ?? 120, h = o.h ?? 60;
                 if (p.x >= o.x && p.x <= o.x + w && p.y >= o.y && p.y <= o.y + h) return i;
             }
+            else if (o.type === 'svg') {
+                const scale = o.scale ?? 1;
+                const w = (o.vbW ?? 150) * scale;
+                const h = (o.vbH ?? 150) * scale;
+                const x = o.x ?? 0, y = o.y ?? 0;
+                if (p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) return i;
+            }
+
         }
         return -1;
     }
@@ -544,6 +552,7 @@ export default function DiagramCanvas({
                     original.type === 'circle' ? { ...original, cx: original.cx + dx, cy: original.cy + dy } :
                         original.type === 'line' ? { ...original, x1: original.x1 + dx, y1: original.y1 + dy, x2: original.x2 + dx, y2: original.y2 + dy } :
                             original.type === 'note' ? { ...original, x: original.x + dx, y: original.y + dy } :
+                                original.type === 'svg' ? { ...original, x: (original.x ?? 0) + dx, y: (original.y ?? 0) + dy } :
                                 original;
 
             setAnnotations(prev => prev.map((s, i) => (i === index ? moved : s)));
@@ -605,11 +614,29 @@ export default function DiagramCanvas({
                 setAnnotations(prev => prev.filter((_, i) => i !== annoSelected));
                 setAnnoSelected(null);
             },
-            addVector: (vector) => {            // { type:'svg', transform, paths:[{d,stroke,fill,strokeWidth}] }
-                setAnnotations(prev => [...prev, vector]);
-                setAnnoActive(true);
-                setAnnoTool('move');              // ready to move it right away
+            scaleSelected: (factor = 1.2) => {
+                if (annoSelected == null) return;
+                setAnnotations(prev => prev.map((s, i) => {
+                    if (i !== annoSelected) return s;
+                    if (s.type === 'svg') return { ...s, scale: Math.max(0.01, (s.scale ?? 1) * factor) };
+                    if (s.type === 'rect') return { ...s, w: s.w * factor, h: s.h * factor };
+                    if (s.type === 'circle') return { ...s, r: s.r * factor };
+                    if (s.type === 'line') {
+                        // scale about the line’s center
+                        const cx = (s.x1 + s.x2) / 2, cy = (s.y1 + s.y2) / 2;
+                        const fx = (v, c) => c + (v - c) * factor;
+                        return { ...s, x1: fx(s.x1, cx), y1: fx(s.y1, cy), x2: fx(s.x2, cx), y2: fx(s.y2, cy) };
+                    }
+                    return s;
+                }));
             },
+            addVector: (v) => {         // v = { type:'svg', x,y, scale, vbW, vbH, paths:[...] }
+                setAnnotations(prev => [...prev, v]);
+                setAnnoActive(true);
+                setAnnoTool('move');
+                setAnnoSelected((prev) => (annotations.length)); // select the new one
+            },
+
             addPaths: (paths, transform) => {   // convenience wrapper
                 setAnnotations(prev => [...prev, { type: 'svg', transform, paths }]);
                 setAnnoActive(true);
@@ -779,20 +806,23 @@ export default function DiagramCanvas({
                                             return <path key={i} d={o.d} stroke={o.stroke ?? stroke} strokeWidth={o.strokeWidth ?? w} fill={o.fill ?? 'none'} transform={o.transform || undefined} />;
 
                                         if (o.type === 'svg') {
+                                            const s = o.scale ?? 1;
+                                            const tr = `translate(${o.x ?? 0},${o.y ?? 0}) scale(${s})`;
                                             return (
-                                                <g key={i} transform={o.transform || undefined}>
+                                                <g key={i} transform={tr}>
                                                     {(o.paths || []).map((p, j) => (
                                                         <path
                                                             key={j}
                                                             d={p.d}
-                                                            stroke={p.stroke ?? stroke}
-                                                            strokeWidth={p.strokeWidth ?? w}
+                                                            stroke={p.stroke ?? '#222'}
+                                                            strokeWidth={p.strokeWidth ?? 1}
                                                             fill={p.fill ?? 'none'}
                                                         />
                                                     ))}
                                                 </g>
                                             );
                                         }
+
 
                                         if (o.type === 'note') {
                                             const bw = 1.5, pad = 6, noteW = o.w ?? 140, noteH = o.h ?? 70;
