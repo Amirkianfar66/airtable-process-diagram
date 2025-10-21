@@ -231,7 +231,32 @@ export default function EquipmentIcon({ id, data }) {
     };
     const handleDown = (e) => {
         if (!editing || !svgRef.current) return;
-        if (e.button !== 0) return; // left button only
+
+        // ✅ RIGHT CLICK: switch to Move + pick-up shape immediately
+        if (e.button === 2) {
+            e.preventDefault();
+            e.stopPropagation();
+            try { svgRef.current.setPointerCapture(e.pointerId); } catch { }
+
+            const p = svgPointFromEvent(e, svgRef.current);
+
+            // arm Move tool and clear any draw draft
+            setTool("move");
+            setDraft(null);
+
+            const idx = hitTestIndex(p, overlays, 6);
+            if (idx >= 0) {
+                setSelected(idx);
+                movingRef.current = { index: idx, start: p, original: { ...overlays[idx] } };
+            } else {
+                setSelected(null);
+                movingRef.current = null; // switched to Move but nothing under cursor
+            }
+            return; // handled
+        }
+
+        // ⬇️ LEFT CLICK: draw or (if Move tool already active) pick-up
+        if (e.button !== 0) return; // ignore middle/etc
         e.preventDefault();
         e.stopPropagation();
         try { svgRef.current.setPointerCapture(e.pointerId); } catch { }
@@ -259,6 +284,7 @@ export default function EquipmentIcon({ id, data }) {
             setDraft({ type: "circle", cx: p.x, cy: p.y, r: 0, stroke: "#222", strokeWidth: 2, fill: "none" });
         }
     };
+
 
     const handleMove = (e) => {
         if (!editing || !svgRef.current) return;
