@@ -196,6 +196,49 @@ export default function EquipmentIcon({ id, data }) {
         if (!overlays.length) return;
         persistOverlays(overlays.slice(0, -1));
     };
+    const handleDown = (e) => {
+        if (!editing || !svgRef.current) return;
+        if (e.button !== 0) return; // only left button draws
+        e.preventDefault();
+        e.stopPropagation();
+
+        // keep receiving move/up even if pointer leaves the SVG
+        try { svgRef.current.setPointerCapture(e.pointerId); } catch { }
+
+        const p = svgPointFromEvent(e, svgRef.current);
+        if (tool === "line") {
+            setDraft({ type: "line", x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: "#222", strokeWidth: 2 });
+        } else if (tool === "rect") {
+            setDraft({ type: "rect", x: p.x, y: p.y, w: 0, h: 0, stroke: "#222", strokeWidth: 2, fill: "none" });
+        } else if (tool === "circle") {
+            setDraft({ type: "circle", cx: p.x, cy: p.y, r: 0, stroke: "#222", strokeWidth: 2, fill: "none" });
+        }
+    };
+
+    const handleMove = (e) => {
+        if (!editing || !draft || !svgRef.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const p = svgPointFromEvent(e, svgRef.current);
+        setDraft((d) => {
+            if (!d) return d;
+            if (d.type === "line") return { ...d, x2: p.x, y2: p.y };
+            if (d.type === "rect") return { ...d, w: Math.max(0, p.x - d.x), h: Math.max(0, p.y - d.y) };
+            if (d.type === "circle") return { ...d, r: Math.hypot(p.x - d.cx, p.y - d.cy) };
+            return d;
+        });
+    };
+
+    const handleUp = (e) => {
+        if (!editing || !draft) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try { svgRef.current?.releasePointerCapture?.(e.pointerId); } catch { }
+        const finalized = draft;
+        setDraft(null);
+        persistOverlays([...overlays, finalized]);
+    };
 
     return (
         <div
@@ -241,27 +284,18 @@ export default function EquipmentIcon({ id, data }) {
                         height="150"
                         viewBox="0 0 150 150"
                         style={{ position: "absolute", inset: 0, cursor: "crosshair", pointerEvents: "all", touchAction: "none" }}
-                        // capture phase blocks RF before it hears the event
-                        onPointerDownCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onPointerMoveCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onPointerUpCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onPointerDown={onPointerDown}
-                        onPointerMove={onPointerMove}
-                        onPointerUp={onPointerUp}
+                        onPointerDown={handleDown}
+                        onPointerMove={handleMove}
+                        onPointerUp={handleUp}
+                        onPointerCancel={handleUp}
                         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     >
-                        {/* Live draft preview */}
-                        {draft?.type === "line" && (
-                            <line x1={draft.x1} y1={draft.y1} x2={draft.x2} y2={draft.y2} stroke="#222" strokeWidth="2" />
-                        )}
-                        {draft?.type === "rect" && (
-                            <rect x={draft.x} y={draft.y} width={draft.w} height={draft.h} stroke="#222" strokeWidth="2" fill="none" />
-                        )}
-                        {draft?.type === "circle" && (
-                            <circle cx={draft.cx} cy={draft.cy} r={draft.r || 0} stroke="#222" strokeWidth="2" fill="none" />
-                        )}
+                        {draft?.type === "line" && <line x1={draft.x1} y1={draft.y1} x2={draft.x2} y2={draft.y2} stroke="#222" strokeWidth="2" />}
+                        {draft?.type === "rect" && <rect x={draft.x} y={draft.y} width={draft.w} height={draft.h} stroke="#222" strokeWidth="2" fill="none" />}
+                        {draft?.type === "circle" && <circle cx={draft.cx} cy={draft.cy} r={draft.r || 0} stroke="#222" strokeWidth="2" fill="none" />}
                     </svg>
                 )}
+
 
                 {/* React Flow handles (hidden while editing) */}
                 {!editing && (
