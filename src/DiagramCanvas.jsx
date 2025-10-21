@@ -474,7 +474,30 @@ export default function DiagramCanvas({
 
     const onAnnoDown = (e) => {
         if (!annoActive || !svgAnnoRef.current) return;
-        if (e.button !== 0) return;
+
+        // ✅ RIGHT CLICK: switch to Move and (if over a shape) start moving it immediately
+        if (e.button === 2) {
+            e.preventDefault();
+            e.stopPropagation();
+            try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
+            const p = svgPointFromEvent(e, svgAnnoRef.current);
+
+            // arm Move tool and clear any drawing draft
+            setAnnoTool('move');
+            setAnnoDraft(null);
+
+            const idx = hitTestIndex(p, annotations, 6);
+            setAnnoSelected(idx >= 0 ? idx : null);
+            if (idx >= 0) {
+                annoMoveRef.current = { index: idx, start: p, original: { ...annotations[idx] } };
+            } else {
+                annoMoveRef.current = null; // nothing under cursor; still switched to Move
+            }
+            return; // handled
+        }
+
+        // ⬇️ LEFT CLICK logic (draw or move depending on current tool)
+        if (e.button !== 0) return; // ignore middle etc
         e.preventDefault();
         e.stopPropagation();
         try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
@@ -499,12 +522,12 @@ export default function DiagramCanvas({
         } else if (annoTool === 'circle') {
             setAnnoDraft({ type: 'circle', cx: p.x, cy: p.y, r: 0, stroke: annoColor, strokeWidth: annoWidth, fill: 'none' });
         } else if (annoTool === 'note') {
-            // create a note immediately; allow moving afterward with Move tool or drag end
             const note = { type: 'note', x: p.x, y: p.y, w: 140, h: 70, text: 'Note', stroke: '#888', fill: '#fff8c6', strokeWidth: 1.5 };
             setAnnotations(prev => [...prev, note]);
-            setAnnoSelected(prev => (prev != null ? prev : annotations.length)); // select it
+            setAnnoSelected(prev => (prev != null ? prev : annotations.length));
         }
     };
+
 
     const onAnnoMove = (e) => {
         if (!annoActive || !svgAnnoRef.current) return;
