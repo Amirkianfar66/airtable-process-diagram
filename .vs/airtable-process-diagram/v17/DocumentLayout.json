@@ -3,6 +3,10 @@
   "WorkspaceRootPath": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\EquipmentIcon.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\EquipmentIcon.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\PNIDReportView.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\PNIDReportView.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
@@ -58,7 +62,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 8,
+          "SelectedChildIndex": 7,
           "Children": [
             {
               "$type": "Bookmark",
@@ -90,7 +94,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
+              "Title": "EquipmentIcon.jsx",
+              "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\EquipmentIcon.jsx",
+              "RelativeDocumentMoniker": "src\\EquipmentIcon.jsx",
+              "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\EquipmentIcon.jsx",
+              "RelativeToolTip": "src\\EquipmentIcon.jsx",
+              "ViewState": "AgIAACYBAAAAAAAAAAAowDkBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-10-21T13:16:09.683Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "HtmlReportTab.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\HtmlReportTab.jsx",
               "RelativeDocumentMoniker": "src\\HtmlReportTab.jsx",
@@ -98,25 +115,24 @@
               "RelativeToolTip": "src\\HtmlReportTab.jsx",
               "ViewState": "AgIAAKoAAAAAAAAAAAAAwMYAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-10-15T10:24:30.476Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-10-15T10:24:30.476Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "PNIDReportView.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\PNIDReportView.jsx",
               "RelativeDocumentMoniker": "src\\PNIDReportView.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\PNIDReportView.jsx",
               "RelativeToolTip": "src\\PNIDReportView.jsx",
-              "ViewState": "AgIAAEgCAAAAAAAAAAAAwFMCAAAXAAAAAAAAAA==",
+              "ViewState": "AgIAALYBAAAAAAAAAAAAwM0BAAASAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-10-14T11:24:15.654Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 8,
               "Title": "Plant3DImport.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\Components\\Plant3DImport.jsx",
               "RelativeDocumentMoniker": "src\\Components\\Plant3DImport.jsx",
@@ -128,7 +144,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 9,
               "Title": "TransformCard.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\TransformCard.jsx",
               "RelativeDocumentMoniker": "src\\TransformCard.jsx",
@@ -140,7 +156,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 5,
               "Title": "UnitLayoutConfig.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\UnitLayoutConfig.jsx",
               "RelativeDocumentMoniker": "src\\UnitLayoutConfig.jsx",
@@ -152,7 +168,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 6,
               "Title": "ThreeDView.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ThreeDView.jsx",
               "RelativeDocumentMoniker": "src\\ThreeDView.jsx",
@@ -164,7 +180,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "ProcessDiagram.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ProcessDiagram.jsx",
               "RelativeDocumentMoniker": "src\\ProcessDiagram.jsx",
@@ -176,7 +192,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 4,
               "Title": "DiagramCanvas.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx",
               "RelativeDocumentMoniker": "src\\DiagramCanvas.jsx",
@@ -188,7 +204,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 7,
               "Title": "MainToolbar.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\MainToolbar.jsx",
               "RelativeDocumentMoniker": "src\\MainToolbar.jsx",
@@ -200,7 +216,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
+              "DocumentIndex": 10,
               "Title": "TypeShapeRuntime.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\three\\TypeShapeRuntime.jsx",
               "RelativeDocumentMoniker": "src\\three\\TypeShapeRuntime.jsx",
@@ -212,7 +228,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 10,
+              "DocumentIndex": 11,
               "Title": "ScalableIconNode.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\ScalableIconNode.jsx",
               "RelativeDocumentMoniker": "src\\ScalableIconNode.jsx",
@@ -224,7 +240,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 11,
+              "DocumentIndex": 12,
               "Title": "diagramBuilder.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\diagramBuilder.jsx",
               "RelativeDocumentMoniker": "src\\diagramBuilder.jsx",
@@ -233,6 +249,10 @@
               "ViewState": "AgIAAG8AAAAAAAAAAAAQwJAAAAAqAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-10-13T07:05:42.431Z"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
             }
           ]
         }
