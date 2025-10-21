@@ -1,20 +1,19 @@
-﻿// src/components/AddItemButton.jsx
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 
 export default function AddItemButton({
     addItem,
     defaultUnit = '',
     defaultSubUnit = '',
-    onAdded, // optional callback fired after item is added
+    onAdded,
     label = 'Add Item',
 }) {
     const [panelOpen, setPanelOpen] = useState(false);
-    const [active, setActive] = useState(false);           // canvas annotate on/off
-    const [tool, setTool] = useState('note');              // move | note | line | rect | circle
+    const [active, setActive] = useState(false);
+    const [tool, setTool] = useState('note');     // move | note | line | rect | circle
     const [penWidth, setPenWidth] = useState(2);
     const [color, setColor] = useState('#222');
 
-    // if DiagramCanvas exposes getState, sync UI on mount
+    // hydrate from canvas (optional)
     useEffect(() => {
         try {
             const s = window.annoControls?.getState?.();
@@ -28,13 +27,7 @@ export default function AddItemButton({
     }, []);
 
     const handleAdd = async () => {
-        console.log('[AddItemButton] clicked. addItem prop:', addItem);
-
-        if (typeof addItem !== 'function') {
-            console.error('[AddItemButton] addItem is not a function - cannot add item');
-            return;
-        }
-
+        if (typeof addItem !== 'function') return;
         const rawItem = {
             Name: 'New Item',
             'Item Code': `CODE-${Date.now()}`,
@@ -42,41 +35,29 @@ export default function AddItemButton({
             SubUnit: defaultSubUnit,
             'Category Item Type': 'Equipment',
         };
-
         try {
             const result = addItem(rawItem);
             const added = result instanceof Promise ? await result : result;
-
-            console.log('[AddItemButton] addItem resolved:', added);
-
-            if (typeof onAdded === 'function') {
-                try { onAdded(added || rawItem); } catch (err) { console.warn('onAdded callback threw:', err); }
-            }
+            onAdded?.(added || rawItem);
         } catch (err) {
-            console.error('[AddItemButton] addItem threw an error:', err);
+            console.error('[AddItemButton] addItem error', err);
         }
     };
 
-    // helpers to call DiagramCanvas global controls safely
-    const anno = () => window.annoControls || {};
-    const setAnnoActive = (v) => { anno().setActive?.(!!v); setActive(!!v); };
-    const setAnnoTool = (t) => { anno().setTool?.(t); setTool(t); };
-    const setAnnoWidth = (w) => { anno().setWidth?.(w); setPenWidth(w); };
-    const setAnnoColor = (c) => { anno().setColor?.(c); setColor(c); };
+    // shorthands to talk to DiagramCanvas
+    const api = () => window.annoControls || {};
+    const setAnnoActive = (v) => { api().setActive?.(!!v); setActive(!!v); };
+    const setAnnoTool = (t) => { api().setTool?.(t); setTool(t); };
+    const setAnnoWidth = (w) => { api().setWidth?.(w); setPenWidth(w); };
+    const setAnnoColor = (c) => { api().setColor?.(c); setColor(c); };
 
     return (
         <div
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px',
-                background: 'transparent',
-            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10 }}
             onPointerDown={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}
         >
-            {/* Existing Add Item button */}
+            {/* Add Item */}
             <button
                 onClick={handleAdd}
                 style={{
@@ -92,10 +73,10 @@ export default function AddItemButton({
                 {label}
             </button>
 
-            {/* Divider */}
+            {/* divider */}
             <div style={{ width: 1, height: 28, background: '#e4e4e4' }} />
 
-            {/* Annotate compact toggle */}
+            {/* toggle toolbar */}
             <button
                 onClick={() => setPanelOpen((v) => !v)}
                 title="Show annotate toolbar"
@@ -112,7 +93,6 @@ export default function AddItemButton({
                 {panelOpen ? 'Hide Tools' : 'Annotate Tools'}
             </button>
 
-            {/* Inline toolbar (appears when expanded) */}
             {panelOpen && (
                 <div
                     style={{
@@ -126,7 +106,6 @@ export default function AddItemButton({
                         boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
                     }}
                 >
-                    {/* Global annotate toggle */}
                     <button
                         onClick={() => setAnnoActive(!active)}
                         style={{
@@ -144,8 +123,7 @@ export default function AddItemButton({
                         {active ? 'Done' : 'Annotate'}
                     </button>
 
-                    {/* Tool buttons */}
-                    <span style={{ fontSize: 12, opacity: 0.7 }}>Tool:</span>
+                    <span style={{ fontSize: 12, opacity: .75 }}>Tool:</span>
                     {['move', 'note', 'line', 'rect', 'circle'].map((t) => (
                         <button
                             key={t}
@@ -161,14 +139,13 @@ export default function AddItemButton({
                                 cursor: active ? 'pointer' : 'not-allowed',
                                 opacity: active ? 1 : 0.6,
                             }}
-                            title={t[0].toUpperCase() + t.slice(1)}
+                            title={t}
                         >
                             {t[0].toUpperCase() + t.slice(1)}
                         </button>
                     ))}
 
-                    {/* Width */}
-                    <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 6 }}>Width:</span>
+                    <span style={{ fontSize: 12, opacity: .75, marginLeft: 6 }}>Width:</span>
                     <input
                         type="range"
                         min={1}
@@ -191,8 +168,7 @@ export default function AddItemButton({
                         style={{ width: 52, fontSize: 12 }}
                     />
 
-                    {/* Color */}
-                    <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 6 }}>Color:</span>
+                    <span style={{ fontSize: 12, opacity: .75, marginLeft: 6 }}>Color:</span>
                     <input
                         type="color"
                         value={color}
@@ -201,26 +177,18 @@ export default function AddItemButton({
                         title="Stroke color"
                     />
 
-                    {/* Actions */}
-                    <button
-                        onClick={() => anno().undo?.()}
-                        disabled={!active}
-                        style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cfd3d8', borderRadius: 6, background: '#fff' }}
-                    >
+                    <button onClick={() => api().undo?.()} disabled={!active} style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cfd3d8', borderRadius: 6, background: '#fff' }}>
                         Undo
                     </button>
                     <button
-                        onClick={() => {
-                            if (!active) return;
-                            if (confirm('Clear all annotations?')) anno().clear?.();
-                        }}
+                        onClick={() => { if (active && confirm('Clear all annotations?')) api().clear?.(); }}
                         disabled={!active}
                         style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cfd3d8', borderRadius: 6, background: '#fff', color: '#b00' }}
                     >
                         Clear
                     </button>
                     <button
-                        onClick={() => anno().deleteSelected?.()}
+                        onClick={() => api().deleteSelected?.()}
                         disabled={!active}
                         style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cfd3d8', borderRadius: 6, background: '#fff' }}
                         title="Delete selected annotation"
