@@ -59,6 +59,20 @@ export default function DiagramCanvas({
     const [annoSelected, setAnnoSelected] = useState(null); // selected index (for Move/Note edit)
     const annoMoveRef = useRef(null);  // { index, start:{x,y}, original:<shape> }
     const svgAnnoRef = useRef(null);
+    // React Flow viewport transform (x, y, zoom) so annotations track zoom/pan
+    const [tx, ty, tZoom] = useStore((s) => s.transform || [0, 0, 1]);
+
+    // Convert pointer to *world* coords (React Flow space) so drawings glue to the canvas when zooming
+    function pointerToWorld(evt) {
+        const svgEl = svgAnnoRef.current;
+        if (!svgEl) return { x: 0, y: 0 };
+        const rect = svgEl.getBoundingClientRect();
+        const sx = (evt.clientX ?? evt.pageX) - rect.left;
+        const sy = (evt.clientY ?? evt.pageY) - rect.top;
+        const x = (sx - tx) / (tZoom || 1);
+        const y = (sy - ty) / (tZoom || 1);
+        return { x, y };
+    }
 
     // disable right-mouse panning while annotating
     useEffect(() => {
@@ -470,12 +484,14 @@ export default function DiagramCanvas({
             e.preventDefault();
             e.stopPropagation();
             try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
-            const p = svgPointFromEvent(e, svgAnnoRef.current);
+            const p = pointerToWorld(e)
+
 
             setAnnoTool('move');
             setAnnoDraft(null);
 
-            const idx = hitTestIndex(p, annotations, 6);
+            const idx = hitTestIndex(p, annotations, 6 / (tZoom || 1));
+
             setAnnoSelected(idx >= 0 ? idx : null);
             if (idx >= 0) {
                 annoMoveRef.current = { index: idx, start: p, original: { ...annotations[idx] } };
@@ -491,10 +507,12 @@ export default function DiagramCanvas({
         e.stopPropagation();
         try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
 
-        const p = svgPointFromEvent(e, svgAnnoRef.current);
+        const p = pointerToWorld(e)
+
 
         if (annoTool === 'move') {
-            const idx = hitTestIndex(p, annotations, 6);
+            const idx = hitTestIndex(p, annotations, 6 / (tZoom || 1));
+
             setAnnoSelected(idx >= 0 ? idx : null);
             if (idx >= 0) {
                 annoMoveRef.current = { index: idx, start: p, original: { ...annotations[idx] } };
@@ -521,7 +539,8 @@ export default function DiagramCanvas({
         if (!annoActive || !svgAnnoRef.current) return;
         e.preventDefault();
         e.stopPropagation();
-        const p = svgPointFromEvent(e, svgAnnoRef.current);
+        const p = pointerToWorld(e)
+
 
         // moving existing
         if (annoTool === 'move' && annoMoveRef.current) {
@@ -771,86 +790,96 @@ export default function DiagramCanvas({
                             <Controls />
 
                             {/* === Canvas annotation overlay === */}
-                            <svg
-                                ref={svgAnnoRef}
-                                width="100%"
-                                height="100%"
-                                viewBox={`0 0 2000 1200`}
-                                style={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    zIndex: 8,
-                                    pointerEvents: annoActive ? 'all' : 'none',
-                                    cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default'
-                                }}
-                                onPointerDown={onAnnoDown}
-                                onPointerMove={onAnnoMove}
-                                onPointerUp={onAnnoUp}
-                                onPointerCancel={onAnnoUp}
-                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                onDoubleClick={onAnnoDoubleClick}
-                            >
-                                {/* highlight selected shape */}
-                                {annoSelected != null && annotations[annoSelected] && (() => {
-                                    const s = annotations[annoSelected];
-                                    const dash = { strokeDasharray: '4 3', strokeWidth: (s.strokeWidth || 2) + 1.2, stroke: '#444', fill: 'none' };
-                                    if (s.type === 'line') return <line   {...dash} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
-                                    if (s.type === 'rect') return <rect   {...dash} x={s.x} y={s.y} width={s.w} height={s.h} />;
-                                    if (s.type === 'circle') return <circle {...dash} cx={s.cx} cy={s.cy} r={s.r} />;
-                                    if (s.type === 'note') return <rect   {...dash} x={s.x} y={s.y} width={s.w ?? 140} height={s.h ?? 70} />;
-                                    if (s.type === 'svg') {
-                                        const sc = s.scale ?? 1, w = (s.vbW ?? 150) * sc, h = (s.vbH ?? 150) * sc;
-                                        return <rect {...dash} x={s.x ?? 0} y={s.y ?? 0} width={w} height={h} />;
-                                    }
-                                    return null;
-                                })()}
+                                <svg
+                                    ref={svgAnnoRef}
+                                    width="100%"
+                                    height="100%"
+                                    style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        zIndex: 8,
+                                        pointerEvents: annoActive ? 'all' : 'none',
+                                        cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default'
+                                    }}
+                                    onPointerDown={onAnnoDown}
+                                    onPointerMove={onAnnoMove}
+                                    onPointerUp={onAnnoUp}
+                                    onPointerCancel={onAnnoUp}
+                                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onDoubleClick={onAnnoDoubleClick}
+                                >
+                                    {/* Apply the SAME transform as React Flow's viewport */}
+                                    <g transform={`translate(${tx}, ${ty}) scale(${tZoom})`}>
 
-                                {/* committed annotations */}
-                                {annotations.map((o, i) => {
-                                    const stroke = o.stroke ?? '#222';
-                                    const w = o.strokeWidth ?? 2;
-                                    if (o.type === 'line') return <line key={i} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} stroke={stroke} strokeWidth={w} />;
-                                    if (o.type === 'rect') return <rect key={i} x={o.x} y={o.y} width={o.w} height={o.h} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
-                                    if (o.type === 'circle') return <circle key={i} cx={o.cx} cy={o.cy} r={o.r} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                        {/* highlight selected shape */}
+                                        {annoSelected != null && annotations[annoSelected] && (() => {
+                                            const s = annotations[annoSelected];
+                                            const dash = {
+                                                strokeDasharray: '4 3',
+                                                strokeWidth: (s.strokeWidth || 2) + 1.2,
+                                                stroke: '#444',
+                                                fill: 'none'
+                                            };
+                                            if (s.type === 'line') return <line   {...dash} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
+                                            if (s.type === 'rect') return <rect   {...dash} x={s.x} y={s.y} width={s.w} height={s.h} />;
+                                            if (s.type === 'circle') return <circle {...dash} cx={s.cx} cy={s.cy} r={s.r} />;
+                                            if (s.type === 'note') return <rect   {...dash} x={s.x} y={s.y} width={s.w ?? 140} height={s.h ?? 70} />;
+                                            if (s.type === 'svg') {
+                                                const sc = s.scale ?? 1, w = (s.vbW ?? 150) * sc, h = (s.vbH ?? 150) * sc;
+                                                return <rect {...dash} x={s.x ?? 0} y={s.y ?? 0} width={w} height={h} />;
+                                            }
+                                            return null;
+                                        })()}
 
-                                    if (o.type === 'path')
-                                        return <path key={i} d={o.d} stroke={o.stroke ?? stroke} strokeWidth={o.strokeWidth ?? w} fill={o.fill ?? 'none'} transform={o.transform || undefined} />;
+                                        {/* committed annotations */}
+                                        {annotations.map((o, i) => {
+                                            const stroke = o.stroke ?? '#222';
+                                            const w = o.strokeWidth ?? 2;
+                                            if (o.type === 'line')
+                                                return <line key={i} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} stroke={stroke} strokeWidth={w} />;
+                                            if (o.type === 'rect')
+                                                return <rect key={i} x={o.x} y={o.y} width={o.w} height={o.h} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                            if (o.type === 'circle')
+                                                return <circle key={i} cx={o.cx} cy={o.cy} r={o.r} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                            if (o.type === 'path')
+                                                return <path key={i} d={o.d} stroke={o.stroke ?? stroke} strokeWidth={o.strokeWidth ?? w} fill={o.fill ?? 'none'} transform={o.transform || undefined} />;
+                                            if (o.type === 'svg') {
+                                                const s = o.scale ?? 1;
+                                                const tr = `translate(${o.x ?? 0},${o.y ?? 0}) scale(${s})`;
+                                                return (
+                                                    <g key={i} transform={tr}>
+                                                        {(o.paths || []).map((p, j) => (
+                                                            <path
+                                                                key={j}
+                                                                d={p.d}
+                                                                stroke={p.stroke ?? '#222'}
+                                                                strokeWidth={p.strokeWidth ?? 1}
+                                                                fill={p.fill ?? 'none'}
+                                                            />
+                                                        ))}
+                                                    </g>
+                                                );
+                                            }
+                                            if (o.type === 'note') {
+                                                const bw = 1.5, pad = 6, noteW = o.w ?? 140, noteH = o.h ?? 70;
+                                                return (
+                                                    <g key={i}>
+                                                        <rect x={o.x} y={o.y} width={noteW} height={noteH} rx={6} ry={6}
+                                                            fill={o.fill ?? '#fff8c6'} stroke={o.stroke ?? '#888'} strokeWidth={o.strokeWidth ?? bw} />
+                                                        <text x={o.x + pad} y={o.y + 20} style={{ fontSize: 12, fill: '#222' }}>{o.text || 'Note'}</text>
+                                                    </g>
+                                                );
+                                            }
+                                            return null;
+                                        })}
 
-                                    if (o.type === 'svg') {
-                                        const s = o.scale ?? 1;
-                                        const tr = `translate(${o.x ?? 0},${o.y ?? 0}) scale(${s})`;
-                                        return (
-                                            <g key={i} transform={tr}>
-                                                {(o.paths || []).map((p, j) => (
-                                                    <path
-                                                        key={j}
-                                                        d={p.d}
-                                                        stroke={p.stroke ?? '#222'}
-                                                        strokeWidth={p.strokeWidth ?? 1}
-                                                        fill={p.fill ?? 'none'}
-                                                    />
-                                                ))}
-                                            </g>
-                                        );
-                                    }
+                                        {/* live draft preview */}
+                                        {annoDraft?.type === 'line' && <line x1={annoDraft.x1} y1={annoDraft.y1} x2={annoDraft.x2} y2={annoDraft.y2} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} />}
+                                        {annoDraft?.type === 'rect' && <rect x={annoDraft.x} y={annoDraft.y} width={annoDraft.w} height={annoDraft.h} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
+                                        {annoDraft?.type === 'circle' && <circle cx={annoDraft.cx} cy={annoDraft.cy} r={annoDraft.r || 0} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
+                                    </g>
+                                </svg>
 
-                                    if (o.type === 'note') {
-                                        const bw = 1.5, pad = 6, noteW = o.w ?? 140, noteH = o.h ?? 70;
-                                        return (
-                                            <g key={i}>
-                                                <rect x={o.x} y={o.y} width={noteW} height={noteH} rx={6} ry={6} fill={o.fill ?? '#fff8c6'} stroke={o.stroke ?? '#888'} strokeWidth={o.strokeWidth ?? bw} />
-                                                <text x={o.x + pad} y={o.y + 20} style={{ fontSize: 12, fill: '#222' }}>{o.text || 'Note'}</text>
-                                            </g>
-                                        );
-                                    }
-                                    return null;
-                                })}
-
-                                {/* live draft preview */}
-                                {annoDraft?.type === 'line' && <line x1={annoDraft.x1} y1={annoDraft.y1} x2={annoDraft.x2} y2={annoDraft.y2} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} />}
-                                {annoDraft?.type === 'rect' && <rect x={annoDraft.x} y={annoDraft.y} width={annoDraft.w} height={annoDraft.h} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
-                                {annoDraft?.type === 'circle' && <circle cx={annoDraft.cx} cy={annoDraft.cy} r={annoDraft.r || 0} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
-                            </svg>
                         </ReactFlow>
                     )}
                 </div>
