@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
-import ReactFlow, { Controls, Background } from 'reactflow';
+import ReactFlow, { Controls, Background, useStore } from 'reactflow';
 
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
@@ -420,7 +420,7 @@ export default function DiagramCanvas({
     };
 
     const rfInstanceRef = useRef(null);
-
+    const [vx, vy, vz] = useStore((s) => s.transform); // [x, y, zoom]
     // 🚫 disable right-mouse panning when true
     const [disableRightPan, setDisableRightPan] = useState(false);
 
@@ -747,25 +747,29 @@ export default function DiagramCanvas({
                             <Controls />
 
                             {/* === Canvas annotation overlay === */}
-                            <svg
-                                ref={svgAnnoRef}
-                                width="100%"
-                                height="100%"
-                                viewBox={`0 0 2000 1200`}
-                                style={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    zIndex: 8,
-                                    pointerEvents: annoActive ? 'all' : 'none',
-                                    cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default'
-                                }}
-                                onPointerDown={onAnnoDown}
-                                onPointerMove={onAnnoMove}
-                                onPointerUp={onAnnoUp}
-                                onPointerCancel={onAnnoUp}
-                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                onDoubleClick={onAnnoDoubleClick}
-                            >
+                                <svg
+                                    ref={svgAnnoRef}
+                                    width="100%"
+                                    height="100%"
+                                    /* ❌ remove the fixed viewBox "0 0 2000 1200"
+                                       viewBox={`0 0 2000 1200`} */
+                                    style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        zIndex: 8,
+                                        pointerEvents: annoActive ? 'all' : 'none',
+                                        cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default',
+                                        // ✅ follow the React Flow viewport
+                                        transform: `translate(${vx}px, ${vy}px) scale(${vz})`,
+                                        transformOrigin: '0 0',
+                                    }}
+                                    onPointerDown={onAnnoDown}
+                                    onPointerMove={onAnnoMove}
+                                    onPointerUp={onAnnoUp}
+                                    onPointerCancel={onAnnoUp}
+                                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onDoubleClick={onAnnoDoubleClick}
+                                >
                                 {/* highlight selected shape */}
                                 {annoSelected != null && annotations[annoSelected] && (() => {
                                     const s = annotations[annoSelected];
