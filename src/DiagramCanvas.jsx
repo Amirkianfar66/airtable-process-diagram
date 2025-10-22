@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
-import ReactFlow, { Controls, Background, useStore } from 'reactflow';
+import ReactFlow, { Controls, Background } from 'reactflow';
+
 
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
@@ -60,19 +61,20 @@ export default function DiagramCanvas({
     const annoMoveRef = useRef(null);  // { index, start:{x,y}, original:<shape> }
     const svgAnnoRef = useRef(null);
     // React Flow viewport transform (x, y, zoom) so annotations track zoom/pan
-    const [tx, ty, tZoom] = useStore((s) => s.transform || [0, 0, 1]);
+    // Track viewport locally (no zustand/useStore needed)
+    const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
+    const { x: tx, y: ty, zoom: tZoom } = viewport;
 
-    // Convert pointer to *world* coords (React Flow space) so drawings glue to the canvas when zooming
+    // Convert screen pointer → world coords (React Flow space)
     function pointerToWorld(evt) {
-        const svgEl = svgAnnoRef.current;
-        if (!svgEl) return { x: 0, y: 0 };
-        const rect = svgEl.getBoundingClientRect();
+        const svg = svgAnnoRef.current;
+        if (!svg) return { x: 0, y: 0 };
+        const rect = svg.getBoundingClientRect();
         const sx = (evt.clientX ?? evt.pageX) - rect.left;
         const sy = (evt.clientY ?? evt.pageY) - rect.top;
-        const x = (sx - tx) / (tZoom || 1);
-        const y = (sy - ty) / (tZoom || 1);
-        return { x, y };
+        return { x: (sx - tx) / (tZoom || 1), y: (sy - ty) / (tZoom || 1) };
     }
+
 
     // disable right-mouse panning while annotating
     useEffect(() => {
@@ -767,6 +769,7 @@ export default function DiagramCanvas({
                     ) : (
                         <ReactFlow
                             onInit={(inst) => { rfInstanceRef.current = inst; }}
+                            onMove={(_, v) => setViewport(v)} 
                             nodes={Array.isArray(nodes) ? nodes : []}
                             edges={enhancedEdges}
                             onNodesChange={onNodesChange}
@@ -801,14 +804,14 @@ export default function DiagramCanvas({
                                         pointerEvents: annoActive ? 'all' : 'none',
                                         cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default'
                                     }}
-                                    onPointerDown={onAnnoDown}
-                                    onPointerMove={onAnnoMove}
-                                    onPointerUp={onAnnoUp}
-                                    onPointerCancel={onAnnoUp}
+                                    onPointerDown={(e) => onAnnoDown(pointerToWorld(e), e)}
+                                    onPointerMove={(e) => onAnnoMove(pointerToWorld(e), e)}
+                                    onPointerUp={(e) => onAnnoUp(pointerToWorld(e), e)}
+                                    onPointerCancel={(e) => onAnnoUp(pointerToWorld(e), e)}
                                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                    onDoubleClick={onAnnoDoubleClick}
+                                    onDoubleClick={(e) => onAnnoDoubleClick(pointerToWorld(e), e)}
                                 >
-                                    {/* Apply the SAME transform as React Flow's viewport */}
+                                    {/* Apply the SAME transform as the canvas */}
                                     <g transform={`translate(${tx}, ${ty}) scale(${tZoom})`}>
 
                                         {/* highlight selected shape */}
@@ -879,6 +882,7 @@ export default function DiagramCanvas({
                                         {annoDraft?.type === 'circle' && <circle cx={annoDraft.cx} cy={annoDraft.cy} r={annoDraft.r || 0} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
                                     </g>
                                 </svg>
+
 
                         </ReactFlow>
                     )}
