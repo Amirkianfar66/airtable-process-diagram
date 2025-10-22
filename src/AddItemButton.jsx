@@ -1,5 +1,4 @@
-﻿// src/components/AddItemButton.jsx
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import ImageTracer from 'imagetracerjs';
 
 export default function AddItemButton({
@@ -15,9 +14,9 @@ export default function AddItemButton({
     const [penWidth, setPenWidth] = useState(2);
     const [color, setColor] = useState('#222');
 
-    // Line-art options (transparent background + black strokes)
-    const [lineArt, setLineArt] = useState(true);     // keep only black strokes (no fill)
-    const [bgTolerance, setBgTolerance] = useState(20); // 0..80: how aggressively to drop near-white bg
+    // PNG → line-art controls
+    const [lineArt, setLineArt] = useState(true);    // keep only black strokes, drop bg
+    const [bgTolerance, setBgTolerance] = useState(20); // 0..80 (higher = remove more light pixels)
 
     // hydrate from canvas (optional)
     useEffect(() => {
@@ -63,37 +62,109 @@ export default function AddItemButton({
     const setAnnoWidth = (w) => { api().setWidth?.(w); setPenWidth(w); };
     const setAnnoColor = (c) => { api().setColor?.(c); setColor(c); };
 
-    // === Preprocess helper: remove near-white background & force black foreground ===
-    // Produces a data URL (PNG) with transparent bg, black foreground
-    const stripBackgroundToBlack = (imgURL, tol = 20) => new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            const c = document.createElement('canvas');
-            c.width = img.width; c.height = img.height;
-            const ctx = c.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            const im = ctx.getImageData(0, 0, c.width, c.height);
-            const d = im.data;
-            for (let i = 0; i < d.length; i += 4) {
-                const r = d[i], g = d[i + 1], b = d[i + 2];
-                // distance from white (255,255,255)
-                const dr = 255 - r, dg = 255 - g, db = 255 - b;
-                const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-                if (dist <= tol) {
-                    // background => transparent
-                    d[i + 3] = 0;
-                } else {
-                    // foreground => solid black
-                    d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255;
-                }
+    // --- PNG preprocessing: drop near-white to transparent, keep the rest pure black ---
+    async function preprocessToLineArt(blobUrl, tolerance /* 0..80 */) {
+        const img = await new Promise((resolve, reject) => {
+            const i = new Image();
+            i.crossOrigin = 'anonymous';
+            i.onload = () => resolve(i);
+            i.onerror = reject;
+            i.src = blobUrl;
+        });
+
+        const w = img.naturalWidth, h = img.naturalHeight;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const d = imgData.data;
+
+        // Map tolerance (0..80) → luminance threshold (255..55). Higher tol removes more.
+        const thr = Math.max(0, Math.min(255, Math.round(255 - tolerance * 2.5)));
+
+        for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+            // Perceived luminance (sRGB approx)
+            const Y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+            if (a < 8 || Y >= thr) {
+                // near-white: make transparent
+                d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 0;
+            } else {
+                // keep as solid black
+                d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255;
             }
-            ctx.putImageData(im, 0, 0);
-            resolve(c.toDataURL('image/png'));
-        };
-        img.onerror = reject;
-        img.crossOrigin = 'anonymous'; // works for blob: URLs
-        img.src = imgURL;
-    });
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return canvas.toDataURL('image/png'); // data URL safe for ImageTracer
+    }
+
+    // Vectorize + hand off to canvas
+    async function handleTracePng(file) {
+        // Build source URL: either original object URL or preprocessed data URL
+        const objUrl = URL.createObjectURL(file);
+
+        let srcUrl = objUrl;
+        try {
+            if (lineArt) {
+                srcUrl = await preprocessToLineArt(objUrl, bgTolerance);
+            }
+
+            // Vectorize with tight settings (we already reduced colors to black/transparent)
+            const opts = {
+                colorsampling: 0,      // use numberofcolors exactly
+                numberofcolors: 2,     // black + (maybe) leftover artifact
+                pathomit: 1,           // ignore tiny specks
+                ltres: 1, qtres: 1,    // curve fitting
+                blurradius: 0, blurdelta: 0,
+            };
+
+            ImageTracer.imageToSVG(srcUrl, (svgstr) => {
+                try {
+                    const doc = new DOMParser().parseFromString(svgstr, 'image/svg+xml');
+                    const root = doc.documentElement;
+
+                    // Vector bounds
+                    const vbAttr = (root.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
+                    let vbW = 0, vbH = 0;
+                    if (vbAttr.length === 4) {
+                        vbW = vbAttr[2]; vbH = vbAttr[3];
+                    } else {
+                        vbW = parseFloat(root.getAttribute('width') || '150');
+                        vbH = parseFloat(root.getAttribute('height') || '150');
+                    }
+
+                    // Extract paths and force line-art styling: no fill, black stroke
+                    const paths = Array.from(doc.querySelectorAll('path')).map((p) => ({
+                        d: p.getAttribute('d') || '',
+                        fill: 'none',                // <- drop fills so background doesn’t reappear
+                        stroke: '#000',              // <- unify to black lines
+                        strokeWidth: 1.2,            // tweakable
+                    })).filter(p => p.d);          // keep only valid paths
+
+                    if (!paths.length) {
+                        alert('No vector paths detected. Try lowering BG tolerance or using a crisper PNG.');
+                        return;
+                    }
+
+                    // Initial drop on canvas
+                    const targetW = 320;
+                    const scale = Math.max(0.001, targetW / (vbW || 1));
+                    const x = 200, y = 150;
+
+                    // Use the numeric addPaths → stored as { type:'svg', x,y,scale, paths }
+                    window.annoControls?.addPaths?.(paths, `translate(${x},${y}) scale(${scale})`);
+
+                    // auto-activate annotate + Move tool is handled inside addPaths()
+                } catch (err) {
+                    console.error('Vectorize parse failed', err);
+                }
+            }, opts);
+        } finally {
+        }
+    }
 
     return (
         <div
@@ -155,7 +226,6 @@ export default function AddItemButton({
             >
                 Trace PNG → SVG
             </button>
-
             <input
                 id={fileInputId}
                 type="file"
@@ -164,110 +234,35 @@ export default function AddItemButton({
                 onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    const rawURL = URL.createObjectURL(file);
-
-                    // tracer defaults (tweak as desired)
-                    const opts = {
-                        numberofcolors: lineArt ? 1 : 2, // mono when line-art
-                        pathomit: 8,
-                        ltres: 1, qtres: 1,
-                        blurradius: 0, blurdelta: 0,
-                    };
-
                     try {
-                        // 1) Optional pre-process: make bg transparent & foreground black
-                        const srcURL = lineArt
-                            ? await stripBackgroundToBlack(rawURL, bgTolerance)
-                            : rawURL;
-
-                        // 2) Trace to SVG
-                        ImageTracer.imageToSVG(srcURL, (svgstr) => {
-                            try {
-                                const doc = new DOMParser().parseFromString(svgstr, 'image/svg+xml');
-                                const root = doc.documentElement;
-                                const vb = (root.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
-                                let vbW = 0, vbH = 0;
-                                if (vb.length === 4) { vbW = vb[2]; vbH = vb[3]; }
-                                else {
-                                    vbW = parseFloat(root.getAttribute('width') || '150');
-                                    vbH = parseFloat(root.getAttribute('height') || '150');
-                                }
-
-                                // Extract paths
-                                let paths = Array.from(doc.querySelectorAll('path')).map((p) => ({
-                                    d: p.getAttribute('d') || '',
-                                    fill: p.getAttribute('fill') || 'none',
-                                    stroke: p.getAttribute('stroke') || '#222',
-                                    strokeWidth: parseFloat(p.getAttribute('stroke-width') || '1'),
-                                }));
-
-                                if (lineArt) {
-                                    // Force stroke-only black lines on transparent
-                                    paths = paths
-                                        .filter(p => p.d && p.d.length > 10) // drop tiny artifacts
-                                        .map(p => ({
-                                            ...p,
-                                            fill: 'none',
-                                            stroke: '#000',
-                                            strokeWidth: Math.max(0.5, Number(penWidth) || 1.25),
-                                        }));
-                                } else {
-                                    // Optionally map stroke color to current picker for non-lineArt mode
-                                    paths = paths.map(p => ({
-                                        ...p,
-                                        stroke: color || p.stroke || '#222',
-                                        strokeWidth: Math.max(0.5, Number(penWidth) || 1),
-                                    }));
-                                }
-
-                                if (!paths.length) {
-                                    alert('No vector paths detected. Try adjusting BG tolerance or using a simpler PNG.');
-                                    return;
-                                }
-
-                                // 3) Drop at an offset so multiple imports don’t overlap
-                                const state = window.annoControls?.getState?.() || { count: 0 };
-                                const n = Number(state.count) || 0;
-                                const baseX = 160, baseY = 140, step = 26;
-                                const x = baseX + (n % 12) * step;
-                                const y = baseY + Math.floor(n / 12) * step;
-
-                                // Initial size on canvas
-                                const targetW = 300;
-                                const scale = Math.max(0.001, targetW / (vbW || 1));
-
-                                // 4) Hand off to canvas overlay
-                                if (window.annoControls?.addVector) {
-                                    window.annoControls.addVector({
-                                        type: 'svg',
-                                        x, y,
-                                        scale,
-                                        vbW, vbH,
-                                        paths,
-                                    });
-                                } else if (window.annoControls?.addPaths) {
-                                    // backward-compat
-                                    const transform = `translate(${x},${y}) scale(${scale})`;
-                                    window.annoControls.addPaths(paths, transform);
-                                }
-
-                                // auto-arm Move so you can right-drag immediately
-                                window.annoControls?.setActive?.(true);
-                                window.annoControls?.setTool?.('move');
-                            } catch (err) {
-                                console.error('Vectorize parse failed', err);
-                            } finally {
-                                URL.revokeObjectURL(rawURL);
-                                e.target.value = '';
-                            }
-                        }, opts);
+                        await handleTracePng(file);
                     } catch (err) {
-                        console.error('Preprocess failed', err);
-                        URL.revokeObjectURL(rawURL);
+                        console.error('Trace PNG failed', err);
+                    } finally {
                         e.target.value = '';
                     }
                 }}
             />
+
+            {/* line-art controls */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginLeft: 6 }}>
+                <input type="checkbox" checked={lineArt} onChange={(e) => setLineArt(e.target.checked)} />
+                Line-art (drop bg)
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, opacity: .75 }}>BG tol:</span>
+                <input
+                    type="range"
+                    min={0}
+                    max={80}
+                    step={1}
+                    value={bgTolerance}
+                    onChange={(e) => setBgTolerance(Number(e.target.value))}
+                    style={{ width: 100 }}
+                    title="Higher removes more near-white"
+                />
+                <span style={{ fontSize: 12, width: 24, textAlign: 'right' }}>{bgTolerance}</span>
+            </div>
 
             {panelOpen && (
                 <div
@@ -353,30 +348,6 @@ export default function AddItemButton({
                         title="Stroke color"
                     />
 
-                    {/* Line-art options */}
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginLeft: 8 }}>
-                        <input
-                            type="checkbox"
-                            checked={lineArt}
-                            onChange={(e) => setLineArt(e.target.checked)}
-                            disabled={!active}
-                        />
-                        Line art (no fill)
-                    </label>
-
-                    <span style={{ fontSize: 12, opacity: .75, marginLeft: 6 }}>BG tol:</span>
-                    <input
-                        type="range"
-                        min={0}
-                        max={80}
-                        step={1}
-                        value={bgTolerance}
-                        onChange={(e) => setBgTolerance(Number(e.target.value))}
-                        disabled={!active}
-                        style={{ width: 80 }}
-                        title="Background removal tolerance"
-                    />
-
                     <button onClick={() => api().undo?.()} disabled={!active} style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cfd3d8', borderRadius: 6, background: '#fff' }}>
                         Undo
                     </button>
@@ -396,7 +367,7 @@ export default function AddItemButton({
                         Delete Sel
                     </button>
 
-                    {/* Scale controls for selected annotation */}
+                    {/* scale controls for selected vector/shape */}
                     <button
                         onClick={() => api().scaleSelected?.(1.2)}
                         disabled={!active}
