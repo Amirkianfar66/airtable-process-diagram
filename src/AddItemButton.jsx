@@ -15,7 +15,7 @@ export default function AddItemButton({
     const [color, setColor] = useState('#222');
 
     // PNG → line-art controls
-    const [lineArt, setLineArt] = useState(true);      // keep only black strokes, drop bg
+    const [lineArt, setLineArt] = useState(false);      // keep only black strokes, drop bg
     const [bgTolerance, setBgTolerance] = useState(20);// 0..80 (higher = remove more near-white)
     const [cropEnabled, setCropEnabled] = useState(true);
 

@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\Icons\\EquipmentIcon.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\Icons\\EquipmentIcon.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\AddItemButton.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\AddItemButton.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\Icons\\EquipmentIcon.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\Icons\\EquipmentIcon.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\DiagramCanvas.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
@@ -22,7 +22,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 7,
+          "SelectedChildIndex": 8,
           "Children": [
             {
               "$type": "Bookmark",
@@ -54,26 +54,26 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "EquipmentIcon.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\Icons\\EquipmentIcon.jsx",
               "RelativeDocumentMoniker": "src\\Icons\\EquipmentIcon.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\Icons\\EquipmentIcon.jsx",
               "RelativeToolTip": "src\\Icons\\EquipmentIcon.jsx",
-              "ViewState": "AgIAADQCAAAAAAAAAAAowEECAAAoAAAAAAAAAA==",
+              "ViewState": "AgIAADQCAAAAAAAAAAAowD0CAAAtAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-10-22T12:28:38.543Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "AddItemButton.jsx",
               "DocumentMoniker": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\AddItemButton.jsx",
               "RelativeDocumentMoniker": "src\\AddItemButton.jsx",
               "ToolTip": "C:\\Users\\AmirKianfar\\source\\repos\\Amirkianfar66\\airtable-process-diagram\\src\\AddItemButton.jsx",
               "RelativeToolTip": "src\\AddItemButton.jsx",
-              "ViewState": "AgIAALwBAAAAAAAAAAAtwMABAAALAAAAAAAAAA==",
+              "ViewState": "AgIAAL8BAAAAAAAAAAAtwMABAAALAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2025-10-22T10:54:59.987Z",
               "EditorCaption": ""
