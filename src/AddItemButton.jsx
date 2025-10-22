@@ -446,25 +446,7 @@ export default function AddItemButton({
                 }}
             />
 
-            {/* line-art controls */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginLeft: 6 }}>
-                <input type="checkbox" checked={lineArt} onChange={(e) => setLineArt(e.target.checked)} />
-                Line-art (drop bg)
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, opacity: .75 }}>BG tol:</span>
-                <input
-                    type="range"
-                    min={0}
-                    max={80}
-                    step={1}
-                    value={bgTolerance}
-                    onChange={(e) => setBgTolerance(Number(e.target.value))}
-                    style={{ width: 100 }}
-                    title="Higher removes more near-white"
-                />
-                <span style={{ fontSize: 12, width: 24, textAlign: 'right' }}>{bgTolerance}</span>
-            </div>
+           
 
             {/* crop toggle */}
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>

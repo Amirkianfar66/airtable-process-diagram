@@ -1,7 +1,7 @@
 ﻿// EquipmentIcon.jsx — with Edit button + Line / Circle / Rect annotate tools
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Handle, Position, useReactFlow } from "reactflow";
-
+import ImageTracer from "imagetracerjs";
 // --- auto-import your SVGs (adjust the glob path if needed) ---
 const modules = import.meta.glob("./EquipmentIcon/*.svg", { eager: true });
 
@@ -56,14 +56,34 @@ function Overlay({ overlays = [] }) {
                     strokeWidth: o.strokeWidth ?? 2,
                     fill: o.fill ?? "none",
                 };
+
                 if (o.type === "line") return <line {...common} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} />;
                 if (o.type === "rect") return <rect {...common} x={o.x} y={o.y} width={o.w} height={o.h} />;
                 if (o.type === "circle") return <circle {...common} cx={o.cx} cy={o.cy} r={o.r} />;
+
+                if (o.type === "svg") {
+                    const s = o.scale ?? 1;
+                    const tr = `translate(${o.x ?? 0},${o.y ?? 0}) scale(${s})`;
+                    return (
+                        <g key={i} transform={tr}>
+                            {(o.paths || []).map((p, j) => (
+                                <path
+                                    key={j}
+                                    d={p.d}
+                                    stroke={p.stroke ?? "#222"}
+                                    strokeWidth={p.strokeWidth ?? 1}
+                                    fill={p.fill ?? "none"}
+                                />
+                            ))}
+                        </g>
+                    );
+                }
                 return null;
             })}
         </svg>
     );
 }
+
 
 // pointer → local SVG coords
 function svgPointFromEvent(evt, svgEl) {
@@ -95,6 +115,9 @@ function hitTestIndex(p, overlays, tol = 6) {
             if (dx * dx + dy * dy <= (o.r + tol) * (o.r + tol)) return i;
         } else if (o.type === "line") {
             if (pointToSegmentDist(p.x, p.y, o.x1, o.y1, o.x2, o.y2) <= tol) return i;
+        } else if (o.type === "svg") {
+            const s = o.scale ?? 1, w = (o.vbW ?? 150) * s, h = (o.vbH ?? 150) * s;
+            if (p.x >= (o.x ?? 0) && p.x <= (o.x ?? 0) + w && p.y >= (o.y ?? 0) && p.y <= (o.y ?? 0) + h) return i;
         }
     }
     return -1;
@@ -114,6 +137,64 @@ export default function EquipmentIcon({ id, data }) {
     const [draft, setDraft] = useState(null); // current shape being drawn
 
     const svgRef = useRef(null);
+    const fileRef = useRef(null);
+
+    function traceDataUrl(dataUrl) {
+        const opts = {
+            colorsampling: 0,
+            numberofcolors: 2,
+            pathomit: 1,
+            ltres: 1, qtres: 1,
+            roundcoords: 1,
+            blurradius: 0, blurdelta: 0,
+        };
+        return new Promise((resolve, reject) => {
+            ImageTracer.imageToSVG(dataUrl, (svgstr) => {
+                try {
+                    const doc = new DOMParser().parseFromString(svgstr, "image/svg+xml");
+                    const root = doc.documentElement;
+
+                    const vb = (root.getAttribute("viewBox") || "").trim().split(/\s+/).map(Number);
+                    let vbW = 0, vbH = 0;
+                    if (vb.length === 4) { vbW = vb[2]; vbH = vb[3]; }
+                    else {
+                        vbW = parseFloat(root.getAttribute("width") || "150");
+                        vbH = parseFloat(root.getAttribute("height") || "150");
+                    }
+                    if (!vbW || !vbH) { vbW = 150; vbH = 150; }
+
+                    const paths = Array.from(doc.querySelectorAll("path")).map((p) => ({
+                        d: p.getAttribute("d") || "",
+                        fill: "none",
+                        stroke: "#000",
+                        strokeWidth: 1.2,
+                    }));
+
+                    // Fit inside the 150×150 icon box with a margin
+                    const maxW = 130, maxH = 130;
+                    const scale = Math.min(maxW / vbW, maxH / vbH) || 1;
+                    const x = Math.max(0, Math.round((150 - vbW * scale) / 2));
+                    const y = Math.max(0, Math.round((150 - vbH * scale) / 2));
+
+                    persistOverlays([...(overlays || []), { type: "svg", x, y, scale, vbW, vbH, paths }]);
+                    resolve(true);
+                } catch (err) { reject(err); }
+            }, opts);
+        });
+    }
+
+    function handleFileChange(e) {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+            try { await traceDataUrl(reader.result); }
+            catch (err) { console.error("Vectorize failed", err); }
+        };
+        reader.readAsDataURL(f);
+    }
+
     const hoverHide = useRef(null);
     const [selected, setSelected] = useState(null);     // index of selected shape
     const movingRef = useRef(null);                     // { index, start:{x,y}, original:<shape> }
@@ -302,6 +383,8 @@ export default function EquipmentIcon({ id, data }) {
                     ? { ...original, x: original.x + dx, y: original.y + dy }
                     : original.type === "circle"
                         ? { ...original, cx: original.cx + dx, cy: original.cy + dy }
+                         : original.type === "svg"
+                               ? { ...original, x: (original.x ?? 0) + dx, y: (original.y ?? 0) + dy }
                         : /* line */ { ...original, x1: original.x1 + dx, y1: original.y1 + dy, x2: original.x2 + dx, y2: original.y2 + dy };
 
             setOverlays((prev) => prev.map((s, i) => (i === index ? moved : s)));
@@ -421,8 +504,13 @@ export default function EquipmentIcon({ id, data }) {
                             if (s.type === "line") return <line   {...common} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
                             if (s.type === "rect") return <rect   {...common} x={s.x} y={s.y} width={s.w} height={s.h} />;
                             if (s.type === "circle") return <circle {...common} cx={s.cx} cy={s.cy} r={s.r} />;
+                            if (s.type === "svg") {
+                                const sc = s.scale ?? 1, w = (s.vbW ?? 150) * sc, h = (s.vbH ?? 150) * sc;
+                                return <rect {...common} x={s.x ?? 0} y={s.y ?? 0} width={w} height={h} />;
+                            }
                             return null;
                         })()}
+
 
                         {/* Live draft preview while drawing */}
                         {draft?.type === "line" && <line x1={draft.x1} y1={draft.y1} x2={draft.x2} y2={draft.y2} stroke="#222" strokeWidth="1" />}
@@ -536,6 +624,21 @@ export default function EquipmentIcon({ id, data }) {
                             >
                                 Delete
                             </button>
+                            <button
+                                onClick={() => fileRef.current?.click()}
+                                style={{ fontSize: 12 }}
+                                title="Import PNG and trace to SVG"
+                            >
+                                PNG→SVG
+                            </button>
+                            <input
+                                ref={fileRef}
+                                type="file"
+                                accept="image/png"
+                                style={{ display: "none" }}
+                                onChange={handleFileChange}
+                            />
+
                         </>
                     )}
 
