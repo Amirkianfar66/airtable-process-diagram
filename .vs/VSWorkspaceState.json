@@ -2,10 +2,8 @@
   "ExpandedNodes": [
     "",
     "\\api",
-    "\\src",
-    "\\src\\Components",
-    "\\src\\three"
+    "\\src"
   ],
-  "SelectedNode": "\\vite.config.js",
+  "SelectedNode": "\\src\\Icons",
   "PreviewInSolutionExplorer": false
 }
