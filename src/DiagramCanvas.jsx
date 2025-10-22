@@ -56,11 +56,10 @@ export default function DiagramCanvas({
 
     const [annotations, setAnnotations] = useState([]); // [{type, ...}]
     const [annoDraft, setAnnoDraft] = useState(null);   // live drawing object
-    const [annoSelected, setAnnoSelected] = useState(null); // selected index
+    const [annoSelected, setAnnoSelected] = useState(null); // selected index (for Move/Note edit)
     const annoMoveRef = useRef(null);  // { index, start:{x,y}, original:<shape> }
-
     const svgAnnoRef = useRef(null);
-    const annoGRef = useRef(null);     // <g> that carries pan/zoom transform
+    const annoGRef = useRef(null);
 
     // disable right-mouse panning while annotating
     useEffect(() => {
@@ -68,20 +67,20 @@ export default function DiagramCanvas({
         return () => window.rfDisableRightPan?.(false);
     }, [annoActive]);
 
-    // prevent nodes from being dragged while annotating
+    // prevent nodes from being dragged while annotating (optional but nice)
     useEffect(() => {
         if (!setNodes) return;
         setNodes(nds => nds.map(n => ({ ...n, draggable: !annoActive })));
     }, [annoActive, setNodes]);
 
-    // pointer -> local coords (against the transformed <g>)
-    function svgPointFromEvent(evt, gEl) {
-        const svg = gEl?.ownerSVGElement || svgAnnoRef.current;
-        if (!svg || !gEl) return { x: 0, y: 0 };
+    // convert pointer to local SVG coords (use the <g> element that carries the transform)
+    function svgPointFromEvent(evt, element) {
+        if (!element) return { x: 0, y: 0 };
+        const svg = element.ownerSVGElement || element; // works for <g> and <svg>
         const pt = svg.createSVGPoint();
         pt.x = evt.clientX;
         pt.y = evt.clientY;
-        const ctm = gEl.getScreenCTM();
+        const ctm = element.getScreenCTM();
         return ctm ? pt.matrixTransform(ctm.inverse()) : { x: 0, y: 0 };
     }
 
@@ -142,7 +141,7 @@ export default function DiagramCanvas({
         console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
     }, [onEdgeClick]);
 
-    // Inline valve types (Airtable)
+    // Fetch Inline Valve types from Airtable (same envs you use in ItemDetailCard)
     useEffect(() => {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
@@ -201,12 +200,18 @@ export default function DiagramCanvas({
 
     const toggleEdgeAnimated = () => updateSelectedEdge({ animated: !selectedEdge?.animated });
 
+    // Store category on the edge, and (optionally) clear inline valve type if switching to None
     const changeEdgeCategory = (category) => {
         if (!selectedEdge) return;
         const prevData = selectedEdge.data || {};
         const newData = { ...prevData };
-        if (category === 'Inline Valve') newData.category = 'Inline Valve';
-        else { delete newData.category; delete newData.inlineValveType; }
+
+        if (category === 'Inline Valve') {
+            newData.category = 'Inline Valve';
+        } else {
+            delete newData.category;
+            delete newData.inlineValveType;
+        }
         updateSelectedEdge({ data: newData });
     };
 
@@ -254,7 +259,7 @@ export default function DiagramCanvas({
             style: { background: "transparent" },
         };
 
-        // Visual
+        // 1) Visual: add valve node and remove BOTH directions of the direct edge
         setNodes((nds) => [...nds, newNode]);
         setEdges((eds) => {
             const stroke = selectedEdge?.style?.stroke || "#000";
@@ -271,7 +276,7 @@ export default function DiagramCanvas({
             ];
         });
 
-        // Persist
+        // 2) Persist items connections
         setItems?.((prev) => {
             const arr = Array.isArray(prev) ? [...prev] : [];
 
@@ -317,6 +322,7 @@ export default function DiagramCanvas({
             return arr;
         });
 
+        // 3) Close the inspector
         handleCloseInspector();
     };
 
@@ -325,15 +331,26 @@ export default function DiagramCanvas({
         if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
     };
 
-    // Close inspector on Esc
+    // --- ESCAPE: close inspector + exit ALL annotation state ---
+    const exitAnnotations = () => {
+        setAnnoDraft(null);
+        setAnnoSelected(null);
+        annoMoveRef.current = null;
+        setAnnoActive(false);
+        setAnnoTool('note');
+    };
+
+    // Close inspector on Esc when it is open
     useEffect(() => {
         if (!selectedEdge) return;
-        const onKey = (e) => { if (e.key === 'Escape') handleCloseInspector(); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') handleCloseInspector();
+        };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [selectedEdge]);
 
-    // GLOBAL keyboard handler: Delete/Backspace removes selection; Esc exits annotation mode fully
+    // GLOBAL keyboard handler
     useEffect(() => {
         const isTyping = (el) => {
             const tag = el?.tagName?.toLowerCase();
@@ -341,38 +358,29 @@ export default function DiagramCanvas({
         };
 
         const onKey = (e) => {
-            if (!['Delete', 'Backspace', 'Escape'].includes(e.key)) return;
+            if (e.key !== 'Delete' && e.key !== 'Backspace' && e.key !== 'Escape') return;
 
-            if (isTyping(e.target)) return;
-
-            if (e.key === 'Escape') {
-                // Exit annotation mode & clear any edit state
-                if (annoActive || annoDraft || annoMoveRef.current || annoSelected != null) {
-                    e.preventDefault(); e.stopPropagation();
-                    setAnnoActive(false);
-                    setAnnoTool('note');
-                    setAnnoSelected(null);
-                    setAnnoDraft(null);
-                    annoMoveRef.current = null;
-                    return;
-                }
-                // Otherwise close edge inspector
-                handleCloseInspector();
-                return;
-            }
-
-            // Delete key paths
+            if (isTyping(e.target)) return; // ignore when typing
             e.preventDefault();
             e.stopPropagation();
 
+            if (e.key === 'Escape') {
+                handleCloseInspector(); // close edge inspector if open
+                exitAnnotations();      // exit annotation mode entirely
+                return;
+            }
+
+            // DELETE/BACKSPACE:
             if (selectedEdge) {
                 deleteSelectedEdge();
                 return;
             }
 
-            // Delete selected node(s)
+            // Otherwise, delete selected node(s)
             let sel = Array.isArray(selectedNodes) ? selectedNodes : [];
-            if (!sel.length) sel = (Array.isArray(nodes) ? nodes : []).filter(n => n?.selected);
+            if (!sel.length) {
+                sel = (Array.isArray(nodes) ? nodes : []).filter(n => n?.selected);
+            }
             if (!sel.length) return;
 
             const names = sel.map(n => n?.data?.item?.Name || n?.id).join(', ');
@@ -388,15 +396,17 @@ export default function DiagramCanvas({
 
         window.addEventListener('keydown', onKey, { capture: true });
         return () => window.removeEventListener('keydown', onKey, { capture: true });
-    }, [annoActive, annoDraft, annoSelected, selectedEdge, selectedNodes, nodes, setNodes, setEdges, setItems, setSelectedItem, onSelectionChange]);
+    }, [selectedEdge, selectedNodes, nodes, setNodes, setEdges, setItems, setSelectedItem, onSelectionChange]);
 
     const edgeCategories = ['None', 'Inline Valve'];
 
-    // Keep valve node's item.Type in sync with edge dropdown
+    // Keep the valve node's item.Type in sync with the edge dropdown
     const setEdgeInlineValveType = (typeValue) => {
         if (!selectedEdge) return;
 
-        updateSelectedEdge({ data: { ...(selectedEdge.data || {}), inlineValveType: typeValue } });
+        updateSelectedEdge({
+            data: { ...(selectedEdge.data || {}), inlineValveType: typeValue }
+        });
 
         const candidateIds = [selectedEdge.source, selectedEdge.target];
         const valveNode = (Array.isArray(nodes) ? nodes : []).find(n => {
@@ -424,12 +434,17 @@ export default function DiagramCanvas({
 
     const rfInstanceRef = useRef(null);
     const [vx, vy, vz] = useStore((s) => s.transform); // [x, y, zoom]
+    // 🚫 disable right-mouse panning when true
     const [disableRightPan, setDisableRightPan] = useState(false);
 
     useEffect(() => {
+        // global setter any node/canvas can call
         window.rfDisableRightPan = (v) => setDisableRightPan(!!v);
+
+        // optional custom event bus
         const onEvt = (e) => setDisableRightPan(!!e.detail?.disabled);
         window.addEventListener('rf:disableRightPan', onEvt);
+
         return () => {
             delete window.rfDisableRightPan;
             window.removeEventListener('rf:disableRightPan', onEvt);
@@ -437,15 +452,24 @@ export default function DiagramCanvas({
     }, []);
 
     const firstFitDone = useRef(false);
+
     useEffect(() => {
-        if (!firstFitDone.current && Array.isArray(nodes) && nodes.length > 0 && rfInstanceRef.current) {
+        if (
+            !firstFitDone.current &&
+            Array.isArray(nodes) &&
+            nodes.length > 0 &&
+            rfInstanceRef.current
+        ) {
             requestAnimationFrame(() => {
-                try { rfInstanceRef.current.fitView({ padding: 0.2, includeHiddenNodes: true }); } catch { }
+                try {
+                    rfInstanceRef.current.fitView({ padding: 0.2, includeHiddenNodes: true });
+                } catch { }
                 firstFitDone.current = true;
             });
         }
     }, [nodes?.length]);
 
+    // Pick edges for the 3D view (prefer enhancedEdges if present)
     const __edgesFor3D = React.useMemo(() => {
         if (typeof enhancedEdges !== "undefined" && Array.isArray(enhancedEdges)) return enhancedEdges;
         return Array.isArray(edges) ? edges : [];
@@ -454,14 +478,16 @@ export default function DiagramCanvas({
     const onAnnoDown = (e) => {
         if (!annoActive || !svgAnnoRef.current) return;
 
-        // RIGHT CLICK: switch to Move and start moving if on a shape
+        // ✅ RIGHT CLICK: switch to Move and (if over a shape) start moving it immediately
         if (e.button === 2) {
             e.preventDefault();
             e.stopPropagation();
             try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
             const p = svgPointFromEvent(e, annoGRef.current);
+
             setAnnoTool('move');
             setAnnoDraft(null);
+
             const idx = hitTestIndex(p, annotations, 6);
             setAnnoSelected(idx >= 0 ? idx : null);
             if (idx >= 0) {
@@ -472,7 +498,7 @@ export default function DiagramCanvas({
             return;
         }
 
-        // LEFT CLICK logic
+        // ⬇️ LEFT CLICK logic
         if (e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation();
@@ -567,10 +593,14 @@ export default function DiagramCanvas({
         }
     };
 
-    // parse "translate(x,y) scale(s)" -> {x,y,scale}
+    // helper: parse "translate(x,y) scale(s)" -> {x,y,scale}
     const parseTransform = (tr) => {
         const m = /translate\(([^,]+)[,\s]+([^)]+)\)\s*scale\(([^)]+)\)/.exec(tr || '');
-        return { x: m ? parseFloat(m[1]) : 0, y: m ? parseFloat(m[2]) : 0, scale: m ? parseFloat(m[3]) : 1 };
+        return {
+            x: m ? parseFloat(m[1]) : 0,
+            y: m ? parseFloat(m[2]) : 0,
+            scale: m ? parseFloat(m[3]) : 1,
+        };
     };
 
     // Expose simple controls for external toolbars (AddItemButton)
@@ -606,7 +636,7 @@ export default function DiagramCanvas({
                 setAnnotations(prev => [...prev, v]);
                 setAnnoActive(true);
                 setAnnoTool('move');
-                setAnnoSelected(() => annotations.length); // select the new one
+                setAnnoSelected(() => (annotations.length)); // select the new one
             },
             // backward-compat: accepts (paths, transform)
             addPaths: (paths, transform) => {
@@ -614,7 +644,7 @@ export default function DiagramCanvas({
                 setAnnotations(prev => [...prev, { type: 'svg', x, y, scale, vbW: 150, vbH: 150, paths }]);
                 setAnnoActive(true);
                 setAnnoTool('move');
-                setAnnoSelected(() => annotations.length);
+                setAnnoSelected(() => (annotations.length));
             },
             getState: () => ({
                 active: annoActive,
@@ -675,23 +705,31 @@ export default function DiagramCanvas({
                             nodes={Array.isArray(nodes) ? nodes : []}
                             edges={__edgesFor3D}
                             onSelectNode={(nodeId) => {
-                                const n = (Array.isArray(nodes) ? nodes : []).find((nn) => String(nn.id) === String(nodeId));
+                                const n = (Array.isArray(nodes) ? nodes : []).find(
+                                    (nn) => String(nn.id) === String(nodeId)
+                                );
                                 onSelectionChange?.({ nodes: n ? [n] : [], edges: [] });
                             }}
                             onMoveNode={(id, pos2D) => {
                                 setNodes((prev) =>
                                     prev.map((n) =>
-                                        String(n.id) === String(id) ? { ...n, position: { x: pos2D.x, y: pos2D.y } } : n
+                                        String(n.id) === String(id)
+                                            ? { ...n, position: { x: pos2D.x, y: pos2D.y } }
+                                            : n
                                     )
                                 );
-                                const moved = (Array.isArray(nodes) ? nodes : []).find((nn) => String(nn.id) === String(id));
+                                const moved = (Array.isArray(nodes) ? nodes : []).find(
+                                    (nn) => String(nn.id) === String(id)
+                                );
                                 onSelectionChange?.({ nodes: moved ? [moved] : [], edges: [] });
                             }}
                             selectedNodeId={selectedNodes?.[0]?.id}
                             onSetNodePivot={(id, pivot) => {
                                 setNodes((ns) =>
                                     ns.map((n) =>
-                                        String(n.id) === String(id) ? { ...n, data: { ...n.data, pivot } } : n
+                                        String(n.id) === String(id)
+                                            ? { ...n, data: { ...n.data, pivot } }
+                                            : n
                                     )
                                 );
                             }}
@@ -713,7 +751,7 @@ export default function DiagramCanvas({
                             minZoom={0.02}
                             defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                             nodeTypes={nodeTypes}
-                            panOnDrag={disableRightPan ? [0, 1] : true}
+                            panOnDrag={disableRightPan ? [0, 1] : true}   // allow left+middle; block right when editing
                             zoomOnScroll={true}
                             zoomOnPinch={true}
                             style={{ width: '100%', height: '100%', background: 'transparent' }}
@@ -740,16 +778,16 @@ export default function DiagramCanvas({
                                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                 onDoubleClick={onAnnoDoubleClick}
                             >
-                                {/* ✅ Pan/zoom as an SVG transform */}
+                                {/* ✅ Pan/zoom via SVG transform so getScreenCTM works */}
                                 <g ref={annoGRef} transform={`translate(${vx},${vy}) scale(${vz})`}>
                                     {/* highlight selected shape */}
                                     {annoSelected != null && annotations[annoSelected] && (() => {
                                         const s = annotations[annoSelected];
-                                        const dash = { strokeDasharray: '4 3', strokeWidth: (s.strokeWidth || 2) + 1.2, stroke: '#444', fill: 'none' };
-                                        if (s.type === 'line') return <line   {...dash} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
-                                        if (s.type === 'rect') return <rect   {...dash} x={s.x} y={s.y} width={s.w} height={s.h} />;
+                                        const dash = { strokeDasharray: '4 3', strokeWidth: (s.strokeWidth || 2) + 1.2, stroke: '#444', fill: 'none', vectorEffect: 'non-scaling-stroke' };
+                                        if (s.type === 'line') return <line {...dash} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
+                                        if (s.type === 'rect') return <rect {...dash} x={s.x} y={s.y} width={s.w} height={s.h} />;
                                         if (s.type === 'circle') return <circle {...dash} cx={s.cx} cy={s.cy} r={s.r} />;
-                                        if (s.type === 'note') return <rect   {...dash} x={s.x} y={s.y} width={s.w ?? 140} height={s.h ?? 70} />;
+                                        if (s.type === 'note') return <rect {...dash} x={s.x} y={s.y} width={s.w ?? 140} height={s.h ?? 70} />;
                                         if (s.type === 'svg') {
                                             const sc = s.scale ?? 1, w = (s.vbW ?? 150) * sc, h = (s.vbH ?? 150) * sc;
                                             return <rect {...dash} x={s.x ?? 0} y={s.y ?? 0} width={w} height={h} />;
@@ -761,24 +799,14 @@ export default function DiagramCanvas({
                                     {annotations.map((o, i) => {
                                         const stroke = o.stroke ?? '#222';
                                         const w = o.strokeWidth ?? 2;
-                                        if (o.type === 'line') return (
-                                            <line key={i} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2}
-                                                stroke={stroke} strokeWidth={w} vectorEffect="non-scaling-stroke" />
-                                        );
-                                        if (o.type === 'rect') return (
-                                            <rect key={i} x={o.x} y={o.y} width={o.w} height={o.h}
-                                                stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} vectorEffect="non-scaling-stroke" />
-                                        );
-                                        if (o.type === 'circle') return (
-                                            <circle key={i} cx={o.cx} cy={o.cy} r={o.r}
-                                                stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} vectorEffect="non-scaling-stroke" />
-                                        );
-                                        if (o.type === 'path') return (
-                                            <path key={i} d={o.d}
-                                                stroke={o.stroke ?? stroke} strokeWidth={o.strokeWidth ?? w}
-                                                fill={o.fill ?? 'none'} transform={o.transform || undefined}
-                                                vectorEffect="non-scaling-stroke" />
-                                        );
+                                        const baseProps = { vectorEffect: 'non-scaling-stroke' };
+                                        if (o.type === 'line') return <line key={i} {...baseProps} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} stroke={stroke} strokeWidth={w} />;
+                                        if (o.type === 'rect') return <rect key={i} {...baseProps} x={o.x} y={o.y} width={o.w} height={o.h} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                        if (o.type === 'circle') return <circle key={i} {...baseProps} cx={o.cx} cy={o.cy} r={o.r} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+
+                                        if (o.type === 'path')
+                                            return <path key={i} {...baseProps} d={o.d} stroke={o.stroke ?? stroke} strokeWidth={o.strokeWidth ?? w} fill={o.fill ?? 'none'} transform={o.transform || undefined} />;
+
                                         if (o.type === 'svg') {
                                             const s = o.scale ?? 1;
                                             const tr = `translate(${o.x ?? 0},${o.y ?? 0}) scale(${s})`;
@@ -787,22 +815,22 @@ export default function DiagramCanvas({
                                                     {(o.paths || []).map((p, j) => (
                                                         <path
                                                             key={j}
+                                                            vectorEffect="non-scaling-stroke"
                                                             d={p.d}
                                                             stroke={p.stroke ?? '#222'}
                                                             strokeWidth={p.strokeWidth ?? 1}
                                                             fill={p.fill ?? 'none'}
-                                                            vectorEffect="non-scaling-stroke"
                                                         />
                                                     ))}
                                                 </g>
                                             );
                                         }
+
                                         if (o.type === 'note') {
                                             const bw = 1.5, pad = 6, noteW = o.w ?? 140, noteH = o.h ?? 70;
                                             return (
                                                 <g key={i}>
-                                                    <rect x={o.x} y={o.y} width={noteW} height={noteH} rx={6} ry={6}
-                                                        fill={o.fill ?? '#fff8c6'} stroke={o.stroke ?? '#888'} strokeWidth={o.strokeWidth ?? bw} />
+                                                    <rect x={o.x} y={o.y} width={noteW} height={noteH} rx={6} ry={6} fill={o.fill ?? '#fff8c6'} stroke={o.stroke ?? '#888'} strokeWidth={o.strokeWidth ?? bw} />
                                                     <text x={o.x + pad} y={o.y + 20} style={{ fontSize: 12, fill: '#222' }}>{o.text || 'Note'}</text>
                                                 </g>
                                             );
@@ -811,28 +839,16 @@ export default function DiagramCanvas({
                                     })}
 
                                     {/* live draft preview */}
-                                    {annoDraft?.type === 'line' && (
-                                        <line x1={annoDraft.x1} y1={annoDraft.y1} x2={annoDraft.x2} y2={annoDraft.y2}
-                                            stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth}
-                                            vectorEffect="non-scaling-stroke" />
-                                    )}
-                                    {annoDraft?.type === 'rect' && (
-                                        <rect x={annoDraft.x} y={annoDraft.y} width={annoDraft.w} height={annoDraft.h}
-                                            stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth}
-                                            fill="none" vectorEffect="non-scaling-stroke" />
-                                    )}
-                                    {annoDraft?.type === 'circle' && (
-                                        <circle cx={annoDraft.cx} cy={annoDraft.cy} r={annoDraft.r || 0}
-                                            stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth}
-                                            fill="none" vectorEffect="non-scaling-stroke" />
-                                    )}
+                                    {annoDraft?.type === 'line' && <line vectorEffect="non-scaling-stroke" x1={annoDraft.x1} y1={annoDraft.y1} x2={annoDraft.x2} y2={annoDraft.y2} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} />}
+                                    {annoDraft?.type === 'rect' && <rect vectorEffect="non-scaling-stroke" x={annoDraft.x} y={annoDraft.y} width={annoDraft.w} height={annoDraft.h} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
+                                    {annoDraft?.type === 'circle' && <circle vectorEffect="non-scaling-stroke" cx={annoDraft.cx} cy={annoDraft.cy} r={annoDraft.r || 0} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
                                 </g>
                             </svg>
                         </ReactFlow>
                     )}
                 </div>
 
-                {/* Edge inspector */}
+                {/* Edge inspector (overlay on the right, available in both views) */}
                 <aside
                     ref={panelRef}
                     aria-hidden={!selectedEdge}
@@ -870,6 +886,7 @@ export default function DiagramCanvas({
                                 <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
                             </div>
 
+                            {/* CATEGORY */}
                             <div>
                                 <label style={{ display: 'block', fontSize: 12 }}>Category</label>
                                 <select
@@ -877,12 +894,13 @@ export default function DiagramCanvas({
                                     onChange={(e) => changeEdgeCategory(e.target.value)}
                                     style={{ padding: 8, width: '100%' }}
                                 >
-                                    {['None', 'Inline Valve'].map((cat) => (
+                                    {edgeCategories.map((cat) => (
                                         <option key={cat} value={cat}>{cat}</option>
                                     ))}
                                 </select>
                             </div>
 
+                            {/* Inline Valve Type (visible only when category == Inline Valve) */}
                             {selectedEdge?.data?.category === 'Inline Valve' && (
                                 <div>
                                     <label style={{ display: 'block', fontSize: 12, marginTop: 8 }}>Inline Valve Type</label>
@@ -892,22 +910,30 @@ export default function DiagramCanvas({
                                         style={{ padding: 8, width: '100%' }}
                                     >
                                         <option value="">Select type...</option>
-                                        {valveTypeOptions.length > 0
-                                            ? valveTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)
-                                            : <option disabled value="">No types available</option>}
+                                        {valveTypeOptions.length > 0 ? (
+                                            valveTypeOptions.map((t) => (
+                                                <option key={t} value={t}>{t}</option>
+                                            ))
+                                        ) : (
+                                            <option disabled value="">No types available</option>
+                                        )}
                                     </select>
 
                                     <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                                         <button onClick={toggleEdgeAnimated}>
                                             {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
                                         </button>
-                                        <button onClick={() => onCreateInlineValve ? onCreateInlineValve(selectedEdge.id) : createInlineValveNode()}>
+                                        <button
+                                            onClick={() =>
+                                                onCreateInlineValve ? onCreateInlineValve(selectedEdge.id) : createInlineValveNode()
+                                            }>
                                             Insert Inline Valve Node
                                         </button>
                                     </div>
                                 </div>
                             )}
 
+                            {/* When category is not Inline Valve, still show animate toggle */}
                             {selectedEdge?.data?.category !== 'Inline Valve' && (
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button onClick={toggleEdgeAnimated}>
