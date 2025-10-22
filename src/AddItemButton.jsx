@@ -1,5 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿// src/components/AddItemButton.jsx
+import React, { useState, useEffect } from 'react';
 import ImageTracer from 'imagetracerjs';
+
 export default function AddItemButton({
     addItem,
     defaultUnit = '',
@@ -12,6 +14,10 @@ export default function AddItemButton({
     const [tool, setTool] = useState('note');     // move | note | line | rect | circle
     const [penWidth, setPenWidth] = useState(2);
     const [color, setColor] = useState('#222');
+
+    // Line-art options (transparent background + black strokes)
+    const [lineArt, setLineArt] = useState(true);     // keep only black strokes (no fill)
+    const [bgTolerance, setBgTolerance] = useState(20); // 0..80: how aggressively to drop near-white bg
 
     // hydrate from canvas (optional)
     useEffect(() => {
@@ -43,7 +49,9 @@ export default function AddItemButton({
             console.error('[AddItemButton] addItem error', err);
         }
     };
+
     const fileInputId = 'trace-png-input';
+
     // shorthands to talk to DiagramCanvas
     const api = () => window.annoControls || {};
     const setAnnoActive = (v) => { api().setActive?.(!!v); setActive(!!v); };
@@ -54,6 +62,38 @@ export default function AddItemButton({
     };
     const setAnnoWidth = (w) => { api().setWidth?.(w); setPenWidth(w); };
     const setAnnoColor = (c) => { api().setColor?.(c); setColor(c); };
+
+    // === Preprocess helper: remove near-white background & force black foreground ===
+    // Produces a data URL (PNG) with transparent bg, black foreground
+    const stripBackgroundToBlack = (imgURL, tol = 20) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const c = document.createElement('canvas');
+            c.width = img.width; c.height = img.height;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const im = ctx.getImageData(0, 0, c.width, c.height);
+            const d = im.data;
+            for (let i = 0; i < d.length; i += 4) {
+                const r = d[i], g = d[i + 1], b = d[i + 2];
+                // distance from white (255,255,255)
+                const dr = 255 - r, dg = 255 - g, db = 255 - b;
+                const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+                if (dist <= tol) {
+                    // background => transparent
+                    d[i + 3] = 0;
+                } else {
+                    // foreground => solid black
+                    d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(im, 0, 0);
+            resolve(c.toDataURL('image/png'));
+        };
+        img.onerror = reject;
+        img.crossOrigin = 'anonymous'; // works for blob: URLs
+        img.src = imgURL;
+    });
 
     return (
         <div
@@ -99,6 +139,7 @@ export default function AddItemButton({
             >
                 {panelOpen ? 'Hide Tools' : 'Annotate Tools'}
             </button>
+
             {/* Trace PNG → SVG */}
             <button
                 onClick={() => document.getElementById(fileInputId)?.click()}
@@ -114,62 +155,117 @@ export default function AddItemButton({
             >
                 Trace PNG → SVG
             </button>
+
             <input
                 id={fileInputId}
                 type="file"
                 accept="image/png"
                 style={{ display: 'none' }}
-                onChange={(e) => {
+                onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    const url = URL.createObjectURL(file);
+                    const rawURL = URL.createObjectURL(file);
 
-                    // Reasonable defaults (tune as you like)
+                    // tracer defaults (tweak as desired)
                     const opts = {
-                        numberofcolors: 2,  // more colors -> more paths
-                        pathomit: 8,        // ignore tiny specks
-                        ltres: 1, qtres: 1, // curve fitting
-                        blurradius: 0, blurdelta: 0
+                        numberofcolors: lineArt ? 1 : 2, // mono when line-art
+                        pathomit: 8,
+                        ltres: 1, qtres: 1,
+                        blurradius: 0, blurdelta: 0,
                     };
 
-                    ImageTracer.imageToSVG(url, (svgstr) => {
-                        try {
-                            const doc = new DOMParser().parseFromString(svgstr, 'image/svg+xml');
-                            const root = doc.documentElement;
-                            const vb = (root.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
-                            let vbW = 0, vbH = 0;
-                            if (vb.length === 4) { vbW = vb[2]; vbH = vb[3]; }
-                            else {
-                                vbW = parseFloat(root.getAttribute('width') || '150');
-                                vbH = parseFloat(root.getAttribute('height') || '150');
+                    try {
+                        // 1) Optional pre-process: make bg transparent & foreground black
+                        const srcURL = lineArt
+                            ? await stripBackgroundToBlack(rawURL, bgTolerance)
+                            : rawURL;
+
+                        // 2) Trace to SVG
+                        ImageTracer.imageToSVG(srcURL, (svgstr) => {
+                            try {
+                                const doc = new DOMParser().parseFromString(svgstr, 'image/svg+xml');
+                                const root = doc.documentElement;
+                                const vb = (root.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
+                                let vbW = 0, vbH = 0;
+                                if (vb.length === 4) { vbW = vb[2]; vbH = vb[3]; }
+                                else {
+                                    vbW = parseFloat(root.getAttribute('width') || '150');
+                                    vbH = parseFloat(root.getAttribute('height') || '150');
+                                }
+
+                                // Extract paths
+                                let paths = Array.from(doc.querySelectorAll('path')).map((p) => ({
+                                    d: p.getAttribute('d') || '',
+                                    fill: p.getAttribute('fill') || 'none',
+                                    stroke: p.getAttribute('stroke') || '#222',
+                                    strokeWidth: parseFloat(p.getAttribute('stroke-width') || '1'),
+                                }));
+
+                                if (lineArt) {
+                                    // Force stroke-only black lines on transparent
+                                    paths = paths
+                                        .filter(p => p.d && p.d.length > 10) // drop tiny artifacts
+                                        .map(p => ({
+                                            ...p,
+                                            fill: 'none',
+                                            stroke: '#000',
+                                            strokeWidth: Math.max(0.5, Number(penWidth) || 1.25),
+                                        }));
+                                } else {
+                                    // Optionally map stroke color to current picker for non-lineArt mode
+                                    paths = paths.map(p => ({
+                                        ...p,
+                                        stroke: color || p.stroke || '#222',
+                                        strokeWidth: Math.max(0.5, Number(penWidth) || 1),
+                                    }));
+                                }
+
+                                if (!paths.length) {
+                                    alert('No vector paths detected. Try adjusting BG tolerance or using a simpler PNG.');
+                                    return;
+                                }
+
+                                // 3) Drop at an offset so multiple imports don’t overlap
+                                const state = window.annoControls?.getState?.() || { count: 0 };
+                                const n = Number(state.count) || 0;
+                                const baseX = 160, baseY = 140, step = 26;
+                                const x = baseX + (n % 12) * step;
+                                const y = baseY + Math.floor(n / 12) * step;
+
+                                // Initial size on canvas
+                                const targetW = 300;
+                                const scale = Math.max(0.001, targetW / (vbW || 1));
+
+                                // 4) Hand off to canvas overlay
+                                if (window.annoControls?.addVector) {
+                                    window.annoControls.addVector({
+                                        type: 'svg',
+                                        x, y,
+                                        scale,
+                                        vbW, vbH,
+                                        paths,
+                                    });
+                                } else if (window.annoControls?.addPaths) {
+                                    // backward-compat
+                                    const transform = `translate(${x},${y}) scale(${scale})`;
+                                    window.annoControls.addPaths(paths, transform);
+                                }
+
+                                // auto-arm Move so you can right-drag immediately
+                                window.annoControls?.setActive?.(true);
+                                window.annoControls?.setTool?.('move');
+                            } catch (err) {
+                                console.error('Vectorize parse failed', err);
+                            } finally {
+                                URL.revokeObjectURL(rawURL);
+                                e.target.value = '';
                             }
-
-                            // Scale to a friendly width on your 2000×1200 canvas coords
-                            const targetW = 300;                     // initial width on canvas
-                            const scale = Math.max(0.001, targetW / (vbW || 1));
-                            const x = 200, y = 150;                  // initial drop position
-                            const transform = `translate(${x},${y}) scale(${scale})`;
-
-                            const paths = Array.from(doc.querySelectorAll('path')).map((p) => ({
-                                d: p.getAttribute('d') || '',
-                                fill: p.getAttribute('fill') || 'none',
-                                stroke: p.getAttribute('stroke') || '#222',
-                                strokeWidth: parseFloat(p.getAttribute('stroke-width') || '1'),
-                            }));
-
-                            if (paths.length) {
-                                // hand off to the canvas
-                                window.annoControls?.addPaths?.(paths, transform);
-                            } else {
-                                alert('No vector paths detected. Try increasing numberofcolors or using a simpler PNG.');
-                            }
-                        } catch (err) {
-                            console.error('Vectorize parse failed', err);
-                        } finally {
-                            URL.revokeObjectURL(url);
-                            e.target.value = '';
-                        }
-                    }, opts);
+                        }, opts);
+                    } catch (err) {
+                        console.error('Preprocess failed', err);
+                        URL.revokeObjectURL(rawURL);
+                        e.target.value = '';
+                    }
                 }}
             />
 
@@ -257,6 +353,30 @@ export default function AddItemButton({
                         title="Stroke color"
                     />
 
+                    {/* Line-art options */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginLeft: 8 }}>
+                        <input
+                            type="checkbox"
+                            checked={lineArt}
+                            onChange={(e) => setLineArt(e.target.checked)}
+                            disabled={!active}
+                        />
+                        Line art (no fill)
+                    </label>
+
+                    <span style={{ fontSize: 12, opacity: .75, marginLeft: 6 }}>BG tol:</span>
+                    <input
+                        type="range"
+                        min={0}
+                        max={80}
+                        step={1}
+                        value={bgTolerance}
+                        onChange={(e) => setBgTolerance(Number(e.target.value))}
+                        disabled={!active}
+                        style={{ width: 80 }}
+                        title="Background removal tolerance"
+                    />
+
                     <button onClick={() => api().undo?.()} disabled={!active} style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cfd3d8', borderRadius: 6, background: '#fff' }}>
                         Undo
                     </button>
@@ -274,6 +394,24 @@ export default function AddItemButton({
                         title="Delete selected annotation"
                     >
                         Delete Sel
+                    </button>
+
+                    {/* Scale controls for selected annotation */}
+                    <button
+                        onClick={() => api().scaleSelected?.(1.2)}
+                        disabled={!active}
+                        style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cfd3d8', borderRadius: 6, background: '#fff' }}
+                        title="Scale up selected"
+                    >
+                        Scale +
+                    </button>
+                    <button
+                        onClick={() => api().scaleSelected?.(1 / 1.2)}
+                        disabled={!active}
+                        style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cfd3d8', borderRadius: 6, background: '#fff' }}
+                        title="Scale down selected"
+                    >
+                        Scale −
                     </button>
                 </div>
             )}
