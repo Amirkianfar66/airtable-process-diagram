@@ -349,7 +349,7 @@ export default function DiagramCanvas({
             if (e.key !== 'Delete' && e.key !== 'Backspace' && e.key !== 'Escape') return;
 
             if (e.key === 'Escape') {
-                handleCloseInspector();
+                window.exitAllAnnotation?.();
                 return;
             }
 
@@ -589,6 +589,30 @@ export default function DiagramCanvas({
             scale: m ? parseFloat(m[3]) : 1,
         };
     };
+    // === Global "exit all" helper (ESC) ===
+    useEffect(() => {
+        function exitAllAnnotation() {
+            // 1) close edge inspector
+            setSelectedEdge(null);
+            if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
+
+            // 2) reset canvas annotation state
+            setAnnoActive(false);
+            setAnnoDraft(null);
+            setAnnoSelected(null);
+            window.rfDisableRightPan?.(false);
+
+            // 3) broadcast so toolbars/icon editors/croppers can close themselves
+            window.dispatchEvent(new CustomEvent('annotation:exit'));
+
+            // 4) optional: blur focused inputs to avoid half-typed states
+            try { document.activeElement?.blur?.(); } catch { }
+        }
+
+        // expose globally so any code can call it
+        window.exitAllAnnotation = exitAllAnnotation;
+        return () => { delete window.exitAllAnnotation; };
+    }, [onEdgeSelect]);
 
     // Expose simple controls for external toolbars (AddItemButton)
     useEffect(() => {

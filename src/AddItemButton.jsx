@@ -346,6 +346,27 @@ export default function AddItemButton({
 
     // redraw when state changes
     useEffect(() => { if (cropOpen) drawCropCanvas(); }, [cropOpen, rect, imgEl, imgFit, viewBox]);
+    // Close annotate UI when the canvas broadcasts an exit
+    useEffect(() => {
+        const onExit = () => {
+            setPanelOpen(false);
+            setActive(false);
+            // also sync the canvas side if it is still alive
+            try { window.annoControls?.setActive?.(false); } catch { }
+        };
+        window.addEventListener('annotation:exit', onExit);
+        return () => window.removeEventListener('annotation:exit', onExit);
+    }, []);
+    // While crop modal is open, Esc cancels and Enter applies
+    useEffect(() => {
+        if (!cropOpen) return;
+        const onKey = (e) => {
+            if (e.key === 'Escape') { e.stopPropagation(); cancelCrop(); }
+            if (e.key === 'Enter') { e.preventDefault(); applyCropAndTrace(); }
+        };
+        window.addEventListener('keydown', onKey, { capture: true });
+        return () => window.removeEventListener('keydown', onKey, { capture: true });
+    }, [cropOpen, imgEl, rect, imgFit]);
 
     return (
         <div

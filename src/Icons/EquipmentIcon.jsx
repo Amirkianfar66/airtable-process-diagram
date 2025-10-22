@@ -337,6 +337,32 @@ export default function EquipmentIcon({ id, data }) {
         setDraft(null);
         persistOverlays([...overlays, finalized]);
     };
+    // Stop icon editing when the canvas asks everyone to exit
+    useEffect(() => {
+        const onExit = () => {
+            setEditing(false);
+            setSelected(null);
+            setDraft(null);
+            movingRef.current = null;
+        };
+        window.addEventListener('annotation:exit', onExit);
+        return () => window.removeEventListener('annotation:exit', onExit);
+    }, []);
+    useEffect(() => {
+        if (!editing) return;
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                setEditing(false);
+                setSelected(null);
+                setDraft(null);
+                movingRef.current = null;
+                // right-pan will be re-enabled by the existing effect tied to `editing`
+            }
+        };
+        window.addEventListener('keydown', onKey, { capture: true });
+        return () => window.removeEventListener('keydown', onKey, { capture: true });
+    }, [editing]);
 
     return (
         <div
