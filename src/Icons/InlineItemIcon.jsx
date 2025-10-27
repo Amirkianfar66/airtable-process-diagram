@@ -1,7 +1,8 @@
 // InlineItemIcon.jsx
 import React, { useState } from "react";
+import { Handle, Position } from "reactflow";
 
-// Auto-import all SVGs in ./InlineItemIcon/*.svg (create this folder and drop inline-item SVGs)
+// Auto-import all SVGs in ./InlineItemIcon/*.svg
 const modules = import.meta.glob("./InlineItemIcon/*.svg", { eager: true });
 
 const icons = {};
@@ -9,9 +10,10 @@ for (const path in modules) {
     const fileBase = path.split("/").pop().replace(".svg", "");
     const key = fileBase.toLowerCase();
     const mod = modules[path];
-    icons[key] = (typeof mod === "object" && typeof mod.default === "function")
-        ? mod.default
-        : (mod.default || mod);
+    icons[key] =
+        (typeof mod === "object" && typeof mod.default === "function")
+            ? mod.default
+            : (mod.default || mod);
 }
 
 const normalizeKey = (s) =>
@@ -38,6 +40,13 @@ export default function InlineItemIcon({ data }) {
         if (k && icons[k]) { Icon = icons[k]; break; }
     }
 
+    const handleStyle = {
+        width: 10,
+        height: 10,
+        background: "#13c2c2",
+        border: "2px solid white",
+    };
+
     return (
         <div
             onMouseEnter={() => setHovered(true)}
@@ -53,8 +62,13 @@ export default function InlineItemIcon({ data }) {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
+                pointerEvents: "all",
             }}
         >
+            {/* Handles: Left = target, Right = source */}
+            <Handle id="left" type="target" position={Position.Left} style={{ ...handleStyle }} />
+            <Handle id="right" type="source" position={Position.Right} style={{ ...handleStyle }} />
+
             <div style={{ width: 60, height: 60 }}>
                 {Icon ? (
                     typeof Icon === "string"
