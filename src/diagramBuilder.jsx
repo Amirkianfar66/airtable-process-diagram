@@ -40,7 +40,10 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
             Type,
             Category,
             Unit: item.Unit != null ? String(item.Unit) : 'No Unit',
-            SubUnit: item.SubUnit != null ? String(item.SubUnit) : 'No SubUnit',
+            SubUnit: (item.SubUnit ?? item['Sub Unit']) != null
+                ? String(item.SubUnit ?? item['Sub Unit'])
+                : 'Default SubUnit',
+
             Sequence: Number.isFinite(Number(item.Sequence)) ? Number(item.Sequence) : 1,
             Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,
 

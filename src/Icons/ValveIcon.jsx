@@ -41,10 +41,10 @@ export default function ValveIcon({ data }) {
     }
 
     const handleStyle = {
-        width: 10,
-        height: 10,
+        width: 5,
+        height: 5,
         background: "#1677ff",
-        border: "2px solid #fff",
+        border: "1px solid #fff",
     };
 
     return (

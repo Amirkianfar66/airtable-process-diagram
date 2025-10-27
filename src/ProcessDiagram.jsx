@@ -674,7 +674,7 @@ export default function ProcessDiagram() {
             Code: localItem.Code || localItem['Item Code'] || '',
             Name: localItem.Name || 'Equipment',
             Unit: localItem.Unit || 'No Unit',
-            SubUnit: localItem.SubUnit || 'Default SubUnit',
+            'Sub Unit': localItem.SubUnit ?? localItem['Sub Unit'] ?? 'Default SubUnit',
             'Category Item Type': localItem['Category Item Type'] || localItem.Category || 'Equipment',
             Category: localItem['Category Item Type'] || localItem.Category || 'Equipment',
             Type: localItem.Type || '',
@@ -747,7 +747,10 @@ export default function ProcessDiagram() {
                 'Category Item Type': 'Valve',
                 Type: [],
                 Unit: sourceNode?.data?.item?.Unit || 'No Unit',
-                SubUnit: sourceNode?.data?.item?.SubUnit || 'Default SubUnit',
+                SubUnit: sourceNode?.data?.item?.SubUnit
+                    ?? sourceNode?.data?.item?.['Sub Unit']
+                    ?? 'Default SubUnit',
+
                 x: midX,
                 y: midY,
                 edgeId: edge.id,

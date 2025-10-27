@@ -41,10 +41,10 @@ export default function InlineItemIcon({ data }) {
     }
 
     const handleStyle = {
-        width: 10,
-        height: 10,
+        width: 5,
+        height: 5,
         background: "#13c2c2",
-        border: "2px solid white",
+        border: "1px solid white",
     };
 
     return (
