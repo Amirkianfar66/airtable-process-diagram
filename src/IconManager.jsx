@@ -1,8 +1,8 @@
 ﻿import React from "react";
 import EquipmentIcon from "./Icons/EquipmentIcon";
 import InstrumentIcon from "./Icons/InstrumentIcon";
-import InlineItemIcon from "./InlineItemIcon";
-import ValveIcon from "./ValveIcon";
+import InlineItemIcon from "./Icons/InlineItemIcon";
+import ValveIcon from "./Icons/ValveIcon";
 import PipeIcon from "./Icons/PipeIcon";
 import ElectricalIcon from "./Icons/ElectricalIcon";
 
