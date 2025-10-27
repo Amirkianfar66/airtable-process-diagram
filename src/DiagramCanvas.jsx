@@ -1,7 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactFlow, { Controls, Background } from 'reactflow';
 
-
 import MainToolbar from './MainToolbar';
 import 'reactflow/dist/style.css';
 import { ChatBox } from './AIPNIDGenerator';
@@ -37,7 +36,7 @@ export default function DiagramCanvas({
     deleteNode,
     onNodeDrag,
     onNodeDragStop,
-    onCreateInlineValve,
+    onCreateInlineValve, // kept for backward compat; local creator handles category/type
     showInlineEdgeInspector = true,
     availableUnits = [],
     currentView = 'canvas',
@@ -45,7 +44,13 @@ export default function DiagramCanvas({
     onUnitLayoutChange = () => { },
 }) {
     const [selectedEdge, setSelectedEdge] = useState(null);
-    const [valveTypeOptions, setValveTypeOptions] = useState([]);
+
+    // Inline device type options by category
+    const [deviceTypeOptions, setDeviceTypeOptions] = useState({
+        Valve: [],
+        'Inline Item': [],
+    });
+
     const panelRef = useRef(null);
     const [view, setView] = useState('2d');
 
@@ -54,14 +59,13 @@ export default function DiagramCanvas({
     const [annoTool, setAnnoTool] = useState('note'); // 'move' | 'line' | 'rect' | 'circle' | 'note'
     const [annoColor, setAnnoColor] = useState('#222');
     const [annoWidth, setAnnoWidth] = useState(2);
-
     const [annotations, setAnnotations] = useState([]); // [{type, ...}]
     const [annoDraft, setAnnoDraft] = useState(null);   // live drawing object
     const [annoSelected, setAnnoSelected] = useState(null); // selected index (for Move/Note edit)
     const annoMoveRef = useRef(null);  // { index, start:{x,y}, original:<shape> }
     const svgAnnoRef = useRef(null);
+
     // React Flow viewport transform (x, y, zoom) so annotations track zoom/pan
-    // Track viewport locally (no zustand/useStore needed)
     const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
     const { x: tx, y: ty, zoom: tZoom } = viewport;
 
@@ -75,27 +79,17 @@ export default function DiagramCanvas({
         return { x: (sx - tx) / (tZoom || 1), y: (sy - ty) / (tZoom || 1) };
     }
 
-
     // disable right-mouse panning while annotating
     useEffect(() => {
         window.rfDisableRightPan?.(annoActive);
         return () => window.rfDisableRightPan?.(false);
     }, [annoActive]);
 
-    // prevent nodes from being dragged while annotating (optional but nice)
+    // prevent nodes from being dragged while annotating
     useEffect(() => {
         if (!setNodes) return;
         setNodes(nds => nds.map(n => ({ ...n, draggable: !annoActive })));
     }, [annoActive, setNodes]);
-
-    // convert pointer to local SVG coords
-    function svgPointFromEvent(evt, svgEl) {
-        const pt = svgEl.createSVGPoint();
-        pt.x = evt.clientX;
-        pt.y = evt.clientY;
-        const ctm = svgEl.getScreenCTM();
-        return ctm ? pt.matrixTransform(ctm.inverse()) : { x: 0, y: 0 };
-    }
 
     // --- hit-test helpers for Move tool ---
     function pointToSegmentDist(px, py, x1, y1, x2, y2) {
@@ -154,27 +148,37 @@ export default function DiagramCanvas({
         console.log('DiagramCanvas prop onEdgeClick:', onEdgeClick);
     }, [onEdgeClick]);
 
-    // Fetch Inline Valve types from Airtable (same envs you use in ItemDetailCard)
+    // Fetch inline device types (Valve + Inline Item)
     useEffect(() => {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
         const valveTypesTableId = import.meta.env.VITE_AIRTABLE_VALVE_TYPES_TABLE_ID;
-        if (!baseId || !token || !valveTypesTableId) return;
+        const inlineItemTypesTableId =
+            import.meta.env.VITE_AIRTABLE_INLINEITEM_TYPES_TABLE_ID ||
+            import.meta.env.VITE_AIRTABLE_AGENT_TYPES_TABLE_ID; // fallback if you store inline items in "Agent Types"
+
+        if (!baseId || !token) return;
 
         let alive = true;
         (async () => {
-            try {
-                const res = await fetch(`https://api.airtable.com/v0/${baseId}/${valveTypesTableId}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                const data = await res.json();
-                const opts = (data.records || [])
-                    .map(r => r?.fields?.['Still Pipe'] || r?.fields?.['Name'] || '')
-                    .filter(Boolean);
-                if (alive) setValveTypeOptions(opts);
-            } catch (err) {
-                console.error('Failed to load valve types', err);
+            const headers = { Authorization: `Bearer ${token}` };
+            async function load(tableId) {
+                if (!tableId) return [];
+                try {
+                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}`, { headers });
+                    const data = await res.json();
+                    return (data.records || [])
+                        .map(r => r?.fields?.['Still Pipe'] || r?.fields?.['Name'] || '')
+                        .filter(Boolean);
+                } catch {
+                    return [];
+                }
             }
+            const [valves, inlineItems] = await Promise.all([
+                load(valveTypesTableId),
+                load(inlineItemTypesTableId)
+            ]);
+            if (alive) setDeviceTypeOptions({ Valve: valves, 'Inline Item': inlineItems });
         })();
         return () => { alive = false; };
     }, []);
@@ -213,130 +217,193 @@ export default function DiagramCanvas({
 
     const toggleEdgeAnimated = () => updateSelectedEdge({ animated: !selectedEdge?.animated });
 
-    // Store category on the edge, and (optionally) clear inline valve type if switching to None
-    const changeEdgeCategory = (category) => {
+    // Store inline device category on the edge ('Valve' | 'Inline Item' | None)
+    const changeEdgeInlineCategory = (category) => {
         if (!selectedEdge) return;
         const prevData = selectedEdge.data || {};
         const newData = { ...prevData };
 
-        if (category === 'Inline Valve') {
-            newData.category = 'Inline Valve';
+        if (category === 'None') {
+            delete newData.inlineDeviceCategory;
+            delete newData.inlineDeviceType;
         } else {
-            delete newData.category;
-            delete newData.inlineValveType;
+            newData.inlineDeviceCategory = category; // 'Valve' or 'Inline Item'
+            // keep type if still relevant; clear if switching buckets
+            if (prevData.inlineDeviceCategory && prevData.inlineDeviceCategory !== category) {
+                delete newData.inlineDeviceType;
+            }
         }
         updateSelectedEdge({ data: newData });
     };
 
-    // --- Insert inline valve on the selected edge and persist to items ---
-    const createInlineValveNode = () => {
+    // --- Keep the inline device node's item.Type in sync with the edge dropdown ---
+    const setEdgeInlineDeviceType = (typeValue) => {
         if (!selectedEdge) return;
 
-        const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
-        const targetNode = nodes.find((n) => n.id === selectedEdge.target);
-        if (!sourceNode || !targetNode) return;
+        const category = selectedEdge?.data?.inlineDeviceCategory || 'Valve';
+        updateSelectedEdge({
+            data: { ...(selectedEdge.data || {}), inlineDeviceType: typeValue, inlineDeviceCategory: category }
+        });
 
-        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
-        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-        const inlineType = selectedEdge?.data?.inlineValveType || '';
+        // If user already inserted an inline device node between these two endpoints,
+        // it will be one of the endpoints of the currently selected segment.
+        const candidateIds = [selectedEdge.source, selectedEdge.target];
+        const deviceNode = (Array.isArray(nodes) ? nodes : []).find(n => {
+            if (!candidateIds.includes(n.id)) return false;
+            const cat = n?.data?.item?.['Category Item Type'] || n?.data?.item?.Category;
+            return cat === 'Valve' || cat === 'Inline Item';
+        });
 
-        const uid = `valve-${Date.now()}`;
-        const code = `VAL-${Date.now()}`;
-
-        const newItem = {
-            id: uid,
-            Code: code,
-            "Item Code": code,
-            Name: "Inline Valve",
-            Category: "Inline Valve",
-            "Category Item Type": "Inline Valve",
-            Type: inlineType || '',
-            Unit: sourceNode?.data?.item?.Unit || 'No Unit',
-            SubUnit: sourceNode?.data?.item?.SubUnit || 'Default SubUnit',
-            x: midX,
-            y: midY,
-            edgeId: selectedEdge.id,
-        };
-
-        const newNode = {
-            id: uid,
-            position: { x: midX, y: midY },
-            data: {
-                label: `${newItem["Item Code"]} - ${newItem.Name}`,
-                item: newItem,
-                icon: getItemIcon(newItem),
-            },
-            type: "scalableIcon",
-            sourcePosition: "right",
-            targetPosition: "left",
-            style: { background: "transparent" },
-        };
-
-        // 1) Visual: add valve node and remove BOTH directions of the direct edge
-        setNodes((nds) => [...nds, newNode]);
-        setEdges((eds) => {
-            const stroke = selectedEdge?.style?.stroke || "#000";
-            const filtered = (eds || []).filter(
-                (e) =>
-                    e.id !== selectedEdge.id &&
-                    !((e.source === selectedEdge.source && e.target === selectedEdge.target) ||
-                        (e.source === selectedEdge.target && e.target === selectedEdge.source))
+        if (deviceNode) {
+            // update in nodes
+            setNodes(prev =>
+                prev.map(n =>
+                    n.id === deviceNode.id
+                        ? { ...n, data: { ...n.data, item: { ...n.data.item, Type: typeValue } } }
+                        : n
+                )
             );
-            return [
-                ...filtered,
-                { id: `${selectedEdge.source}-${uid}`, source: selectedEdge.source, target: uid, type: 'step', style: { stroke } },
-                { id: `${uid}-${selectedEdge.target}`, source: uid, target: selectedEdge.target, type: 'step', style: { stroke } },
-            ];
+
+            // and in backing items array
+            setItems?.(prev =>
+                Array.isArray(prev)
+                    ? prev.map(it => (it.id === deviceNode.id ? { ...it, Type: typeValue } : it))
+                    : prev
+            );
+        }
+    };
+
+    const rfInstanceRef = useRef(null);
+
+    // 🚫 disable right-mouse panning when true
+    const [disableRightPan, setDisableRightPan] = useState(false);
+    useEffect(() => {
+        window.rfDisableRightPan = (v) => setDisableRightPan(!!v);
+        const onEvt = (e) => setDisableRightPan(!!e.detail?.disabled);
+        window.addEventListener('rf:disableRightPan', onEvt);
+        return () => {
+            delete window.rfDisableRightPan;
+            window.removeEventListener('rf:disableRightPan', onEvt);
+        };
+    }, []);
+
+    const firstFitDone = useRef(false);
+    useEffect(() => {
+        if (!firstFitDone.current && Array.isArray(nodes) && nodes.length > 0 && rfInstanceRef.current) {
+            requestAnimationFrame(() => {
+                try { rfInstanceRef.current.fitView({ padding: 0.2, includeHiddenNodes: true }); } catch { }
+                firstFitDone.current = true;
+            });
+        }
+    }, [nodes?.length]);
+
+    // Pick edges for the 3D view (prefer enhancedEdges if present)
+    const __edgesFor3D = React.useMemo(() => {
+        if (typeof enhancedEdges !== "undefined" && Array.isArray(enhancedEdges)) return enhancedEdges;
+        return Array.isArray(edges) ? edges : [];
+    }, [enhancedEdges, edges]);
+
+    // ===== Annotation handlers (fixed to receive the native event) =====
+    const onAnnoDown = (e) => {
+        if (!annoActive || !svgAnnoRef.current) return;
+
+        const p = pointerToWorld(e);
+
+        // RIGHT CLICK → Move tool + pick shape
+        if (e.button === 2) {
+            e.preventDefault(); e.stopPropagation();
+            try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
+            setAnnoTool('move');
+            setAnnoDraft(null);
+            const idx = hitTestIndex(p, annotations, 6 / (tZoom || 1));
+            setAnnoSelected(idx >= 0 ? idx : null);
+            annoMoveRef.current = idx >= 0 ? { index: idx, start: p, original: { ...annotations[idx] } } : null;
+            return;
+        }
+
+        // LEFT CLICK
+        if (e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation();
+        try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
+
+        if (annoTool === 'move') {
+            const idx = hitTestIndex(p, annotations, 6 / (tZoom || 1));
+            setAnnoSelected(idx >= 0 ? idx : null);
+            annoMoveRef.current = idx >= 0 ? { index: idx, start: p, original: { ...annotations[idx] } } : null;
+            return;
+        }
+
+        if (annoTool === 'line') {
+            setAnnoDraft({ type: 'line', x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: annoColor, strokeWidth: annoWidth });
+        } else if (annoTool === 'rect') {
+            setAnnoDraft({ type: 'rect', x: p.x, y: p.y, w: 0, h: 0, stroke: annoColor, strokeWidth: annoWidth, fill: 'none' });
+        } else if (annoTool === 'circle') {
+            setAnnoDraft({ type: 'circle', cx: p.x, cy: p.y, r: 0, stroke: annoColor, strokeWidth: annoWidth, fill: 'none' });
+        } else if (annoTool === 'note') {
+            const note = { type: 'note', x: p.x, y: p.y, w: 140, h: 70, text: 'Note', stroke: '#888', fill: '#fff8c6', strokeWidth: 1.5 };
+            setAnnotations(prev => [...prev, note]);
+            setAnnoSelected(prev => (prev != null ? prev : annotations.length));
+        }
+    };
+
+    const onAnnoMove = (e) => {
+        if (!annoActive || !svgAnnoRef.current) return;
+        e.preventDefault(); e.stopPropagation();
+        const p = pointerToWorld(e);
+
+        // moving existing
+        if (annoTool === 'move' && annoMoveRef.current) {
+            const { index, start, original } = annoMoveRef.current;
+            const dx = p.x - start.x, dy = p.y - start.y;
+            const moved =
+                original.type === 'rect' ? { ...original, x: original.x + dx, y: original.y + dy } :
+                    original.type === 'circle' ? { ...original, cx: original.cx + dx, cy: original.cy + dy } :
+                        original.type === 'line' ? { ...original, x1: original.x1 + dx, y1: original.y1 + dy, x2: original.x2 + dx, y2: original.y2 + dy } :
+                            original.type === 'note' ? { ...original, x: original.x + dx, y: original.y + dy } :
+                                original.type === 'svg' ? { ...original, x: (original.x ?? 0) + dx, y: (original.y ?? 0) + dy } :
+                                    original;
+
+            setAnnotations(prev => prev.map((s, i) => (i === index ? moved : s)));
+            return;
+        }
+
+        // live draft
+        if (!annoDraft) return;
+        setAnnoDraft(d => {
+            if (!d) return d;
+            if (d.type === 'line') return { ...d, x2: p.x, y2: p.y };
+            if (d.type === 'rect') return { ...d, w: Math.max(0, p.x - d.x), h: Math.max(0, p.y - d.y) };
+            if (d.type === 'circle') return { ...d, r: Math.hypot(p.x - d.cx, p.y - d.cy) };
+            return d;
         });
+    };
 
-        // 2) Persist items connections
-        setItems?.((prev) => {
-            const arr = Array.isArray(prev) ? [...prev] : [];
+    const onAnnoUp = (e) => {
+        if (!annoActive) return;
+        e.preventDefault(); e.stopPropagation();
+        try { svgAnnoRef.current?.releasePointerCapture?.(e.pointerId); } catch { }
 
-            const srcIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.source));
-            const dstIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.target));
+        if (annoTool === 'move' && annoMoveRef.current) {
+            annoMoveRef.current = null;
+            setAnnotations(prev => [...prev]);
+            return;
+        }
 
-            const srcCode = arr[srcIdx]?.Code || arr[srcIdx]?.['Item Code'] || '';
-            const srcName = arr[srcIdx]?.Name || '';
-            const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
-            const dstName = arr[dstIdx]?.Name || '';
+        if (!annoDraft) return;
+        const fin = annoDraft;
+        setAnnoDraft(null);
+        setAnnotations(prev => [...prev, fin]);
+    };
 
-            if (!arr.some((it) => String(it.id) === String(uid))) {
-                arr.push({ ...newItem, Connections: dstCode ? [dstCode] : [] });
-            }
-
-            const norm = (s) => String(s || '').trim().toLowerCase();
-            const removeRefTo = (list = [], targetId, targetCode, targetName) =>
-                list.filter((c) => {
-                    if (typeof c === 'string') {
-                        const v = norm(c);
-                        return v !== norm(targetCode) && (targetName ? v !== norm(targetName) : true);
-                    }
-                    if (c && typeof c === 'object') {
-                        if (c.to && (norm(c.to) === norm(targetName) || norm(c.to) === norm(targetCode))) return false;
-                        if (c.toId && String(c.toId) === String(targetId)) return false;
-                    }
-                    return true;
-                });
-
-            if (srcIdx !== -1) {
-                const cur = Array.isArray(arr[srcIdx].Connections) ? arr[srcIdx].Connections : [];
-                const cleaned = removeRefTo(cur, selectedEdge.target, dstCode, dstName);
-                if (!cleaned.includes(code)) cleaned.push(code);
-                arr[srcIdx] = { ...arr[srcIdx], Connections: cleaned };
-            }
-
-            if (dstIdx !== -1) {
-                const cur = Array.isArray(arr[dstIdx].Connections) ? arr[dstIdx].Connections : [];
-                const cleaned = removeRefTo(cur, selectedEdge.source, srcCode, srcName);
-                arr[dstIdx] = { ...arr[dstIdx], Connections: cleaned };
-            }
-
-            return arr;
-        });
-
-        // 3) Close the inspector
-        handleCloseInspector();
+    const onAnnoDoubleClick = (e) => {
+        if (!annoActive || annoTool !== 'move' || annoSelected == null) return;
+        const cur = annotations[annoSelected];
+        if (!cur || cur.type !== 'note') return;
+        e.preventDefault(); e.stopPropagation();
+        const nextText = prompt('Edit note text:', cur.text || 'Note');
+        if (nextText != null) {
+            setAnnotations(prev => prev.map((s, i) => (i === annoSelected ? { ...s, text: nextText } : s)));
+        }
     };
 
     const handleCloseInspector = () => {
@@ -401,294 +468,124 @@ export default function DiagramCanvas({
         return () => window.removeEventListener('keydown', onKey, { capture: true });
     }, [selectedEdge, selectedNodes, nodes, setNodes, setEdges, setItems, setSelectedItem, onSelectionChange]);
 
-    const edgeCategories = ['None', 'Inline Valve'];
+    // Inline device categories for edges
+    const edgeInlineCategories = ['None', 'Valve', 'Inline Item'];
 
-    // Keep the valve node's item.Type in sync with the edge dropdown
-    const setEdgeInlineValveType = (typeValue) => {
+    // --- Insert inline device node (Valve or Inline Item) on the selected edge ---
+    const createInlineDeviceNode = () => {
         if (!selectedEdge) return;
 
-        updateSelectedEdge({
-            data: { ...(selectedEdge.data || {}), inlineValveType: typeValue }
-        });
+        const sourceNode = nodes.find((n) => n.id === selectedEdge.source);
+        const targetNode = nodes.find((n) => n.id === selectedEdge.target);
+        if (!sourceNode || !targetNode) return;
 
-        const candidateIds = [selectedEdge.source, selectedEdge.target];
-        const valveNode = (Array.isArray(nodes) ? nodes : []).find(n => {
-            if (!candidateIds.includes(n.id)) return false;
-            const cat = n?.data?.item?.['Category Item Type'] || n?.data?.item?.Category;
-            return cat === 'Inline Valve';
-        });
+        const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-        if (valveNode) {
-            setNodes(prev =>
-                prev.map(n =>
-                    n.id === valveNode.id
-                        ? { ...n, data: { ...n.data, item: { ...n.data.item, Type: typeValue } } }
-                        : n
-                )
-            );
+        const category = selectedEdge?.data?.inlineDeviceCategory || 'Valve'; // default to Valve
+        const inlineType = selectedEdge?.data?.inlineDeviceType || '';
 
-            setItems?.(prev =>
-                Array.isArray(prev)
-                    ? prev.map(it => (it.id === valveNode.id ? { ...it, Type: typeValue } : it))
-                    : prev
-            );
-        }
-    };
+        const uid = `${category.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+        const codePrefix = category === 'Valve' ? 'VAL' : 'INL';
+        const code = `${codePrefix}-${Date.now()}`;
 
-    const rfInstanceRef = useRef(null);
-
-    // 🚫 disable right-mouse panning when true
-    const [disableRightPan, setDisableRightPan] = useState(false);
-
-    useEffect(() => {
-        // global setter any node/canvas can call
-        window.rfDisableRightPan = (v) => setDisableRightPan(!!v);
-
-        // optional custom event bus
-        const onEvt = (e) => setDisableRightPan(!!e.detail?.disabled);
-        window.addEventListener('rf:disableRightPan', onEvt);
-
-        return () => {
-            delete window.rfDisableRightPan;
-            window.removeEventListener('rf:disableRightPan', onEvt);
+        const newItem = {
+            id: uid,
+            Code: code,
+            "Item Code": code,
+            Name: category,
+            Category: category,
+            "Category Item Type": category,
+            Type: inlineType || '',
+            Unit: sourceNode?.data?.item?.Unit || 'No Unit',
+            SubUnit: sourceNode?.data?.item?.SubUnit || 'Default SubUnit',
+            x: midX,
+            y: midY,
+            edgeId: selectedEdge.id,
         };
-    }, []);
 
-    const firstFitDone = useRef(false);
-
-    useEffect(() => {
-        if (
-            !firstFitDone.current &&
-            Array.isArray(nodes) &&
-            nodes.length > 0 &&
-            rfInstanceRef.current
-        ) {
-            requestAnimationFrame(() => {
-                try {
-                    rfInstanceRef.current.fitView({ padding: 0.2, includeHiddenNodes: true });
-                } catch { }
-                firstFitDone.current = true;
-            });
-        }
-    }, [nodes?.length]);
-
-    // Pick edges for the 3D view (prefer enhancedEdges if present)
-    const __edgesFor3D = React.useMemo(() => {
-        if (typeof enhancedEdges !== "undefined" && Array.isArray(enhancedEdges)) return enhancedEdges;
-        return Array.isArray(edges) ? edges : [];
-    }, [enhancedEdges, edges]);
-
-    const onAnnoDown = (e) => {
-        if (!annoActive || !svgAnnoRef.current) return;
-
-        // ✅ RIGHT CLICK: switch to Move and (if over a shape) start moving it immediately
-        if (e.button === 2) {
-            e.preventDefault();
-            e.stopPropagation();
-            try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
-            const p = pointerToWorld(e)
-
-
-            setAnnoTool('move');
-            setAnnoDraft(null);
-
-            const idx = hitTestIndex(p, annotations, 6 / (tZoom || 1));
-
-            setAnnoSelected(idx >= 0 ? idx : null);
-            if (idx >= 0) {
-                annoMoveRef.current = { index: idx, start: p, original: { ...annotations[idx] } };
-            } else {
-                annoMoveRef.current = null;
-            }
-            return;
-        }
-
-        // ⬇️ LEFT CLICK logic
-        if (e.button !== 0) return;
-        e.preventDefault();
-        e.stopPropagation();
-        try { svgAnnoRef.current.setPointerCapture(e.pointerId); } catch { }
-
-        const p = pointerToWorld(e)
-
-
-        if (annoTool === 'move') {
-            const idx = hitTestIndex(p, annotations, 6 / (tZoom || 1));
-
-            setAnnoSelected(idx >= 0 ? idx : null);
-            if (idx >= 0) {
-                annoMoveRef.current = { index: idx, start: p, original: { ...annotations[idx] } };
-            } else {
-                annoMoveRef.current = null;
-            }
-            return;
-        }
-
-        if (annoTool === 'line') {
-            setAnnoDraft({ type: 'line', x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: annoColor, strokeWidth: annoWidth });
-        } else if (annoTool === 'rect') {
-            setAnnoDraft({ type: 'rect', x: p.x, y: p.y, w: 0, h: 0, stroke: annoColor, strokeWidth: annoWidth, fill: 'none' });
-        } else if (annoTool === 'circle') {
-            setAnnoDraft({ type: 'circle', cx: p.x, cy: p.y, r: 0, stroke: annoColor, strokeWidth: annoWidth, fill: 'none' });
-        } else if (annoTool === 'note') {
-            const note = { type: 'note', x: p.x, y: p.y, w: 140, h: 70, text: 'Note', stroke: '#888', fill: '#fff8c6', strokeWidth: 1.5 };
-            setAnnotations(prev => [...prev, note]);
-            setAnnoSelected(prev => (prev != null ? prev : annotations.length));
-        }
-    };
-
-    const onAnnoMove = (e) => {
-        if (!annoActive || !svgAnnoRef.current) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const p = pointerToWorld(e)
-
-
-        // moving existing
-        if (annoTool === 'move' && annoMoveRef.current) {
-            const { index, start, original } = annoMoveRef.current;
-            const dx = p.x - start.x, dy = p.y - start.y;
-            const moved =
-                original.type === 'rect' ? { ...original, x: original.x + dx, y: original.y + dy } :
-                    original.type === 'circle' ? { ...original, cx: original.cx + dx, cy: original.cy + dy } :
-                        original.type === 'line' ? { ...original, x1: original.x1 + dx, y1: original.y1 + dy, x2: original.x2 + dx, y2: original.y2 + dy } :
-                            original.type === 'note' ? { ...original, x: original.x + dx, y: original.y + dy } :
-                                original.type === 'svg' ? { ...original, x: (original.x ?? 0) + dx, y: (original.y ?? 0) + dy } :
-                                    original;
-
-            setAnnotations(prev => prev.map((s, i) => (i === index ? moved : s)));
-            return;
-        }
-
-        // live draft
-        if (!annoDraft) return;
-        setAnnoDraft(d => {
-            if (!d) return d;
-            if (d.type === 'line') return { ...d, x2: p.x, y2: p.y };
-            if (d.type === 'rect') return { ...d, w: Math.max(0, p.x - d.x), h: Math.max(0, p.y - d.y) };
-            if (d.type === 'circle') return { ...d, r: Math.hypot(p.x - d.cx, p.y - d.cy) };
-            return d;
-        });
-    };
-
-    const onAnnoUp = (e) => {
-        if (!annoActive) return;
-        e.preventDefault();
-        e.stopPropagation();
-        try { svgAnnoRef.current?.releasePointerCapture?.(e.pointerId); } catch { }
-
-        if (annoTool === 'move' && annoMoveRef.current) {
-            annoMoveRef.current = null;
-            setAnnotations(prev => [...prev]);
-            return;
-        }
-
-        if (!annoDraft) return;
-        const fin = annoDraft;
-        setAnnoDraft(null);
-        setAnnotations(prev => [...prev, fin]);
-    };
-
-    // double-click to edit note text when selected + move tool
-    const onAnnoDoubleClick = (e) => {
-        if (!annoActive || annoTool !== 'move' || annoSelected == null) return;
-        const cur = annotations[annoSelected];
-        if (!cur || cur.type !== 'note') return;
-        e.preventDefault(); e.stopPropagation();
-        const nextText = prompt('Edit note text:', cur.text || 'Note');
-        if (nextText != null) {
-            setAnnotations(prev => prev.map((s, i) => (i === annoSelected ? { ...s, text: nextText } : s)));
-        }
-    };
-
-    // helper: parse "translate(x,y) scale(s)" -> {x,y,scale}
-    const parseTransform = (tr) => {
-        const m = /translate\(([^,]+)[,\s]+([^)]+)\)\s*scale\(([^)]+)\)/.exec(tr || '');
-        return {
-            x: m ? parseFloat(m[1]) : 0,
-            y: m ? parseFloat(m[2]) : 0,
-            scale: m ? parseFloat(m[3]) : 1,
-        };
-    };
-    // === Global "exit all" helper (ESC) ===
-    useEffect(() => {
-        function exitAllAnnotation() {
-            // 1) close edge inspector
-            setSelectedEdge(null);
-            if (typeof onEdgeSelect === 'function') onEdgeSelect(null);
-
-            // 2) reset canvas annotation state
-            setAnnoActive(false);
-            setAnnoDraft(null);
-            setAnnoSelected(null);
-            window.rfDisableRightPan?.(false);
-
-            // 3) broadcast so toolbars/icon editors/croppers can close themselves
-            window.dispatchEvent(new CustomEvent('annotation:exit'));
-
-            // 4) optional: blur focused inputs to avoid half-typed states
-            try { document.activeElement?.blur?.(); } catch { }
-        }
-
-        // expose globally so any code can call it
-        window.exitAllAnnotation = exitAllAnnotation;
-        return () => { delete window.exitAllAnnotation; };
-    }, [onEdgeSelect]);
-
-    // Expose simple controls for external toolbars (AddItemButton)
-    useEffect(() => {
-        window.annoControls = {
-            setActive: setAnnoActive,
-            setTool: setAnnoTool,
-            setWidth: setAnnoWidth,
-            setColor: setAnnoColor,
-            undo: () => setAnnotations(prev => prev.slice(0, -1)),
-            clear: () => setAnnotations([]),
-            deleteSelected: () => {
-                if (annoSelected == null) return;
-                setAnnotations(prev => prev.filter((_, i) => i !== annoSelected));
-                setAnnoSelected(null);
+        const newNode = {
+            id: uid,
+            position: { x: midX, y: midY },
+            data: {
+                label: `${newItem["Item Code"]} - ${newItem.Name}`,
+                item: newItem,
+                icon: getItemIcon(newItem),
             },
-            scaleSelected: (factor = 1.2) => {
-                if (annoSelected == null) return;
-                setAnnotations(prev => prev.map((s, i) => {
-                    if (i !== annoSelected) return s;
-                    if (s.type === 'svg') return { ...s, scale: Math.max(0.01, (s.scale ?? 1) * factor) };
-                    if (s.type === 'rect') return { ...s, w: s.w * factor, h: s.h * factor };
-                    if (s.type === 'circle') return { ...s, r: s.r * factor };
-                    if (s.type === 'line') {
-                        const cx = (s.x1 + s.x2) / 2, cy = (s.y1 + s.y2) / 2;
-                        const fx = (v, c) => c + (v - c) * factor;
-                        return { ...s, x1: fx(s.x1, cx), y1: fx(s.y1, cy), x2: fx(s.x2, cx), y2: fx(s.y2, cy) };
+            type: "scalableIcon",
+            sourcePosition: "right",
+            targetPosition: "left",
+            style: { background: "transparent" },
+        };
+
+        // 1) Visual: add node and replace both directions of the direct edge
+        setNodes((nds) => [...nds, newNode]);
+        setEdges((eds) => {
+            const stroke = selectedEdge?.style?.stroke || "#000";
+            const filtered = (eds || []).filter(
+                (e) =>
+                    e.id !== selectedEdge.id &&
+                    !((e.source === selectedEdge.source && e.target === selectedEdge.target) ||
+                        (e.source === selectedEdge.target && e.target === selectedEdge.source))
+            );
+            return [
+                ...filtered,
+                { id: `${selectedEdge.source}-${uid}`, source: selectedEdge.source, target: uid, type: 'step', style: { stroke } },
+                { id: `${uid}-${selectedEdge.target}`, source: uid, target: selectedEdge.target, type: 'step', style: { stroke } },
+            ];
+        });
+
+        // 2) Persist items connections
+        setItems?.((prev) => {
+            const arr = Array.isArray(prev) ? [...prev] : [];
+
+            const srcIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.source));
+            const dstIdx = arr.findIndex((it) => String(it.id) === String(selectedEdge.target));
+
+            const srcCode = arr[srcIdx]?.Code || arr[srcIdx]?.['Item Code'] || '';
+            const srcName = arr[srcIdx]?.Name || '';
+            const dstCode = arr[dstIdx]?.Code || arr[dstIdx]?.['Item Code'] || '';
+            const dstName = arr[dstIdx]?.Name || '';
+
+            if (!arr.some((it) => String(it.id) === String(uid))) {
+                arr.push({ ...newItem, Connections: dstCode ? [dstCode] : [] });
+            }
+
+            const norm = (s) => String(s || '').trim().toLowerCase();
+            const removeRefTo = (list = [], targetId, targetCode, targetName) =>
+                list.filter((c) => {
+                    if (typeof c === 'string') {
+                        const v = norm(c);
+                        return v !== norm(targetCode) && (targetName ? v !== norm(targetName) : true);
                     }
-                    return s;
-                }));
-            },
-            addVector: (v) => {  // v = { type:'svg', x,y, scale, vbW, vbH, paths:[...] }
-                setAnnotations(prev => [...prev, v]);
-                setAnnoActive(true);
-                setAnnoTool('move');
-                setAnnoSelected((prevSel) => (annotations.length)); // select the new one
-            },
-            // backward-compat: accepts (paths, transform)
-            addPaths: (paths, transform) => {
-                const { x, y, scale } = parseTransform(transform);
-                setAnnotations(prev => [...prev, { type: 'svg', x, y, scale, vbW: 150, vbH: 150, paths }]);
-                setAnnoActive(true);
-                setAnnoTool('move');
-                setAnnoSelected((prevSel) => (annotations.length));
-            },
-            getState: () => ({
-                active: annoActive,
-                tool: annoTool,
-                color: annoColor,
-                width: annoWidth,
-                selected: annoSelected,
-                count: annotations.length,
-            }),
-        };
-        return () => { delete window.annoControls; };
-    }, [annoActive, annoTool, annoColor, annoWidth, annoSelected, annotations.length]);
+                    if (c && typeof c === 'object') {
+                        if (c.to && (norm(c.to) === norm(targetName) || norm(c.to) === norm(targetCode))) return false;
+                        if (c.toId && String(c.toId) === String(targetId)) return false;
+                    }
+                    return true;
+                });
+
+            // replace src->dst with src->device
+            if (srcIdx !== -1) {
+                const cur = Array.isArray(arr[srcIdx].Connections) ? arr[srcIdx].Connections : [];
+                const cleaned = removeRefTo(cur, selectedEdge.target, dstCode, dstName);
+                if (!cleaned.includes(code)) cleaned.push(code);
+                arr[srcIdx] = { ...arr[srcIdx], Connections: cleaned };
+            }
+
+            // remove dst->src reverse link (if it exists)
+            if (dstIdx !== -1) {
+                const cur = Array.isArray(arr[dstIdx].Connections) ? arr[dstIdx].Connections : [];
+                const cleaned = removeRefTo(cur, selectedEdge.source, srcCode, srcName);
+                arr[dstIdx] = { ...arr[dstIdx], Connections: cleaned };
+            }
+
+            return arr;
+        });
+
+        // 3) Close the inspector
+        handleCloseInspector();
+    };
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -769,7 +666,7 @@ export default function DiagramCanvas({
                     ) : (
                         <ReactFlow
                             onInit={(inst) => { rfInstanceRef.current = inst; }}
-                            onMove={(_, v) => setViewport(v)} 
+                            onMove={(_, v) => setViewport(v)}
                             nodes={Array.isArray(nodes) ? nodes : []}
                             edges={enhancedEdges}
                             onNodesChange={onNodesChange}
@@ -784,7 +681,7 @@ export default function DiagramCanvas({
                             minZoom={0.02}
                             defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                             nodeTypes={nodeTypes}
-                            panOnDrag={disableRightPan ? [0, 1] : true}   // allow left+middle; block right when editing
+                            panOnDrag={disableRightPan ? [0, 1] : true}
                             zoomOnScroll={true}
                             zoomOnPinch={true}
                             style={{ width: '100%', height: '100%', background: 'transparent' }}
@@ -793,97 +690,94 @@ export default function DiagramCanvas({
                             <Controls />
 
                             {/* === Canvas annotation overlay === */}
-                                <svg
-                                    ref={svgAnnoRef}
-                                    width="100%"
-                                    height="100%"
-                                    style={{
-                                        position: 'absolute',
-                                        inset: 0,
-                                        zIndex: 8,
-                                        pointerEvents: annoActive ? 'all' : 'none',
-                                        cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default'
-                                    }}
-                                    onPointerDown={(e) => onAnnoDown(pointerToWorld(e), e)}
-                                    onPointerMove={(e) => onAnnoMove(pointerToWorld(e), e)}
-                                    onPointerUp={(e) => onAnnoUp(pointerToWorld(e), e)}
-                                    onPointerCancel={(e) => onAnnoUp(pointerToWorld(e), e)}
-                                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                    onDoubleClick={(e) => onAnnoDoubleClick(pointerToWorld(e), e)}
-                                >
-                                    {/* Apply the SAME transform as the canvas */}
-                                    <g transform={`translate(${tx}, ${ty}) scale(${tZoom})`}>
+                            <svg
+                                ref={svgAnnoRef}
+                                width="100%"
+                                height="100%"
+                                style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    zIndex: 8,
+                                    pointerEvents: annoActive ? 'all' : 'none',
+                                    cursor: annoActive ? (annoTool === 'move' ? 'grab' : 'crosshair') : 'default'
+                                }}
+                                onPointerDown={onAnnoDown}
+                                onPointerMove={onAnnoMove}
+                                onPointerUp={onAnnoUp}
+                                onPointerCancel={onAnnoUp}
+                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                onDoubleClick={onAnnoDoubleClick}
+                            >
+                                {/* Apply the SAME transform as the canvas */}
+                                <g transform={`translate(${tx}, ${ty}) scale(${tZoom})`}>
+                                    {/* highlight selected shape */}
+                                    {annoSelected != null && annotations[annoSelected] && (() => {
+                                        const s = annotations[annoSelected];
+                                        const dash = {
+                                            strokeDasharray: '4 3',
+                                            strokeWidth: (s.strokeWidth || 2) + 1.2,
+                                            stroke: '#444',
+                                            fill: 'none'
+                                        };
+                                        if (s.type === 'line') return <line   {...dash} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
+                                        if (s.type === 'rect') return <rect   {...dash} x={s.x} y={s.y} width={s.w} height={s.h} />;
+                                        if (s.type === 'circle') return <circle {...dash} cx={s.cx} cy={s.cy} r={s.r} />;
+                                        if (s.type === 'note') return <rect   {...dash} x={s.x} y={s.y} width={s.w ?? 140} height={s.h ?? 70} />;
+                                        if (s.type === 'svg') {
+                                            const sc = s.scale ?? 1, w = (s.vbW ?? 150) * sc, h = (s.vbH ?? 150) * sc;
+                                            return <rect {...dash} x={s.x ?? 0} y={s.y ?? 0} width={w} height={h} />;
+                                        }
+                                        return null;
+                                    })()}
 
-                                        {/* highlight selected shape */}
-                                        {annoSelected != null && annotations[annoSelected] && (() => {
-                                            const s = annotations[annoSelected];
-                                            const dash = {
-                                                strokeDasharray: '4 3',
-                                                strokeWidth: (s.strokeWidth || 2) + 1.2,
-                                                stroke: '#444',
-                                                fill: 'none'
-                                            };
-                                            if (s.type === 'line') return <line   {...dash} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
-                                            if (s.type === 'rect') return <rect   {...dash} x={s.x} y={s.y} width={s.w} height={s.h} />;
-                                            if (s.type === 'circle') return <circle {...dash} cx={s.cx} cy={s.cy} r={s.r} />;
-                                            if (s.type === 'note') return <rect   {...dash} x={s.x} y={s.y} width={s.w ?? 140} height={s.h ?? 70} />;
-                                            if (s.type === 'svg') {
-                                                const sc = s.scale ?? 1, w = (s.vbW ?? 150) * sc, h = (s.vbH ?? 150) * sc;
-                                                return <rect {...dash} x={s.x ?? 0} y={s.y ?? 0} width={w} height={h} />;
-                                            }
-                                            return null;
-                                        })()}
+                                    {/* committed annotations */}
+                                    {annotations.map((o, i) => {
+                                        const stroke = o.stroke ?? '#222';
+                                        const w = o.strokeWidth ?? 2;
+                                        if (o.type === 'line')
+                                            return <line key={i} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} stroke={stroke} strokeWidth={w} />;
+                                        if (o.type === 'rect')
+                                            return <rect key={i} x={o.x} y={o.y} width={o.w} height={o.h} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                        if (o.type === 'circle')
+                                            return <circle key={i} cx={o.cx} cy={o.cy} r={o.r} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
+                                        if (o.type === 'path')
+                                            return <path key={i} d={o.d} stroke={o.stroke ?? stroke} strokeWidth={o.strokeWidth ?? w} fill={o.fill ?? 'none'} transform={o.transform || undefined} />;
+                                        if (o.type === 'svg') {
+                                            const s = o.scale ?? 1;
+                                            const tr = `translate(${o.x ?? 0},${o.y ?? 0}) scale(${s})`;
+                                            return (
+                                                <g key={i} transform={tr}>
+                                                    {(o.paths || []).map((p, j) => (
+                                                        <path
+                                                            key={j}
+                                                            d={p.d}
+                                                            stroke={p.stroke ?? '#222'}
+                                                            strokeWidth={p.strokeWidth ?? 1}
+                                                            fill={p.fill ?? 'none'}
+                                                        />
+                                                    ))}
+                                                </g>
+                                            );
+                                        }
+                                        if (o.type === 'note') {
+                                            const bw = 1.5, pad = 6, noteW = o.w ?? 140, noteH = o.h ?? 70;
+                                            return (
+                                                <g key={i}>
+                                                    <rect x={o.x} y={o.y} width={noteW} height={noteH} rx={6} ry={6}
+                                                        fill={o.fill ?? '#fff8c6'} stroke={o.stroke ?? '#888'} strokeWidth={o.strokeWidth ?? bw} />
+                                                    <text x={o.x + pad} y={o.y + 20} style={{ fontSize: 12, fill: '#222' }}>{o.text || 'Note'}</text>
+                                                </g>
+                                            );
+                                        }
+                                        return null;
+                                    })}
 
-                                        {/* committed annotations */}
-                                        {annotations.map((o, i) => {
-                                            const stroke = o.stroke ?? '#222';
-                                            const w = o.strokeWidth ?? 2;
-                                            if (o.type === 'line')
-                                                return <line key={i} x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2} stroke={stroke} strokeWidth={w} />;
-                                            if (o.type === 'rect')
-                                                return <rect key={i} x={o.x} y={o.y} width={o.w} height={o.h} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
-                                            if (o.type === 'circle')
-                                                return <circle key={i} cx={o.cx} cy={o.cy} r={o.r} stroke={stroke} strokeWidth={w} fill={o.fill ?? 'none'} />;
-                                            if (o.type === 'path')
-                                                return <path key={i} d={o.d} stroke={o.stroke ?? stroke} strokeWidth={o.strokeWidth ?? w} fill={o.fill ?? 'none'} transform={o.transform || undefined} />;
-                                            if (o.type === 'svg') {
-                                                const s = o.scale ?? 1;
-                                                const tr = `translate(${o.x ?? 0},${o.y ?? 0}) scale(${s})`;
-                                                return (
-                                                    <g key={i} transform={tr}>
-                                                        {(o.paths || []).map((p, j) => (
-                                                            <path
-                                                                key={j}
-                                                                d={p.d}
-                                                                stroke={p.stroke ?? '#222'}
-                                                                strokeWidth={p.strokeWidth ?? 1}
-                                                                fill={p.fill ?? 'none'}
-                                                            />
-                                                        ))}
-                                                    </g>
-                                                );
-                                            }
-                                            if (o.type === 'note') {
-                                                const bw = 1.5, pad = 6, noteW = o.w ?? 140, noteH = o.h ?? 70;
-                                                return (
-                                                    <g key={i}>
-                                                        <rect x={o.x} y={o.y} width={noteW} height={noteH} rx={6} ry={6}
-                                                            fill={o.fill ?? '#fff8c6'} stroke={o.stroke ?? '#888'} strokeWidth={o.strokeWidth ?? bw} />
-                                                        <text x={o.x + pad} y={o.y + 20} style={{ fontSize: 12, fill: '#222' }}>{o.text || 'Note'}</text>
-                                                    </g>
-                                                );
-                                            }
-                                            return null;
-                                        })}
-
-                                        {/* live draft preview */}
-                                        {annoDraft?.type === 'line' && <line x1={annoDraft.x1} y1={annoDraft.y1} x2={annoDraft.x2} y2={annoDraft.y2} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} />}
-                                        {annoDraft?.type === 'rect' && <rect x={annoDraft.x} y={annoDraft.y} width={annoDraft.w} height={annoDraft.h} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
-                                        {annoDraft?.type === 'circle' && <circle cx={annoDraft.cx} cy={annoDraft.cy} r={annoDraft.r || 0} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
-                                    </g>
-                                </svg>
-
-
+                                    {/* live draft preview */}
+                                    {annoDraft?.type === 'line' && <line x1={annoDraft.x1} y1={annoDraft.y1} x2={annoDraft.x2} y2={annoDraft.y2} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} />}
+                                    {annoDraft?.type === 'rect' && <rect x={annoDraft.x} y={annoDraft.y} width={annoDraft.w} height={annoDraft.h} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
+                                    {annoDraft?.type === 'circle' && <circle cx={annoDraft.cx} cy={annoDraft.cy} r={annoDraft.r || 0} stroke={annoDraft.stroke || annoColor} strokeWidth={annoDraft.strokeWidth ?? annoWidth} fill="none" />}
+                                </g>
+                            </svg>
                         </ReactFlow>
                     )}
                 </div>
@@ -926,32 +820,34 @@ export default function DiagramCanvas({
                                 <div style={{ marginTop: 8 }}><strong>Type:</strong> {selectedEdge.type || 'default'}</div>
                             </div>
 
-                            {/* CATEGORY */}
+                            {/* Inline Device Category */}
                             <div>
-                                <label style={{ display: 'block', fontSize: 12 }}>Category</label>
+                                <label style={{ display: 'block', fontSize: 12 }}>Inline Device Category</label>
                                 <select
-                                    value={selectedEdge?.data?.category || 'None'}
-                                    onChange={(e) => changeEdgeCategory(e.target.value)}
+                                    value={selectedEdge?.data?.inlineDeviceCategory || 'None'}
+                                    onChange={(e) => changeEdgeInlineCategory(e.target.value)}
                                     style={{ padding: 8, width: '100%' }}
                                 >
-                                    {edgeCategories.map((cat) => (
+                                    {edgeInlineCategories.map((cat) => (
                                         <option key={cat} value={cat}>{cat}</option>
                                     ))}
                                 </select>
                             </div>
 
-                            {/* Inline Valve Type (visible only when category == Inline Valve) */}
-                            {selectedEdge?.data?.category === 'Inline Valve' && (
+                            {/* Inline Device Type (shown when category != None) */}
+                            {selectedEdge?.data?.inlineDeviceCategory && selectedEdge.data.inlineDeviceCategory !== 'None' && (
                                 <div>
-                                    <label style={{ display: 'block', fontSize: 12, marginTop: 8 }}>Inline Valve Type</label>
+                                    <label style={{ display: 'block', fontSize: 12, marginTop: 8 }}>
+                                        {selectedEdge.data.inlineDeviceCategory} Type
+                                    </label>
                                     <select
-                                        value={selectedEdge?.data?.inlineValveType || ''}
-                                        onChange={(e) => setEdgeInlineValveType(e.target.value)}
+                                        value={selectedEdge?.data?.inlineDeviceType || ''}
+                                        onChange={(e) => setEdgeInlineDeviceType(e.target.value)}
                                         style={{ padding: 8, width: '100%' }}
                                     >
                                         <option value="">Select type...</option>
-                                        {valveTypeOptions.length > 0 ? (
-                                            valveTypeOptions.map((t) => (
+                                        {(deviceTypeOptions[selectedEdge.data.inlineDeviceCategory] || []).length > 0 ? (
+                                            deviceTypeOptions[selectedEdge.data.inlineDeviceCategory].map((t) => (
                                                 <option key={t} value={t}>{t}</option>
                                             ))
                                         ) : (
@@ -963,18 +859,15 @@ export default function DiagramCanvas({
                                         <button onClick={toggleEdgeAnimated}>
                                             {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
                                         </button>
-                                        <button
-                                            onClick={() =>
-                                                onCreateInlineValve ? onCreateInlineValve(selectedEdge.id) : createInlineValveNode()
-                                            }>
-                                            Insert Inline Valve Node
+                                        <button onClick={createInlineDeviceNode}>
+                                            Insert Inline Device Node
                                         </button>
                                     </div>
                                 </div>
                             )}
 
-                            {/* When category is not Inline Valve, still show animate toggle */}
-                            {selectedEdge?.data?.category !== 'Inline Valve' && (
+                            {/* When no inline device category, still show animate toggle */}
+                            {(!selectedEdge?.data?.inlineDeviceCategory || selectedEdge?.data?.inlineDeviceCategory === 'None') && (
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button onClick={toggleEdgeAnimated}>
                                         {selectedEdge.animated ? 'Disable animation' : 'Enable animation'}
