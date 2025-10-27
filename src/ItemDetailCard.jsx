@@ -1,6 +1,5 @@
-﻿// ItemDetailCard.jsx (rewritten with 2s debounce + ND/ID/OD + inline valve type)
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-
+﻿// ItemDetailCard.jsx — no legacy "Inline Valve" anywhere
+import React, { useEffect, useState, useRef, useMemo } from "react";
 
 // simple runtime cache for resolved type names by record id
 const typeCache = new Map();
@@ -12,15 +11,14 @@ export default function ItemDetailCard({
     edges = [],
     onDeleteEdge,
     onUpdateEdge,
-    onCreateInlineValve,
     onDeleteItem,
 }) {
     const [localItem, setLocalItem] = useState(item || {});
-    const [resolvedType, setResolvedType] = useState('');
     const [allTypes, setAllTypes] = useState([]);
     const [isTypeFocused, setIsTypeFocused] = useState(false);
 
     const DEBUG_SYNC = true;
+
     const normalizeTypeKey = (s) =>
         (s || "")
             .toString()
@@ -29,28 +27,29 @@ export default function ItemDetailCard({
             .replace(/\s+/g, "_")
             .replace(/[^a-z0-9_-]/g, "");
 
-    // after the useState hooks
+    // Current category shown in the dropdown
     const currentCategory = useMemo(() => {
-        const raw = localItem?.['Category Item Type'] ?? localItem?.Category ?? '';
+        const raw = localItem?.["Category Item Type"] ?? localItem?.Category ?? "";
         const val = Array.isArray(raw) ? raw[0] : raw;
-        return (val ?? '').toString().trim() || 'Equipment';
+        return (val ?? "").toString().trim() || "Equipment";
     }, [localItem]);
 
-    const filteredTypes = allTypes.filter(t => t.category === currentCategory);
-
+    const typesForSelectedCategory = allTypes.filter(
+        (t) => t.category === currentCategory
+    );
 
     // Debounce timer to delay writes to parent/canvas
     const debounceRef = useRef(null);
 
     const safeOnChange = (payload, options) => {
-        if (typeof onChange !== 'function') return;
+        if (typeof onChange !== "function") return;
         try {
             onChange(payload, options);
         } catch (err) {
-            console.error('[safeOnChange] onChange threw:', err);
+            console.error("[safeOnChange] onChange threw:", err);
             try {
-                console.log('[safeOnChange] payload:', payload);
-                console.log('[safeOnChange] options:', options);
+                console.log("[safeOnChange] payload:", payload);
+                console.log("[safeOnChange] options:", options);
             } catch { }
         }
     };
@@ -58,18 +57,19 @@ export default function ItemDetailCard({
     // --- Delete by keyboard (Delete / Backspace) — ignore when typing in inputs
     useEffect(() => {
         const handleKeyDown = (e) => {
-            const tag = (e.target?.tagName || '').toLowerCase();
-            const typing = tag === 'input' || tag === 'textarea' || e.target?.isContentEditable;
+            const tag = (e.target?.tagName || "").toLowerCase();
+            const typing =
+                tag === "input" || tag === "textarea" || e.target?.isContentEditable;
             if (typing) return;
 
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (item?.id && typeof onDeleteItem === 'function') {
+            if (e.key === "Delete" || e.key === "Backspace") {
+                if (item?.id && typeof onDeleteItem === "function") {
                     onDeleteItem(item.id);
                 }
             }
         };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
     }, [item?.id, onDeleteItem]);
 
     // Only update localItem when the selected item's id changes
@@ -78,56 +78,59 @@ export default function ItemDetailCard({
         if (debounceRef.current) clearTimeout(debounceRef.current);
     }, [item?.id]);
 
-    // Fetch Equipment + Inline Valve Types from Airtable
+    // Fetch Types from Airtable: Equipment, Valve, Inline Item (optional tables)
     useEffect(() => {
         let alive = true;
         const fetchTypes = async () => {
             try {
                 const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
                 const token = import.meta.env.VITE_AIRTABLE_TOKEN;
+
+                // Tables (any of them may be undefined; that's okay)
                 const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-                const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
-                const agentTypesTableId = import.meta.env.VITE_AIRTABLE_AGENT_TYPES_TABLE_ID;
+                const valveTypesTableId =
+                    import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID; // map to "Valve"
+                const inlineItemTypesTableId =
+                    import.meta.env.VITE_AIRTABLE_INLINEITEM_TYPES_TABLE_ID ||
+                    import.meta.env.VITE_AIRTABLE_INLINE_TYPES_TABLE_ID; // map to "Inline Item"
+
+                const pull = async (tableId, categoryLabel) => {
+                    if (!tableId) return [];
+                    const res = await fetch(
+                        `https://api.airtable.com/v0/${baseId}/${tableId}`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    const data = await res.json();
+                    const recs = Array.isArray(data.records) ? data.records : [];
+                    return recs.map((r) => ({
+                        id: r.id,
+                        name:
+                            r.fields["Name"] ||
+                            r.fields["Type"] ||
+                            r.fields["Still Pipe"] ||
+                            deriveNameFromFields(r.fields) ||
+                            "",
+                        category: categoryLabel || r.fields["Category"] || "Equipment",
+                    }));
+                };
 
                 let typesList = [];
-
-                if (equipTypesTableId) {
-                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${equipTypesTableId}`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
-                    const data = await res.json();
-                    typesList = typesList.concat(
-                        (data.records || []).map((r) => ({
-                            id: r.id,
-                            name: r.fields['Still Pipe'] || r.fields['Name'] || '',
-                            category: r.fields['Category'] || 'Equipment',
-                        }))
-                    );
-                }
-
-                if (valveTypesTableId) {
-                    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${valveTypesTableId}`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
-                    const data = await res.json();
-                    typesList = typesList.concat(
-                        (data.records || []).map((r) => ({
-                            id: r.id,
-                            name: r.fields['Still Pipe'] || r.fields['Name'] || '',
-                            category: 'Inline Valve',
-                        }))
-                    );
-                }
+                typesList = typesList.concat(await pull(equipTypesTableId, null));
+                typesList = typesList.concat(await pull(valveTypesTableId, "Valve"));
+                typesList = typesList.concat(
+                    await pull(inlineItemTypesTableId, "Inline Item")
+                );
 
                 if (alive) setAllTypes(typesList);
             } catch (err) {
-                console.error('Error fetching types:', err);
+                console.error("Error fetching types:", err);
             }
         };
         fetchTypes();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, []);
-
 
     // Helper: rec id?
     const isRecId = (s) => typeof s === "string" && s.startsWith("rec");
@@ -141,16 +144,26 @@ export default function ItemDetailCard({
 
     // Pick a readable name from an Airtable record's fields
     const deriveNameFromFields = (fields = {}) => {
-        const candidates = ["Name", "Type", "Type Name", "Title", "Label", "Still Pipe", "Display Name"];
+        const candidates = [
+            "Name",
+            "Type",
+            "Type Name",
+            "Title",
+            "Label",
+            "Still Pipe",
+            "Display Name",
+        ];
         for (const k of candidates) {
             const v = fields[k];
             if (typeof v === "string" && v.trim()) return v.trim();
-            if (Array.isArray(v) && v.length && typeof v[0] === "string") return String(v[0]).trim();
+            if (Array.isArray(v) && v.length && typeof v[0] === "string")
+                return String(v[0]).trim();
         }
         // fallback: first non-empty string-ish field
         for (const v of Object.values(fields)) {
             if (typeof v === "string" && v.trim()) return v.trim();
-            if (Array.isArray(v) && v.length && typeof v[0] === "string") return String(v[0]).trim();
+            if (Array.isArray(v) && v.length && typeof v[0] === "string")
+                return String(v[0]).trim();
         }
         return "";
     };
@@ -163,25 +176,24 @@ export default function ItemDetailCard({
         const fetched = await fetchTypeNameById(val);
         return fetched || ""; // return empty if unresolved (don't fabricate "Unknown")
     };
-    const withVisualBump = (obj) => ({
-        ...obj,
-        __iconRev: Date.now(),   // lives next to Type under the same object
-    });
 
-
-
-    // One-shot pull from Airtable; set force=true to ignore isTypeFocused
+    // Pull & sync the *remote* Type into local item (and infer category when possible)
     const refreshRemoteType = async (force = false) => {
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
         if (!baseId || !token || !itemsTableRaw) {
-            console.warn("[Type sync] Missing envs", { baseId: !!baseId, token: !!token, itemsTableRaw });
+            console.warn("[Type sync] Missing envs", {
+                baseId: !!baseId,
+                token: !!token,
+                itemsTableRaw,
+            });
             return;
         }
 
         if (!force && isTypeFocused) return;
 
-        const idOrCode = item?.id || localItem?.id || localItem?.["Item Code"] || "";
+        const idOrCode =
+            item?.id || localItem?.id || localItem?.["Item Code"] || "";
         if (!idOrCode) return;
 
         try {
@@ -190,20 +202,29 @@ export default function ItemDetailCard({
             if (isRecId(idOrCode)) {
                 // direct record endpoint
                 const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}/${idOrCode}?cellFormat=string`;
-                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                const res = await fetch(url, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
                 if (!res.ok) {
                     console.warn("[Type sync] /record fetch failed", res.status, await res.text());
                     return;
                 }
                 rec = await res.json();
             } else {
-                // fall back: find by Item Code / Code / Name
+                // find by Item Code / Code / Name
                 const clauses = [];
                 if (idOrCode) clauses.push(`{Item Code}='${idOrCode}'`, `{Code}='${idOrCode}'`);
-                if (localItem?.Name) clauses.push(`{Name}='${String(localItem.Name).replace(/'/g, "\\'")}'`);
+                if (localItem?.Name)
+                    clauses.push(
+                        `{Name}='${String(localItem.Name).replace(/'/g, "\\'")}'`
+                    );
                 const formula = `OR(${clauses.join(",")})`;
-                const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}?maxRecords=1&cellFormat=string&filterByFormula=${encodeURIComponent(formula)}`;
-                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                const url = `https://api.airtable.com/v0/${baseId}/${itemsTable}?maxRecords=1&cellFormat=string&filterByFormula=${encodeURIComponent(
+                    formula
+                )}`;
+                const res = await fetch(url, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
                 if (!res.ok) {
                     console.warn("[Type sync] /list fetch failed", res.status, await res.text());
                     return;
@@ -211,7 +232,10 @@ export default function ItemDetailCard({
                 const data = await res.json();
                 rec = data.records?.[0];
                 if (!rec) {
-                    console.warn("[Type sync] No matching record found for", { idOrCode, name: localItem?.Name });
+                    console.warn("[Type sync] No matching record found for", {
+                        idOrCode,
+                        name: localItem?.Name,
+                    });
                     return;
                 }
             }
@@ -230,16 +254,22 @@ export default function ItemDetailCard({
                 ];
                 for (const k of candidates) if (k in fields) return k;
                 // Fallback: first key that includes "type" and is not empty
-                return Object.keys(fields).find((k) => /type/i.test(k) && fields[k] != null && fields[k] !== "");
+                return Object.keys(fields).find(
+                    (k) => /type/i.test(k) && fields[k] != null && fields[k] !== ""
+                );
             };
 
             const typeKey = pickTypeField(f);
             if (!typeKey) {
-                if (DEBUG_SYNC) console.warn("[Type sync] No type-like field found. Available keys:", Object.keys(f));
+                if (DEBUG_SYNC)
+                    console.warn(
+                        "[Type sync] No type-like field found. Keys:",
+                        Object.keys(f)
+                    );
                 return;
             }
 
-            // 2) Normalize to a single value then resolve any rec... to a display name
+            // 2) Normalize to single value then resolve any rec... to a display name
             const remoteRaw = f[typeKey];
             const remoteType0 = Array.isArray(remoteRaw) ? remoteRaw[0] : remoteRaw;
             const remoteType = await getTypeName(remoteType0); // ← always a name or ""
@@ -247,23 +277,31 @@ export default function ItemDetailCard({
 
             const optionValue = (t) => t?.value ?? t?.name ?? String(t ?? "");
 
-            // 3) Try to infer category for this type (so the select options contain it)
-            const match = (allTypes || []).find((t) => optionValue(t) === remoteType);
+            // 3) Try to infer category for this type
+            const match = (allTypes || []).find(
+                (t) => optionValue(t) === remoteType
+            );
             const inferredCat = match?.category;
 
             // 4) Write state (update Category too if needed)
             const idForUpdate = item?.id ?? localItem?.id;
 
-            if (inferredCat && inferredCat !== (localItem?.["Category Item Type"] || localItem?.Category)) {
+            if (
+                inferredCat &&
+                inferredCat !== (localItem?.["Category Item Type"] || localItem?.Category)
+            ) {
                 const updated = {
                     ...(localItem || {}),
                     id: idForUpdate,
                     "Category Item Type": inferredCat,
                     Category: inferredCat,
                     Type: remoteType,
-                    TypeKey: normalizeTypeKey(remoteType), // keep icons synced
+                    TypeKey: normalizeTypeKey(remoteType),
                 };
-                commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
+                commitUpdate(withVisualBump(updated), {
+                    reposition: false,
+                    immediate: true,
+                });
             } else if (remoteType && remoteType !== (localItem?.Type ?? "")) {
                 const updated = {
                     ...(localItem || {}),
@@ -272,67 +310,83 @@ export default function ItemDetailCard({
                     Type: remoteType,
                     TypeKey: normalizeTypeKey(remoteType),
                 };
-                commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
+                commitUpdate(withVisualBump(updated), {
+                    reposition: false,
+                    immediate: true,
+                });
             }
 
             if (DEBUG_SYNC) {
-                console.log("[Type sync] typeKey:", typeKey, "remoteType:", remoteType, "inferredCat:", inferredCat);
+                console.log(
+                    "[Type sync] typeKey:",
+                    typeKey,
+                    "remoteType:",
+                    remoteType,
+                    "inferredCat:",
+                    inferredCat
+                );
             }
         } catch (err) {
             console.warn("[Type sync] error", err);
         }
     };
 
-
+    // If Type is a rec id, resolve to its display name and push immediately
     useEffect(() => {
         (async () => {
             const v = localItem?.Type;
             if (isRecId(v)) {
-                const name = await getTypeName(v);            // e.g., "Tank"
+                const name = await getTypeName(v); // e.g., "Tank"
                 if (name && name !== v) {
                     const idForUpdate = item?.id ?? localItem?.id;
                     const typeKey = normalizeTypeKey(name);
-                    // 1) update the panel
-                    setLocalItem(prev => ({ ...(prev || {}), Type: name, TypeKey: typeKey }));
-                    // 2) push to items/nodes NOW so SVG recomputes
-                    const updated = { ...(localItem || {}), id: idForUpdate, Type: name, TypeKey: typeKey };
-                    commitUpdate(withVisualBump(updated), { reposition: false, immediate: true });
+                    setLocalItem((prev) => ({ ...(prev || {}), Type: name, TypeKey: typeKey }));
+                    const updated = {
+                        ...(localItem || {}),
+                        id: idForUpdate,
+                        Type: name,
+                        TypeKey: typeKey,
+                    };
+                    commitUpdate(withVisualBump(updated), {
+                        reposition: false,
+                        immediate: true,
+                    });
                 }
             }
         })();
     }, [localItem?.Type, allTypes, currentCategory]);
 
-
-
+    // Poll Airtable for fresh Type (disabled while the select is focused)
     useEffect(() => {
         let t;
-        // initial pull
-        refreshRemoteType(false);
-        // poll every 5s
+        refreshRemoteType(false); // initial
         t = setInterval(() => refreshRemoteType(false), 5000);
         return () => clearInterval(t);
-        // rebind if item or env changes
     }, [item?.id, localItem?.id, isTypeFocused, itemsTable]);
-
-
 
     const fetchTypeNameById = async (typeId) => {
         if (!typeId) return "";
         if (typeCache.has(typeId)) {
             const cached = typeCache.get(typeId);
-            if (cached) return cached;           // only return truthy names
+            if (cached) return cached; // only return truthy names
         }
 
         const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID;
         const token = import.meta.env.VITE_AIRTABLE_TOKEN;
         const equipTypesTableId = import.meta.env.VITE_AIRTABLE_TYPES_TABLE_ID;
-        const valveTypesTableId = import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+        const valveTypesTableId =
+            import.meta.env.VITE_AIRTABLE_ValveTYPES_TABLE_ID;
+        const inlineItemTypesTableId =
+            import.meta.env.VITE_AIRTABLE_INLINEITEM_TYPES_TABLE_ID ||
+            import.meta.env.VITE_AIRTABLE_INLINE_TYPES_TABLE_ID;
 
         const tryTable = async (tableId) => {
             if (!tableId) return "";
             try {
                 const url = `https://api.airtable.com/v0/${baseId}/${tableId}/${typeId}?cellFormat=string`;
-                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                const res = await fetch(url, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
                 if (!res.ok) return "";
                 const record = await res.json();
                 return deriveNameFromFields(record.fields);
@@ -341,94 +395,46 @@ export default function ItemDetailCard({
             }
         };
 
-        // Prefer your main types table, then fall back
+        // Prefer your main types table, then Valve, then Inline Item
         let name = await tryTable(equipTypesTableId);
         if (!name) name = await tryTable(valveTypesTableId);
+        if (!name) name = await tryTable(inlineItemTypesTableId);
 
         if (name) typeCache.set(typeId, name); // cache ONLY real names
-        return name;                            // may be ""
+        return name; // may be ""
     };
 
-
-    // Resolve Type label if item.Type is an Airtable record id
-    // Edge → Item: mirror inlineValveType from ANY connected edge into this inline valve item
-    useEffect(() => {
-        if (!item) return;
-
-        // Only for inline valve items
-        const isInlineValve =
-            (localItem?.['Category Item Type'] || localItem?.Category) === 'Inline Valve';
-        if (!isInlineValve) return;
-
-        // Find any connected edge carrying inlineValveType
-        const connected = Array.isArray(edges)
-            ? edges.filter(e => e.source === item.id || e.target === item.id)
-            : [];
-
-        const withType = connected.find(e => e?.data?.inlineValveType);
-        const inlineType = withType?.data?.inlineValveType || '';
-
-        if (!inlineType) return;
-
-        // If panel shows a different value, update it and persist (debounced)
-        if ((localItem?.Type || '') !== inlineType) {
-            setLocalItem(prev => ({ ...prev, Type: inlineType }));
-            const upd = {
-                ...(localItem || {}),
-                id: item?.id ?? localItem?.id,
-                Type: inlineType,
-                TypeKey: normalizeTypeKey(inlineType), // 👈 add this
-            };
-            commitUpdate(withVisualBump(upd), { reposition: false, immediate: true });
-
-        }
-
-    }, [edges, item?.id, localItem?.['Category Item Type'], localItem?.Category]);
-
-
-    // When an item has a first connection, surface basic edge context in the panel
-    // Item → Edge(s): if user changes Type in this panel, push it to all connected edges
-    useEffect(() => {
-        if (!item || typeof onUpdateEdge !== 'function') return;
-
-        const isInlineValve =
-            (localItem?.['Category Item Type'] || localItem?.Category) === 'Inline Valve';
-        if (!isInlineValve) return;
-
-        const desiredType = localItem?.Type || '';
-
-        const connected = Array.isArray(edges)
-            ? edges.filter(e => e.source === item.id || e.target === item.id)
-            : [];
-
-        connected.forEach(edge => {
-            const cur = edge?.data?.inlineValveType || '';
-            if (desiredType && desiredType !== cur) {
-                onUpdateEdge(edge.id, {
-                    data: { ...(edge.data || {}), inlineValveType: desiredType },
-                });
-            }
-        });
-    }, [localItem?.Type, localItem?.['Category Item Type'], localItem?.Category, item?.id, edges, onUpdateEdge]);
-
+    const withVisualBump = (obj) => ({
+        ...obj,
+        __iconRev: Date.now(), // helps force icon rerender alongside Type/TypeKey
+    });
 
     // Commit with 2s debounce to avoid live-updating canvas while typing
-    // Commit with 2s debounce to avoid live-updating canvas while typing
-    const commitUpdate = (updatedObj = {}, options = { reposition: false, immediate: false }) => {
-        const authoritativeId =
-            updatedObj?.id ?? item?.id ?? localItem?.id;
+    const commitUpdate = (
+        updatedObj = {},
+        options = { reposition: false, immediate: false }
+    ) => {
+        const authoritativeId = updatedObj?.id ?? item?.id ?? localItem?.id;
 
-        const chosenX = typeof updatedObj?.x === 'number' ? updatedObj.x
-            : typeof localItem?.x === 'number' ? localItem.x
-                : typeof item?.x === 'number' ? item.x
-                    : undefined;
+        const chosenX =
+            typeof updatedObj?.x === "number"
+                ? updatedObj.x
+                : typeof localItem?.x === "number"
+                    ? localItem.x
+                    : typeof item?.x === "number"
+                        ? item.x
+                        : undefined;
 
-        const chosenY = typeof updatedObj?.y === 'number' ? updatedObj.y
-            : typeof localItem?.y === 'number' ? localItem.y
-                : typeof item?.y === 'number' ? item.y
-                    : undefined;
+        const chosenY =
+            typeof updatedObj?.y === "number"
+                ? updatedObj.y
+                : typeof localItem?.y === "number"
+                    ? localItem.y
+                    : typeof item?.y === "number"
+                        ? item.y
+                        : undefined;
 
-        // 👉 If Type is present, compute TypeKey FIRST (so it lands in payload & local state)
+        // If Type is present, compute TypeKey FIRST
         if (Object.prototype.hasOwnProperty.call(updatedObj, "Type")) {
             updatedObj.TypeKey = normalizeTypeKey(updatedObj.Type);
         }
@@ -436,12 +442,11 @@ export default function ItemDetailCard({
         const payload = { ...updatedObj, id: authoritativeId };
 
         if (!options.reposition) {
-            if (typeof chosenX === 'number') payload.x = Number(chosenX);
-            if (typeof chosenY === 'number') payload.y = Number(chosenY);
+            if (typeof chosenX === "number") payload.x = Number(chosenX);
+            if (typeof chosenY === "number") payload.y = Number(chosenY);
         }
 
-        // update local panel immediately (now includes TypeKey)
-        setLocalItem(prev => ({ ...prev, ...updatedObj }));
+        setLocalItem((prev) => ({ ...prev, ...updatedObj }));
 
         if (options.reposition) payload._repositionRequest = true;
 
@@ -452,13 +457,9 @@ export default function ItemDetailCard({
             debounceRef.current = null;
         };
 
-        if (options.immediate) {
-            run();
-        } else {
-            debounceRef.current = setTimeout(run, 2000);
-        }
+        if (options.immediate) run();
+        else debounceRef.current = setTimeout(run, 2000);
     };
-
 
     // Cleanup debounce on unmount
     useEffect(() => {
@@ -466,30 +467,7 @@ export default function ItemDetailCard({
             if (debounceRef.current) clearTimeout(debounceRef.current);
         };
     }, []);
-    
-    // 2) Item → Edge: if user changes Type in the right tab for an inline valve item,
-    //    keep the connected edge's inlineValveType in sync.
-    useEffect(() => {
-        if (!item?.edgeId || typeof onUpdateEdge !== 'function') return;
-        const edge = Array.isArray(edges) ? edges.find(e => e.id === item.edgeId) : null;
-        if (!edge) return;
 
-        const isInlineValve =
-            (localItem?.['Category Item Type'] || localItem?.Category) === 'Inline Valve';
-
-        if (!isInlineValve) return;
-
-        const currentEdgeType = edge.data?.inlineValveType || '';
-        const desiredType = localItem?.Type || '';
-
-        if (desiredType && desiredType !== currentEdgeType) {
-            onUpdateEdge && onUpdateEdge(item.edgeId || liveEdge.id, {
-                data: { ...(edge.data || {}), inlineValveType: desiredType },
-            });
-        }
-    }, [localItem?.Type, localItem?.['Category Item Type'], localItem?.Category, item?.edgeId, edges, onUpdateEdge]);
-
-    // Avoid auto-forcing reposition for Unit/SubUnit
     const handleFieldChange = (fieldName, value, options = { reposition: false }) => {
         const repositionFlag = options.reposition === true;
         const updated = { ...(localItem || {}), [fieldName]: value };
@@ -497,58 +475,92 @@ export default function ItemDetailCard({
         commitUpdate(updated, { reposition: repositionFlag });
     };
 
-    const getSimpleLinkedValue = (field) => (Array.isArray(field) ? field.join(', ') || '-' : field || '-');
+    const getSimpleLinkedValue = (field) =>
+        Array.isArray(field) ? field.join(", ") || "-" : field || "-";
 
     if (!item) {
         return (
-            <div style={{ padding: 20, color: '#888' }}>
+            <div style={{ padding: 20, color: "#888" }}>
                 No item selected. Select a node or edge to view details.
             </div>
         );
     }
 
-    const categories = ['Equipment', 'Instrument', 'Inline Valve', 'Pipe', 'Electrical'];
-    const typesForSelectedCategory = allTypes.filter(
-        (t) => t.category === currentCategory
-          );
+    // ✅ New, fixed category list
+    const categories = [
+        "Equipment",
+        "Instrument",
+        "Valve",
+        "Pipe",
+        "Electrical",
+        "Inline Item",
+        "Duct",
+        "General",
+        "Fitting",
+    ];
 
-    // For Edge inspector: list only Inline Valve types
-    const inlineValveTypes = allTypes.filter((t) => t.category === 'Inline Valve');
+    // Edge inspector types (Valve + Inline Item)
+    const inlineEdgeTypes = allTypes.filter(
+        (t) => t.category === "Valve" || t.category === "Inline Item"
+    );
 
-    const rowStyle = { display: 'flex', alignItems: 'center', marginBottom: '12px' };
-    const labelStyle = { width: '130px', fontWeight: 500, color: '#555', textAlign: 'right', marginRight: '12px' };
-    const inputStyle = { flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', outline: 'none', background: '#fafafa' };
-    const sectionStyle = { marginBottom: '24px' };
-    const headerStyle = { borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '12px', marginTop: 0, color: '#333' };
+    const rowStyle = {
+        display: "flex",
+        alignItems: "center",
+        marginBottom: "12px",
+    };
+    const labelStyle = {
+        width: "130px",
+        fontWeight: 500,
+        color: "#555",
+        textAlign: "right",
+        marginRight: "12px",
+    };
+    const inputStyle = {
+        flex: 1,
+        padding: "6px 10px",
+        borderRadius: "6px",
+        border: "1px solid #ccc",
+        fontSize: "14px",
+        outline: "none",
+        background: "#fafafa",
+    };
+    const sectionStyle = { marginBottom: "24px" };
+    const headerStyle = {
+        borderBottom: "1px solid #eee",
+        paddingBottom: "6px",
+        marginBottom: "12px",
+        marginTop: 0,
+        color: "#333",
+    };
 
     const liveEdge = item._edge || {};
 
     // Helper to parse number fields safely
     const parseNum = (val) => {
-        if (val === '' || val === null || typeof val === 'undefined') return '';
+        if (val === "" || val === null || typeof val === "undefined") return "";
         const n = Number(val);
-        return Number.isFinite(n) ? n : '';
-        // (If you want to clamp or prevent negatives, add logic here)
+        return Number.isFinite(n) ? n : "";
     };
 
     const optionValue = (t) => t.value ?? t.name ?? String(t);
     const typeOptions = typesForSelectedCategory || [];
     const needsTempOption =
-         Boolean(localItem.Type) &&
-         localItem.Type !== "Unknown Type" &&
-         !typeOptions.some((t) => optionValue(t) === localItem.Type);
+        Boolean(localItem.Type) &&
+        localItem.Type !== "Unknown Type" &&
+        !typeOptions.some((t) => optionValue(t) === localItem.Type);
 
     return (
         <>
             <div
                 style={{
-                    background: '#fff',
-                    borderRadius: '10px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    padding: '20px',
-                    margin: '16px',
-                    maxWidth: '350px',
-                    fontFamily: 'sans-serif',
+                    background: "#fff",
+                    borderRadius: "10px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    padding: "20px",
+                    margin: "16px",
+                    maxWidth: "350px",
+                    fontFamily: "sans-serif",
                 }}
             >
                 <section style={sectionStyle}>
@@ -559,8 +571,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem['Item Code'] || ''}
-                            onChange={(e) => handleFieldChange('Item Code', e.target.value)}
+                            value={localItem["Item Code"] || ""}
+                            onChange={(e) => handleFieldChange("Item Code", e.target.value)}
                         />
                     </div>
 
@@ -569,8 +581,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem['Name'] || ''}
-                            onChange={(e) => handleFieldChange('Name', e.target.value)}
+                            value={localItem["Name"] || ""}
+                            onChange={(e) => handleFieldChange("Name", e.target.value)}
                         />
                     </div>
 
@@ -583,46 +595,51 @@ export default function ItemDetailCard({
                                 const newCategory = e.target.value;
                                 const updated = {
                                     ...localItem,
-                                    'Category Item Type': newCategory,
+                                    "Category Item Type": newCategory,
                                     Category: newCategory,
-                                    Type: '',
+                                    Type: "",
+                                    TypeKey: "", // reset derived key
                                 };
                                 commitUpdate(updated, { reposition: false });
                             }}
                         >
                             {categories.map((cat) => (
-                                <option key={cat} value={cat}>{cat}</option>
+                                <option key={cat} value={cat}>
+                                    {cat}
+                                </option>
                             ))}
                         </select>
-
                     </div>
 
                     <div style={rowStyle}>
                         <label style={labelStyle}>Type:</label>
                         <select
                             style={inputStyle}
-                            value={localItem.Type || ''}
-                            onChange={(e) => commitUpdate(
-                                { Type: e.target.value },               // TypeKey is auto-added by commitUpdate now
-                                { reposition: false, immediate: true }  // 👈 instant canvas update
-                            )}
+                            value={localItem.Type || ""}
+                            onChange={(e) =>
+                                commitUpdate(
+                                    { Type: e.target.value },
+                                    { reposition: false, immediate: true }
+                                )
+                            }
                             onFocus={() => setIsTypeFocused(true)}
                             onBlur={() => setIsTypeFocused(false)}
                         >
                             <option value="">Select Type</option>
                             {needsTempOption && (
-                                <option value={localItem.Type}>• {localItem.Type} (from Airtable)</option>
+                                <option value={localItem.Type}>
+                                    • {localItem.Type} (from Airtable)
+                                </option>
                             )}
 
                             {typeOptions.map((t) => (
                                 <option
-                                    key={(t.value ?? t.id ?? t.name ?? String(t))}
-                                    value={(t.value ?? t.name ?? String(t))}
+                                    key={t.id ?? t.value ?? t.name ?? String(t)}
+                                    value={t.value ?? t.name ?? String(t)}
                                 >
                                     {t.label ?? t.name ?? String(t)}
                                 </option>
                             ))}
-
                         </select>
                         <button
                             style={{ marginLeft: 8, padding: "6px 10px", borderRadius: 6 }}
@@ -633,15 +650,13 @@ export default function ItemDetailCard({
                         </button>
                     </div>
 
-                 
-
                     <div style={rowStyle}>
                         <label style={labelStyle}>Unit:</label>
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem['Unit'] || ''}
-                            onChange={(e) => handleFieldChange('Unit', e.target.value)}
+                            value={localItem["Unit"] || ""}
+                            onChange={(e) => handleFieldChange("Unit", e.target.value)}
                         />
                     </div>
 
@@ -650,8 +665,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem['SubUnit'] || ''}
-                            onChange={(e) => handleFieldChange('SubUnit', e.target.value)}
+                            value={localItem["SubUnit"] || ""}
+                            onChange={(e) => handleFieldChange("SubUnit", e.target.value)}
                         />
                     </div>
 
@@ -660,8 +675,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem['from'] || ''}
-                            onChange={(e) => handleFieldChange('from', e.target.value)}
+                            value={localItem["from"] || ""}
+                            onChange={(e) => handleFieldChange("from", e.target.value)}
                             placeholder="Source item ID / name"
                         />
                     </div>
@@ -671,8 +686,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem['to'] || ''}
-                            onChange={(e) => handleFieldChange('to', e.target.value)}
+                            value={localItem["to"] || ""}
+                            onChange={(e) => handleFieldChange("to", e.target.value)}
                             placeholder="Target item ID / name"
                         />
                     </div>
@@ -682,8 +697,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem['edgeId'] || ''}
-                            onChange={(e) => handleFieldChange('edgeId', e.target.value)}
+                            value={localItem["edgeId"] || ""}
+                            onChange={(e) => handleFieldChange("edgeId", e.target.value)}
                             placeholder="edge-xxx"
                         />
                     </div>
@@ -693,8 +708,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="number"
-                            value={localItem['x'] ?? ''}
-                            onChange={(e) => handleFieldChange('x', parseNum(e.target.value))}
+                            value={localItem["x"] ?? ""}
+                            onChange={(e) => handleFieldChange("x", parseNum(e.target.value))}
                         />
                     </div>
 
@@ -703,8 +718,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="number"
-                            value={localItem['y'] ?? ''}
-                            onChange={(e) => handleFieldChange('y', parseNum(e.target.value))}
+                            value={localItem["y"] ?? ""}
+                            onChange={(e) => handleFieldChange("y", parseNum(e.target.value))}
                         />
                     </div>
 
@@ -714,8 +729,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="number"
-                            value={localItem['ND'] ?? ''}
-                            onChange={(e) => handleFieldChange('ND', parseNum(e.target.value))}
+                            value={localItem["ND"] ?? ""}
+                            onChange={(e) => handleFieldChange("ND", parseNum(e.target.value))}
                             placeholder="Nominal Diameter"
                         />
                     </div>
@@ -725,8 +740,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="number"
-                            value={localItem['ID'] ?? ''}
-                            onChange={(e) => handleFieldChange('ID', parseNum(e.target.value))}
+                            value={localItem["ID"] ?? ""}
+                            onChange={(e) => handleFieldChange("ID", parseNum(e.target.value))}
                             placeholder="Inner Diameter"
                         />
                     </div>
@@ -736,8 +751,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="number"
-                            value={localItem['OD'] ?? ''}
-                            onChange={(e) => handleFieldChange('OD', parseNum(e.target.value))}
+                            value={localItem["OD"] ?? ""}
+                            onChange={(e) => handleFieldChange("OD", parseNum(e.target.value))}
                             placeholder="Outer Diameter"
                         />
                     </div>
@@ -751,8 +766,8 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem['Model Number'] || ''}
-                            onChange={(e) => handleFieldChange('Model Number', e.target.value)}
+                            value={localItem["Model Number"] || ""}
+                            onChange={(e) => handleFieldChange("Model Number", e.target.value)}
                         />
                     </div>
 
@@ -761,8 +776,15 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={getSimpleLinkedValue(localItem['Manufacturer (from Technical Spec)'])}
-                            onChange={(e) => handleFieldChange('Manufacturer (from Technical Spec)', e.target.value)}
+                            value={getSimpleLinkedValue(
+                                localItem["Manufacturer (from Technical Spec)"]
+                            )}
+                            onChange={(e) =>
+                                handleFieldChange(
+                                    "Manufacturer (from Technical Spec)",
+                                    e.target.value
+                                )
+                            }
                         />
                     </div>
 
@@ -771,34 +793,51 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={getSimpleLinkedValue(localItem['Supplier (from Technical Spec)'])}
-                            onChange={(e) => handleFieldChange('Supplier (from Technical Spec)', e.target.value)}
+                            value={getSimpleLinkedValue(
+                                localItem["Supplier (from Technical Spec)"]
+                            )}
+                            onChange={(e) =>
+                                handleFieldChange(
+                                    "Supplier (from Technical Spec)",
+                                    e.target.value
+                                )
+                            }
                         />
                     </div>
                 </section>
             </div>
 
             {item?._edge && (
-                <div style={{ margin: '0 16px 16px 16px', maxWidth: 350 }}>
-                    <h4 style={{ margin: '8px 0' }}>Edge controls</h4>
+                <div style={{ margin: "0 16px 16px 16px", maxWidth: 350 }}>
+                    <h4 style={{ margin: "8px 0" }}>Edge controls</h4>
 
-                    {/* CATEGORY area with Inline Valve Type selector */}
-                    <div style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, marginBottom: 10 }}>
-                        <div style={{ fontWeight: 600, marginBottom: 8 }}>CATEGORY</div>
+                    {/* Inline device on edge (Valve or Inline Item) */}
+                    <div
+                        style={{
+                            border: "1px solid #eee",
+                            borderRadius: 8,
+                            padding: 12,
+                            marginBottom: 10,
+                        }}
+                    >
+                        <div style={{ fontWeight: 600, marginBottom: 8 }}>INLINE DEVICE</div>
                         <div style={rowStyle}>
-                            <label style={labelStyle}>Inline Valve Type:</label>
+                            <label style={labelStyle}>Type:</label>
                             <select
                                 style={inputStyle}
-                                value={liveEdge?.data?.inlineValveType || ''}
+                                value={item._edge?.data?.inlineValveType || ""} // keep key for compatibility
                                 onChange={(e) =>
                                     onUpdateEdge &&
-                                    onUpdateEdge(item.edgeId || liveEdge.id, {
-                                        data: { ...(liveEdge.data || {}), inlineValveType: e.target.value },
+                                    onUpdateEdge(item.edgeId || item._edge.id, {
+                                        data: {
+                                            ...(item._edge.data || {}),
+                                            inlineValveType: e.target.value,
+                                        },
                                     })
                                 }
                             >
                                 <option value="">Select type…</option>
-                                {inlineValveTypes.map((t) => (
+                                {inlineEdgeTypes.map((t) => (
                                     <option key={t.id} value={t.name}>
                                         {t.name}
                                     </option>
@@ -807,35 +846,49 @@ export default function ItemDetailCard({
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                         <input
                             style={{ flex: 1, padding: 8 }}
-                            value={liveEdge.label ?? ''}
+                            value={item._edge.label ?? ""}
                             placeholder="Edge label"
-                            onChange={(e) => onUpdateEdge && onUpdateEdge(item.edgeId || liveEdge.id, { label: e.target.value })}
+                            onChange={(e) =>
+                                onUpdateEdge &&
+                                onUpdateEdge(item.edgeId || item._edge.id, {
+                                    label: e.target.value,
+                                })
+                            }
                         />
 
-                            <button onClick={() => onUpdateEdge && onUpdateEdge(item.edgeId || liveEdge.id, { animated: !liveEdge.animated })}>
-                            {liveEdge.animated ? 'Disable animation' : 'Enable animation'}
+                        <button
+                            onClick={() =>
+                                onUpdateEdge &&
+                                onUpdateEdge(item.edgeId || item._edge.id, {
+                                    animated: !item._edge.animated,
+                                })
+                            }
+                        >
+                            {item._edge.animated ? "Disable animation" : "Enable animation"}
                         </button>
                     </div>
 
                     {/* Delete Item Button */}
                     {onDeleteItem && (
-                        <div style={{ marginTop: 16, textAlign: 'center' }}>
+                        <div style={{ marginTop: 16, textAlign: "center" }}>
                             <button
                                 onClick={() => {
-                                    if (window.confirm(`Delete item "${item?.Name || item?.id}"?`)) {
+                                    if (
+                                        window.confirm(`Delete item "${item?.Name || item?.id}"?`)
+                                    ) {
                                         onDeleteItem(item.id);
                                     }
                                 }}
                                 style={{
-                                    background: '#f44336',
-                                    color: '#fff',
-                                    border: 'none',
-                                    padding: '10px 16px',
+                                    background: "#f44336",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "10px 16px",
                                     borderRadius: 6,
-                                    cursor: 'pointer',
+                                    cursor: "pointer",
                                     fontWeight: 600,
                                 }}
                             >
@@ -844,34 +897,47 @@ export default function ItemDetailCard({
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom: 8,
+                        }}
+                    >
                         <label style={{ width: 70 }}>Color</label>
                         <input
                             type="color"
-                            value={(liveEdge.style && liveEdge.style.stroke) || '#000000'}
+                            value={(item._edge.style && item._edge.style.stroke) || "#000000"}
                             onChange={(e) =>
-                                onUpdateEdge && onUpdateEdge(item.edgeId || liveEdge.id, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
+                                onUpdateEdge &&
+                                onUpdateEdge(item.edgeId || item._edge.id, {
+                                    style: { ...(item._edge.style || {}), stroke: e.target.value },
+                                })
                             }
                         />
                         <input
                             type="text"
-                            value={(liveEdge.style && liveEdge.style.stroke) || ''}
+                            value={(item._edge.style && item._edge.style.stroke) || ""}
                             onChange={(e) =>
                                 onUpdateEdge &&
-                                onUpdateEdge(item.edgeId || liveEdge.id, { style: { ...(liveEdge.style || {}), stroke: e.target.value } })
+                                onUpdateEdge(item.edgeId || item._edge.id, {
+                                    style: { ...(item._edge.style || {}), stroke: e.target.value },
+                                })
                             }
                             style={{ flex: 1, padding: 8 }}
                         />
-                        {(item?.edgeId || liveEdge?.id) && onDeleteEdge && (
-                               <button onClick={() => onDeleteEdge(item.edgeId || liveEdge.id)}
+                        {(item?.edgeId || item?._edge?.id) && onDeleteEdge && (
+                            <button
+                                onClick={() => onDeleteEdge(item.edgeId || item._edge.id)}
                                 style={{
                                     marginLeft: 8,
-                                    background: '#f44336',
-                                    color: '#fff',
-                                    border: 'none',
-                                    padding: '6px 10px',
+                                    background: "#f44336",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "6px 10px",
                                     borderRadius: 6,
-                                    cursor: 'pointer',
+                                    cursor: "pointer",
                                 }}
                             >
                                 Delete Edge

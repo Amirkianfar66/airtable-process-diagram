@@ -1,7 +1,8 @@
 ﻿import React from "react";
 import EquipmentIcon from "./Icons/EquipmentIcon";
 import InstrumentIcon from "./Icons/InstrumentIcon";
-import InlineValveIcon from "./Icons/InlineValveIcon";
+import InlineItemIcon from "./InlineItemIcon";
+import ValveIcon from "./ValveIcon";
 import PipeIcon from "./Icons/PipeIcon";
 import ElectricalIcon from "./Icons/ElectricalIcon";
 
@@ -19,7 +20,8 @@ export const categoryTypeMap = {
     Pipe: "pipe",
     Equipment: "scalableIcon",
     Instrument: "scalableIcon",
-    "Inline Valve": "scalableIcon",
+    Valve: "scalableIcon",
+    "Inline Item": "scalableIcon",
     Electrical: "scalableIcon",
 };
 
@@ -27,7 +29,8 @@ export const categoryTypeMap = {
 const CATEGORY_COMPONENTS = {
     Equipment: EquipmentIcon,
     Instrument: InstrumentIcon,
-    "Inline Valve": InlineValveIcon,
+    "Inline Item": InlineItemIcon,
+    Valve: ValveIcon,
     Pipe: PipeIcon,
     Electrical: ElectricalIcon,
 };

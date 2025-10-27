@@ -2,8 +2,8 @@
   "ExpandedNodes": [
     "",
     "\\api",
-    "\\src"
+    "\\src",
+    "\\src\\Icons"
   ],
-  "SelectedNode": "\\src\\Icons",
   "PreviewInSolutionExplorer": false
 }
