@@ -3,7 +3,8 @@
     "",
     "\\api",
     "\\src",
-    "\\src\\Icons"
+    "\\src\\Icons",
+    "\\src\\Icons\\EquipmentIcon"
   ],
   "PreviewInSolutionExplorer": false
 }
