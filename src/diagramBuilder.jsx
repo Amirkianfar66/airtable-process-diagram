@@ -40,9 +40,12 @@ export function buildDiagram(items = [], unitLayoutOrder = [[]], opts = {}) {
             Type,
             Category,
             Unit: item.Unit != null ? String(item.Unit) : 'No Unit',
-            SubUnit: (item.SubUnit ?? item['Sub Unit']) != null
-                ? String(item.SubUnit ?? item['Sub Unit'])
-                : 'Default SubUnit',
+            SubUnit: (() => {
+                     let s = (item.SubUnit ?? item['Sub Unit']);
+                     const str = (s == null) ? '' : String(s).trim();
+                     if (!str || str.toLowerCase() === 'default subunit') return '0';
+                     return String(str);
+            })(),
 
             Sequence: Number.isFinite(Number(item.Sequence)) ? Number(item.Sequence) : 1,
             Number: Number.isFinite(Number(item.Number)) ? Number(item.Number) : 1,

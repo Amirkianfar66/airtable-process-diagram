@@ -498,7 +498,7 @@ export default function DiagramCanvas({
             "Category Item Type": category,
             Type: inlineType || '',
             Unit: sourceNode?.data?.item?.Unit || 'No Unit',
-            SubUnit: sourceNode?.data?.item?.SubUnit || 'Default SubUnit',
+            SubUnit: sourceNode?.data?.item?.SubUnit || '0',
             x: midX,
             y: midY,
             edgeId: selectedEdge.id,

@@ -665,7 +665,7 @@ export default function ItemDetailCard({
                         <input
                             style={inputStyle}
                             type="text"
-                            value={localItem["SubUnit"] || ""}
+                            value={localItem["SubUnit"] ?? "0"}
                             onChange={(e) => handleFieldChange("SubUnit", e.target.value)}
                         />
                     </div>

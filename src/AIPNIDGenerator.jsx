@@ -175,8 +175,8 @@ export default async function AIPNIDGenerator(
             Name: givenName,
             Category = 'Default',
             Type = 'Generic',
-            Unit = 'Default Unit',
-            SubUnit = 'Default SubUnit',
+            Unit = '0',
+            SubUnit = '0',
             Sequence,
             Instance,
         } = p;

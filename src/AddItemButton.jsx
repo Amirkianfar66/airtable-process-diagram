@@ -3,8 +3,8 @@ import ImageTracer from 'imagetracerjs';
 
 export default function AddItemButton({
     addItem,
-    defaultUnit = '',
-    defaultSubUnit = '',
+    defaultUnit = '0',
+    defaultSubUnit = '0',
     onAdded,
     label = 'Add Item',
 }) {
